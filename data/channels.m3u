@@ -10,6 +10,10 @@ https://ert-live.ascdn.broadpeak.io/bpk-tv/ERT3/default/index.m3u8
 #EXTINF:-1 tvg-id="open" tvg-name="Open TV" tvg-logo="https://i.imgur.com/M6XG03v.png" group-title="Greece",Open TV
 #EXTINF:-1 tvg-id="mega" tvg-name="MEGA" tvg-logo="https://i.ibb.co/f2rCKjh/mega.jpg" group-title="Greece",MEGA
 http://185.102.171.218/MegaHD/index.m3u8
+#EXTINF:-1 tvg-id="meganews" tvg-name="MEGA News" tvg-logo="https://www.alteregomedia.org/wp-content/uploads/2025/04/MEGA-IDENT.png" group-title="Greece",MEGA News
+https://c98db5952cb54b358365984178fb898a.msvdn.net/live/S99841657/NU0xOarAMJ5X/playlist.m3u8
+#EXTINF:-1 tvg-id="meganews" tvg-name="MEGA News" tvg-logo="https://www.alteregomedia.org/wp-content/uploads/2025/04/MEGA-IDENT.png" group-title="Greece",MEGA News
+https://raw.githubusercontent.com/jimgate07/grtv/refs/heads/master/Metadoseis/mega%20news.m3u8
 #EXTINF:-1 tvg-id="star" tvg-name="Star TV" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/STAR_Channel.png/250px-STAR_Channel.png" group-title="Greece",Star TV
 #EXTINF:-1 tvg-id="action24" tvg-name="Action 24" tvg-logo="https://i.imgur.com/Fsnz8GK.png" group-title="Greece",Action 24
 #EXTINF:-1 tvg-id="kontra" tvg-name="Kontra" tvg-logo="https://goo.gl/S96RUr" group-title="Greece",Kontra
