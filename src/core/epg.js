@@ -1,4 +1,4 @@
-import { CONFIG, CHANNEL_ALIASES } from '../config.js';
+import { CONFIG, CHANNEL_ALIASES } from '../config.js?v=20260920-2248';
 import { normalizeId, formatTime } from './utils.js';
 
 function parseXmltvTime(value = '') {
@@ -22,20 +22,41 @@ export class EpgService {
     this.programs = new Map();
     this.resolveIndex = new Map();
   }
+
   async refresh() {
-    const response = await fetch(CONFIG.epgUrl, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`EPG HTTP ${response.status}`);
-    this.#parse(await response.text());
+    const urls = [...new Set([CONFIG.epgUrl, CONFIG.epgFallbackUrl].filter(Boolean))];
+    const results = await Promise.allSettled(urls.map(async url => {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+      return { url, xml: await response.text() };
+    }));
+
+    const feeds = results.filter(result => result.status === 'fulfilled').map(result => result.value);
+    if (!feeds.length) {
+      const reasons = results.map(result => result.status === 'rejected' ? result.reason?.message : '').filter(Boolean).join(' · ');
+      throw new Error(reasons || 'No EPG feed available');
+    }
+
+    this.programs.clear();
+    this.resolveIndex.clear();
+    for (const feed of feeds) this.#merge(feed.xml);
+    this.#finalize();
   }
-  #parse(xmlText) {
+
+  #merge(xmlText) {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('Invalid XMLTV document');
-    this.programs.clear(); this.resolveIndex.clear();
+
     for (const channel of doc.querySelectorAll('channel')) {
       const id = channel.getAttribute('id') || '';
+      if (!id) continue;
       this.resolveIndex.set(normalizeId(id), id);
-      for (const name of channel.querySelectorAll('display-name')) this.resolveIndex.set(normalizeId(name.textContent || ''), id);
+      for (const name of channel.querySelectorAll('display-name')) {
+        const value = (name.textContent || '').trim();
+        if (value) this.resolveIndex.set(normalizeId(value), id);
+      }
     }
+
     for (const programme of doc.querySelectorAll('programme')) {
       const channel = programme.getAttribute('channel') || '';
       const start = parseXmltvTime(programme.getAttribute('start'));
@@ -46,8 +67,22 @@ export class EpgService {
       if (!this.programs.has(channel)) this.programs.set(channel, []);
       this.programs.get(channel).push({ start, stop, title, description });
     }
-    for (const list of this.programs.values()) list.sort((a, b) => a.start - b.start);
   }
+
+  #finalize() {
+    for (const [channel, list] of this.programs.entries()) {
+      list.sort((a, b) => a.start - b.start);
+      const seen = new Set();
+      const deduped = list.filter(item => {
+        const key = `${item.start.getTime()}|${item.stop.getTime()}|${item.title}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      this.programs.set(channel, deduped);
+    }
+  }
+
   #resolve(channel) {
     const candidates = [channel.id, channel.originalId, channel.name].filter(Boolean);
     for (const value of [...candidates]) candidates.push(...(CHANNEL_ALIASES[normalizeId(value)] || []));
@@ -58,6 +93,7 @@ export class EpgService {
     }
     return null;
   }
+
   get(channel, now = new Date()) {
     const resolved = this.#resolve(channel);
     const list = resolved ? (this.programs.get(resolved) || []) : [];
