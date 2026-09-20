@@ -1,8 +1,9 @@
 export const CONFIG = Object.freeze({
   appName: 'WebTV V2',
-  buildId: '20260920-1021',
+  buildId: '20260920-2248',
   cacheBaseUrl: 'https://tv-cache.atonis.workers.dev',
   epgUrl: 'https://epg-proxy-gr.atonis.workers.dev/epg.xml',
+  epgFallbackUrl: 'https://ext.greektv.app/epg/epg.xml',
   channelCatalogUrl: './data/channels.m3u?v=20260920-1021',
   healthStorageKey: 'webtv_v2_health',
   requestTimeoutMs: 9000,
@@ -48,17 +49,17 @@ export const SOURCE_BLOCKLIST = Object.freeze([
 ]);
 
 export const CHANNEL_ALIASES = Object.freeze({
-  ert1: ['ERT1.gr', 'ERT1.HD.gr', 'EPT1.gr', 'ΕΡΤ1'],
-  ert2: ['ERT2.gr', 'ERT2.HD.gr', 'EPT2.gr', 'ΕΡΤ2'],
-  ert3: ['ERT3.gr', 'ERT3.HD.gr', 'EPT3.gr', 'ΕΡΤ3'],
-  ertnews: ['ERTNEWS.gr', 'ERT.NEWS.gr', 'ΕΡΤNEWS'],
-  ant1: ['ANT1.gr', 'ANT1.HD.gr', 'Antenna1.gr'],
-  alpha: ['ALPHA.gr', 'ALPHA.HD.gr', 'Alpha.gr', 'Alpha.HD.gr', 'alphatv'],
-  skai: ['SKAI.gr', 'SKAI.HD.gr', 'skaitv'],
-  open: ['OPEN.gr', 'OPEN.HD.gr', 'OPEN.BEYOND.HD.gr', 'opentv'],
-  mega: ['MEGA.gr', 'MEGA.HD.gr', 'MegaChannel.gr', 'megatv'],
+  ert1: ['ERT1.gr', 'ERT1.HD.gr', 'EPT1.gr', 'ΕΡΤ1', 'ERT1 HD'],
+  ert2: ['ERT2.gr', 'ERT2.HD.gr', 'EPT2.gr', 'ΕΡΤ2', 'ERT2 HD', 'ERT2 SPOR HD'],
+  ert3: ['ERT3.gr', 'ERT3.HD.gr', 'EPT3.gr', 'ΕΡΤ3', 'ERT3 HD'],
+  ertnews: ['ERTNEWS.gr', 'ERT.NEWS.gr', 'ΕΡΤNEWS', 'ERT NEWS'],
+  ant1: ['ANT1.gr', 'ANT1.HD.gr', 'Antenna1.gr', 'ANT1 HD'],
+  alpha: ['ALPHA.gr', 'ALPHA.HD.gr', 'Alpha.gr', 'Alpha.HD.gr', 'alphatv', 'ALPHA HD'],
+  skai: ['SKAI.gr', 'SKAI.HD.gr', 'skaitv', 'SKAI HD'],
+  open: ['OPEN.gr', 'OPEN.HD.gr', 'OPEN.BEYOND.HD.gr', 'opentv', 'OPEN TV HD'],
+  mega: ['MEGA.gr', 'MEGA.HD.gr', 'MegaChannel.gr', 'megatv', 'MEGA HD'],
   meganews: ['MEGA NEWS', 'Mega News', 'MEGA.News.gr', 'meganews'],
-  star: ['STAR.gr', 'STAR.HD.gr', 'startv'],
+  star: ['STAR.gr', 'STAR.HD.gr', 'startv', 'STAR HD'],
   action24: ['ACTION24.gr', 'ACTION24.HD.gr'],
   kontra: ['KONTRA.gr', 'KONTRA.HD.gr'],
 });
