@@ -1,7 +1,7 @@
-import { CONFIG } from './config.js?v=20260920-1021';
-import { EpgService } from './core/epg.js?v=20260920-1021';
+import { CONFIG } from './config.js?v=20260920-2248';
+import { EpgService } from './core/epg.js?v=20260920-2248';
 
-const BUILD_ID = '20260920-2228';
+const BUILD_ID = '20260920-2248';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = false;
