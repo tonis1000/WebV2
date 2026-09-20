@@ -57,6 +57,7 @@ export const CHANNEL_ALIASES = Object.freeze({
   skai: ['SKAI.gr', 'SKAI.HD.gr', 'skaitv'],
   open: ['OPEN.gr', 'OPEN.HD.gr', 'OPEN.BEYOND.HD.gr', 'opentv'],
   mega: ['MEGA.gr', 'MEGA.HD.gr', 'MegaChannel.gr', 'megatv'],
+  meganews: ['MEGA NEWS', 'Mega News', 'MEGA.News.gr', 'meganews'],
   star: ['STAR.gr', 'STAR.HD.gr', 'startv'],
   action24: ['ACTION24.gr', 'ACTION24.HD.gr'],
   kontra: ['KONTRA.gr', 'KONTRA.HD.gr'],
