@@ -9,6 +9,13 @@ function isSecureUrl(url = '') {
   return /^https:\/\//i.test(url);
 }
 
+function isWrongChannelSource(channel, url = '') {
+  const channelKey = normalizeId(channel?.id || channel?.originalId || channel?.name || '');
+  if (channelKey !== 'mega') return false;
+  const value = String(url).toLowerCase();
+  return value.includes('s99841657') || value.includes('mega%20news') || value.includes('mega-news') || value.includes('mega_news') || value.includes('/meganews');
+}
+
 const BLOCKED = new Set((SOURCE_BLOCKLIST || []).map(cleanUrl).filter(Boolean));
 const SAVED_KEY = 'webtv_v2_saved_sources';
 
@@ -66,6 +73,7 @@ export class SourceRegistry {
       .map(cleanUrl)
       .filter(Boolean)
       .filter(isPlayableMedia)
+      .filter(source => !isWrongChannelSource(channel, source))
       .filter(source => savedSet.has(source) || !BLOCKED.has(source)))];
 
     const routes = [];
