@@ -17,6 +17,43 @@ function parseXmltvTime(value = '') {
   return new Date(ms);
 }
 
+function epgVariants(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  const variants = new Set([raw]);
+  const cleaned = raw
+    .replace(/[ᴴᴰ]/gu, '')
+    .replace(/\bUHD\b/gi, '')
+    .replace(/\bFULL\s*HD\b/gi, '')
+    .replace(/\bFHD\b/gi, '')
+    .replace(/\bHD\b/gi, '')
+    .replace(/\b4K\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned) variants.add(cleaned);
+  const withoutTv = cleaned.replace(/\bTV\b/gi, '').replace(/\s+/g, ' ').trim();
+  if (withoutTv) variants.add(withoutTv);
+  if (/^open\s+beyond$/i.test(cleaned)) variants.add('OPEN');
+  return [...variants];
+}
+
+function aliasCandidates(values = []) {
+  const out = new Set();
+  for (const value of values) {
+    for (const variant of epgVariants(value)) out.add(variant);
+  }
+
+  const normalized = new Set([...out].map(normalizeId));
+  for (const [canonical, aliases] of Object.entries(CHANNEL_ALIASES)) {
+    const aliasNorms = [canonical, ...(aliases || [])].flatMap(epgVariants).map(normalizeId);
+    if (aliasNorms.some(norm => normalized.has(norm))) {
+      out.add(canonical);
+      for (const alias of aliases || []) out.add(alias);
+    }
+  }
+  return [...out];
+}
+
 export class EpgService {
   constructor() {
     this.programs = new Map();
@@ -70,10 +107,12 @@ export class EpgService {
     for (const channel of channels) {
       const id = channel.getAttribute('id') || '';
       if (!id) continue;
-      this.resolveIndex.set(normalizeId(id), id);
+      for (const variant of epgVariants(id)) this.resolveIndex.set(normalizeId(variant), id);
       for (const name of channel.querySelectorAll('display-name')) {
         const value = (name.textContent || '').trim();
-        if (value) this.resolveIndex.set(normalizeId(value), id);
+        for (const variant of epgVariants(value)) {
+          if (variant) this.resolveIndex.set(normalizeId(variant), id);
+        }
       }
     }
 
@@ -106,12 +145,15 @@ export class EpgService {
   }
 
   #resolve(channel) {
-    const candidates = [channel.id, channel.originalId, channel.name].filter(Boolean);
-    for (const value of [...candidates]) candidates.push(...(CHANNEL_ALIASES[normalizeId(value)] || []));
+    const candidates = aliasCandidates([channel.id, channel.originalId, channel.name].filter(Boolean));
     for (const candidate of candidates) {
       const norm = normalizeId(candidate);
       if (this.resolveIndex.has(norm)) return this.resolveIndex.get(norm);
-      for (const key of this.programs.keys()) if (normalizeId(key) === norm) return key;
+      for (const key of this.programs.keys()) {
+        for (const variant of epgVariants(key)) {
+          if (normalizeId(variant) === norm) return key;
+        }
+      }
     }
     return null;
   }
