@@ -1,12 +1,13 @@
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 import { cleanUrl, normalizeId } from './core/utils.js?v=20260920-1021';
 
-const BUILD_ID = '20260920-1945';
+const BUILD_ID = '20260920-2125';
 const SOURCE_KEY = 'webtv_v2_saved_sources';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const MY_ID = '__my_playlist__';
 const RELOAD_KEY = `webtv_v2_verified_recovery_${BUILD_ID}`;
+const STARTUP_MARKER = 'D1 PULL COMPLETE';
 
 function escAttr(value=''){return String(value||'').replace(/"/g,"'");}
 function channelToLines(channel){const urls=[...new Set((channel.directUrls||[]).map(cleanUrl).filter(u=>/^https?:\/\//i.test(u)))];const ext=`#EXTINF:-1 tvg-id="${escAttr(channel.originalId||channel.id||channel.name)}" tvg-name="${escAttr(channel.name)}" tvg-logo="${escAttr(channel.logo||'')}" group-title="${escAttr(channel.group||'Other')}",${channel.name}`;if(!urls.length)return[ext,''];const lines=[];for(const url of urls)lines.push(ext,url);return lines;}
@@ -19,10 +20,10 @@ function sourceCount(channels){return channels.reduce((sum,c)=>sum+(c.directUrls
 
 async function recover(){
   const verified=readVerified();
-  if(!verified||typeof verified!=='object'||!Object.keys(verified).length)return;
+  if(!verified||typeof verified!=='object'||!Object.keys(verified).length)return false;
   const db=await openDb();
   const item=await getItem(db);
-  if(!item?.text)return;
+  if(!item?.text)return false;
 
   const before=parseM3U(item.text);
   const beforeCount=sourceCount(before);
@@ -44,7 +45,7 @@ async function recover(){
     return {...channel,directUrls:urls};
   });
 
-  if(!touched)return;
+  if(!touched)return false;
   const finalChannels=dedupeChannels(merged);
   const text=channelsToM3U(finalChannels);
   const groupCount=new Set(finalChannels.map(c=>c.group||'Other')).size;
@@ -52,10 +53,46 @@ async function recover(){
 
   const afterCount=sourceCount(finalChannels);
   console.info(`[WebTV] verified source recovery ${BUILD_ID}: ${beforeCount} → ${afterCount} sources`);
-  if(sessionStorage.getItem(RELOAD_KEY)!=='1'){
-    sessionStorage.setItem(RELOAD_KEY,'1');
-    setTimeout(()=>location.reload(),150);
-  }
+  return true;
 }
 
-recover().catch(error=>console.warn('[WebTV] verified source recovery failed',error));
+function afterStartupRestore(){
+  const diag=document.getElementById('diagnostic-log');
+  if(!diag){setTimeout(afterStartupRestore,100);return;}
+
+  let finished=false;
+  const run=async()=>{
+    if(finished)return;
+    const text=diag.textContent||'';
+    const startupDone=text.includes(STARTUP_MARKER)&&text.includes('startup');
+    const noRegistry=text.includes('D1 startup restore skipped');
+    if(!startupDone&&!noRegistry)return;
+    finished=true;
+    observer.disconnect();
+    try{
+      const changed=await recover();
+      if(changed&&sessionStorage.getItem(RELOAD_KEY)!=='1'){
+        sessionStorage.setItem(RELOAD_KEY,'1');
+        setTimeout(()=>location.reload(),200);
+      }
+    }catch(error){console.warn('[WebTV] verified source recovery failed',error);}
+  };
+
+  const observer=new MutationObserver(run);
+  observer.observe(diag,{childList:true,characterData:true,subtree:true});
+  run();
+  setTimeout(async()=>{
+    if(finished)return;
+    finished=true;
+    observer.disconnect();
+    try{
+      const changed=await recover();
+      if(changed&&sessionStorage.getItem(RELOAD_KEY)!=='1'){
+        sessionStorage.setItem(RELOAD_KEY,'1');
+        location.reload();
+      }
+    }catch(error){console.warn('[WebTV] verified source recovery fallback failed',error);}
+  },5000);
+}
+
+afterStartupRestore();
