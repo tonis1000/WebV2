@@ -1,7 +1,7 @@
 import { cleanUrl, normalizeId } from './core/utils.js?v=20260920-1021';
 
 const STORAGE_KEY = 'webtv_v2_saved_sources';
-const BUILD_ID = '20260920-1900';
+const BUILD_ID = '20260920-1910';
 const $ = id => document.getElementById(id);
 
 const candidateInput = $('candidate-url');
@@ -67,14 +67,24 @@ if (candidateInput && testButton && channelName) {
     }
   }
 
-  function inspectDiagnostics(){if(!pending||verified)return;const player=diagPlayer?.textContent?.trim()||'-',source=cleanUrl(diagSource?.textContent?.trim()||'');if(player==='-'||!source||source!==pending.url)return;const startupMs=Number.parseInt(diagStartup?.textContent||'',10)||0,route=diagRoute?.textContent?.trim()||'';verified={...pending,route,player,startupMs,verifiedAt:new Date().toISOString()};persistVerified();}
+  function inspectDiagnostics(){
+    if(!pending||verified)return;
+    const player=diagPlayer?.textContent?.trim()||'-';
+    const source=cleanUrl(diagSource?.textContent?.trim()||'');
+    const startupMs=Number.parseInt(diagStartup?.textContent||'',10)||0;
+    const route=diagRoute?.textContent?.trim()||'';
+    if(player==='-'||player==='failed'||!source||source!==pending.url||startupMs<=0)return;
+    verified={...pending,route,player,startupMs,verifiedAt:new Date().toISOString()};
+    persistVerified();
+  }
 
   testButton.addEventListener('click',beginCandidateTracking,true);
   candidateInput.addEventListener('input',()=>resetVerification());
   const observer=new MutationObserver(inspectDiagnostics);
   if(diagPlayer)observer.observe(diagPlayer,{childList:true,characterData:true,subtree:true});
   if(diagSource)observer.observe(diagSource,{childList:true,characterData:true,subtree:true});
+  if(diagStartup)observer.observe(diagStartup,{childList:true,characterData:true,subtree:true});
 
   saveButton.addEventListener('click',()=>persistVerified());
-  log(`Saved Sources UI loaded · build ${BUILD_ID} · verified sources auto-save to My Playlist + D1 when unlocked`);
+  log(`Saved Sources UI loaded · build ${BUILD_ID} · auto-save requires confirmed successful playback`);
 }
