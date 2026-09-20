@@ -1,8 +1,8 @@
-import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260920-1021';
+import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260920-2248';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 import { HealthStore } from './core/health-store.js?v=20260920-1021';
 import { SourceRegistry } from './core/source-registry.js?v=20260920-2238';
-import { EpgService } from './core/epg.js?v=20260920-1021';
+import { EpgService } from './core/epg.js?v=20260920-2248';
 import { PlayerController } from './core/player.js?v=20260920-1021';
 import { formatTime, normalizeId, cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 
