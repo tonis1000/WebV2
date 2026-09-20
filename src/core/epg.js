@@ -17,11 +17,41 @@ function parseXmltvTime(value = '') {
   return new Date(ms);
 }
 
+const KNOWN_CHANNEL_KEYS = [
+  'ertnews', 'ert1', 'ert2', 'ert3', 'ant1', 'alpha', 'skai', 'open', 'mega', 'star', 'action24', 'kontra'
+];
+
+function canonicalChannelKey(value = '') {
+  let norm = normalizeId(String(value || ''));
+  if (!norm) return '';
+
+  norm = norm
+    .replace(/\p{Lm}/gu, '')
+    .replace(/[ᴴᴰ]/gu, '')
+    .replace(/(?:fullhd|fhd|uhd|hd|4k)$/giu, '')
+    .replace(/(?:channel|tv)$/giu, '');
+
+  if (norm.startsWith('openbeyond')) return 'open';
+  if (norm.startsWith('megachannel')) return 'mega';
+  if (norm.startsWith('alphatv')) return 'alpha';
+  if (norm.startsWith('skaitv')) return 'skai';
+  if (norm.startsWith('startv')) return 'star';
+  if (norm.startsWith('ertnews')) return 'ertnews';
+
+  for (const key of KNOWN_CHANNEL_KEYS) {
+    if (norm === key || norm.startsWith(key)) return key;
+  }
+
+  return norm;
+}
+
 function epgVariants(value = '') {
   const raw = String(value || '').trim();
   if (!raw) return [];
+
   const variants = new Set([raw]);
   const cleaned = raw
+    .replace(/\p{Lm}/gu, '')
     .replace(/[ᴴᴰ]/gu, '')
     .replace(/\bUHD\b/gi, '')
     .replace(/\bFULL\s*HD\b/gi, '')
@@ -30,27 +60,41 @@ function epgVariants(value = '') {
     .replace(/\b4K\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+
   if (cleaned) variants.add(cleaned);
+
   const withoutTv = cleaned.replace(/\bTV\b/gi, '').replace(/\s+/g, ' ').trim();
   if (withoutTv) variants.add(withoutTv);
+
+  const canonical = canonicalChannelKey(raw);
+  if (canonical) variants.add(canonical);
+
   if (/^open\s+beyond$/i.test(cleaned)) variants.add('OPEN');
+
   return [...variants];
 }
 
 function aliasCandidates(values = []) {
   const out = new Set();
+
   for (const value of values) {
     for (const variant of epgVariants(value)) out.add(variant);
   }
 
-  const normalized = new Set([...out].map(normalizeId));
+  const normalized = new Set([...out].flatMap(value => [normalizeId(value), canonicalChannelKey(value)]).filter(Boolean));
+
   for (const [canonical, aliases] of Object.entries(CHANNEL_ALIASES)) {
-    const aliasNorms = [canonical, ...(aliases || [])].flatMap(epgVariants).map(normalizeId);
+    const aliasNorms = [canonical, ...(aliases || [])]
+      .flatMap(epgVariants)
+      .flatMap(value => [normalizeId(value), canonicalChannelKey(value)])
+      .filter(Boolean);
+
     if (aliasNorms.some(norm => normalized.has(norm))) {
       out.add(canonical);
       for (const alias of aliases || []) out.add(alias);
     }
   }
+
   return [...out];
 }
 
@@ -96,6 +140,15 @@ export class EpgService {
     this.#finalize();
   }
 
+  #indexValue(value, id) {
+    for (const variant of epgVariants(value)) {
+      const norm = normalizeId(variant);
+      const canonical = canonicalChannelKey(variant);
+      if (norm) this.resolveIndex.set(norm, id);
+      if (canonical) this.resolveIndex.set(canonical, id);
+    }
+  }
+
   #merge(xmlText) {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('Invalid XMLTV document');
@@ -107,12 +160,10 @@ export class EpgService {
     for (const channel of channels) {
       const id = channel.getAttribute('id') || '';
       if (!id) continue;
-      for (const variant of epgVariants(id)) this.resolveIndex.set(normalizeId(variant), id);
+      this.#indexValue(id, id);
       for (const name of channel.querySelectorAll('display-name')) {
         const value = (name.textContent || '').trim();
-        for (const variant of epgVariants(value)) {
-          if (variant) this.resolveIndex.set(normalizeId(variant), id);
-        }
+        if (value) this.#indexValue(value, id);
       }
     }
 
@@ -146,15 +197,22 @@ export class EpgService {
 
   #resolve(channel) {
     const candidates = aliasCandidates([channel.id, channel.originalId, channel.name].filter(Boolean));
+
     for (const candidate of candidates) {
       const norm = normalizeId(candidate);
-      if (this.resolveIndex.has(norm)) return this.resolveIndex.get(norm);
+      const canonical = canonicalChannelKey(candidate);
+
+      if (canonical && this.resolveIndex.has(canonical)) return this.resolveIndex.get(canonical);
+      if (norm && this.resolveIndex.has(norm)) return this.resolveIndex.get(norm);
+
       for (const key of this.programs.keys()) {
+        if (canonical && canonicalChannelKey(key) === canonical) return key;
         for (const variant of epgVariants(key)) {
           if (normalizeId(variant) === norm) return key;
         }
       }
     }
+
     return null;
   }
 
