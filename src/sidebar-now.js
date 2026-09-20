@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260920-1021';
 import { EpgService } from './core/epg.js?v=20260920-1021';
 
-const BUILD_ID = '20260920-2222';
+const BUILD_ID = '20260920-2228';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = false;
@@ -40,15 +40,31 @@ function ensureStyle(){
       grid-column:2;
       grid-row:1 / 3;
       align-self:center;
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:5px;
       min-width:0;
       margin-top:0;
-      color:#c7d0da;
-      font-size:.72rem;
+      color:#e2e8ef;
+      font-size:.82rem;
+      font-weight:600;
       line-height:1.2;
-      text-align:right;
       white-space:nowrap;
       overflow:hidden;
+    }
+    .channel-item .channel-now-title{
+      min-width:0;
+      overflow:hidden;
       text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .channel-item .channel-now-percent{
+      flex:0 0 auto;
+      color:#63b3ff;
+      font-size:.78rem;
+      font-weight:800;
+      font-variant-numeric:tabular-nums;
     }
   `;
   document.head.appendChild(style);
@@ -79,12 +95,29 @@ function render(){
     if(!line){
       line=document.createElement('span');
       line.className='channel-now-inline';
+      const title=document.createElement('span');
+      title.className='channel-now-title';
+      const percent=document.createElement('span');
+      percent.className='channel-now-percent';
+      line.append(title,percent);
       meta.appendChild(line);
     }
 
+    const title=line.querySelector('.channel-now-title');
+    const percent=line.querySelector('.channel-now-percent');
     const {current}=epg.get(channel);
-    line.textContent=current?.title||'';
-    line.title=current?.title||'';
+    if(current?.title){
+      const pct=Math.max(0,Math.min(100,Math.round(current.progress||0)));
+      title.textContent=current.title;
+      title.title=current.title;
+      percent.textContent=`${pct}%`;
+      line.title=`${current.title} · ${pct}%`;
+    }else{
+      title.textContent='';
+      title.title='';
+      percent.textContent='';
+      line.title='';
+    }
   }
 }
 
