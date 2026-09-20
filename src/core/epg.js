@@ -25,21 +25,37 @@ export class EpgService {
 
   async refresh() {
     const urls = [...new Set([CONFIG.epgUrl, CONFIG.epgFallbackUrl].filter(Boolean))];
-    const results = await Promise.allSettled(urls.map(async url => {
+    const fetched = await Promise.allSettled(urls.map(async url => {
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
       return { url, xml: await response.text() };
     }));
 
-    const feeds = results.filter(result => result.status === 'fulfilled').map(result => result.value);
-    if (!feeds.length) {
-      const reasons = results.map(result => result.status === 'rejected' ? result.reason?.message : '').filter(Boolean).join(' · ');
-      throw new Error(reasons || 'No EPG feed available');
-    }
-
     this.programs.clear();
     this.resolveIndex.clear();
-    for (const feed of feeds) this.#merge(feed.xml);
+
+    const errors = [];
+    let mergedFeeds = 0;
+
+    for (const result of fetched) {
+      if (result.status !== 'fulfilled') {
+        errors.push(result.reason?.message || 'EPG fetch failed');
+        continue;
+      }
+
+      try {
+        const merged = this.#merge(result.value.xml);
+        if (merged) mergedFeeds += 1;
+        else errors.push(`${result.value.url}: empty/invalid XMLTV`);
+      } catch (error) {
+        errors.push(`${result.value.url}: ${error.message}`);
+      }
+    }
+
+    if (!mergedFeeds) {
+      throw new Error(errors.join(' · ') || 'No usable EPG feed available');
+    }
+
     this.#finalize();
   }
 
@@ -47,7 +63,11 @@ export class EpgService {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('Invalid XMLTV document');
 
-    for (const channel of doc.querySelectorAll('channel')) {
+    const channels = [...doc.querySelectorAll('channel')];
+    const programmes = [...doc.querySelectorAll('programme')];
+    if (!channels.length || !programmes.length) return false;
+
+    for (const channel of channels) {
       const id = channel.getAttribute('id') || '';
       if (!id) continue;
       this.resolveIndex.set(normalizeId(id), id);
@@ -57,7 +77,7 @@ export class EpgService {
       }
     }
 
-    for (const programme of doc.querySelectorAll('programme')) {
+    for (const programme of programmes) {
       const channel = programme.getAttribute('channel') || '';
       const start = parseXmltvTime(programme.getAttribute('start'));
       const stop = parseXmltvTime(programme.getAttribute('stop'));
@@ -67,6 +87,8 @@ export class EpgService {
       if (!this.programs.has(channel)) this.programs.set(channel, []);
       this.programs.get(channel).push({ start, stop, title, description });
     }
+
+    return true;
   }
 
   #finalize() {
