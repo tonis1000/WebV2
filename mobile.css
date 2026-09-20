@@ -1,0 +1,97 @@
+/* WebTV V2 mobile/tablet compatibility layer */
+html,body{max-width:100%;overflow-x:hidden}
+body{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation}
+video{max-width:100%;-webkit-tap-highlight-color:transparent}
+button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
+
+@supports (padding: max(0px)){
+  body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+}
+
+@media(max-width:780px){
+  .app-shell{width:100%;padding:calc(6px + env(safe-area-inset-top)) 8px calc(10px + env(safe-area-inset-bottom))}
+  .topbar{flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:8px}
+  .topbar>.eyebrow,.topbar>div:first-child{flex:0 0 auto}
+  .topbar-actions{margin-left:auto;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+  .clock{font-size:.68rem}
+  .button{min-height:40px;padding:8px 10px;font-size:.78rem}
+
+  .layout{grid-template-columns:minmax(0,1fr);gap:10px}
+  .sidebar{position:static;height:min(40vh,360px);min-height:280px;padding:10px}
+  .toolbar{grid-template-columns:1fr;gap:7px}
+  input,select,textarea{font-size:16px}
+  .channel-list{-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  .channel-item{grid-template-columns:38px minmax(0,1fr) auto;gap:7px;padding:7px;margin-bottom:5px}
+  .channel-item img{width:36px;height:36px}
+  .channel-item strong{font-size:.88rem}
+  .channel-item span{font-size:.69rem}
+  .channel-item .channel-now-inline{font-size:.72rem!important;gap:4px!important;max-width:52vw}
+  .channel-item .channel-now-percent{font-size:.7rem!important}
+
+  .viewer{gap:10px}
+  .player-card{border-radius:12px}
+  .channel-header{padding:10px;gap:9px;flex-wrap:wrap}
+  .channel-logo{width:42px;height:42px}
+  .channel-identity{gap:8px;min-width:0;flex:1 1 180px}
+  .channel-identity h2{font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .channel-actions{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end}
+  .channel-actions .button{min-height:38px}
+  .status-pill{padding:6px 8px}
+
+  .player-stage{width:100%;aspect-ratio:16/9;min-height:0}
+  .player-stage video,.player-stage iframe{display:block;width:100%;height:100%;object-fit:contain}
+  .now-playing{grid-template-columns:1fr auto;gap:8px;padding:10px 10px 7px}
+  .now-playing h3{font-size:.95rem;margin-bottom:4px}
+  .now-playing .muted{font-size:.78rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .program-time{font-size:.72rem}
+  .progress{margin:0 10px 8px}
+  .next-programs{grid-template-columns:1fr;gap:6px;padding:0 10px 10px}
+  .next-card{padding:7px 8px}
+
+  .diagnostics,.source-hunt{padding:12px}
+  .source-hunt:not([hidden]){inset:calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom));width:auto;max-height:none;border-radius:14px;-webkit-overflow-scrolling:touch}
+  .diagnostic-grid{grid-template-columns:1fr 1fr}
+
+  .playlist-manager{inset:calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom));width:auto;max-height:none;padding:14px;border-radius:14px;-webkit-overflow-scrolling:touch}
+}
+
+@media(max-width:520px){
+  .app-shell{padding-left:6px;padding-right:6px}
+  .topbar{display:grid;grid-template-columns:1fr;gap:5px}
+  .topbar-actions{width:100%;margin-left:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+  .topbar-actions .clock{grid-column:1/-1;text-align:right;min-height:15px}
+  .topbar-actions .button{width:100%;min-width:0;padding:7px 5px;font-size:.72rem;overflow:hidden;text-overflow:ellipsis}
+
+  .sidebar{height:min(38vh,330px);min-height:250px}
+  .channel-item{grid-template-columns:34px minmax(0,1fr) auto;padding:6px}
+  .channel-item img{width:32px;height:32px}
+  .channel-item .channel-meta-inline{grid-template-columns:minmax(72px,auto) minmax(0,1fr)!important;column-gap:5px!important}
+  .channel-item .channel-now-inline{max-width:46vw;font-size:.66rem!important}
+  .channel-item .channel-now-percent{font-size:.66rem!important}
+
+  .channel-header{align-items:center}
+  .channel-identity{flex:1 1 100%}
+  .channel-actions{width:100%;justify-content:flex-start;gap:6px}
+  .channel-actions .button{flex:1 1 auto;text-align:center}
+  .status-pill{flex:0 0 auto}
+
+  .now-playing{grid-template-columns:1fr}
+  .program-time{justify-self:start}
+  .diagnostic-grid{grid-template-columns:1fr}
+
+  .playlist-manager-head{gap:8px}
+  .playlist-manager-head .button{width:100%}
+  .playlist-modebar{grid-template-columns:1fr!important}
+  .playlist-card-actions,.my-playlist-hero-actions,.my-channel-actions,.cloud-library-actions{grid-template-columns:1fr!important}
+}
+
+@media(orientation:landscape) and (max-height:520px) and (max-width:950px){
+  .app-shell{padding-top:4px}
+  .topbar{margin-bottom:5px}
+  .layout{grid-template-columns:250px minmax(0,1fr);gap:8px}
+  .sidebar{position:sticky;top:4px;height:calc(100vh - 48px);min-height:0}
+  .channel-item{padding:5px;margin-bottom:4px}
+  .channel-item img{width:30px;height:30px}
+  .player-stage{max-height:calc(100vh - 130px)}
+  .next-programs{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
