@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260920-1021';
 import { EpgService } from './core/epg.js?v=20260920-1021';
 
-const BUILD_ID = '20260920-2205';
+const BUILD_ID = '20260920-2216';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = false;
@@ -12,11 +12,40 @@ function ensureStyle(){
   const style=document.createElement('style');
   style.id='sidebar-now-style';
   style.textContent=`
-    .channel-item .channel-now{
-      display:block;
-      margin-top:3px;
+    .channel-item .channel-meta-inline{
+      display:grid;
+      grid-template-columns:minmax(0,auto) minmax(0,1fr);
+      grid-template-rows:auto auto;
+      column-gap:10px;
+      align-items:center;
+      min-width:0;
+    }
+    .channel-item .channel-meta-inline>strong{
+      grid-column:1;
+      grid-row:1;
+      min-width:0;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .channel-item .channel-meta-inline>.channel-group-inline{
+      grid-column:1;
+      grid-row:2;
+      min-width:0;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .channel-item .channel-now-inline{
+      grid-column:2;
+      grid-row:1 / 3;
+      align-self:center;
+      min-width:0;
+      margin-top:0;
       color:#c7d0da;
-      font-size:.76rem;
+      font-size:.72rem;
+      line-height:1.2;
+      text-align:right;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
@@ -38,18 +67,21 @@ function render(){
     const meta=button.children?.[1];
     const channel=channelFromButton(button);
     if(!meta||!channel) continue;
-    const {current}=epg.get(channel);
-    let line=meta.querySelector('.channel-now');
-    const fallback=meta.querySelector('span:not(.channel-now)');
-    if(current?.title){
-      if(!line){line=document.createElement('span');line.className='channel-now';meta.appendChild(line);}
-      line.textContent=current.title;
-      line.title=current.title;
-      if(fallback) fallback.hidden=true;
-    }else{
-      if(line) line.remove();
-      if(fallback) fallback.hidden=false;
+
+    meta.classList.add('channel-meta-inline');
+    const group=meta.querySelector('span:not(.channel-now-inline)');
+    if(group) group.classList.add('channel-group-inline');
+
+    let line=meta.querySelector('.channel-now-inline');
+    if(!line){
+      line=document.createElement('span');
+      line.className='channel-now-inline';
+      meta.appendChild(line);
     }
+
+    const {current}=epg.get(channel);
+    line.textContent=current?.title||'';
+    line.title=current?.title||'';
   }
 }
 
