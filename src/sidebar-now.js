@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260920-1021';
 import { EpgService } from './core/epg.js?v=20260920-1021';
 
-const BUILD_ID = '20260920-2216';
+const BUILD_ID = '20260920-2222';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = false;
@@ -55,6 +55,9 @@ function ensureStyle(){
 }
 
 function channelFromButton(button){
+  const id=button.dataset?.channelId||'';
+  const real=window.WebTVPlaylistAPI?.getChannelById?.(id);
+  if(real) return real;
   const meta=button.children?.[1];
   const name=meta?.querySelector('strong')?.textContent?.trim()||'';
   return name?{id:name,originalId:name,name}:null;
@@ -105,6 +108,7 @@ ensureStyle();
 if(list){
   new MutationObserver(scheduleRender).observe(list,{childList:true,subtree:true});
 }
+window.addEventListener('webtv:ready',scheduleRender);
 refresh();
 setInterval(render,30000);
 setInterval(refresh,CONFIG.epgRefreshMs);
