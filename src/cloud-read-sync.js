@@ -1,6 +1,6 @@
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 
-const BUILD_ID = '20260920-2359';
+const BUILD_ID = '20260921-0012';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const MY_ID = '__my_playlist__';
@@ -87,6 +87,49 @@ async function putSaved(item){
   });
 }
 
+async function mergeRemoteIntoMyPlaylist(remote){
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const req = store.get(MY_ID);
+    let result = { remote: remote.length, merged: remote.length };
+
+    req.onsuccess = () => {
+      const current = req.result || null;
+      const local = current?.text ? parseM3U(current.text) : [];
+
+      // IMPORTANT: this merge happens inside the same read/write transaction.
+      // A cloud read may ADD remote channels/sources, but it must never replace
+      // a newer local channel/source that was just saved by the user.
+      const merged = dedupeChannels([...local, ...remote]);
+      const text = channelsToM3U(merged);
+      const summary = summarize(text);
+      const now = Date.now();
+      result = { remote: remote.length, merged: merged.length };
+
+      if(!current || current.text !== text){
+        store.put({
+          id: MY_ID,
+          name: 'My Playlist',
+          type: 'curated',
+          url: '',
+          text,
+          channelCount: summary.count,
+          groupCount: summary.groups,
+          createdAt: current?.createdAt || now,
+          updatedAt: now,
+        });
+      }
+    };
+
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+  });
+}
+
 async function fetchJson(path){
   const base = registryUrl();
   const controller = new AbortController();
@@ -120,28 +163,7 @@ async function syncMyPlaylist(){
     directUrls: (c.sources || []).map(s => s.url).filter(Boolean),
   }));
 
-  const old = await getSaved(MY_ID);
-  const local = old?.text ? parseM3U(old.text) : [];
-  const merged = dedupeChannels([...local, ...remote]);
-  const text = channelsToM3U(merged);
-  const summary = summarize(text);
-
-  if(!old || old.text !== text){
-    const now = Date.now();
-    await putSaved({
-      id: MY_ID,
-      name: 'My Playlist',
-      type: 'curated',
-      url: '',
-      text,
-      channelCount: summary.count,
-      groupCount: summary.groups,
-      createdAt: old?.createdAt || now,
-      updatedAt: now,
-    });
-  }
-
-  return { remote: remote.length, merged: merged.length };
+  return mergeRemoteIntoMyPlaylist(remote);
 }
 
 async function syncSavedPlaylists(){
@@ -153,6 +175,15 @@ async function syncSavedPlaylists(){
       const detailJson = await fetchJson(`/api/playlists/${encodeURIComponent(meta.id)}`);
       const detail = detailJson.playlist;
       if(!detail?.rawM3u) continue;
+
+      const remoteUpdatedAt = Date.parse(detail.updatedAt) || 0;
+      const local = await getSaved(detail.id);
+
+      // Never let an older cloud copy overwrite a newer local edit.
+      if(local && (local.updatedAt || 0) > remoteUpdatedAt && remoteUpdatedAt > 0){
+        continue;
+      }
+
       const summary = summarize(detail.rawM3u);
       await putSaved({
         id: detail.id,
@@ -162,8 +193,8 @@ async function syncSavedPlaylists(){
         text: detail.rawM3u,
         channelCount: detail.channelCount || summary.count,
         groupCount: detail.groupCount || summary.groups,
-        createdAt: Date.parse(detail.createdAt) || Date.now(),
-        updatedAt: Date.parse(detail.updatedAt) || Date.now(),
+        createdAt: Date.parse(detail.createdAt) || local?.createdAt || Date.now(),
+        updatedAt: remoteUpdatedAt || Date.now(),
       });
       pulled += 1;
     }catch(error){
