@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260920-2248';
 import { EpgService } from './core/epg.js?v=20260920-2325';
 
-const BUILD_ID = '20260920-2325';
+const BUILD_ID = '20260921-0748';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = false;
@@ -14,7 +14,7 @@ function ensureStyle(){
   style.textContent=`
     .channel-item .channel-meta-inline{
       display:grid;
-      grid-template-columns:minmax(0,auto) minmax(0,1fr);
+      grid-template-columns:minmax(0,auto) minmax(88px,1fr);
       grid-template-rows:auto auto;
       column-gap:10px;
       align-items:center;
@@ -41,30 +41,48 @@ function ensureStyle(){
       grid-row:1 / 3;
       align-self:center;
       display:flex;
-      align-items:center;
-      justify-content:flex-end;
+      flex-direction:column;
+      justify-content:center;
       gap:5px;
       min-width:0;
       margin-top:0;
       color:#e2e8ef;
-      font-size:.82rem;
+      font-size:.80rem;
       font-weight:600;
-      line-height:1.2;
-      white-space:nowrap;
+      line-height:1.15;
       overflow:hidden;
     }
     .channel-item .channel-now-title{
+      display:block;
+      width:100%;
       min-width:0;
       overflow:hidden;
       text-overflow:ellipsis;
       white-space:nowrap;
+      text-align:right;
     }
-    .channel-item .channel-now-percent{
-      flex:0 0 auto;
-      color:#63b3ff;
-      font-size:.78rem;
-      font-weight:800;
-      font-variant-numeric:tabular-nums;
+    .channel-item .channel-now-timeline{
+      display:block;
+      position:relative;
+      width:100%;
+      height:5px;
+      margin:0;
+      overflow:hidden;
+      border-radius:999px;
+      background:#7f1d1d;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .channel-item .channel-now-played{
+      display:block;
+      height:100%;
+      width:0;
+      margin:0;
+      border-radius:999px 0 0 999px;
+      background:#22c55e;
+      transition:width .35s linear;
+    }
+    .channel-item .channel-now-inline.no-epg .channel-now-timeline{
+      display:none;
     }
   `;
   document.head.appendChild(style);
@@ -97,25 +115,30 @@ function render(){
       line.className='channel-now-inline';
       const title=document.createElement('span');
       title.className='channel-now-title';
-      const percent=document.createElement('span');
-      percent.className='channel-now-percent';
-      line.append(title,percent);
+      const timeline=document.createElement('span');
+      timeline.className='channel-now-timeline';
+      const played=document.createElement('span');
+      played.className='channel-now-played';
+      timeline.appendChild(played);
+      line.append(title,timeline);
       meta.appendChild(line);
     }
 
     const title=line.querySelector('.channel-now-title');
-    const percent=line.querySelector('.channel-now-percent');
+    const played=line.querySelector('.channel-now-played');
     const {current}=epg.get(channel);
     if(current?.title){
-      const pct=Math.max(0,Math.min(100,Math.round(current.progress||0)));
+      const pct=Math.max(0,Math.min(100,Number(current.progress)||0));
       title.textContent=current.title;
       title.title=current.title;
-      percent.textContent=`${pct}%`;
-      line.title=`${current.title} · ${pct}%`;
+      played.style.width=`${pct}%`;
+      line.classList.remove('no-epg');
+      line.title=current.title;
     }else{
       title.textContent='';
       title.title='';
-      percent.textContent='';
+      played.style.width='0%';
+      line.classList.add('no-epg');
       line.title='';
     }
   }
