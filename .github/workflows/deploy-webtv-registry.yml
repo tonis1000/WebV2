@@ -1,3 +1,4 @@
+# WebTV Registry CI/CD · bootstrap verified 2026-09-22
 name: Deploy WebTV Registry Worker
 
 on:
