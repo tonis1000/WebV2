@@ -1,0 +1,71 @@
+name: Deploy Source Hunt Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/source-huntatonisworkersdev.js'
+      - '.github/workflows/deploy-source-hunt.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-source-hunt
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
+  WORKER_NAME: source-huntatonisworkersdev
+  WORKER_URL: https://source-huntatonisworkersdev.atonis.workers.dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate source
+        run: node --check workers/source-huntatonisworkersdev.js
+
+      - name: Build Wrangler config
+        shell: bash
+        run: |
+          cat > wrangler.source-hunt.ci.toml <<'EOF'
+          name = "source-huntatonisworkersdev"
+          main = "workers/source-huntatonisworkersdev.js"
+          compatibility_date = "2026-09-20"
+          workers_dev = true
+          preview_urls = false
+          keep_vars = true
+
+          [secrets]
+          required = ["BRAVE_API_KEY"]
+          EOF
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.source-hunt.ci.toml
+
+      - name: Verify live Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" -o /tmp/source-hunt-status.json || true
+            if node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/source-hunt-status.json','utf8'));process.exit(j.service==='WebTV Source Hunt Worker'&&j.version==='1.13'?0:1)}catch{process.exit(1)}"; then
+              cat /tmp/source-hunt-status.json
+              echo "Source Hunt v1.13 is live."
+              exit 0
+            fi
+            echo "Waiting for Cloudflare propagation ($attempt/12)…"
+            sleep 5
+          done
+          echo "::error::Source Hunt verification failed"
+          cat /tmp/source-hunt-status.json 2>/dev/null || true
+          exit 1
