@@ -1,0 +1,72 @@
+name: Deploy TV Cache Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/tv-cache.js'
+      - '.github/workflows/deploy-tv-cache.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-tv-cache
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
+  WORKER_NAME: tv-cache
+  WORKER_URL: https://tv-cache.atonis.workers.dev
+  TV_CACHE_NAMESPACE_ID: 555321f94d8f4ed7b86a77f231da0a30
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate source
+        run: node --check workers/tv-cache.js
+
+      - name: Build Wrangler config
+        shell: bash
+        run: |
+          cat > wrangler.tv-cache.ci.toml <<EOF
+          name = "tv-cache"
+          main = "workers/tv-cache.js"
+          compatibility_date = "2026-03-07"
+          workers_dev = true
+          preview_urls = false
+          keep_vars = true
+
+          [[kv_namespaces]]
+          binding = "TV_CACHE"
+          id = "$TV_CACHE_NAMESPACE_ID"
+          EOF
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.tv-cache.ci.toml
+
+      - name: Verify live Worker and KV binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            curl --fail --silent --show-error "$WORKER_URL/channel-streams.json?verify=$GITHUB_SHA" -o /tmp/tv-cache-status.json || true
+            if node -e "const fs=require('fs');try{JSON.parse(fs.readFileSync('/tmp/tv-cache-status.json','utf8'));process.exit(0)}catch{process.exit(1)}"; then
+              echo "tv-cache is live and TV_CACHE binding is readable."
+              exit 0
+            fi
+            echo "Waiting for Cloudflare propagation ($attempt/12)…"
+            sleep 5
+          done
+          echo "::error::tv-cache verification failed"
+          cat /tmp/tv-cache-status.json 2>/dev/null || true
+          exit 1
