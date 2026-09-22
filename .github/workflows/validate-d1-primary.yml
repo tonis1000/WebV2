@@ -1,0 +1,56 @@
+name: Validate D1-primary WebTV
+
+on:
+  push:
+    branches:
+      - cloud-my-playlist-primary
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in \
+            src/main.js \
+            src/playlist-manager.js \
+            src/cloud-read-sync.js \
+            src/config.js \
+            src/core/source-registry.js \
+            workers/webtv-registry.js; do
+            cp "$f" /tmp/webtv-check.mjs
+            node --check /tmp/webtv-check.mjs
+            echo "syntax ok: $f"
+          done
+
+      - name: Architecture invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "api/my-playlist" src/main.js
+          grep -q "reloadCloudMyPlaylist" src/main.js
+          ! grep -q "channelCatalogUrl" src/main.js
+          ! grep -q "Repo Playlist" index.html
+          ! grep -q "playlist-use-repo" index.html
+          grep -q "PATCH" src/playlist-manager.js
+          grep -q "api/my-playlist/order" src/playlist-manager.js
+          grep -q "const VERSION = '1.5'" workers/webtv-registry.js
+          grep -q "api/my-playlist/order" workers/webtv-registry.js
+          grep -q "primaryPlaylist:'d1'" workers/webtv-registry.js
+          echo "D1-primary architecture invariants verified"
+
+      - name: Manual is aligned
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "My Playlist in D1 is the only permanent live sidebar playlist" WEBTV_OPERATIONS.md
+          grep -q "PATCH /api/my-playlist/order" WEBTV_OPERATIONS.md
+          echo "WEBTV_OPERATIONS.md aligned"
