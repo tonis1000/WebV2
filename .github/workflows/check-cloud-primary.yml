@@ -1,0 +1,40 @@
+name: Check D1 Primary Migration
+
+on:
+  push:
+    branches: [cloud-my-playlist-primary]
+    paths:
+      - '.github/workflows/check-cloud-primary.yml'
+      - 'src/main.js'
+      - 'src/playlist-manager.js'
+      - 'src/cloud-read-sync.js'
+      - 'src/config.js'
+      - 'workers/webtv-registry.js'
+      - 'index.html'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check src/main.js
+          node --check src/playlist-manager.js
+          node --check src/cloud-read-sync.js
+          node --check src/config.js
+          node --check workers/webtv-registry.js
+      - name: Architecture assertions
+        run: |
+          set -euo pipefail
+          ! grep -q 'channelCatalogUrl' src/main.js
+          ! grep -q 'resetToRepo' src/main.js
+          ! grep -q 'playlist-use-repo' index.html
+          ! grep -q 'cloud-auto-sync.js' index.html
+          grep -q "'/api/my-playlist/order'" workers/webtv-registry.js
+          grep -q "version==='1.5'" .github/workflows/deploy-webtv-registry.yml
+          grep -q 'D1 My Playlist is primary' src/main.js
