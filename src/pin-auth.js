@@ -1,4 +1,4 @@
-const BUILD_ID='20260922-0718';
+const BUILD_ID='20260922-0732';
 const DEFAULT_REGISTRY='https://webtv-registry.atonis.workers.dev';
 const URL_KEY='webtv_v2_registry_url';
 const TOKEN_KEY='webtv_v2_registry_token';
@@ -92,9 +92,10 @@ document.addEventListener('click',event=>{
 function wrapMyPlaylistApi(){
   const api=window.WebTVMyPlaylistAPI;
   if(!api||api.__trustedDeviceWrapped)return false;
-  if(typeof api.addSourceToCurrent==='function'){
-    const original=api.addSourceToCurrent.bind(api);
-    api.addSourceToCurrent=async(...args)=>{
+  for(const method of ['addCurrent','addSourceToCurrent']){
+    if(typeof api[method]!=='function')continue;
+    const original=api[method].bind(api);
+    api[method]=async(...args)=>{
       if(!session())await ensureSession({interactive:true});
       return original(...args);
     };
