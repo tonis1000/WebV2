@@ -1,0 +1,12 @@
+{
+  "worker": "source-huntatonisworkersdev",
+  "compatibility_date": "2026-09-20",
+  "compatibility_flags": [],
+  "usage_model": "standard",
+  "bindings": [
+    {
+      "name": "BRAVE_API_KEY",
+      "type": "secret_text"
+    }
+  ]
+}

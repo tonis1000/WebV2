@@ -1,0 +1,13 @@
+{
+  "worker": "tv-cache",
+  "compatibility_date": "2026-03-07",
+  "compatibility_flags": [],
+  "usage_model": "standard",
+  "bindings": [
+    {
+      "name": "TV_CACHE",
+      "type": "kv_namespace",
+      "namespace_id": "555321f94d8f4ed7b86a77f231da0a30"
+    }
+  ]
+}

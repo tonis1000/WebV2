@@ -1,0 +1,7 @@
+{
+  "worker": "epg-proxy-gr",
+  "compatibility_date": "2025-12-25",
+  "compatibility_flags": [],
+  "usage_model": "standard",
+  "bindings": []
+}
