@@ -1,0 +1,78 @@
+name: Deploy WebTV Registry Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'workers/webtv-registry.js'
+      - '.github/workflows/deploy-webtv-registry.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-webtv-registry
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_D1_DATABASE_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is not configured as a GitHub Actions secret"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Build temporary Wrangler config
+        shell: bash
+        env:
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          cat > wrangler.registry.ci.toml <<EOF
+          name = "webtv-registry"
+          main = "workers/webtv-registry.js"
+          compatibility_date = "2026-09-22"
+          workers_dev = true
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "webtv-registry"
+          database_id = "$CLOUDFLARE_D1_DATABASE_ID"
+          EOF
+
+      - name: Deploy Registry Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.registry.ci.toml
+
+      - name: Verify live Registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
+            https://webtv-registry.atonis.workers.dev/api/status \
+            -o /tmp/webtv-registry-status.json
+          cat /tmp/webtv-registry-status.json
+          node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));if(j.version!=='1.4')throw new Error('Expected Registry v1.4, got '+j.version);if(Number(j.sessionDays)!==180)throw new Error('Expected 180-day sessions, got '+j.sessionDays);console.log('Verified Registry v1.4 · 180-day trusted session');"
