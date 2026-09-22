@@ -56,15 +56,14 @@ jobs:
             }
           }
           const q = v => `'${String(v??'').replace(/'/g,"''")}'`;
-          const sql = ['BEGIN TRANSACTION;'];
+          const sql = [];
           channels.forEach((c,position) => {
             sql.push(`INSERT INTO channels(id,name,tvg_id,logo,group_name,enabled,created_at,updated_at) VALUES(${q(c.id)},${q(c.name)},${q(c.tvgId)},${q(c.logo)},${q(c.groupName)},1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET name=excluded.name,tvg_id=excluded.tvg_id,logo=CASE WHEN excluded.logo<>'' THEN excluded.logo ELSE channels.logo END,group_name=excluded.group_name,enabled=1,updated_at=CURRENT_TIMESTAMP;`);
             sql.push(`INSERT INTO my_playlist(channel_id,position,added_at) VALUES(${q(c.id)},${position},CURRENT_TIMESTAMP) ON CONFLICT(channel_id) DO UPDATE SET position=excluded.position;`);
             c.urls.forEach((url,i) => sql.push(`INSERT INTO channel_sources(channel_id,url,origin,priority,enabled,created_at,updated_at) VALUES(${q(c.id)},${q(url)},'github-seed',${100+i},1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(channel_id,url) DO UPDATE SET enabled=1,updated_at=CURRENT_TIMESTAMP;`));
           });
-          sql.push('COMMIT;');
           fs.writeFileSync('/tmp/migrate.sql',sql.join('\n')+'\n');
-          console.log(`Prepared ${channels.length} channels for safe D1 upsert`);
+          console.log(`Prepared ${channels.length} channels for idempotent D1 upsert`);
           NODE
 
       - name: Apply migration to production D1
