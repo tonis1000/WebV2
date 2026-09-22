@@ -1,0 +1,66 @@
+name: Deploy EPG Proxy Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/epg-proxy-gr.js'
+      - '.github/workflows/deploy-epg-proxy-gr.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-epg-proxy-gr
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
+  WORKER_NAME: epg-proxy-gr
+  WORKER_URL: https://epg-proxy-gr.atonis.workers.dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate source
+        run: node --check workers/epg-proxy-gr.js
+
+      - name: Build Wrangler config
+        shell: bash
+        run: |
+          cat > wrangler.epg.ci.toml <<'EOF'
+          name = "epg-proxy-gr"
+          main = "workers/epg-proxy-gr.js"
+          compatibility_date = "2025-12-25"
+          workers_dev = true
+          preview_urls = false
+          keep_vars = true
+          EOF
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.epg.ci.toml
+
+      - name: Verify live Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            body="$(curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" || true)"
+            if printf '%s' "$body" | grep -q 'Use /epg or /epg.xml'; then
+              echo "EPG proxy is live."
+              exit 0
+            fi
+            echo "Waiting for Cloudflare propagation ($attempt/12)…"
+            sleep 5
+          done
+          echo "::error::EPG proxy verification failed"
+          exit 1
