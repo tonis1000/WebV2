@@ -1,4 +1,4 @@
-# WebTV Registry CI/CD · bootstrap verified 2026-09-22
+# WebTV Registry CI/CD · D1-primary verified 2026-09-22
 name: Deploy WebTV Registry Worker
 
 on:
@@ -116,7 +116,7 @@ jobs:
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.registry.ci.toml --keep-vars
 
-      - name: Verify live Registry
+      - name: Verify live Registry and primary My Playlist
         shell: bash
         run: |
           set -euo pipefail
@@ -126,13 +126,25 @@ jobs:
               "$REGISTRY_URL/api/status?verify=${GITHUB_SHA}-${attempt}" \
               -o /tmp/webtv-registry-status.json; then
               cat /tmp/webtv-registry-status.json
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));process.exit(j.version==='1.4'&&Number(j.sessionDays)===180?0:1)"; then
-                echo 'Verified Registry v1.4 · 180-day trusted session'
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));process.exit(j.version==='1.5'&&j.primaryPlaylist==='d1'&&Number(j.sessionDays)===180?0:1)"; then
+                curl --fail --silent --show-error \
+                  -H 'Cache-Control: no-cache' \
+                  "$REGISTRY_URL/api/my-playlist?verify=${GITHUB_SHA}-${attempt}" \
+                  -o /tmp/webtv-my-playlist.json
+                node <<'NODE'
+                const fs=require('fs');
+                const j=JSON.parse(fs.readFileSync('/tmp/webtv-my-playlist.json','utf8'));
+                if(!Array.isArray(j.channels) || j.channels.length < 13){
+                  console.error(`Expected migrated D1 My Playlist, got ${j.channels?.length ?? 0} channels`);
+                  process.exit(1);
+                }
+                console.log(`Verified Registry v1.5 · D1 primary · ${j.channels.length} My Playlist channels · 180-day trusted session`);
+                NODE
                 exit 0
               fi
             fi
             echo "Waiting for Cloudflare propagation · attempt $attempt/30"
             sleep 3
           done
-          echo '::error::Registry did not expose v1.4 / 180-day sessions after 90 seconds'
+          echo '::error::Registry did not expose v1.5 / D1-primary My Playlist after 90 seconds'
           exit 1
