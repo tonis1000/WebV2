@@ -118,8 +118,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
-            "$REGISTRY_URL/api/status" \
-            -o /tmp/webtv-registry-status.json
-          cat /tmp/webtv-registry-status.json
-          node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));if(j.version!=='1.4')throw new Error('Expected Registry v1.4, got '+j.version);if(Number(j.sessionDays)!==180)throw new Error('Expected 180-day sessions, got '+j.sessionDays);console.log('Verified Registry v1.4 · 180-day trusted session');"
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              -H 'Cache-Control: no-cache' \
+              "$REGISTRY_URL/api/status?verify=${GITHUB_SHA}-${attempt}" \
+              -o /tmp/webtv-registry-status.json; then
+              cat /tmp/webtv-registry-status.json
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));process.exit(j.version==='1.4'&&Number(j.sessionDays)===180?0:1)"; then
+                echo 'Verified Registry v1.4 · 180-day trusted session'
+                exit 0
+              fi
+            fi
+            echo "Waiting for Cloudflare propagation · attempt $attempt/30"
+            sleep 3
+          done
+          echo '::error::Registry did not expose v1.4 / 180-day sessions after 90 seconds'
+          exit 1
