@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260920-2248';
 import { EpgService } from './core/epg.js?v=20260920-2325';
 
-const BUILD_ID = '20260921-0748';
+const BUILD_ID = '20260922-0705';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = false;
@@ -19,6 +19,10 @@ function ensureStyle(){
       column-gap:10px;
       align-items:center;
       min-width:0;
+    }
+    .channel-item .channel-meta-inline.no-epg-meta{
+      grid-template-columns:minmax(0,1fr)!important;
+      column-gap:0!important;
     }
     .channel-item .channel-meta-inline>strong{
       grid-column:1;
@@ -52,6 +56,9 @@ function ensureStyle(){
       line-height:1.15;
       overflow:hidden;
     }
+    .channel-item .channel-now-inline.no-epg{
+      display:none!important;
+    }
     .channel-item .channel-now-title{
       display:block;
       width:100%;
@@ -65,6 +72,7 @@ function ensureStyle(){
       display:block;
       position:relative;
       width:100%;
+      min-width:54px;
       height:5px;
       margin:0;
       overflow:hidden;
@@ -81,8 +89,14 @@ function ensureStyle(){
       background:#22c55e;
       transition:width .35s linear;
     }
-    .channel-item .channel-now-inline.no-epg .channel-now-timeline{
-      display:none;
+    @media(max-width:520px){
+      .channel-item .channel-now-inline{
+        max-width:44vw;
+      }
+      .channel-item .channel-now-timeline{
+        height:4px;
+        min-width:48px;
+      }
     }
   `;
   document.head.appendChild(style);
@@ -133,12 +147,14 @@ function render(){
       title.title=current.title;
       played.style.width=`${pct}%`;
       line.classList.remove('no-epg');
+      meta.classList.remove('no-epg-meta');
       line.title=current.title;
     }else{
       title.textContent='';
       title.title='';
       played.style.width='0%';
       line.classList.add('no-epg');
+      meta.classList.add('no-epg-meta');
       line.title='';
     }
   }
