@@ -131,16 +131,9 @@ jobs:
                   -H 'Cache-Control: no-cache' \
                   "$REGISTRY_URL/api/my-playlist?verify=${GITHUB_SHA}-${attempt}" \
                   -o /tmp/webtv-my-playlist.json
-                node <<'NODE'
-                const fs=require('fs');
-                const j=JSON.parse(fs.readFileSync('/tmp/webtv-my-playlist.json','utf8'));
-                if(!Array.isArray(j.channels) || j.channels.length < 13){
-                  console.error(`Expected migrated D1 My Playlist, got ${j.channels?.length ?? 0} channels`);
-                  process.exit(1);
-                }
-                console.log(`Verified Registry v1.5 · D1 primary · ${j.channels.length} My Playlist channels · 180-day trusted session`);
-                NODE
-                exit 0
+                if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-my-playlist.json','utf8'));if(!Array.isArray(j.channels)||j.channels.length<13){console.error('Expected migrated D1 My Playlist, got '+(j.channels?.length??0)+' channels');process.exit(1)};console.log('Verified Registry v1.5 · D1 primary · '+j.channels.length+' My Playlist channels · 180-day trusted session')"; then
+                  exit 0
+                fi
               fi
             fi
             echo "Waiting for Cloudflare propagation · attempt $attempt/30"
