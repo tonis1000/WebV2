@@ -97,6 +97,9 @@ jobs:
           compatibility_date = "2026-09-22"
           workers_dev = true
 
+          [secrets]
+          required = ["ADMIN_TOKEN", "ADMIN_PIN"]
+
           [[d1_databases]]
           binding = "DB"
           database_name = "$D1_DATABASE_NAME"
@@ -108,7 +111,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --config wrangler.registry.ci.toml
+          command: deploy --config wrangler.registry.ci.toml --keep-vars
 
       - name: Verify live Registry
         shell: bash
