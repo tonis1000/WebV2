@@ -1,18 +1,114 @@
-const BUILD_ID='20260920-1845';
+const BUILD_ID='20260922-0718';
 const DEFAULT_REGISTRY='https://webtv-registry.atonis.workers.dev';
 const URL_KEY='webtv_v2_registry_url';
 const TOKEN_KEY='webtv_v2_registry_token';
-const $=id=>document.getElementById(id);
+const TRUST_KEY='webtv_v2_trusted_device';
 
 if(!(localStorage.getItem(URL_KEY)||'').trim())localStorage.setItem(URL_KEY,DEFAULT_REGISTRY);
 
 function base(){return(localStorage.getItem(URL_KEY)||DEFAULT_REGISTRY).trim().replace(/\/$/,'');}
 function session(){return localStorage.getItem(TOKEN_KEY)||'';}
-function setState(text,online='0'){const el=$('registry-state');if(el){el.textContent=text;el.dataset.online=online;}}
-function setStatus(text,tone='idle'){const el=$('playlist-manager-status');if(el){el.textContent=text;el.dataset.tone=tone;}}
+function setStatus(text,tone='idle'){const el=document.getElementById('playlist-manager-status');if(el){el.textContent=text;el.dataset.tone=tone;}}
+function setState(text,online='0'){const el=document.getElementById('registry-state');if(el){el.textContent=text;el.dataset.online=online;}}
 async function request(path,options={}){const c=new AbortController(),t=setTimeout(()=>c.abort(),12000);try{return await fetch(`${base()}${path}`,{cache:'no-store',signal:c.signal,...options});}finally{clearTimeout(t);}}
-async function validateSession(){const token=session();if(!token){setState('PIN locked');return false;}try{const r=await request('/api/session',{headers:{authorization:`Bearer ${token}`}});if(r.ok){setState('Unlocked ✓','1');return true;}}catch{}localStorage.removeItem(TOKEN_KEY);setState('PIN locked');return false;}
-async function login(pin){if(!/^\d{6}$/.test(pin))throw new Error('Το PIN πρέπει να έχει ακριβώς 6 αριθμούς');const r=await request('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pin})});let j={};try{j=await r.json();}catch{}if(!r.ok)throw new Error(j.error||`Login HTTP ${r.status}`);if(!j.token)throw new Error('Ο Worker δεν επέστρεψε session');localStorage.setItem(TOKEN_KEY,j.token);return j;}
-function enhance(){const input=$('registry-token'),save=$('registry-save');if(!input||!save||input.dataset.pinEnhanced==='1')return false;input.dataset.pinEnhanced='1';input.type='password';input.placeholder='6-digit PIN';input.maxLength=6;input.inputMode='numeric';input.autocomplete='one-time-code';input.pattern='[0-9]{6}';const descriptor=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');if(descriptor?.get&&descriptor?.set){Object.defineProperty(input,'value',{configurable:true,get(){return descriptor.get.call(this);},set(v){const s=String(v??'');descriptor.set.call(this,s.length>12?'':s.replace(/\D/g,'').slice(0,6));}});}input.value='';save.textContent='Unlock PIN';save.addEventListener('click',async event=>{event.preventDefault();event.stopImmediatePropagation();const url=$('registry-url')?.value.trim()||DEFAULT_REGISTRY;localStorage.setItem(URL_KEY,url.replace(/\/$/,''));const pin=input.value.replace(/\D/g,'');if(!pin&&await validateSession()){setStatus('Registry already unlocked','ok');return;}try{setState('Unlocking…');setStatus('Checking PIN…','busy');const j=await login(pin);input.value='';setState(`Unlocked ✓ · ${j.days||30}d session`,'1');setStatus('PIN accepted · D1 unlocked','ok');setTimeout(()=>$('registry-sync-down')?.click(),80);}catch(error){input.value='';setState('PIN locked');setStatus(error.message,'error');}},true);input.addEventListener('input',()=>{const clean=input.value.replace(/\D/g,'').slice(0,6);if(input.value!==clean)input.value=clean;});input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();save.click();}});const actions=save.parentElement;if(actions&&!$('registry-lock')){const lock=document.createElement('button');lock.id='registry-lock';lock.type='button';lock.className='button ghost';lock.textContent='Lock';lock.addEventListener('click',()=>{localStorage.removeItem(TOKEN_KEY);input.value='';setState('PIN locked');setStatus('D1 write access locked','idle');});actions.insertBefore(lock,save.nextSibling);}validateSession();return true;}
-if(!enhance()){const observer=new MutationObserver(()=>{if(enhance())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});}
-console.log(`WebTV PIN auth loaded · build ${BUILD_ID}`);
+
+async function validateSession(){
+  const token=session();
+  if(!token)return false;
+  try{
+    const r=await request('/api/session',{headers:{authorization:`Bearer ${token}`}});
+    if(r.ok){localStorage.setItem(TRUST_KEY,'1');setState('Trusted device ✓','1');return true;}
+  }catch{}
+  localStorage.removeItem(TOKEN_KEY);
+  setState('Read only');
+  return false;
+}
+
+async function login(pin){
+  if(!/^\d{6}$/.test(pin))throw new Error('Το PIN πρέπει να έχει ακριβώς 6 αριθμούς');
+  const r=await request('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pin})});
+  let j={};try{j=await r.json();}catch{}
+  if(!r.ok)throw new Error(j.error||`Login HTTP ${r.status}`);
+  if(!j.token)throw new Error('Ο Worker δεν επέστρεψε session');
+  localStorage.setItem(TOKEN_KEY,j.token);
+  localStorage.setItem(TRUST_KEY,'1');
+  setState(`Trusted device ✓ · ${j.days||30}d`,'1');
+  return j;
+}
+
+async function ensureSession({interactive=true}={}){
+  if(await validateSession())return true;
+  if(!interactive)return false;
+  const pin=window.prompt('D1 write access · βάλε το 6-digit PIN μία φορά για να γίνει trusted αυτή η συσκευή.');
+  if(pin===null)return false;
+  try{
+    setStatus('Unlocking trusted device…','busy');
+    const j=await login(String(pin).replace(/\D/g,'').slice(0,6));
+    setStatus(`Trusted device enabled · ${j.days||30} days`,'ok');
+    return true;
+  }catch(error){
+    setStatus(error.message,'error');
+    throw error;
+  }
+}
+
+function logout(){
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TRUST_KEY);
+  setState('Read only');
+}
+
+function hideLegacyPanel(){
+  if(document.getElementById('trusted-device-style'))return;
+  const style=document.createElement('style');
+  style.id='trusted-device-style';
+  style.textContent='.cloud-library{display:none!important}';
+  document.head.appendChild(style);
+}
+
+const WRITE_IDS=new Set(['playlist-save-url','playlist-save-paste','my-playlist-channel-action','save-candidate']);
+const WRITE_LABELS=new Set(['Rename','Delete','Edit','Remove','Retry Save','Save Source','★ Add to My Playlist','Remove from My Playlist']);
+function isWriteButton(button){
+  if(!button)return false;
+  if(WRITE_IDS.has(button.id))return true;
+  return WRITE_LABELS.has((button.textContent||'').trim());
+}
+
+let replaying=false;
+document.addEventListener('click',event=>{
+  if(replaying)return;
+  const button=event.target.closest('button');
+  if(!isWriteButton(button))return;
+  if(session())return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  ensureSession({interactive:true}).then(ok=>{
+    if(!ok)return;
+    replaying=true;
+    try{button.click();}finally{queueMicrotask(()=>{replaying=false;});}
+  }).catch(()=>{});
+},true);
+
+function wrapMyPlaylistApi(){
+  const api=window.WebTVMyPlaylistAPI;
+  if(!api||api.__trustedDeviceWrapped)return false;
+  if(typeof api.addSourceToCurrent==='function'){
+    const original=api.addSourceToCurrent.bind(api);
+    api.addSourceToCurrent=async(...args)=>{
+      if(!session())await ensureSession({interactive:true});
+      return original(...args);
+    };
+  }
+  api.__trustedDeviceWrapped=true;
+  return true;
+}
+
+hideLegacyPanel();
+validateSession().catch(()=>{});
+if(!wrapMyPlaylistApi()){
+  const observer=new MutationObserver(()=>{if(wrapMyPlaylistApi())observer.disconnect();});
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+}
+
+window.WebTVRegistryAuth={ensureSession,validateSession,login,logout,token:session,base};
+console.info(`[WebTV] Trusted device auth loaded · build ${BUILD_ID}`);
