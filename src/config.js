@@ -1,10 +1,11 @@
 export const CONFIG = Object.freeze({
   appName: 'WebTV V2',
-  buildId: '20260920-2248',
+  buildId: '20260922-2115',
+  registryUrl: 'https://webtv-registry.atonis.workers.dev',
   cacheBaseUrl: 'https://tv-cache.atonis.workers.dev',
   epgUrl: 'https://epg-proxy-gr.atonis.workers.dev/epg.xml',
   epgFallbackUrl: 'https://ext.greektv.app/epg/epg.xml',
-  channelCatalogUrl: './data/channels.m3u?v=20260920-1021',
+  legacySeedCatalogUrl: './data/channels.m3u?v=20260920-1021',
   healthStorageKey: 'webtv_v2_health',
   requestTimeoutMs: 9000,
   startupTimeoutMs: 12000,
