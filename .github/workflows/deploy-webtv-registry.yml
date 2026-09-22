@@ -1,0 +1,124 @@
+name: Deploy WebTV Registry Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'workers/webtv-registry.js'
+      - '.github/workflows/deploy-webtv-registry.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-webtv-registry
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
+  REGISTRY_WORKER_NAME: webtv-registry
+  REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Cloudflare token
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not configured as a GitHub Actions secret"
+            exit 1
+          fi
+
+      - name: Resolve existing D1 database
+        id: d1
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OPTIONAL_D1_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${OPTIONAL_D1_ID:-}" ]; then
+            echo "database_id=$OPTIONAL_D1_ID" >> "$GITHUB_OUTPUT"
+            echo "database_name=webtv-registry" >> "$GITHUB_OUTPUT"
+            echo "Using CLOUDFLARE_D1_DATABASE_ID override."
+            exit 0
+          fi
+
+          npx --yes wrangler@latest d1 list --json > /tmp/d1.json
+
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs');
+          const raw = JSON.parse(fs.readFileSync('/tmp/d1.json', 'utf8'));
+          const rows = Array.isArray(raw) ? raw : (raw.result || raw.databases || []);
+          const normalized = rows.map(x => ({
+            id: x.uuid || x.id || x.database_id,
+            name: x.name || x.database_name || ''
+          })).filter(x => x.id);
+
+          let chosen = normalized.find(x => x.name === 'webtv-registry');
+          if (!chosen) chosen = normalized.find(x => /webtv.*registry|registry.*webtv/i.test(x.name));
+          if (!chosen && normalized.length === 1) chosen = normalized[0];
+
+          if (!chosen) {
+            console.error('Could not identify the WebTV D1 database automatically. Available D1 databases:');
+            for (const row of normalized) console.error(`- ${row.name} (${row.id})`);
+            console.error('Set GitHub secret CLOUDFLARE_D1_DATABASE_ID once to select it explicitly.');
+            process.exit(1);
+          }
+
+          console.error(`Resolved D1: ${chosen.name} (${chosen.id})`);
+          console.log(`database_id=${chosen.id}`);
+          console.log(`database_name=${chosen.name || 'webtv-registry'}`);
+          NODE
+
+      - name: Build temporary Wrangler config
+        shell: bash
+        env:
+          D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
+          D1_DATABASE_NAME: ${{ steps.d1.outputs.database_name }}
+        run: |
+          set -euo pipefail
+          cat > wrangler.registry.ci.toml <<EOF
+          name = "$REGISTRY_WORKER_NAME"
+          main = "workers/webtv-registry.js"
+          compatibility_date = "2026-09-22"
+          workers_dev = true
+
+          [secrets]
+          required = ["ADMIN_TOKEN", "ADMIN_PIN"]
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "$D1_DATABASE_NAME"
+          database_id = "$D1_DATABASE_ID"
+          EOF
+
+      - name: Deploy Registry Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.registry.ci.toml --keep-vars
+
+      - name: Verify live Registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
+            "$REGISTRY_URL/api/status" \
+            -o /tmp/webtv-registry-status.json
+          cat /tmp/webtv-registry-status.json
+          node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));if(j.version!=='1.4')throw new Error('Expected Registry v1.4, got '+j.version);if(Number(j.sessionDays)!==180)throw new Error('Expected 180-day sessions, got '+j.sessionDays);console.log('Verified Registry v1.4 · 180-day trusted session');"
