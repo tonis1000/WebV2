@@ -1,0 +1,38 @@
+name: Verify D1 Primary Branch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-cloud-primary-branch.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: cloud-my-playlist-primary
+      - name: JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check src/main.js
+          node --check src/playlist-manager.js
+          node --check src/cloud-read-sync.js
+          node --check src/config.js
+          node --check src/core/source-registry.js
+          node --check workers/webtv-registry.js
+      - name: Architecture assertions
+        run: |
+          set -euo pipefail
+          ! grep -q 'channelCatalogUrl' src/main.js
+          ! grep -q 'resetToRepo' src/main.js
+          ! grep -q 'playlist-use-repo' index.html
+          ! grep -q 'cloud-auto-sync.js' index.html
+          grep -q "'/api/my-playlist/order'" workers/webtv-registry.js
+          grep -q "version==='1.5'" .github/workflows/deploy-webtv-registry.yml
+          grep -q 'D1 My Playlist is primary' src/main.js
+          grep -q 'source-registry.js?v=20260922-2115' src/main.js
