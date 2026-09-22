@@ -1,4 +1,4 @@
-import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260920-1021';
+import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260922-2115';
 import { normalizeId, cleanUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js?v=20260920-1021';
 
 function isPlayableMedia(url = '') {
@@ -67,22 +67,29 @@ export class SourceRegistry {
     return [];
   }
   #allRoutes(channel) {
-    const saved = this.#savedUrls(channel);
-    const savedSet = new Set(saved);
-    const sources = [...new Set([...saved, ...(channel.directUrls || []), ...this.#remoteUrls(channel)]
+    const localSaved = this.#savedUrls(channel);
+    const curated = (channel.directUrls || []).map(cleanUrl).filter(Boolean);
+
+    // directUrls come from the D1 My Playlist (or a deliberately loaded playlist).
+    // Treat them as curated/trusted sources: they are allowed even if an older
+    // static blocklist contains the same URL. The blocklist still applies to
+    // background/remote discovery data from TV Cache.
+    const trustedSet = new Set([...localSaved, ...curated]);
+    const sources = [...new Set([...localSaved, ...curated, ...this.#remoteUrls(channel)]
       .map(cleanUrl)
       .filter(Boolean)
       .filter(isPlayableMedia)
       .filter(source => !isWrongChannelSource(channel, source))
-      .filter(source => savedSet.has(source) || !BLOCKED.has(source)))];
+      .filter(source => trustedSet.has(source) || !BLOCKED.has(source)))];
 
     const routes = [];
     for (const source of sources) {
+      const trusted = trustedSet.has(source);
       if (isSecureUrl(source)) {
-        routes.push({ originalUrl: source, playbackUrl: source, route: 'direct', saved: savedSet.has(source) });
+        routes.push({ originalUrl: source, playbackUrl: source, route: 'direct', saved: trusted });
       }
       if (isHls(source) && CONFIG.workerForHls) {
-        routes.push({ originalUrl: source, playbackUrl: workerUrl(source), route: 'worker', saved: savedSet.has(source) });
+        routes.push({ originalUrl: source, playbackUrl: workerUrl(source), route: 'worker', saved: trusted });
       }
     }
     return routes.filter((item, index, arr) => arr.findIndex(other => other.playbackUrl === item.playbackUrl) === index);
