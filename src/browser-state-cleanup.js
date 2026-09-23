@@ -1,4 +1,4 @@
-const BUILD_ID = '20260923-0740';
+const BUILD_ID = '20260923-0745';
 const LEGACY_LOCAL_KEYS = ['webtv_v2_saved_sources'];
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
@@ -9,7 +9,7 @@ for(const key of LEGACY_LOCAL_KEYS){
 
 async function cleanupLegacyIndexedDb(){
   try{
-    if(typeof indexedDB?.databases !== 'function') return;
+    if(typeof indexedDB === 'undefined' || typeof indexedDB.databases !== 'function') return;
     const databases = await indexedDB.databases();
     if(!databases.some(db => db?.name === DB_NAME)) return;
 
