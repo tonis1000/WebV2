@@ -121,6 +121,13 @@ export class PlayerController {
       const hls = this.hls;
       return new Promise((resolve, reject) => {
         let settled = false;
+        let recoveryUsed = false;
+        let timeout = null;
+
+        const armTimeout = () => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => done(reject, new Error('hls.js startup timeout')), CONFIG.startupTimeoutMs);
+        };
         const cleanup = () => {
           clearTimeout(timeout);
           this.video.removeEventListener('playing', onPlaying);
@@ -133,20 +140,41 @@ export class PlayerController {
           cleanup();
           fn(value);
         };
-        const onPlaying = () => token === this.token ? done(resolve, 'hls.js') : done(reject, new Error('Superseded'));
+        const onPlaying = () => token === this.token ? done(resolve, recoveryUsed ? 'hls.js+recovery' : 'hls.js') : done(reject, new Error('Superseded'));
         const onVideoError = () => done(reject, new Error('hls.js media error'));
         const onHlsError = (_event, data) => {
           if (!data?.fatal) return;
           const detail = data.details || data.type || 'fatal error';
-          done(reject, new Error(`hls.js ${detail}`));
+
+          if (!recoveryUsed && token === this.token) {
+            if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
+              recoveryUsed = true;
+              armTimeout();
+              try {
+                hls.startLoad();
+                return;
+              } catch {}
+            }
+            if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
+              recoveryUsed = true;
+              armTimeout();
+              try {
+                hls.recoverMediaError();
+                return;
+              } catch {}
+            }
+          }
+
+          done(reject, new Error(`hls.js ${detail}${recoveryUsed ? ' after recovery' : ''}`));
         };
-        const timeout = setTimeout(() => done(reject, new Error('hls.js startup timeout')), CONFIG.startupTimeoutMs);
+
         this.video.addEventListener('playing', onPlaying, { once: true });
         this.video.addEventListener('error', onVideoError, { once: true });
         hls.on(window.Hls.Events.ERROR, onHlsError);
         hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
           if (token === this.token) this.video.play().catch(() => {});
         });
+        armTimeout();
         hls.loadSource(url);
         hls.attachMedia(this.video);
       });
