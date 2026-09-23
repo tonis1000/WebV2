@@ -1,5 +1,5 @@
-import { CONFIG } from '../config.js';
-import { cleanUrl } from './utils.js';
+import { CONFIG } from '../config.js?v=20260923-2215';
+import { cleanUrl } from './utils.js?v=20260920-1021';
 
 export class HealthStore {
   constructor(storageKey = CONFIG.healthStorageKey) {
