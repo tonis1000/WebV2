@@ -1,4 +1,4 @@
-import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260922-2115';
+import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260923-2215';
 import { normalizeId, cleanUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js?v=20260920-1021';
 
 function isPlayableMedia(url = '') {
