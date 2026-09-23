@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./styles.css?v=20260920-2330">
   <link rel="stylesheet" href="./playlist-manager.css?v=20260920-1745">
   <link rel="stylesheet" href="./mobile.css?v=20260920-2345">
+  <link rel="stylesheet" href="./quality-of-life.css?v=20260923-0715">
   <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js"></script>
   <script defer src="https://cdn.dashjs.org/v4.7.4/dash.all.min.js"></script>
 </head>
@@ -26,7 +27,7 @@
       <aside class="sidebar panel" aria-label="Κανάλια"><div class="toolbar"><input id="search" type="search" placeholder="Αναζήτηση καναλιού" autocomplete="off"><select id="group-filter" aria-label="Κατηγορία"><option value="all">Όλες οι κατηγορίες</option></select></div><div id="channel-summary" class="muted small"></div><div id="channel-list" class="channel-list" role="list"></div></aside>
       <section class="viewer">
         <section class="player-card panel"><div class="channel-header"><div class="channel-identity"><img id="channel-logo" class="channel-logo" alt="" hidden><div><p id="channel-group" class="eyebrow">WEBTV</p><h2 id="channel-name">Επίλεξε κανάλι</h2></div></div><div class="channel-actions"><a id="official-live" class="button official-live" href="#" target="_blank" rel="noopener noreferrer" hidden>Official Live ↗</a><div id="playback-status" class="status-pill idle">Idle</div></div></div><div class="player-stage"><video id="video" controls playsinline webkit-playsinline preload="metadata" x-webkit-airplay="allow" hidden></video><iframe id="iframe" title="Embedded stream" allow="autoplay; fullscreen" allowfullscreen hidden></iframe><div id="empty-state" class="empty-state"><strong>WebTV V2</strong><span>Διάλεξε ένα κανάλι από αριστερά.</span></div></div><div class="now-playing"><div><p class="eyebrow">ΤΩΡΑ</p><h3 id="program-title">Δεν υπάρχουν δεδομένα προγράμματος</h3><p id="program-description" class="muted"></p></div><div id="program-time" class="program-time"></div></div><div id="epg-progress" class="progress" hidden><span></span></div><div id="next-programs" class="next-programs"></div></section>
-        <section id="source-hunt" class="source-hunt panel" hidden><div class="section-heading"><div><p class="eyebrow">DISCOVERY</p><h2>Source Hunt · <span id="hunt-channel">-</span></h2></div><span class="freshness-badge">Fresh 30d</span></div><p class="muted small hunt-intro">Automatic discovery: GitHub deep scan plus separate Known M3U Seeds, Fresh Web and Forums / Reddit results through the Source Hunt Worker.</p><div id="hunt-links" class="hunt-links"></div><div class="candidate-tester"><label for="candidate-url">Test candidate URL</label><div class="inline-form"><input id="candidate-url" type="url" placeholder="https://example.com/live/playlist.m3u8"><button id="test-candidate" class="button" type="button">Test</button></div><p class="muted small">Μετά από επιτυχημένο playback ενεργοποιείται το Save Source.</p></div></section>
+        <section id="source-hunt" class="source-hunt panel" hidden><div class="section-heading"><div><p class="eyebrow">DISCOVERY</p><h2>Source Hunt · <span id="hunt-channel">-</span></h2></div><span class="freshness-badge">Fresh 30d</span></div><p class="muted small hunt-intro">Automatic discovery: GitHub deep scan plus separate Known M3U Seeds, Fresh Web and Forums / Reddit results through the Source Hunt Worker.</p><div id="hunt-links" class="hunt-links"></div><div class="candidate-tester"><label for="candidate-url">Test candidate URL</label><div class="inline-form"><input id="candidate-url" type="url" placeholder="https://example.com/live/playlist.m3u8"><button id="test-candidate" class="button" type="button">Test</button></div><p class="muted small">Μετά από επιτυχημένο playback η verified πηγή αποθηκεύεται στη D1 My Playlist.</p></div></section>
         <section id="diagnostics" class="diagnostics panel" hidden><div class="section-heading"><div><p class="eyebrow">ADMIN</p><h2>Diagnostics</h2></div><button id="clear-health" class="button danger" type="button">Reset health data</button></div><div class="diagnostic-grid"><div class="metric"><span>Source</span><strong id="diag-source">-</strong></div><div class="metric"><span>Route</span><strong id="diag-route">-</strong></div><div class="metric"><span>Player</span><strong id="diag-player">-</strong></div><div class="metric"><span>Startup</span><strong id="diag-startup">-</strong></div></div><pre id="diagnostic-log" class="diagnostic-log" aria-live="polite"></pre></section>
       </section>
     </main>
@@ -41,15 +42,18 @@
     <div id="playlist-manager-status" class="playlist-manager-status" data-tone="idle">Ready</div><div id="playlist-preview" class="playlist-preview"><div class="playlist-preview-empty">Test a URL or paste an M3U to preview its channels.</div></div>
     <div class="saved-playlists-head"><div><strong>Saved Playlists</strong><span>Cloudflare D1 library. Local IndexedDB χρησιμοποιείται μόνο ως cache για γρηγορότερη εμφάνιση.</span></div><span id="saved-playlist-count" class="freshness-badge">0 saved</span></div><div id="saved-playlists" class="saved-playlists"></div>
   </section>
+  <script type="module" src="./src/browser-state-cleanup.js?v=20260923-0745"></script>
   <script type="module" src="./src/main.js?v=20260922-2115"></script>
   <script type="module" src="./src/sidebar-now.js?v=20260922-0705"></script>
   <script type="module" src="./src/registry-default.js?v=20260920-1825"></script>
   <script type="module" src="./src/cloud-read-sync.js?v=20260922-2115"></script>
   <script type="module" src="./src/pin-auth.js?v=20260922-0732"></script>
   <script type="module" src="./src/playlist-manager.js?v=20260922-2115"></script>
-  <script type="module" src="./src/saved-sources-ui.js?v=20260920-1935"></script>
-  <script type="module" src="./src/verified-source-recovery.js?v=20260920-2125"></script>
+  <script type="module" src="./src/saved-sources-ui.js?v=20260923-0700"></script>
   <script type="module" src="./src/source-hunt-engine.js?v=20260920-1155"></script>
   <script type="module" src="./src/source-hunt-web.js?v=20260920-1605"></script>
+  <script type="module" src="./src/source-hunt-oneclick.js?v=20260923-0725"></script>
+  <script type="module" src="./src/source-health-ui.js?v=20260923-0715"></script>
+  <script type="module" src="./src/favorites-ui.js?v=20260923-0715"></script>
 </body>
 </html>
