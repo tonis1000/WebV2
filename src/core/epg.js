@@ -1,6 +1,9 @@
 import { CONFIG, CHANNEL_ALIASES } from '../config.js?v=20260920-2248';
 import { normalizeId, formatTime } from './utils.js';
 
+const GLOBAL_EPG_KEY = '__webtv_epg_service_singleton__';
+const MIN_REFRESH_GAP_MS = 60 * 1000;
+
 function parseXmltvTime(value = '') {
   const match = String(value).trim().match(/^(\d{14})(?:\s*([+-]\d{2}:?\d{2}|Z))?$/i);
   if (!match) return null;
@@ -100,11 +103,25 @@ function aliasCandidates(values = []) {
 
 export class EpgService {
   constructor() {
+    const existing = globalThis[GLOBAL_EPG_KEY];
+    if (existing) return existing;
     this.programs = new Map();
     this.resolveIndex = new Map();
+    this.refreshPromise = null;
+    this.lastRefreshAt = 0;
+    globalThis[GLOBAL_EPG_KEY] = this;
   }
 
-  async refresh() {
+  async refresh({ force = false } = {}) {
+    if (this.refreshPromise) return this.refreshPromise;
+    if (!force && this.lastRefreshAt && (Date.now() - this.lastRefreshAt) < MIN_REFRESH_GAP_MS) return;
+
+    this.refreshPromise = this.#refreshNow()
+      .finally(() => { this.refreshPromise = null; });
+    return this.refreshPromise;
+  }
+
+  async #refreshNow() {
     const urls = [...new Set([CONFIG.epgUrl, CONFIG.epgFallbackUrl].filter(Boolean))];
     this.programs.clear();
     this.resolveIndex.clear();
@@ -118,6 +135,8 @@ export class EpgService {
         const merged = this.#merge(xml);
         if (!merged) throw new Error(`${url}: empty/invalid XMLTV`);
         this.#finalize();
+        this.lastRefreshAt = Date.now();
+        globalThis.dispatchEvent?.(new CustomEvent('webtv:epg-updated', { detail: { at: this.lastRefreshAt } }));
         return;
       } catch (error) {
         errors.push(error?.message || `EPG fetch failed · ${url}`);
