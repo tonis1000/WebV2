@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260922-2115';
 import { cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 
-const BUILD_ID = '20260923-0700';
+const BUILD_ID = '20260923-0715';
 const $ = id => document.getElementById(id);
 
 function loadHealthMap(){
@@ -59,6 +59,20 @@ function ensureUi(){
   diagnostics.insertBefore(section, log || null);
 }
 
+function emptyMessage(list,text){
+  list.innerHTML='';
+  const empty=document.createElement('div');
+  empty.className='source-health-empty';
+  empty.textContent=text;
+  list.appendChild(empty);
+}
+
+function metric(text){
+  const span=document.createElement('span');
+  span.textContent=text;
+  return span;
+}
+
 function render(){
   const summary = $('source-health-summary');
   const list = $('source-health-list');
@@ -66,7 +80,7 @@ function render(){
   const channel = window.WebTVPlaylistAPI?.getSelectedChannel?.();
   if(!channel){
     summary.textContent = 'No channel';
-    list.innerHTML = '<div class="source-health-empty">Select a channel to inspect its curated D1 routes.</div>';
+    emptyMessage(list,'Select a channel to inspect its curated D1 routes.');
     return;
   }
 
@@ -79,7 +93,7 @@ function render(){
   list.innerHTML = '';
 
   if(!rows.length){
-    list.innerHTML = '<div class="source-health-empty">No curated D1 source routes for this channel.</div>';
+    emptyMessage(list,'No curated D1 source routes for this channel.');
     return;
   }
 
@@ -88,20 +102,30 @@ function render(){
     const attempts = Number(entry.success||0)+Number(entry.fail||0);
     const successPct = pct(entry);
     const coolingNow = Number(entry.cooldownUntil||0) > Date.now();
+    const status = !attempts ? 'Untested' : coolingNow ? 'Cooldown' : successPct >= 80 ? 'Strong' : successPct >= 50 ? 'Mixed' : 'Weak';
+
     const item = document.createElement('div');
     item.className = `source-health-row${coolingNow?' cooling':''}`;
-    const status = !attempts ? 'Untested' : coolingNow ? 'Cooldown' : successPct >= 80 ? 'Strong' : successPct >= 50 ? 'Mixed' : 'Weak';
-    item.innerHTML = `
-      <div class="source-health-main">
-        <strong>${row.kind.toUpperCase()} · ${status}</strong>
-        <code title="${row.source.replace(/"/g,'&quot;')}">${row.source}</code>
-      </div>
-      <div class="source-health-metrics">
-        <span>${successPct === null ? '—' : `${successPct}%`} success</span>
-        <span>${attempts} tries</span>
-        <span>${entry.avgStartupMs ? `${entry.avgStartupMs} ms` : '—'} startup</span>
-        <span>last OK ${fmtWhen(entry.lastSuccess)}</span>
-      </div>`;
+
+    const main=document.createElement('div');
+    main.className='source-health-main';
+    const title=document.createElement('strong');
+    title.textContent=`${row.kind.toUpperCase()} · ${status}`;
+    const code=document.createElement('code');
+    code.textContent=row.source;
+    code.title=row.source;
+    main.append(title,code);
+
+    const metrics=document.createElement('div');
+    metrics.className='source-health-metrics';
+    metrics.append(
+      metric(`${successPct === null ? '—' : `${successPct}%`} success`),
+      metric(`${attempts} tries`),
+      metric(`${entry.avgStartupMs ? `${entry.avgStartupMs} ms` : '—'} startup`),
+      metric(`last OK ${fmtWhen(entry.lastSuccess)}`)
+    );
+
+    item.append(main,metrics);
     list.appendChild(item);
   }
 }
