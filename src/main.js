@@ -7,7 +7,7 @@ import { PlayerController } from './core/player.js?v=20260923-2315';
 import { formatTime, normalizeId, cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260923-2315';
+const BUILD_ID = '20260923-2255';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -27,6 +27,7 @@ const epg = new EpgService();
 let channels = [];
 let selected = null;
 let catalogMode = 'cloud';
+const channelRows = new Map();
 
 const player = new PlayerController({
   video:els.video,
@@ -111,10 +112,30 @@ function filteredChannels(){
   const q=els.search.value.trim().toLowerCase(),group=els.group.value;
   return channels.filter(channel=>(!q||`${channel.name} ${channel.originalId}`.toLowerCase().includes(q))&&(group==='all'||channel.group===group));
 }
+function statsText(channel){
+  const stats=sources.getStats(channel);
+  return {
+    text:stats.cooling?`${stats.active}/${stats.total}`:`${stats.total}`,
+    title:stats.cooling?`${stats.cooling} route(s) in cooldown`:'Playback routes'
+  };
+}
+function syncActiveChannelRow(previousId=''){
+  if(previousId){channelRows.get(String(previousId))?.classList.remove('active');}
+  if(selected?.id){channelRows.get(String(selected.id))?.classList.add('active');}
+}
+function updateChannelRowStats(channel){
+  const row=channelRows.get(String(channel?.id||''));
+  const count=row?.querySelector('.source-count');
+  if(!count)return;
+  const stats=statsText(channel);
+  count.textContent=stats.text;
+  count.title=stats.title;
+}
 function renderChannels(){
   const visible=filteredChannels();
   els.summary.textContent=`${visible.length} / ${channels.length} κανάλια`;
-  els.list.innerHTML='';
+  channelRows.clear();
+  const fragment=document.createDocumentFragment();
   for(const channel of visible){
     const button=document.createElement('button');
     button.type='button';
@@ -127,14 +148,16 @@ function renderChannels(){
     const name=document.createElement('strong');name.textContent=channel.name;
     const group=document.createElement('span');group.textContent=channel.group||'Other';
     meta.append(name,group);
-    const stats=sources.getStats(channel);
+    const stats=statsText(channel);
     const count=document.createElement('span');count.className='source-count';
-    count.textContent=stats.cooling?`${stats.active}/${stats.total}`:`${stats.total}`;
-    count.title=stats.cooling?`${stats.cooling} route(s) in cooldown`:'Playback routes';
+    count.textContent=stats.text;
+    count.title=stats.title;
     button.append(logo,meta,count);
     button.addEventListener('click',()=>selectChannel(channel));
-    els.list.appendChild(button);
+    channelRows.set(String(channel.id||''),button);
+    fragment.appendChild(button);
   }
+  els.list.replaceChildren(fragment);
 }
 function clearSelectedIfMissing(){
   if(!selected)return;
@@ -209,7 +232,10 @@ window.WebTVPlaylistAPI={
 };
 
 async function selectChannel(channel){
-  selected=channel;renderChannels();renderSourceHunt(channel);
+  const previousId=selected?.id||'';
+  selected=channel;
+  syncActiveChannelRow(previousId);
+  renderSourceHunt(channel);
   els.channelName.textContent=channel.name;els.channelGroup.textContent=channel.group||'WEBTV';
   applyImmediateLogo(els.logo,channel.logo);
   clearDiagnostics();const officialUrl=setOfficialLive(channel);renderEpg();
@@ -217,7 +243,7 @@ async function selectChannel(channel){
   log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
   try{await player.play(channel,routes);}
   catch(error){log(`${channel.name}: ${error.message}`);if(officialUrl)setPlaybackState('error','Official fallback');}
-  finally{renderChannels();}
+  finally{updateChannelRowStats(channel);}
 }
 
 async function testCandidateUrl(){
@@ -286,4 +312,4 @@ boot().catch(error=>{
   console.error(error);
 });
 
-console.info(`[WebTV] Main loaded · build ${BUILD_ID} · shared EPG · route quarantine · D1 My Playlist is primary`);
+console.info(`[WebTV] Main loaded · build ${BUILD_ID} · fast channel switching · shared EPG · route quarantine · D1 My Playlist is primary`);
