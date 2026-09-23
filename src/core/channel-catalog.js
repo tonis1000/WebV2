@@ -1,4 +1,4 @@
-import { normalizeId } from './utils.js';
+import { normalizeId } from './utils.js?v=20260920-1021';
 
 function attr(line, name) {
   const quoted = line.match(new RegExp(`${name}="([^"]*)"`, 'i'));
