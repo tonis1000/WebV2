@@ -1,8 +1,7 @@
-const BUILD_ID = '20260923-0715';
+const BUILD_ID = '20260923-0725';
 const $ = id => document.getElementById(id);
 
 const panel = $('source-hunt');
-const runHuntButton = $('run-hunt');
 const candidateInput = $('candidate-url');
 const testButton = $('test-candidate');
 const diagSource = $('diag-source');
@@ -22,16 +21,24 @@ function clean(value=''){
 }
 
 function ensureUi(){
-  if(!panel || !runHuntButton || $('hunt-oneclick')) return;
-  const heading = panel.querySelector('.section-heading');
-  if(!heading) return;
-
-  const wrap = document.createElement('div');
-  wrap.className = 'hunt-oneclick-wrap';
-  wrap.innerHTML = `
-    <button id="hunt-oneclick" class="button hunt-primary" type="button">Find & Test Best</button>
-    <span id="hunt-oneclick-status" class="hunt-oneclick-status">Ready</span>`;
-  heading.appendChild(wrap);
+  const runHuntButton = $('run-hunt');
+  if(!panel || !runHuntButton) return false;
+  if(!$('hunt-oneclick')){
+    const heading = panel.querySelector('.section-heading');
+    if(!heading) return false;
+    const wrap = document.createElement('div');
+    wrap.className = 'hunt-oneclick-wrap';
+    wrap.innerHTML = `
+      <button id="hunt-oneclick" class="button hunt-primary" type="button">Find & Test Best</button>
+      <span id="hunt-oneclick-status" class="hunt-oneclick-status">Ready</span>`;
+    heading.appendChild(wrap);
+  }
+  const button = $('hunt-oneclick');
+  if(button && button.dataset.oneclickBound !== '1'){
+    button.dataset.oneclickBound = '1';
+    button.addEventListener('click', runOneClick);
+  }
+  return true;
 }
 
 function collectCandidateUrls(){
@@ -110,6 +117,7 @@ function waitForPlayback(url, timeoutMs=15000){
 }
 
 async function runOneClick(){
+  const runHuntButton = $('run-hunt');
   const button = $('hunt-oneclick');
   const status = $('hunt-oneclick-status');
   const channelName = $('channel-name')?.textContent?.trim();
@@ -160,6 +168,12 @@ async function runOneClick(){
   }
 }
 
-ensureUi();
-$('hunt-oneclick')?.addEventListener('click', runOneClick);
+if(!ensureUi()){
+  const observer = new MutationObserver(() => {
+    if(ensureUi()) observer.disconnect();
+  });
+  observer.observe(document.body,{childList:true,subtree:true});
+  setTimeout(()=>{ensureUi();observer.disconnect();},5000);
+}
+window.addEventListener('webtv:ready',ensureUi);
 console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID}`);
