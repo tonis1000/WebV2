@@ -1,12 +1,12 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260922-2115';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 import { HealthStore } from './core/health-store.js?v=20260920-1021';
-import { SourceRegistry } from './core/source-registry.js?v=20260922-2115';
-import { EpgService } from './core/epg.js?v=20260920-2325';
-import { PlayerController } from './core/player.js?v=20260920-1021';
+import { SourceRegistry } from './core/source-registry.js?v=20260923-2145';
+import { EpgService } from './core/epg.js?v=20260923-2145';
+import { PlayerController } from './core/player.js?v=20260923-0755';
 import { formatTime, normalizeId, cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 
-const BUILD_ID = '20260922-2115';
+const BUILD_ID = '20260923-2145';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -218,6 +218,7 @@ async function selectChannel(channel){
   catch(error){log(`${channel.name}: ${error.message}`);if(officialUrl)setPlaybackState('error','Official fallback');}
   finally{renderChannels();}
 }
+
 async function testCandidateUrl(){
   if(!selected)return;
   const url=cleanUrl(els.candidateUrl.value.trim());
