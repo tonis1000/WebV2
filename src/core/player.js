@@ -1,6 +1,23 @@
 import { CONFIG } from '../config.js';
 import { isHls, isDash, isVideoFile } from './utils.js';
 
+const HARD_HTTP_STATUSES = new Set([403, 404, 410]);
+
+function readHttpStatus(data = {}) {
+  const candidates = [
+    data?.response?.code,
+    data?.response?.status,
+    data?.networkDetails?.status,
+    data?.networkDetails?.statusCode,
+    data?.networkDetails?.response?.status,
+  ];
+  for (const value of candidates) {
+    const status = Number(value);
+    if (Number.isFinite(status) && status >= 100) return status;
+  }
+  return 0;
+}
+
 export class PlayerController {
   constructor({ video, iframe, emptyState, health, onState, onDiagnostics }) {
     this.video = video;
@@ -36,9 +53,15 @@ export class PlayerController {
       } catch (error) {
         if (token !== this.token) return;
         lastError = error;
-        const entry = this.health.recordFailure(route.playbackUrl);
+        const httpStatus = Number(error?.httpStatus) || 0;
+        const hardDead = !route.saved && HARD_HTTP_STATUSES.has(httpStatus);
+        const entry = this.health.recordFailure(route.playbackUrl, {
+          hardCooldownMs: hardDead ? CONFIG.failureCooldownMaxMs : 0,
+          reason: httpStatus ? `HTTP ${httpStatus}` : error.message,
+        });
         const cooling = (entry.cooldownUntil || 0) > Date.now();
-        this.onDiagnostics({ source: route.originalUrl, route: route.route, player: 'failed', startupMs: 0, error: cooling ? `${error.message} · cooldown` : error.message });
+        const permanentText = hardDead ? ` · HTTP ${httpStatus} quarantine` : '';
+        this.onDiagnostics({ source: route.originalUrl, route: route.route, player: 'failed', startupMs: 0, error: cooling ? `${error.message}${permanentText} · cooldown` : `${error.message}${permanentText}` });
         this.#resetMedia();
       }
     }
@@ -145,6 +168,14 @@ export class PlayerController {
         const onHlsError = (_event, data) => {
           if (!data?.fatal) return;
           const detail = data.details || data.type || 'fatal error';
+          const httpStatus = readHttpStatus(data);
+
+          if (HARD_HTTP_STATUSES.has(httpStatus)) {
+            const error = new Error(`hls.js ${detail} · HTTP ${httpStatus}`);
+            error.httpStatus = httpStatus;
+            done(reject, error);
+            return;
+          }
 
           if (!recoveryUsed && token === this.token) {
             if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
@@ -165,7 +196,9 @@ export class PlayerController {
             }
           }
 
-          done(reject, new Error(`hls.js ${detail}${recoveryUsed ? ' after recovery' : ''}`));
+          const error = new Error(`hls.js ${detail}${recoveryUsed ? ' after recovery' : ''}${httpStatus ? ` · HTTP ${httpStatus}` : ''}`);
+          if (httpStatus) error.httpStatus = httpStatus;
+          done(reject, error);
         };
 
         this.video.addEventListener('playing', onPlaying, { once: true });
