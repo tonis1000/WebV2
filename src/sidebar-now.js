@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260920-2248';
-import { EpgService } from './core/epg.js?v=20260920-2325';
+import { EpgService } from './core/epg.js?v=20260923-2315';
 
-const BUILD_ID = '20260922-0705';
+const BUILD_ID = '20260923-2315';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = false;
@@ -181,7 +181,8 @@ if(list){
   new MutationObserver(scheduleRender).observe(list,{childList:true,subtree:true});
 }
 window.addEventListener('webtv:ready',scheduleRender);
+window.addEventListener('webtv:epg-updated',()=>{ready=true;scheduleRender();});
 refresh();
 setInterval(render,30000);
 setInterval(refresh,CONFIG.epgRefreshMs);
-console.info(`[WebTV] Sidebar Now Playing loaded · build ${BUILD_ID}`);
+console.info(`[WebTV] Sidebar Now Playing loaded · build ${BUILD_ID} · shared EPG singleton`);
