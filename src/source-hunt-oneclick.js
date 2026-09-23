@@ -1,6 +1,6 @@
 import { saveBestSourceToCurrent } from './source-save-policy.js?v=20260923-0815';
 
-const BUILD_ID = '20260923-0815';
+const BUILD_ID = '20260923-2235';
 const $ = id => document.getElementById(id);
 
 const panel = $('source-hunt');
@@ -19,6 +19,10 @@ function log(message){
 }
 function clean(value=''){return String(value || '').split('#')[0].trim();}
 
+function directCandidateTester(){
+  if(!panel) return null;
+  return [...panel.children].find(node=>node.classList?.contains('candidate-tester')) || null;
+}
 function ensureAdvancedUi(){
   if(!panel) return;
   let details=$('hunt-advanced');
@@ -32,12 +36,13 @@ function ensureAdvancedUi(){
     hint.className='muted small';
     hint.textContent='Seeds, GitHub, Web, Forums and manual candidate lists';
     details.append(summary,hint);
-    const tester=panel.querySelector('.candidate-tester');
-    panel.insertBefore(details,tester||null);
+    const tester=directCandidateTester();
+    if(tester && tester.parentElement===panel) panel.insertBefore(details,tester);
+    else panel.appendChild(details);
   }
   for(const id of ['hunt-auto','hunt-external']){
     const node=$(id);
-    if(node&&node.parentElement!==details)details.appendChild(node);
+    if(node && node!==details && node.parentElement!==details) details.appendChild(node);
   }
 }
 function ensureUi(){
@@ -160,4 +165,4 @@ if(!ensureUi()){
   setTimeout(()=>{ensureUi();observer.disconnect();},5000);
 }
 window.addEventListener('webtv:ready',ensureUi);
-console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · best-only save`);
+console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · safe advanced UI`);
