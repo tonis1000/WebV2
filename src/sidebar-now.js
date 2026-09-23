@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260923-2215';
 import { EpgService } from './core/epg.js?v=20260923-2315';
 
-const BUILD_ID = '20260923-2315';
+const BUILD_ID = '20260923-2255';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = false;
@@ -178,11 +178,13 @@ async function refresh(){
 
 ensureStyle();
 if(list){
-  new MutationObserver(scheduleRender).observe(list,{childList:true,subtree:true});
+  // Only react when channel rows are replaced/reordered. Do not observe the
+  // EPG elements this module inserts inside each row, or it schedules itself.
+  new MutationObserver(scheduleRender).observe(list,{childList:true,subtree:false});
 }
 window.addEventListener('webtv:ready',scheduleRender);
 window.addEventListener('webtv:epg-updated',()=>{ready=true;scheduleRender();});
 refresh();
 setInterval(render,30000);
 setInterval(refresh,CONFIG.epgRefreshMs);
-console.info(`[WebTV] Sidebar Now Playing loaded · build ${BUILD_ID} · shared EPG singleton`);
+console.info(`[WebTV] Sidebar Now Playing loaded · build ${BUILD_ID} · direct-row observer · shared EPG singleton`);
