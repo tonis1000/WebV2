@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20260922-2115';
+import { CONFIG } from './config.js?v=20260923-2215';
 import { cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 
 const BUILD_ID = '20260923-0715';

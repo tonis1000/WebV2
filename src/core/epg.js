@@ -1,5 +1,5 @@
-import { CONFIG, CHANNEL_ALIASES } from '../config.js?v=20260920-2248';
-import { normalizeId, formatTime } from './utils.js';
+import { CONFIG, CHANNEL_ALIASES } from '../config.js?v=20260923-2215';
+import { normalizeId, formatTime } from './utils.js?v=20260920-1021';
 
 const GLOBAL_EPG_KEY = '__webtv_epg_service_singleton__';
 const MIN_REFRESH_GAP_MS = 60 * 1000;

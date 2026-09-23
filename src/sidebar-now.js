@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20260920-2248';
+import { CONFIG } from './config.js?v=20260923-2215';
 import { EpgService } from './core/epg.js?v=20260923-2315';
 
 const BUILD_ID = '20260923-2315';
