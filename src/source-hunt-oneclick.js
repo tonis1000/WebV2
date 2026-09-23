@@ -1,4 +1,4 @@
-const BUILD_ID = '20260923-0700';
+const BUILD_ID = '20260923-0715';
 const $ = id => document.getElementById(id);
 
 const panel = $('source-hunt');
@@ -54,9 +54,10 @@ function collectCandidateUrls(){
   return urls;
 }
 
-function waitForDiscovery({maxMs=32000, quietMs=1800}={}){
+function waitForDiscovery({maxMs=32000, quietMs=1800, minMs=4500}={}){
   return new Promise(resolve => {
     const roots = [$('hunt-auto'), $('hunt-external')].filter(Boolean);
+    const startedAt = Date.now();
     let quietTimer = null;
     let done = false;
     const finish = () => {
@@ -70,8 +71,10 @@ function waitForDiscovery({maxMs=32000, quietMs=1800}={}){
     const schedule = () => {
       clearTimeout(quietTimer);
       quietTimer = setTimeout(() => {
+        const elapsed = Date.now() - startedAt;
         const urls = collectCandidateUrls();
-        if(urls.length) finish();
+        if(urls.length && elapsed >= minMs) finish();
+        else if(urls.length) quietTimer = setTimeout(finish, Math.max(0, minMs - elapsed));
       }, quietMs);
     };
     const observer = new MutationObserver(schedule);
