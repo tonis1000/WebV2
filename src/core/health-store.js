@@ -12,7 +12,7 @@ export class HealthStore {
   #key(value) { return cleanUrl(value); }
   #entry(value) {
     const key = this.#key(value);
-    if (!this.map[key]) this.map[key] = { success: 0, fail: 0, consecutiveFailures: 0, cooldownUntil: 0, lastSuccess: 0, lastFailure: 0, avgStartupMs: 0, player: '', route: '' };
+    if (!this.map[key]) this.map[key] = { success: 0, fail: 0, consecutiveFailures: 0, cooldownUntil: 0, lastSuccess: 0, lastFailure: 0, avgStartupMs: 0, player: '', route: '', lastFailureReason: '' };
     return this.map[key];
   }
   recordSuccess(value, { startupMs = 0, player = '', route = '' } = {}) {
@@ -23,16 +23,20 @@ export class HealthStore {
     entry.lastSuccess = Date.now();
     entry.player = player || entry.player;
     entry.route = route || entry.route;
+    entry.lastFailureReason = '';
     if (startupMs > 0) entry.avgStartupMs = entry.avgStartupMs ? Math.round((entry.avgStartupMs * .7) + (startupMs * .3)) : Math.round(startupMs);
     this.#save();
     return entry;
   }
-  recordFailure(value) {
+  recordFailure(value, { hardCooldownMs = 0, reason = '' } = {}) {
     const entry = this.#entry(value);
     entry.fail += 1;
     entry.consecutiveFailures = (entry.consecutiveFailures || 0) + 1;
     entry.lastFailure = Date.now();
-    if (entry.consecutiveFailures >= CONFIG.failureCooldownThreshold) {
+    entry.lastFailureReason = reason || entry.lastFailureReason || '';
+    if (hardCooldownMs > 0) {
+      entry.cooldownUntil = Math.max(entry.cooldownUntil || 0, Date.now() + hardCooldownMs);
+    } else if (entry.consecutiveFailures >= CONFIG.failureCooldownThreshold) {
       const exponent = entry.consecutiveFailures - CONFIG.failureCooldownThreshold;
       const delay = Math.min(CONFIG.failureCooldownBaseMs * (2 ** exponent), CONFIG.failureCooldownMaxMs);
       entry.cooldownUntil = Date.now() + delay;
