@@ -85,6 +85,10 @@ export class SourceRegistry {
       .filter(route => !this.health.isCoolingDown(route.playbackUrl))
       .sort((a, b) => {
         if (a.saved !== b.saved) return a.saved ? -1 : 1;
+        if (a.originalUrl === b.originalUrl && a.route !== b.route) {
+          if (a.route === 'direct') return -1;
+          if (b.route === 'direct') return 1;
+        }
         return this.health.score(b.playbackUrl) - this.health.score(a.playbackUrl);
       });
   }
