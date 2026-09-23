@@ -1,7 +1,7 @@
 import { cleanUrl, normalizeId } from './core/utils.js?v=20260920-1021';
 import { saveBestSourceToCurrent } from './source-save-policy.js?v=20260923-0815';
 
-const BUILD_ID = '20260923-0815';
+const BUILD_ID = '20260923-0825';
 const LEGACY_STORAGE_KEY = 'webtv_v2_saved_sources';
 const $ = id => document.getElementById(id);
 
@@ -108,6 +108,13 @@ if (candidateInput && testButton && channelName) {
   if(diagStartup)observer.observe(diagStartup,{childList:true,characterData:true,subtree:true});
   if(playbackStatus)observer.observe(playbackStatus,{childList:true,characterData:true,subtree:true,attributes:true});
 
+  window.addEventListener('webtv:source-policy-saved',event=>{
+    const detail=event.detail||{};
+    if(verified&&cleanUrl(detail.winner||'')===cleanUrl(verified.url)){
+      saveButton.hidden=true;
+      status.textContent=`Saved ✓ best source kept · ${(detail.kept||[]).length}/3 curated sources in D1.`;
+    }
+  });
   saveButton.addEventListener('click',()=>{if(verified)enqueueVerified({...verified}).catch(()=>{});});
   log(`Saved Sources UI loaded · build ${BUILD_ID} · manual test requires explicit save`);
 }
