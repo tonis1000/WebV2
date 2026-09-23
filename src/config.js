@@ -1,6 +1,6 @@
 export const CONFIG = Object.freeze({
   appName: 'WebTV V2',
-  buildId: '20260922-2115',
+  buildId: '20260923-2215',
   registryUrl: 'https://webtv-registry.atonis.workers.dev',
   cacheBaseUrl: 'https://tv-cache.atonis.workers.dev',
   epgUrl: 'https://epg-proxy-gr.atonis.workers.dev/epg.xml',
@@ -47,6 +47,8 @@ export const SOURCE_BLOCKLIST = Object.freeze([
   'https://spark3.smart-tv-data.com/ant1HD/ant1HD/playlist.m3u8',
   'https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8',
   'https://cdn1.smart-tv-data.com/live/ant1/playlist.m3u8',
+  'http://185.102.171.218/MegaHD/index.m3u8',
+  'http://wow.anixa.tv/live/mega/playlist.m3u8',
 ]);
 
 export const CHANNEL_ALIASES = Object.freeze({

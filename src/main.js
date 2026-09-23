@@ -1,12 +1,12 @@
-import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260922-2115';
+import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260923-2215';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 import { HealthStore } from './core/health-store.js?v=20260920-1021';
-import { SourceRegistry } from './core/source-registry.js?v=20260923-2145';
+import { SourceRegistry } from './core/source-registry.js?v=20260923-2215';
 import { EpgService } from './core/epg.js?v=20260923-2145';
 import { PlayerController } from './core/player.js?v=20260923-0755';
 import { formatTime, normalizeId, cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 
-const BUILD_ID = '20260923-2145';
+const BUILD_ID = '20260923-2215';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -42,6 +42,12 @@ function log(message){
 }
 function registryUrl(){
   return (localStorage.getItem(REGISTRY_URL_KEY) || DEFAULT_REGISTRY).trim().replace(/\/$/,'');
+}
+function safeLogo(value=''){
+  const url=String(value||'').trim();
+  if(!url)return'';
+  if(/^https?:\/\/goo\.gl\//i.test(url))return'';
+  return url;
 }
 function sourceLabel(value=''){
   try{
@@ -121,7 +127,7 @@ function renderChannels(){
     button.setAttribute('role','listitem');
     button.dataset.channelId=String(channel.id||'');
     const logo=document.createElement('img');logo.alt='';logo.loading='lazy';
-    logo.src=channel.logo||'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="42" height="42"%3E%3Crect width="100%25" height="100%25" rx="8" fill="%2310161c"/%3E%3C/svg%3E';
+    logo.src=safeLogo(channel.logo)||'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="42" height="42"%3E%3Crect width="100%25" height="100%25" rx="8" fill="%2310161c"/%3E%3C/svg%3E';
     const meta=document.createElement('div');
     const name=document.createElement('strong');name.textContent=channel.name;
     const group=document.createElement('span');group.textContent=channel.group||'Other';
@@ -157,7 +163,7 @@ function mapRegistryChannel(c){
     id: normalizeId(c.id||c.tvgId||c.name),
     originalId: c.tvgId||c.id||c.name,
     name: c.name,
-    logo: c.logo||'',
+    logo: safeLogo(c.logo||''),
     group: c.groupName||'Other',
     directUrls: [...new Set((c.sources||[]).map(s=>s?.url).filter(Boolean))],
     position: Number(c.position)||0
@@ -189,7 +195,7 @@ async function loadCloudMyPlaylist({reason='manual',preserveSelection=true}={}){
     renderSourceHunt(selected);
     els.channelName.textContent=selected.name;
     els.channelGroup.textContent=selected.group||'WEBTV';
-    if(selected.logo){els.logo.src=selected.logo;els.logo.hidden=false;}else els.logo.hidden=true;
+    const logo=safeLogo(selected.logo);if(logo){els.logo.src=logo;els.logo.hidden=false;}else els.logo.hidden=true;
     setOfficialLive(selected);
   }
   log(`D1 MY PLAYLIST LOADED · ${channels.length} channels · ${reason}`);
@@ -210,7 +216,7 @@ window.WebTVPlaylistAPI={
 async function selectChannel(channel){
   selected=channel;renderChannels();renderSourceHunt(channel);
   els.channelName.textContent=channel.name;els.channelGroup.textContent=channel.group||'WEBTV';
-  if(channel.logo){els.logo.src=channel.logo;els.logo.hidden=false;}else els.logo.hidden=true;
+  const logo=safeLogo(channel.logo);if(logo){els.logo.src=logo;els.logo.hidden=false;}else els.logo.hidden=true;
   clearDiagnostics();const officialUrl=setOfficialLive(channel);renderEpg();
   const stats=sources.getStats(channel),routes=sources.getSources(channel);
   log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
