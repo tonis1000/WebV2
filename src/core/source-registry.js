@@ -17,7 +17,6 @@ function isWrongChannelSource(channel, url = '') {
 }
 
 const BLOCKED = new Set((SOURCE_BLOCKLIST || []).map(cleanUrl).filter(Boolean));
-const SAVED_KEY = 'webtv_v2_saved_sources';
 
 export class SourceRegistry {
   constructor(healthStore) {
@@ -55,27 +54,14 @@ export class SourceRegistry {
     }
     return [];
   }
-  #savedUrls(channel) {
-    try {
-      const store = JSON.parse(localStorage.getItem(SAVED_KEY) || '{}');
-      for (const candidate of this.#candidateKeys(channel)) {
-        const key = normalizeId(candidate);
-        const entries = store[key];
-        if (Array.isArray(entries)) return entries.map(item => cleanUrl(item?.url || item)).filter(Boolean);
-      }
-    } catch {}
-    return [];
-  }
   #allRoutes(channel) {
-    const localSaved = this.#savedUrls(channel);
     const curated = (channel.directUrls || []).map(cleanUrl).filter(Boolean);
 
-    // directUrls come from the D1 My Playlist (or a deliberately loaded playlist).
-    // Treat them as curated/trusted sources: they are allowed even if an older
-    // static blocklist contains the same URL. The blocklist still applies to
-    // background/remote discovery data from TV Cache.
-    const trustedSet = new Set([...localSaved, ...curated]);
-    const sources = [...new Set([...localSaved, ...curated, ...this.#remoteUrls(channel)]
+    // D1 My Playlist sources are the only persistent curated source state.
+    // TV Cache remains background discovery/performance data and never becomes
+    // authoritative merely because it exists in the browser.
+    const trustedSet = new Set(curated);
+    const sources = [...new Set([...curated, ...this.#remoteUrls(channel)]
       .map(cleanUrl)
       .filter(Boolean)
       .filter(isPlayableMedia)
