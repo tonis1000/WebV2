@@ -106,38 +106,27 @@ export class EpgService {
 
   async refresh() {
     const urls = [...new Set([CONFIG.epgUrl, CONFIG.epgFallbackUrl].filter(Boolean))];
-    const fetched = await Promise.allSettled(urls.map(async url => {
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
-      return { url, xml: await response.text() };
-    }));
-
     this.programs.clear();
     this.resolveIndex.clear();
 
     const errors = [];
-    let mergedFeeds = 0;
-
-    for (const result of fetched) {
-      if (result.status !== 'fulfilled') {
-        errors.push(result.reason?.message || 'EPG fetch failed');
-        continue;
-      }
-
+    for (const url of urls) {
       try {
-        const merged = this.#merge(result.value.xml);
-        if (merged) mergedFeeds += 1;
-        else errors.push(`${result.value.url}: empty/invalid XMLTV`);
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+        const xml = await response.text();
+        const merged = this.#merge(xml);
+        if (!merged) throw new Error(`${url}: empty/invalid XMLTV`);
+        this.#finalize();
+        return;
       } catch (error) {
-        errors.push(`${result.value.url}: ${error.message}`);
+        errors.push(error?.message || `EPG fetch failed · ${url}`);
+        this.programs.clear();
+        this.resolveIndex.clear();
       }
     }
 
-    if (!mergedFeeds) {
-      throw new Error(errors.join(' · ') || 'No usable EPG feed available');
-    }
-
-    this.#finalize();
+    throw new Error(errors.join(' · ') || 'No usable EPG feed available');
   }
 
   #indexValue(value, id) {
