@@ -1,12 +1,14 @@
 import { cleanUrl, normalizeId } from './core/utils.js?v=20260920-1021';
+import { saveBestSourceToCurrent } from './source-save-policy.js?v=20260923-0815';
 
-const BUILD_ID = '20260923-0700';
+const BUILD_ID = '20260923-0815';
 const LEGACY_STORAGE_KEY = 'webtv_v2_saved_sources';
 const $ = id => document.getElementById(id);
 
 const candidateInput = $('candidate-url');
 const testButton = $('test-candidate');
 const channelName = $('channel-name');
+const playbackStatus = $('playback-status');
 const diagSource = $('diag-source');
 const diagRoute = $('diag-route');
 const diagPlayer = $('diag-player');
@@ -32,37 +34,45 @@ if (candidateInput && testButton && channelName) {
   let pending = null;
   let verified = null;
   let saveQueue = Promise.resolve();
+  let restoreTimer = null;
 
   function log(message){if(!diagLog)return;const stamp=new Date().toLocaleTimeString();diagLog.textContent=`[${stamp}] ${message}\n${diagLog.textContent}`.slice(0,18000);}
-  function resetVerification(message=''){pending=null;verified=null;saveButton.hidden=true;saveButton.disabled=false;saveButton.textContent='Save Source';status.textContent=message;}
-  function beginCandidateTracking(){const url=cleanUrl(candidateInput.value.trim()),name=channelName.textContent.trim();if(!url||!/^https?:\/\//i.test(url)||!name||name==='Επίλεξε κανάλι'){resetVerification();return;}pending={url,channelName:name,channelKey:normalizeId(name),startedAt:Date.now()};verified=null;saveButton.hidden=true;status.textContent='Testing… η πηγή θα αποθηκευτεί μόνο αν ξεκινήσει πραγματικό playback.';}
+  function resetVerification(message=''){pending=null;verified=null;clearTimeout(restoreTimer);saveButton.hidden=true;saveButton.disabled=false;saveButton.textContent='Save Source';status.textContent=message;}
+  function beginCandidateTracking(){
+    const url=cleanUrl(candidateInput.value.trim()),name=channelName.textContent.trim();
+    if(!url||!/^https?:\/\//i.test(url)||!name||name==='Επίλεξε κανάλι'){resetVerification();return;}
+    pending={url,channelName:name,channelKey:normalizeId(name),startedAt:Date.now(),oneClick:window.WebTVSourceHuntBusy===true};
+    verified=null;clearTimeout(restoreTimer);saveButton.hidden=true;
+    status.textContent=pending.oneClick?'Testing automatically…':'Testing… playback must start before Save Source is enabled.';
+  }
+  function restoreSelectedPlayback(){
+    const active=document.querySelector('.channel-item.active');
+    if(!active)return;
+    clearTimeout(restoreTimer);
+    restoreTimer=setTimeout(()=>{
+      active.click();
+      log('CANDIDATE FAILED · restored selected channel playback');
+    },250);
+  }
 
   async function persistSnapshot(snapshot){
     if(!snapshot)return;
-    saveButton.hidden=false;
-    saveButton.disabled=true;
-    saveButton.textContent='Saving…';
-    status.textContent=`Verified ✓ ${snapshot.route||snapshot.player}${snapshot.startupMs?` · ${snapshot.startupMs} ms`:''}. Saving to My Playlist…`;
-
+    saveButton.hidden=false;saveButton.disabled=true;saveButton.textContent='Saving…';
+    status.textContent=`Verified ✓ ${snapshot.route||snapshot.player}${snapshot.startupMs?` · ${snapshot.startupMs} ms`:''}. Keeping best sources…`;
     try{
-      if(!window.WebTVMyPlaylistAPI?.addSourceToCurrent) throw new Error('My Playlist API unavailable');
-      await window.WebTVMyPlaylistAPI.addSourceToCurrent(snapshot.url);
+      const result=await saveBestSourceToCurrent(snapshot.url,{maxSources:3});
       saveButton.textContent='Saved ✓';
-      status.textContent='Saved automatically ✓ D1 My Playlist updated.';
-      log(`AUTO-SAVED D1 ${snapshot.channelName} · ${snapshot.url} · ${snapshot.route||snapshot.player}${snapshot.startupMs?` · ${snapshot.startupMs} ms`:''}`);
+      status.textContent=`Saved ✓ best source kept · ${result.kept.length}/3 curated source${result.kept.length===1?'':'s'} in D1.`;
+      log(`SOURCE SAVED POLICY ${snapshot.channelName} · winner ${snapshot.url} · kept ${result.kept.length} · dropped ${result.dropped.length}`);
+      return result;
     }catch(error){
-      saveButton.disabled=false;
-      saveButton.textContent='Retry Save';
+      saveButton.disabled=false;saveButton.textContent='Retry Save';
       status.textContent=`Playback verified, but D1 save failed: ${error.message}`;
-      log(`AUTO-SAVE D1 FAILED ${snapshot.channelName} · ${error.message}`);
+      log(`SOURCE SAVE POLICY FAILED ${snapshot.channelName} · ${error.message}`);
       throw error;
     }
   }
-
-  function enqueueVerified(snapshot){
-    saveQueue=saveQueue.catch(()=>{}).then(()=>persistSnapshot(snapshot));
-    return saveQueue;
-  }
+  function enqueueVerified(snapshot){saveQueue=saveQueue.catch(()=>{}).then(()=>persistSnapshot(snapshot));return saveQueue;}
 
   function inspectDiagnostics(){
     if(!pending||verified)return;
@@ -70,10 +80,24 @@ if (candidateInput && testButton && channelName) {
     const source=cleanUrl(diagSource?.textContent?.trim()||'');
     const startupMs=Number.parseInt(diagStartup?.textContent||'',10)||0;
     const route=diagRoute?.textContent?.trim()||'';
-    if(player==='-'||player==='failed'||!source||source!==pending.url||startupMs<=0)return;
-    verified={...pending,route,player,startupMs,verifiedAt:new Date().toISOString()};
-    const snapshot={...verified};
-    enqueueVerified(snapshot).catch(()=>{});
+    if(!source||source!==pending.url)return;
+
+    if(player!=='-'&&player!=='failed'&&startupMs>0&&playbackStatus?.classList.contains('live')){
+      verified={...pending,route,player,startupMs,verifiedAt:new Date().toISOString()};
+      saveButton.hidden=pending.oneClick;
+      saveButton.disabled=false;
+      status.textContent=pending.oneClick?`Verified ✓ ${startupMs} ms · selecting as best source…`:`Verified ✓ ${startupMs} ms. Click Save Source to keep it.`;
+      log(`CANDIDATE VERIFIED ${pending.channelName} · ${pending.url} · ${route||player} · ${startupMs} ms`);
+      return;
+    }
+
+    if(player==='failed'&&playbackStatus?.classList.contains('error')){
+      const failed={...pending};
+      pending=null;
+      saveButton.hidden=true;
+      status.textContent=failed.oneClick?'Candidate failed · trying next…':'Candidate failed · restoring previous working playback…';
+      if(!failed.oneClick)restoreSelectedPlayback();
+    }
   }
 
   testButton.addEventListener('click',beginCandidateTracking,true);
@@ -82,7 +106,8 @@ if (candidateInput && testButton && channelName) {
   if(diagPlayer)observer.observe(diagPlayer,{childList:true,characterData:true,subtree:true});
   if(diagSource)observer.observe(diagSource,{childList:true,characterData:true,subtree:true});
   if(diagStartup)observer.observe(diagStartup,{childList:true,characterData:true,subtree:true});
+  if(playbackStatus)observer.observe(playbackStatus,{childList:true,characterData:true,subtree:true,attributes:true});
 
   saveButton.addEventListener('click',()=>{if(verified)enqueueVerified({...verified}).catch(()=>{});});
-  log(`Saved Sources UI loaded · build ${BUILD_ID} · D1-only verified source persistence`);
+  log(`Saved Sources UI loaded · build ${BUILD_ID} · manual test requires explicit save`);
 }
