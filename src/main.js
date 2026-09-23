@@ -5,8 +5,9 @@ import { SourceRegistry } from './core/source-registry.js?v=20260923-2215';
 import { EpgService } from './core/epg.js?v=20260923-2145';
 import { PlayerController } from './core/player.js?v=20260923-0755';
 import { formatTime, normalizeId, cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
+import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260923-2215';
+const BUILD_ID = '20260923-2235';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -42,12 +43,6 @@ function log(message){
 }
 function registryUrl(){
   return (localStorage.getItem(REGISTRY_URL_KEY) || DEFAULT_REGISTRY).trim().replace(/\/$/,'');
-}
-function safeLogo(value=''){
-  const url=String(value||'').trim();
-  if(!url)return'';
-  if(/^https?:\/\/goo\.gl\//i.test(url))return'';
-  return url;
 }
 function sourceLabel(value=''){
   try{
@@ -126,8 +121,8 @@ function renderChannels(){
     button.className=`channel-item${selected?.id===channel.id?' active':''}`;
     button.setAttribute('role','listitem');
     button.dataset.channelId=String(channel.id||'');
-    const logo=document.createElement('img');logo.alt='';logo.loading='lazy';
-    logo.src=safeLogo(channel.logo)||'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="42" height="42"%3E%3Crect width="100%25" height="100%25" rx="8" fill="%2310161c"/%3E%3C/svg%3E';
+    const logo=document.createElement('img');
+    prepareLazyLogo(logo,channel.logo);
     const meta=document.createElement('div');
     const name=document.createElement('strong');name.textContent=channel.name;
     const group=document.createElement('span');group.textContent=channel.group||'Other';
@@ -149,7 +144,7 @@ function clearSelectedIfMissing(){
   els.officialLive.hidden=true;els.sourceHuntToggle.hidden=true;els.sourceHunt.hidden=true;player.stop?.();
 }
 function applyPlaylistText(text,{mode='replace',label='Playlist'}={}){
-  const imported=parseM3U(text);
+  const imported=parseM3U(text).map(channel=>({...channel,logo:safeLogo(channel.logo)}));
   if(!imported.length)throw new Error('No #EXTINF channels found');
   channels=mode==='merge'?dedupeChannels([...channels,...imported]):dedupeChannels(imported);
   catalogMode='temporary';
@@ -195,7 +190,7 @@ async function loadCloudMyPlaylist({reason='manual',preserveSelection=true}={}){
     renderSourceHunt(selected);
     els.channelName.textContent=selected.name;
     els.channelGroup.textContent=selected.group||'WEBTV';
-    const logo=safeLogo(selected.logo);if(logo){els.logo.src=logo;els.logo.hidden=false;}else els.logo.hidden=true;
+    applyImmediateLogo(els.logo,selected.logo);
     setOfficialLive(selected);
   }
   log(`D1 MY PLAYLIST LOADED · ${channels.length} channels · ${reason}`);
@@ -216,7 +211,7 @@ window.WebTVPlaylistAPI={
 async function selectChannel(channel){
   selected=channel;renderChannels();renderSourceHunt(channel);
   els.channelName.textContent=channel.name;els.channelGroup.textContent=channel.group||'WEBTV';
-  const logo=safeLogo(channel.logo);if(logo){els.logo.src=logo;els.logo.hidden=false;}else els.logo.hidden=true;
+  applyImmediateLogo(els.logo,channel.logo);
   clearDiagnostics();const officialUrl=setOfficialLive(channel);renderEpg();
   const stats=sources.getStats(channel),routes=sources.getSources(channel);
   log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
@@ -291,4 +286,4 @@ boot().catch(error=>{
   console.error(error);
 });
 
-console.info(`[WebTV] Main loaded · build ${BUILD_ID} · D1 My Playlist is primary`);
+console.info(`[WebTV] Main loaded · build ${BUILD_ID} · lazy logos · D1 My Playlist is primary`);
