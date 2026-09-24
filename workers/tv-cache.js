@@ -43,8 +43,65 @@ export default {
     const isSegmentLike = (u) =>
       /\.(ts|m4s|mp4|aac|mp3|key)(\?.*)?$/i.test(u || "");
 
-    const toProxyUrl = (absoluteUrl) =>
-      `${url.origin}/?url=${encodeURIComponent(cleanUrl(absoluteUrl))}`;
+    // Header-aware proxy transport. Only these non-sensitive request headers
+    // may be supplied by IPTV/Kodi URL options.
+    const ALLOWED_UPSTREAM_HEADERS = Object.freeze({
+      "user-agent": "User-Agent",
+      "referer": "Referer",
+      "origin": "Origin"
+    });
+    const HEADER_CONTEXT_MAX_LENGTH = 8192;
+    const HEADER_VALUE_MAX_LENGTH = 2048;
+    const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+
+    const decodeBase64UrlUtf8 = (raw) => {
+      const normalized = String(raw || "").replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+      const binary = atob(padded);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    };
+
+    const parseHeaderContext = (raw) => {
+      if (!raw) return { headers: {}, error: "" };
+      if (String(raw).length > HEADER_CONTEXT_MAX_LENGTH) {
+        return { headers: {}, error: "Header context too large" };
+      }
+
+      let payload;
+      try {
+        payload = JSON.parse(decodeBase64UrlUtf8(raw));
+      } catch {
+        return { headers: {}, error: "Invalid header context" };
+      }
+
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        return { headers: {}, error: "Invalid header context" };
+      }
+
+      const headers = {};
+      for (const [rawName, rawValue] of Object.entries(payload)) {
+        const canonical = ALLOWED_UPSTREAM_HEADERS[String(rawName || "").trim().toLowerCase()];
+        if (!canonical) continue;
+        if (typeof rawValue !== "string") {
+          return { headers: {}, error: `Invalid ${canonical} value` };
+        }
+
+        const value = rawValue.trim();
+        if (!value || value.length > HEADER_VALUE_MAX_LENGTH || CONTROL_CHARS.test(value)) {
+          return { headers: {}, error: `Invalid ${canonical} value` };
+        }
+        headers[canonical] = value;
+      }
+
+      return { headers, error: "" };
+    };
+
+    const toProxyUrl = (absoluteUrl, headerContext = "") => {
+      const target = encodeURIComponent(cleanUrl(absoluteUrl));
+      if (!headerContext) return `${url.origin}/?url=${target}`;
+      return `${url.origin}/?h=${encodeURIComponent(headerContext)}&url=${target}`;
+    };
 
     const absoluteFrom = (baseUrl, relativeOrAbsolute) => {
       return new URL(relativeOrAbsolute, baseUrl).href;
@@ -300,7 +357,6 @@ export default {
               null
           };
 
-          // alias record και για το finalUrl
           if (meta.finalUrl && meta.finalUrl !== streamUrl) {
             const finalKey = cleanUrl(meta.finalUrl);
             const existingFinal = normalizeMeta(oldProxyMap[finalKey] || { tvgId });
@@ -355,13 +411,20 @@ export default {
     }
 
     // -------------------------
-    // Stream proxy: GET /?url=...
+    // Stream proxy: GET /?url=... or /proxy?url=...
+    // Optional approved header context: ?h=<base64url-json>
     // -------------------------
     const targetRaw = url.searchParams.get("url");
     if (targetRaw) {
       const target = cleanUrl(targetRaw);
       if (!target) {
         return textResponse("Invalid target url", "text/plain; charset=utf-8", 400);
+      }
+
+      const headerContext = url.searchParams.get("h") || "";
+      const parsedHeaderContext = parseHeaderContext(headerContext);
+      if (parsedHeaderContext.error) {
+        return textResponse(parsedHeaderContext.error, "text/plain; charset=utf-8", 400);
       }
 
       const cache = caches.default;
@@ -371,11 +434,13 @@ export default {
       const upstreamHeaders = new Headers();
       upstreamHeaders.set("User-Agent", "Mozilla/5.0");
       upstreamHeaders.set("Referer", target);
+      for (const [name, value] of Object.entries(parsedHeaderContext.headers)) {
+        upstreamHeaders.set(name, value);
+      }
       if (range) upstreamHeaders.set("Range", range);
 
       const targetLooksLikeM3U8 = isLikelyM3U8ByUrl(target);
 
-      // cache hit ΜΟΝΟ για non-playlist και non-range
       if (!range && !targetLooksLikeM3U8) {
         const cached = await cache.match(cacheKey);
         if (cached) {
@@ -410,10 +475,6 @@ export default {
         /application\/(vnd\.apple\.mpegurl|x-mpegurl)/i.test(contentType) ||
         /audio\/mpegurl/i.test(contentType);
 
-      // -------------------------
-      // HLS playlist rewrite
-      // no-store για playlists
-      // -------------------------
       if (isM3U8) {
         const text = await upstreamResp.text();
         const kind = classifyM3U8(text);
@@ -424,12 +485,12 @@ export default {
           if (!trimmed || trimmed.startsWith("#")) {
             return line.replace(/URI="([^"]+)"/gi, (_, uriValue) => {
               const abs = absoluteFrom(target, cleanUrl(uriValue));
-              return `URI="${toProxyUrl(abs)}"`;
+              return `URI="${toProxyUrl(abs, headerContext)}"`;
             });
           }
 
           const absolute = absoluteFrom(target, cleanUrl(trimmed));
-          return toProxyUrl(absolute);
+          return toProxyUrl(absolute, headerContext);
         }).join("\n");
 
         const cacheControl = kind.isLive ? "no-store" : "public, max-age=5";
@@ -444,10 +505,6 @@ export default {
         });
       }
 
-      // -------------------------
-      // Segments / media
-      // cache only when no Range
-      // -------------------------
       const maxAge = isSegmentLike(target) ? 60 : 20;
       const proxiedResp = addCorsAndCacheHeaders(upstreamResp, maxAge);
 
