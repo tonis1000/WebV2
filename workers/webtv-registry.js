@@ -66,6 +66,23 @@ async function pinLogin(request,env,origin){
   return json({ok:true,token:await createSession(env),expiresIn:SESSION_DAYS*86400,days:SESSION_DAYS},200,origin);
 }
 
+async function ensureFavoritesTable(env){
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS favorites (channel_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
+}
+async function listFavorites(env){
+  await ensureFavoritesTable(env);
+  const r=await env.DB.prepare(`SELECT channel_id AS channelId FROM favorites ORDER BY updated_at DESC`).all();
+  return (r.results||[]).map(row=>row.channelId).filter(Boolean);
+}
+async function replaceFavorites(env,ids){
+  await ensureFavoritesTable(env);
+  const cleanIds=[...new Set((Array.isArray(ids)?ids:[]).map(normalizeId).filter(Boolean))].slice(0,500);
+  const statements=[env.DB.prepare(`DELETE FROM favorites`)];
+  for(const id of cleanIds)statements.push(env.DB.prepare(`INSERT INTO favorites(channel_id,updated_at) VALUES(?,CURRENT_TIMESTAMP)`).bind(id));
+  await env.DB.batch(statements);
+  return cleanIds;
+}
+
 async function listPlaylists(env){const r=await env.DB.prepare(`SELECT id,name,kind,source_url AS sourceUrl,channel_count AS channelCount,group_count AS groupCount,created_at AS createdAt,updated_at AS updatedAt FROM playlists ORDER BY updated_at DESC`).all();return r.results||[];}
 async function getPlaylist(env,id){return await env.DB.prepare(`SELECT id,name,kind,source_url AS sourceUrl,raw_m3u AS rawM3u,channel_count AS channelCount,group_count AS groupCount,created_at AS createdAt,updated_at AS updatedAt FROM playlists WHERE id=?`).bind(id).first();}
 async function upsertSavedPlaylist(env,payload){const id=clean(payload.id)||`pl-${crypto.randomUUID()}`,name=clean(payload.name)||'Saved Playlist',kind=clean(payload.kind)||'saved',sourceUrl=clean(payload.sourceUrl||payload.url),rawM3u=String(payload.rawM3u||payload.text||'');if(!rawM3u.includes('#EXTINF'))throw new Error('rawM3u must contain #EXTINF entries');const channelCount=Math.max(0,Number(payload.channelCount)||0),groupCount=Math.max(0,Number(payload.groupCount)||0);await env.DB.prepare(`INSERT INTO playlists(id,name,kind,source_url,raw_m3u,channel_count,group_count,created_at,updated_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,source_url=excluded.source_url,raw_m3u=excluded.raw_m3u,channel_count=excluded.channel_count,group_count=excluded.group_count,updated_at=CURRENT_TIMESTAMP`).bind(id,name,kind,sourceUrl,rawM3u,channelCount,groupCount).run();return{id,name,kind,sourceUrl,channelCount,groupCount};}
@@ -96,6 +113,8 @@ export default{async fetch(request,env){
     if(path==='/api/playlists'&&request.method==='POST'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;return json({ok:true,playlist:await upsertSavedPlaylist(env,await readJson(request))},200,origin);}
     if(path.startsWith('/api/playlists/')&&request.method==='GET'){const id=decodeURIComponent(path.slice('/api/playlists/'.length)),row=await getPlaylist(env,id);return row?json({playlist:row},200,origin):json({error:'Playlist not found'},404,origin);}
     if(path.startsWith('/api/playlists/')&&request.method==='DELETE'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;const id=decodeURIComponent(path.slice('/api/playlists/'.length));await env.DB.prepare(`DELETE FROM playlists WHERE id=?`).bind(id).run();return json({ok:true,id},200,origin);}
+    if(path==='/api/favorites'&&request.method==='GET'){const favorites=await listFavorites(env);return json({favorites,count:favorites.length},200,origin);}
+    if(path==='/api/favorites'&&request.method==='PUT'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;const favorites=await replaceFavorites(env,(await readJson(request)).favorites);return json({ok:true,favorites,count:favorites.length},200,origin);}
     if(path==='/api/my-playlist'&&request.method==='GET'){const channels=await myPlaylist(env);return json({channels,count:channels.length,playlistUrl:`${url.origin}/playlist.m3u`},200,origin);}
     if(path==='/api/my-playlist/channel'&&request.method==='PUT'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;return json({ok:true,channel:await putMyChannel(env,await readJson(request))},200,origin);}
     if(path==='/api/my-playlist/order'&&request.method==='PATCH'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;const result=await reorderMyPlaylist(env,(await readJson(request)).ids);return result.ok?json(result,200,origin):json({error:result.error},409,origin);}
