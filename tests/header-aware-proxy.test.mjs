@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { parseIptvUrl, workerUrl, cleanUrl } from '../src/core/utils.js';
 import { SourceRegistry } from '../src/core/source-registry.js';
+import { routeMediaType } from '../src/core/player.js';
 import worker from '../workers/tv-cache.js';
 
 const health = {
@@ -24,6 +25,8 @@ assert.equal(plainWorker, 'https://tv-cache.atonis.workers.dev/?url=https%3A%2F%
 const headerWorker = workerUrl(parsed.url, parsed.headers);
 assert.match(headerWorker, /^https:\/\/tv-cache\.atonis\.workers\.dev\/\?h=[A-Za-z0-9_-]+&url=/);
 assert.ok(headerWorker.endsWith('live.m3u8'));
+assert.equal(routeMediaType({ originalUrl: parsed.url, playbackUrl: headerWorker }), 'hls');
+assert.equal(routeMediaType({ originalUrl: 'https://example.com/live.mpd', playbackUrl: 'https://proxy.example/?url=encoded' }), 'dash');
 
 const registry = new SourceRegistry(health);
 let routes = await registry.getSources({ id: 'header-test', name: 'Header Test', directUrls: [raw], sourceTrust: 'temporary' });
@@ -32,12 +35,14 @@ assert.equal(routes[0].route, 'direct');
 assert.equal(routes[0].playbackUrl, parsed.url);
 assert.equal(routes[1].route, 'worker+headers');
 assert.deepEqual(routes[1].requestHeaders, parsed.headers);
+assert.equal(routeMediaType(routes[1]), 'hls');
 
 const normalRegistry = new SourceRegistry(health);
 routes = await normalRegistry.getSources({ id: 'normal-test', name: 'Normal Test', directUrls: ['https://example.com/plain.m3u8'], sourceTrust: 'temporary' });
 assert.equal(routes.length, 2);
 assert.equal(routes[0].playbackUrl, 'https://example.com/plain.m3u8');
 assert.equal(routes[1].playbackUrl, 'https://tv-cache.atonis.workers.dev/?url=https%3A%2F%2Fexample.com%2Fplain.m3u8');
+assert.equal(routeMediaType(routes[1]), 'hls');
 
 const seen = [];
 globalThis.caches = { default: { match: async () => null, put: async () => {} } };
@@ -61,6 +66,7 @@ const strmRegistry = new SourceRegistry(health);
 const strmRoutes = await strmRegistry.getSources({ id: 'strm-test', name: 'STRM Test', directUrls: ['https://example.com/redirect.strm'], sourceTrust: 'temporary' });
 assert.equal(strmRoutes[1].route, 'worker+headers');
 assert.equal(strmRoutes[1].requestHeaders.Referer, 'https://site.example/');
+assert.equal(routeMediaType(strmRoutes[1]), 'hls');
 
 const ctx = { waitUntil() {} };
 const first = await worker.fetch(new Request(headerWorker), { TV_CACHE: {} }, ctx);
