@@ -1,16 +1,10 @@
-import { saveBestSourceToCurrent } from './source-save-policy.js?v=20260923-0815';
-import { officialFallbackFor } from './core/official-fallbacks.js?v=20260924-1435';
+import { saveBestSourceToCurrent } from './source-save-policy.js';
+import { officialFallbackFor } from './core/official-fallbacks.js';
 
-const BUILD_ID = '20260924-1435';
+const BUILD_ID = '20260924-stabilization';
 const $ = id => document.getElementById(id);
 
 const panel = $('source-hunt');
-const candidateInput = $('candidate-url');
-const testButton = $('test-candidate');
-const diagSource = $('diag-source');
-const diagPlayer = $('diag-player');
-const diagStartup = $('diag-startup');
-const playbackStatus = $('playback-status');
 const diagLog = $('diagnostic-log');
 
 function log(message){
@@ -21,6 +15,7 @@ function log(message){
 function clean(value=''){return String(value || '').split('#')[0].trim();}
 function selectedChannel(){return window.WebTVPlaylistAPI?.getSelectedChannel?.() || null;}
 function currentOfficialFallback(){const selected=selectedChannel();return selected ? officialFallbackFor(selected) : null;}
+function playbackApi(){return window.WebTVPlaybackAPI || null;}
 
 function directCandidateTester(){
   if(!panel) return null;
@@ -91,40 +86,27 @@ function waitForDiscovery({maxMs=32000,quietMs=1800,minMs=4500}={}){
     const maxTimer=setTimeout(finish,maxMs);schedule();
   });
 }
-function waitForPlayback(url,timeoutMs=15000){
-  return new Promise(resolve=>{
-    let done=false;
-    const finish=result=>{if(done)return;done=true;clearTimeout(timer);observer.disconnect();resolve(result);};
-    const inspect=()=>{
-      const source=clean(diagSource?.textContent||'');
-      const player=(diagPlayer?.textContent||'').trim();
-      const startup=Number.parseInt(diagStartup?.textContent||'',10)||0;
-      const live=playbackStatus?.classList.contains('live');
-      const error=playbackStatus?.classList.contains('error');
-      if(source===url&&player&&player!=='-'&&player!=='failed'&&startup>0&&live)finish({ok:true,startup,player});
-      if(source===url&&player==='failed'&&error)finish({ok:false,startup:0,player:'failed'});
-    };
-    const observer=new MutationObserver(inspect);
-    [diagSource,diagPlayer,diagStartup,playbackStatus].filter(Boolean).forEach(node=>observer.observe(node,{childList:true,characterData:true,subtree:true,attributes:true}));
-    const timer=setTimeout(()=>finish({ok:false,startup:0,player:'timeout'}),timeoutMs);inspect();
-  });
-}
-function restoreSelectedPlayback(){
-  document.querySelector('.channel-item.active')?.click();
+async function restoreSelectedPlayback(){
+  const api=playbackApi();
+  if(api?.replaySelected) return api.replaySelected();
+  return null;
 }
 function useOfficialFallback(status,channelName,reason){
   const fallback=currentOfficialFallback();
   if(!fallback)return false;
   status.textContent=`${reason} · ${fallback.label || 'Official fallback'}`;
   log(`ONE-CLICK FALLBACK ${channelName} · ${reason} · ${fallback.route || 'official-fallback'} · not saved to D1`);
-  restoreSelectedPlayback();
+  restoreSelectedPlayback().catch(error=>log(`ONE-CLICK FALLBACK restore failed · ${error.message}`));
   return true;
 }
 async function runOneClick(){
   const runHuntButton=$('run-hunt'),button=$('hunt-oneclick'),status=$('hunt-oneclick-status');
-  const channelName=$('channel-name')?.textContent?.trim();
-  if(!button||!status||!runHuntButton||!candidateInput||!testButton)return;
-  if(!channelName||channelName==='Επίλεξε κανάλι'){status.textContent='Select a channel first';return;}
+  const selected=selectedChannel();
+  const channelName=selected?.name || '';
+  const api=playbackApi();
+  if(!button||!status||!runHuntButton)return;
+  if(!selected){status.textContent='Select a channel first';return;}
+  if(!api?.testCandidate){status.textContent='Playback API unavailable';return;}
 
   button.disabled=true;window.WebTVSourceHuntBusy=true;
   status.textContent=`Searching ${channelName}…`;log(`ONE-CLICK HUNT START ${channelName} · stream candidates first`);
@@ -144,20 +126,23 @@ async function runOneClick(){
     for(let i=0;i<limit;i++){
       const url=urls[i];
       status.textContent=`Testing stream ${i+1}/${limit}`;
-      candidateInput.value=url;candidateInput.dispatchEvent(new Event('input',{bubbles:true}));
-      const playback=waitForPlayback(url);
-      testButton.click();
       log(`ONE-CLICK TEST ${channelName} · ${i+1}/${limit} · ${url}`);
-      const result=await playback;
-      if(!result.ok)continue;
+      let result=null;
+      try{
+        result=await api.testCandidate(url,{channel:selected});
+      }catch(error){
+        log(`ONE-CLICK TEST FAILED ${channelName} · ${url} · ${error.message}`);
+        continue;
+      }
+      if(!result?.ok || result?.fallback)continue;
 
-      status.textContent=`Working stream ✓ ${result.startup} ms · saving best…`;
+      status.textContent=`Working stream ✓ ${result.startupMs||0} ms · saving best…`;
       try{
         const saved=await saveBestSourceToCurrent(url,{maxSources:3});
         status.textContent=`Best stream saved ✓ · ${saved.kept.length}/3 kept`;
-        log(`ONE-CLICK SUCCESS ${channelName} · winner ${url} · ${result.startup} ms · kept ${saved.kept.length} · dropped ${saved.dropped.length}`);
+        log(`ONE-CLICK SUCCESS ${channelName} · winner ${url} · ${result.startupMs||0} ms · kept ${saved.kept.length} · dropped ${saved.dropped.length}`);
       }catch(error){
-        status.textContent=`Working stream ✓ ${result.startup} ms · save failed`;
+        status.textContent=`Working stream ✓ ${result.startupMs||0} ms · save failed`;
         log(`ONE-CLICK SAVE FAILED ${channelName} · ${url} · ${error.message}`);
       }
       return;
@@ -166,12 +151,12 @@ async function runOneClick(){
     if(useOfficialFallback(status,channelName,`No working stream in first ${limit}`))return;
     status.textContent=`No working stream in first ${limit} · restored`;
     log(`ONE-CLICK DONE ${channelName} · no working stream candidate in ${limit} · no verified official fallback`);
-    restoreSelectedPlayback();
+    await restoreSelectedPlayback();
   }catch(error){
     if(useOfficialFallback(status,channelName,`Stream hunt failed: ${error.message}`))return;
     status.textContent=`Failed · ${error.message}`;
     log(`ONE-CLICK ERROR ${channelName} · ${error.message}`);
-    restoreSelectedPlayback();
+    await restoreSelectedPlayback().catch(()=>{});
   }finally{
     window.WebTVSourceHuntBusy=false;button.disabled=false;
   }
@@ -183,4 +168,4 @@ if(!ensureUi()){
   setTimeout(()=>{ensureUi();observer.disconnect();},5000);
 }
 window.addEventListener('webtv:ready',ensureUi);
-console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · stream-first · verified official fallback last`);
+console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · direct playback API · stream-first · verified official fallback last`);

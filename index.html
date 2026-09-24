@@ -9,31 +9,29 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.dashjs.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob: https:; frame-src https:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self';">
   <title>WebTV V2</title>
-  <link rel="stylesheet" href="./styles.css?v=20260920-2330">
-  <link rel="stylesheet" href="./playlist-manager.css?v=20260924-2030">
-  <link rel="stylesheet" href="./mobile.css?v=20260920-2345">
-  <link rel="stylesheet" href="./quality-of-life.css?v=20260923-0815">
+  <link rel="stylesheet" href="./styles.css?v=20260924-stabilization">
+  <link rel="stylesheet" href="./playlist-manager.css?v=20260924-stabilization">
+  <link rel="stylesheet" href="./mobile.css?v=20260924-stabilization">
+  <link rel="stylesheet" href="./quality-of-life.css?v=20260924-stabilization">
   <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js"></script>
   <script defer src="https://cdn.dashjs.org/v4.7.4/dash.all.min.js"></script>
   <script type="importmap">
   {
     "imports": {
-      "./src/config.js": "./src/config.js?v=20260924-1115",
-      "./src/config.js?v=20260920-2248": "./src/config.js?v=20260924-1115",
-      "./src/config.js?v=20260922-2115": "./src/config.js?v=20260924-1115",
-      "./src/config.js?v=20260923-2215": "./src/config.js?v=20260924-1115",
-      "./src/core/utils.js": "./src/core/utils.js?v=20260924-0900",
-      "./src/core/utils.js?v=20260920-1021": "./src/core/utils.js?v=20260924-0900",
-      "./src/core/channel-catalog.js?v=20260920-1021": "./src/core/channel-catalog.js?v=20260924-0635",
-      "./src/core/health-store.js?v=20260923-2315": "./src/core/health-store.js?v=20260924-2350",
-      "./src/core/epg.js?v=20260923-2315": "./src/core/epg.js?v=20260923-2345",
-      "./src/core/player.js?v=20260923-2315": "./src/core/player.js?v=20260924-1115",
-      "./src/core/player.js?v=20260924-1010": "./src/core/player.js?v=20260924-1115",
-      "./src/core/source-registry.js?v=20260923-2215": "./src/core/source-registry.js?v=20260924-2245",
-      "./src/core/source-registry.js?v=20260924-0635": "./src/core/source-registry.js?v=20260924-2245",
-      "./src/core/source-registry.js?v=20260924-0645": "./src/core/source-registry.js?v=20260924-2245",
-      "./src/source-save-policy.js?v=20260923-0815": "./src/source-save-policy.js?v=20260923-2345"
+      "./src/config.js": "./src/config.js?v=20260924-stabilization",
+      "./src/core/utils.js": "./src/core/utils.js?v=20260924-stabilization",
+      "./src/core/channel-catalog.js": "./src/core/channel-catalog.js?v=20260924-stabilization",
+      "./src/core/health-store.js": "./src/core/health-store.js?v=20260924-stabilization",
+      "./src/core/health-scoring.js": "./src/core/health-scoring.js?v=20260924-stabilization",
+      "./src/core/epg.js": "./src/core/epg.js?v=20260924-stabilization",
+      "./src/core/player.js": "./src/core/player.js?v=20260924-stabilization",
+      "./src/core/source-registry.js": "./src/core/source-registry.js?v=20260924-stabilization",
+      "./src/core/source-rules.js": "./src/core/source-rules.js?v=20260924-stabilization",
+      "./src/core/strm-resolver.js": "./src/core/strm-resolver.js?v=20260924-stabilization",
+      "./src/logo-utils.js": "./src/logo-utils.js?v=20260924-stabilization",
+      "./src/source-save-policy.js": "./src/source-save-policy.js?v=20260924-stabilization"
     }
   }
   </script>
@@ -65,119 +63,76 @@
   </section>
   <script>
     (() => {
+      const debug = new Set((new URLSearchParams(location.search).get('debug') || '').split(',').map(v => v.trim()).filter(Boolean));
+      if (!debug.has('storage') && !debug.has('all')) return;
+
       const COOKIE_CANARY = 'webtv_v2_cookie_canary';
-
-      const readCookie = () => {
-        const prefix = COOKIE_CANARY + '=';
-        const item = document.cookie
-          .split(';')
-          .map(value => value.trim())
-          .find(value => value.startsWith(prefix));
-        return item ? decodeURIComponent(item.slice(prefix.length)) : null;
-      };
-
-      const before = readCookie();
-      const next = String((Number(before) || 0) + 1);
-
-      document.cookie =
-        COOKIE_CANARY + '=' + encodeURIComponent(next) +
-        '; Max-Age=31536000; Path=/; SameSite=Lax; Secure';
-
-      const after = readCookie();
-
-      console.info(
-        '[PREBOOT V2 COOKIE]',
-        'before=', before,
-        'wrote=', next,
-        'after=', after
-      );
-    })();
-  </script>
-  <script>
-    (() => {
       const LOCAL_CANARY = 'webtv_v2_preboot_canary';
       const SESSION_CANARY = 'webtv_v2_preboot_session_canary';
       const storageProto = Storage.prototype;
       const originalSetItem = storageProto.setItem;
       const originalRemoveItem = storageProto.removeItem;
       const originalClear = storageProto.clear;
-
-      const safeGet = (storage, key) => {
-        try { return storage.getItem(key); }
-        catch (error) { return '[unavailable: ' + (error?.name || 'error') + ']'; }
+      const safeGet = (storage, key) => { try { return storage.getItem(key); } catch (error) { return '[unavailable: ' + (error?.name || 'error') + ']'; } };
+      const readCookie = () => {
+        const prefix = COOKIE_CANARY + '=';
+        const item = document.cookie.split(';').map(value => value.trim()).find(value => value.startsWith(prefix));
+        return item ? decodeURIComponent(item.slice(prefix.length)) : null;
       };
 
-      const probe = safeGet(localStorage, 'webtv_v2_health_probe');
-      const health = safeGet(localStorage, 'webtv_v2_health');
-      const backup = safeGet(localStorage, 'webtv_v2_health__backup');
+      const beforeCookie = readCookie();
+      const nextCookie = String((Number(beforeCookie) || 0) + 1);
+      document.cookie = COOKIE_CANARY + '=' + encodeURIComponent(nextCookie) + '; Max-Age=31536000; Path=/; SameSite=Lax; Secure';
+
       const localCanaryBefore = safeGet(localStorage, LOCAL_CANARY);
       const sessionCanaryBefore = safeGet(sessionStorage, SESSION_CANARY);
-      const navigationType = performance.getEntriesByType('navigation')[0]?.type || 'unknown';
-
-      console.info(
-        '[PREBOOT V2]',
-        'href=', location.href,
-        'nav=', navigationType,
-        'probe=', probe,
-        'health=', typeof health === 'string' ? health.length : 0,
-        'backup=', typeof backup === 'string' ? backup.length : 0,
-        'localCanary=', localCanaryBefore,
-        'sessionCanary=', sessionCanaryBefore
-      );
-
-      const nextCanary = (value) => String((Number(value) || 0) + 1);
+      const nextCanary = value => String((Number(value) || 0) + 1);
       try {
         originalSetItem.call(localStorage, LOCAL_CANARY, nextCanary(localCanaryBefore));
         originalSetItem.call(sessionStorage, SESSION_CANARY, nextCanary(sessionCanaryBefore));
-        console.info(
-          '[PREBOOT V2 CANARY]',
-          'local=', safeGet(localStorage, LOCAL_CANARY),
-          'session=', safeGet(sessionStorage, SESSION_CANARY)
-        );
       } catch (error) {
         console.warn('[PREBOOT V2 CANARY] write failed', error);
       }
 
-      const isLocalStorage = (storage) => {
-        try { return storage === localStorage; }
-        catch { return false; }
-      };
+      console.info('[PREBOOT V2 DEBUG]', {
+        href: location.href,
+        navigation: performance.getEntriesByType('navigation')[0]?.type || 'unknown',
+        cookieBefore: beforeCookie,
+        cookieAfter: readCookie(),
+        healthBytes: (safeGet(localStorage, 'webtv_v2_health') || '').length,
+        backupBytes: (safeGet(localStorage, 'webtv_v2_health__backup') || '').length,
+        localCanary: safeGet(localStorage, LOCAL_CANARY),
+        sessionCanary: safeGet(sessionStorage, SESSION_CANARY),
+      });
 
+      const isLocalStorage = storage => { try { return storage === localStorage; } catch { return false; } };
       storageProto.setItem = function(key, value) {
-        if (isLocalStorage(this)) {
-          console.trace('[PREBOOT V2 localStorage.setItem]', String(key), 'bytes=', String(value).length);
-        }
+        if (isLocalStorage(this)) console.trace('[PREBOOT V2 localStorage.setItem]', String(key), 'bytes=', String(value).length);
         return originalSetItem.call(this, key, value);
       };
-
       storageProto.removeItem = function(key) {
-        if (isLocalStorage(this)) {
-          console.trace('[PREBOOT V2 localStorage.removeItem]', String(key));
-        }
+        if (isLocalStorage(this)) console.trace('[PREBOOT V2 localStorage.removeItem]', String(key));
         return originalRemoveItem.call(this, key);
       };
-
       storageProto.clear = function() {
-        if (isLocalStorage(this)) {
-          console.trace('[PREBOOT V2 localStorage.clear]');
-        }
+        if (isLocalStorage(this)) console.trace('[PREBOOT V2 localStorage.clear]');
         return originalClear.call(this);
       };
     })();
   </script>
-  <script type="module" src="./src/runtime-performance-guards.js?v=20260924-0635"></script>
-  <script type="module" src="./src/browser-state-cleanup.js?v=20260923-0745"></script>
-  <script type="module" src="./src/main.js?v=20260924-2410"></script>
-  <script type="module" src="./src/sidebar-now.js?v=20260923-2255"></script>
-  <script type="module" src="./src/registry-default.js?v=20260920-1825"></script>
-  <script type="module" src="./src/cloud-read-sync.js?v=20260924-0635"></script>
-  <script type="module" src="./src/pin-auth.js?v=20260922-0732"></script>
-  <script type="module" src="./src/playlist-manager.js?v=20260924-2030"></script>
-  <script type="module" src="./src/saved-sources-ui.js?v=20260924-0930"></script>
-  <script type="module" src="./src/source-hunt-engine.js?v=20260924-1435"></script>
-  <script type="module" src="./src/source-hunt-web.js?v=20260920-1605"></script>
-  <script type="module" src="./src/source-hunt-oneclick.js?v=20260924-1435"></script>
-  <script type="module" src="./src/source-health-ui.js?v=20260924-2300"></script>
-  <script type="module" src="./src/favorites-ui.js?v=20260924-2030"></script>
+  <script type="module" src="./src/runtime-performance-guards.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/browser-state-cleanup.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/main.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/sidebar-now.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/registry-default.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/cloud-read-sync.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/pin-auth.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/playlist-manager.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/saved-sources-ui.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/source-hunt-engine.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/source-hunt-web.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/source-hunt-oneclick.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/source-health-ui.js?v=20260924-stabilization"></script>
+  <script type="module" src="./src/favorites-ui.js?v=20260924-stabilization"></script>
 </body>
 </html>

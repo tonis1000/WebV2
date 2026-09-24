@@ -1,7 +1,8 @@
-import { CONFIG } from './config.js?v=20260923-2215';
-import { cleanUrl, normalizeId, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
+import { CONFIG } from './config.js';
+import { cleanUrl, normalizeId, isHls, workerUrl } from './core/utils.js';
+import { scoreSourceUrl } from './core/health-scoring.js';
 
-const BUILD_ID = '20260923-0815';
+const BUILD_ID = '20260924-stabilization';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const REGISTRY_TOKEN_KEY = 'webtv_v2_registry_token';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
@@ -14,26 +15,11 @@ function loadHealth(){
   try{return JSON.parse(localStorage.getItem(CONFIG.healthStorageKey) || '{}');}
   catch{return{};}
 }
-function routeHealthScore(entry){
-  if(!entry) return -100;
-  const success = Number(entry.success || 0);
-  const fail = Number(entry.fail || 0);
-  const attempts = success + fail;
-  if(!attempts) return -50;
-  const ratio = success / attempts;
-  const speed = Number(entry.avgStartupMs || 0);
-  const recencyHours = entry.lastSuccess ? Math.max(0, (Date.now() - Number(entry.lastSuccess)) / 3_600_000) : 9999;
-  const recencyBonus = Math.max(0, 20 - Math.min(20, recencyHours / 6));
-  const speedBonus = speed > 0 ? Math.max(0, 25 - Math.min(25, speed / 500)) : 0;
-  const failurePenalty = Math.min(35, Number(entry.consecutiveFailures || 0) * 12);
-  const coolingPenalty = Number(entry.cooldownUntil || 0) > Date.now() ? 250 : 0;
-  return (ratio * 100) + recencyBonus + speedBonus - failurePenalty - coolingPenalty;
-}
-function sourceHealthScore(url,health){
+function sourceHealthScore(url, health){
   const source = cleanUrl(url);
-  const keys = [source];
-  if(isHls(source) && CONFIG.workerForHls) keys.push(cleanUrl(workerUrl(source)));
-  return Math.max(...keys.map(key => routeHealthScore(health[key])));
+  return scoreSourceUrl(source, health, {
+    workerUrlForSource: value => isHls(value) && CONFIG.workerForHls ? cleanUrl(workerUrl(value)) : value,
+  });
 }
 function sourceFamily(value=''){
   try{
@@ -142,5 +128,6 @@ export async function saveBestSourceToCurrent(url,{maxSources=3}={}){
   return {channel:target,winner:source,...selection};
 }
 
-window.WebTVSourcePolicy={saveBestSourceToCurrent};
-console.info(`[WebTV] Source save policy loaded · build ${BUILD_ID} · verified best 3 max`);
+export { chooseBestSources };
+window.WebTVSourcePolicy={saveBestSourceToCurrent,chooseBestSources};
+console.info(`[WebTV] Source save policy loaded · build ${BUILD_ID} · shared health scoring · verified best 3 max`);

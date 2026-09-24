@@ -1,5 +1,5 @@
-import { CONFIG, CHANNEL_ALIASES } from '../config.js?v=20260923-2215';
-import { normalizeId, formatTime } from './utils.js?v=20260920-1021';
+import { CONFIG, CHANNEL_ALIASES } from '../config.js';
+import { normalizeId, formatTime } from './utils.js';
 
 const GLOBAL_EPG_KEY = '__webtv_epg_service_singleton__';
 const MIN_REFRESH_GAP_MS = 60 * 1000;
@@ -107,6 +107,7 @@ export class EpgService {
     if (existing) return existing;
     this.programs = new Map();
     this.resolveIndex = new Map();
+    this.programKeyIndex = new Map();
     this.refreshPromise = null;
     this.lastRefreshAt = 0;
     globalThis[GLOBAL_EPG_KEY] = this;
@@ -125,6 +126,7 @@ export class EpgService {
     const urls = [...new Set([CONFIG.epgUrl, CONFIG.epgFallbackUrl].filter(Boolean))];
     this.programs.clear();
     this.resolveIndex.clear();
+    this.programKeyIndex.clear();
 
     const errors = [];
     for (const url of urls) {
@@ -142,6 +144,7 @@ export class EpgService {
         errors.push(error?.message || `EPG fetch failed · ${url}`);
         this.programs.clear();
         this.resolveIndex.clear();
+        this.programKeyIndex.clear();
       }
     }
 
@@ -190,6 +193,7 @@ export class EpgService {
   }
 
   #finalize() {
+    this.programKeyIndex.clear();
     for (const [channel, list] of this.programs.entries()) {
       list.sort((a, b) => a.start - b.start);
       const seen = new Set();
@@ -200,6 +204,13 @@ export class EpgService {
         return true;
       });
       this.programs.set(channel, deduped);
+
+      for (const variant of epgVariants(channel)) {
+        const norm = normalizeId(variant);
+        const canonical = canonicalChannelKey(variant);
+        if (norm && !this.programKeyIndex.has(norm)) this.programKeyIndex.set(norm, channel);
+        if (canonical && !this.programKeyIndex.has(canonical)) this.programKeyIndex.set(canonical, channel);
+      }
     }
   }
 
@@ -212,13 +223,8 @@ export class EpgService {
 
       if (canonical && this.resolveIndex.has(canonical)) return this.resolveIndex.get(canonical);
       if (norm && this.resolveIndex.has(norm)) return this.resolveIndex.get(norm);
-
-      for (const key of this.programs.keys()) {
-        if (canonical && canonicalChannelKey(key) === canonical) return key;
-        for (const variant of epgVariants(key)) {
-          if (normalizeId(variant) === norm) return key;
-        }
-      }
+      if (canonical && this.programKeyIndex.has(canonical)) return this.programKeyIndex.get(canonical);
+      if (norm && this.programKeyIndex.has(norm)) return this.programKeyIndex.get(norm);
     }
 
     return null;

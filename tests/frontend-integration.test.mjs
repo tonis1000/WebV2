@@ -35,6 +35,9 @@ for (const [specifier, target] of Object.entries(importMap.imports || {})) {
   const rel = stripQuery(target).replace(/^\.\//, '');
   assert.ok(existsSync(path.join(ROOT, rel)), `Import map target missing for ${specifier}: ${target}`);
 }
+const buildTargets = Object.values(importMap.imports || {}).filter(value => String(value).startsWith('./src/'));
+assert.ok(buildTargets.length > 0, 'Import map should cache-bust core modules');
+assert.equal(new Set(buildTargets.map(value => String(value).split('?v=')[1])).size, 1, 'Core import map should use one build id');
 
 const jsFiles = walk(path.join(ROOT, 'src')).filter(file => file.endsWith('.js'));
 const importRe = /(?:import|export)\s+(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/g;
@@ -57,6 +60,29 @@ const oneClick = read('src/source-hunt-oneclick.js');
 assert.match(oneClick, /collectCandidateUrls\(\)/, 'One-click stream candidate collector should exist');
 assert.doesNotMatch(oneClick, /#hunt-official-results\s+code/, 'Official fallback results must never enter stream auto-test/auto-save candidate collection');
 assert.match(oneClick, /officialFallbackFor/, 'One-click should know about verified official fallback availability');
+assert.match(oneClick, /WebTVPlaybackAPI/, 'One-click must call the playback service API');
+assert.doesNotMatch(oneClick, /waitForPlayback\(/, 'One-click must not infer playback success by observing diagnostics DOM');
+assert.doesNotMatch(oneClick, /testButton\.click\(/, 'One-click must not simulate the manual Test button');
+
+const main = read('src/main.js');
+assert.match(main, /window\.WebTVPlaybackAPI/, 'main.js should expose the narrow playback API bridge');
+assert.match(main, /DEBUG_STORAGE/, 'storage persistence diagnostics should be explicitly gated');
+const debugBlock = index.match(/<script>\s*\(\(\) => \{[\s\S]*?PREBOOT V2 DEBUG[\s\S]*?<\/script>/i)?.[0] || '';
+assert.match(debugBlock, /debug\.has\('storage'\)/, 'preboot storage tracing must require ?debug=storage');
+
+const sourceRegistry = read('src/core/source-registry.js');
+assert.match(sourceRegistry, /isRejectedChannelSource/, 'channel-specific source rejection rules should live outside SourceRegistry');
+assert.doesNotMatch(sourceRegistry, /channelKey\s*!==\s*['"]mega['"]/, 'SourceRegistry core must not hard-code MEGA rules');
+assert.ok(existsSync(path.join(ROOT, 'src/core/source-rules.js')), 'source-rules.js should exist');
+assert.ok(existsSync(path.join(ROOT, 'src/core/health-scoring.js')), 'health-scoring.js should exist');
+
+const healthStore = read('src/core/health-store.js');
+const savePolicy = read('src/source-save-policy.js');
+assert.match(healthStore, /scoreHealthEntry/, 'HealthStore should use shared health scoring');
+assert.match(savePolicy, /scoreSourceUrl/, 'Source save policy should use shared health scoring');
+assert.doesNotMatch(savePolicy, /function routeHealthScore/, 'Source save policy must not keep a second scoring formula');
+
+assert.match(index, /Content-Security-Policy/, 'index.html should define a CSP boundary');
 
 const engine = read('src/source-hunt-engine.js');
 assert.match(engine, /Official Fallback Discovery/, 'Source Hunt should render a separate official fallback lane');

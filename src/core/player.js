@@ -1,5 +1,5 @@
-import { CONFIG, OFFICIAL_FALLBACKS } from '../config.js?v=20260924-1115';
-import { isHls, isDash, isVideoFile, normalizeId } from './utils.js?v=20260920-1021';
+import { CONFIG, OFFICIAL_FALLBACKS } from '../config.js';
+import { isHls, isDash, isVideoFile, normalizeId } from './utils.js';
 
 const HARD_HTTP_STATUSES = new Set([403, 404, 410]);
 const TERMINAL_SIBLING_STATUSES = new Set([404, 410]);
@@ -70,18 +70,19 @@ export class PlayerController {
     let lastError = null;
     const terminalOriginals = new Set();
     for (const route of routes) {
-      if (token !== this.token) return;
+      if (token !== this.token) return null;
       if (!route.saved && terminalOriginals.has(route.originalUrl)) continue;
       const startedAt = performance.now();
       try {
         const player = await this.#attempt(route, token);
         const startupMs = Math.round(performance.now() - startedAt);
         this.health.recordSuccess(route.playbackUrl, { startupMs, player, route: route.route });
-        this.onDiagnostics({ source: route.originalUrl, route: route.route, player, startupMs });
+        const result = { ok: true, source: route.originalUrl, playbackUrl: route.playbackUrl, route: route.route, player, startupMs, fallback: false };
+        this.onDiagnostics(result);
         this.onState('live', 'Live');
-        return;
+        return result;
       } catch (error) {
-        if (token !== this.token) return;
+        if (token !== this.token) return null;
         lastError = error;
         const httpStatus = Number(error?.httpStatus) || 0;
         const hardDead = !route.saved && HARD_HTTP_STATUSES.has(httpStatus);
@@ -90,9 +91,6 @@ export class PlayerController {
           reason: httpStatus ? `HTTP ${httpStatus}` : error.message,
         });
 
-        // 404/410 identify a missing/gone source, so proxying the same URL is
-        // wasted work. A 403 is different: a Worker can legitimately rescue a
-        // browser/CORS-restricted source, so one worker fallback remains allowed.
         if (hardDead && TERMINAL_SIBLING_STATUSES.has(httpStatus)) {
           terminalOriginals.add(route.originalUrl);
           for (const sibling of routes) {
@@ -181,14 +179,19 @@ export class PlayerController {
         const startupMs = Math.round(performance.now() - startedAt);
         const playerName = fallback.player || 'iframe';
         const routeName = fallback.route || 'official-fallback';
-        this.onDiagnostics({
+        const result = {
+          ok: true,
           source: fallback.externalUrl || embedUrl,
+          playbackUrl: embedUrl,
           route: routeName,
           player: playerName,
           startupMs,
-        });
-        this.onState('live', fallback.label || 'Official Live');
-        done(resolve, playerName);
+          fallback: true,
+          verifiedPlayback: false,
+        };
+        this.onDiagnostics(result);
+        this.onState('fallback', fallback.label || 'Official loaded');
+        done(resolve, result);
       };
       const onError = () => done(reject, new Error('Official fallback iframe error'));
       const timeout = setTimeout(() => done(reject, new Error('Official fallback startup timeout')), CONFIG.startupTimeoutMs);
@@ -282,18 +285,12 @@ export class PlayerController {
             if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
               recoveryUsed = true;
               armTimeout();
-              try {
-                hls.startLoad();
-                return;
-              } catch {}
+              try { hls.startLoad(); return; } catch {}
             }
             if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
               recoveryUsed = true;
               armTimeout();
-              try {
-                hls.recoverMediaError();
-                return;
-              } catch {}
+              try { hls.recoverMediaError(); return; } catch {}
             }
           }
 
