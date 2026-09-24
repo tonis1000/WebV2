@@ -19,6 +19,14 @@ function readHttpStatus(data = {}) {
   return 0;
 }
 
+export function routeMediaType(route = {}) {
+  const mediaUrl = route.originalUrl || route.playbackUrl || '';
+  if (isHls(mediaUrl)) return 'hls';
+  if (isDash(mediaUrl)) return 'dash';
+  if (isVideoFile(mediaUrl)) return 'video';
+  return '';
+}
+
 export class PlayerController {
   constructor({ video, iframe, emptyState, health, onState, onDiagnostics }) {
     this.video = video;
@@ -109,9 +117,10 @@ export class PlayerController {
 
   async #attempt(route, token) {
     const url = route.playbackUrl;
-    if (isHls(url)) return this.#playHls(url, token);
-    if (isDash(url)) return this.#playDash(url, token);
-    if (isVideoFile(url)) return this.#playNative(url, token, 'native-video');
+    const mediaType = routeMediaType(route);
+    if (mediaType === 'hls') return this.#playHls(url, token);
+    if (mediaType === 'dash') return this.#playDash(url, token);
+    if (mediaType === 'video') return this.#playNative(url, token, 'native-video');
     throw new Error('Unsupported non-media source');
   }
 
