@@ -1,13 +1,13 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260923-2215';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
-import { HealthStore } from './core/health-store.js?v=20260923-2315';
-import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js?v=20260924-2145';
+import { HealthStore } from './core/health-store.js?v=20260924-2215';
+import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js?v=20260924-2215';
 import { EpgService } from './core/epg.js?v=20260923-2315';
 import { PlayerController } from './core/player.js?v=20260923-2315';
 import { formatTime, normalizeId, cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260924-2145';
+const BUILD_ID = '20260924-2215';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
