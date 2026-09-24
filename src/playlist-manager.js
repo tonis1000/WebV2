@@ -20,7 +20,7 @@ function log(message){
   const stamp=new Date().toLocaleTimeString();
   box.textContent=`[${stamp}] ${message}\n${box.textContent}`.slice(0,18000);
 }
-function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));}
+function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
 function escAttr(value=''){return String(value||'').replace(/"/g,"'");}
 function normalize(value=''){return String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9α-ω]+/gi,'-').replace(/^-+|-+$/g,'');}
 function uid(){return `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;}
