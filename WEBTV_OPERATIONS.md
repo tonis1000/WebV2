@@ -565,3 +565,226 @@ sidebar on every page load
 Saved Playlists remain independent cloud libraries. GitHub keeps code and the legacy seed file, not the live channel state.
 
 This is the architecture to preserve unless we explicitly decide together to change it.
+
+---
+
+## 16. Source handling checkpoint + next step · 2026-09-24
+
+### Current state
+
+Recent source-handling work added support for temporary IPTV playlists that contain indirections and Kodi-style URL syntax.
+
+Current runtime behavior:
+
+```text
+external M3U
+→ channel directUrls
+→ SourceRegistry
+→ optional .strm resolution
+→ direct HLS route
+→ optional TV Cache Worker route
+→ PlayerController
+```
+
+Implemented and already merged:
+
+- `.strm` references are resolved lazily at playback time by `src/core/strm-resolver.js`.
+- Resolution is cached in memory and duplicate/in-flight requests are deduplicated.
+- Nested `.strm` references are bounded.
+- Temporary external playlist sources remain untrusted until explicitly saved into D1 My Playlist.
+- `403` may receive one Worker rescue attempt.
+- `404/410` are treated as terminal for the same source and should not waste time retrying the sibling route.
+- IPTV/Kodi suffix syntax after `|` is currently stripped from the browser media URL so it does not corrupt HLS detection, route identity or Worker URL construction.
+
+Example source syntax:
+
+```text
+https://example.com/live.m3u8|user-agent=Mozilla/5.0&referer=https://example.com/&origin=https://example.com
+```
+
+Today the browser-facing URL becomes:
+
+```text
+https://example.com/live.m3u8
+```
+
+This is correct for streams where the suffix is unnecessary, but it creates an important compatibility gap.
+
+### Known compatibility gap
+
+Some IPTV streams work in Kodi/VLC only because the values after `|` are converted into real HTTP request headers.
+
+Possible examples:
+
+```text
+User-Agent
+Referer
+Origin
+```
+
+A browser cannot reliably apply these arbitrary headers to HLS requests from `hls.js`. If WebTV simply strips the Kodi options, a source that is actually valid may return `403` and be incorrectly treated as dead.
+
+Therefore **we may currently lose channels that depend on Kodi/VLC request headers**.
+
+### NEXT FEATURE: Kodi/VLC header-aware proxying
+
+The next implementation task is to preserve supported Kodi URL options and apply them through the TV Cache Worker instead of discarding them.
+
+Target architecture:
+
+```text
+raw IPTV source
+https://example.com/live.m3u8|user-agent=UA&referer=https://site.example/
+        │
+        ▼
+parse IPTV/Kodi options
+        │
+        ├── cleanUrl: https://example.com/live.m3u8
+        └── headers:
+              User-Agent: UA
+              Referer: https://site.example/
+        │
+        ▼
+SourceRegistry route model
+        │
+        ├── direct route uses clean URL only
+        └── worker route carries approved header metadata
+        │
+        ▼
+TV Cache Worker
+        │
+        ├── validates/whitelists allowed headers
+        ├── sends approved headers upstream
+        ├── rewrites HLS child URLs through the Worker
+        └── preserves the same approved headers for child playlists and segments
+```
+
+### Required implementation ownership
+
+#### `src/core/utils.js`
+
+Add parsing that returns both the underlying URL and supported Kodi options instead of permanently discarding the options.
+
+Conceptually:
+
+```js
+parseIptvUrl(raw) => {
+  url,
+  headers
+}
+```
+
+Do not break existing `cleanUrl()`, HLS detection, health keys or route dedupe.
+
+#### `src/core/source-registry.js`
+
+Carry approved header metadata with a route.
+
+A route may need fields conceptually similar to:
+
+```text
+originalUrl
+playbackUrl
+route
+saved
+requestHeaders
+```
+
+The exact representation can differ, but header-dependent sources must retain enough metadata for Worker playback.
+
+#### `workers/tv-cache.js`
+
+Add safe support for approved upstream request headers.
+
+Do **not** allow arbitrary client-controlled header injection.
+
+Initial whitelist should be deliberately small:
+
+```text
+User-Agent
+Referer
+Origin
+```
+
+`Cookie`, `Authorization`, proxy headers, Cloudflare headers and other sensitive headers are **not automatically allowed**. Adding any sensitive header class requires a separate deliberate security decision.
+
+### HLS propagation requirement
+
+Supporting headers only on the first master `.m3u8` request is not sufficient.
+
+The same approved header context must survive across:
+
+```text
+master.m3u8
+→ variant/child playlist.m3u8
+→ encryption/key request if applicable
+→ .ts / .m4s segments
+```
+
+If the Worker rewrites child URLs, the rewritten Worker URLs must retain a safe reference to the approved header context so every upstream HLS request receives the required headers.
+
+Do not expose secrets or raw sensitive header values unnecessarily in logs or persistent storage.
+
+### Security constraints
+
+The feature must preserve these rules:
+
+1. Never forward arbitrary headers supplied by a playlist.
+2. Maintain an explicit allowlist.
+3. Reject CR/LF and malformed header values.
+4. Do not allow callers to override `Host`, `Content-Length`, Cloudflare/proxy headers or authentication headers.
+5. Do not persist temporary playlist header metadata into D1 unless we explicitly design a schema and trust model for it later.
+6. D1 My Playlist remains the only permanent live playlist source of truth.
+7. Header-aware proxying is playback transport behavior, not a new playlist authority.
+
+### Fallback policy
+
+Desired behavior for an HLS source carrying Kodi options:
+
+```text
+1. normalize + parse source
+2. direct clean URL may be tried when appropriate
+3. if direct works → use direct
+4. if direct fails with browser/CORS/403 → try Worker with approved parsed headers
+5. if Worker succeeds → record route health success
+6. if Worker fails with terminal 404/410 → quarantine the source
+7. avoid repeated retries during cooldown
+```
+
+For a source whose options clearly require proxy-only behavior, we may later choose to prioritize the Worker route. Make that decision from verified logs rather than guessing.
+
+### Acceptance tests
+
+Before considering the feature complete, verify at minimum:
+
+1. A normal HLS URL with no Kodi options still plays exactly as before.
+2. A URL containing `|user-agent=...` is not sent literally to the browser/upstream.
+3. A URL containing `|referer=...` reaches the Worker with an approved Referer value.
+4. A URL containing `|origin=...` reaches the Worker with an approved Origin value.
+5. Unsupported/malicious header names are ignored or rejected.
+6. CR/LF header injection is rejected.
+7. HLS master playlist loads with required headers.
+8. Variant playlist loads with the same header context.
+9. Segments load with the same header context.
+10. Existing `403` Worker rescue behavior still works.
+11. Existing `404/410` terminal sibling suppression still works.
+12. Existing `.strm` resolution still works.
+13. Source health/cooldown continues to identify routes consistently.
+14. Temporary external playlist remains temporary and page reload returns to D1 My Playlist.
+15. Existing D1 playlist reads/writes and Source Hunt behavior remain unchanged.
+
+### Recommended first regression samples
+
+Use the existing external playlist that exposed the issue:
+
+```text
+https://raw.githubusercontent.com/don24crk/Don24crk-Repository/refs/heads/master/android.m3u
+```
+
+Check especially entries that use:
+
+- `.strm` indirection such as MAK/MTV
+- Kodi-style `|user-agent=...` syntax such as MADTV-style entries
+- normal Siliconweb HLS entries to ensure no regression
+
+The goal is **not** to force every broken upstream stream to work. The goal is to stop losing otherwise valid Kodi/VLC-compatible channels merely because WebTV ignored required request-header metadata.
