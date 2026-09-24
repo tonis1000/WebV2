@@ -1,13 +1,13 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260923-2215';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 import { HealthStore } from './core/health-store.js?v=20260923-2315';
-import { SourceRegistry } from './core/source-registry.js?v=20260923-2215';
+import { SourceRegistry } from './core/source-registry.js?v=20260924-0645';
 import { EpgService } from './core/epg.js?v=20260923-2315';
 import { PlayerController } from './core/player.js?v=20260923-2315';
 import { formatTime, normalizeId, cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260923-2255';
+const BUILD_ID = '20260924-0645';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -27,6 +27,7 @@ const epg = new EpgService();
 let channels = [];
 let selected = null;
 let catalogMode = 'cloud';
+let selectionToken = 0;
 const channelRows = new Map();
 
 const player = new PlayerController({
@@ -116,7 +117,7 @@ function statsText(channel){
   const stats=sources.getStats(channel);
   return {
     text:stats.cooling?`${stats.active}/${stats.total}`:`${stats.total}`,
-    title:stats.cooling?`${stats.cooling} route(s) in cooldown`:'Playback routes'
+    title:stats.pending?`${stats.pending} STRM source(s) resolve on first playback`:stats.cooling?`${stats.cooling} route(s) in cooldown`:'Playback routes'
   };
 }
 function syncActiveChannelRow(previousId=''){
@@ -162,6 +163,7 @@ function renderChannels(){
 function clearSelectedIfMissing(){
   if(!selected)return;
   if(channels.some(c=>c.id===selected.id))return;
+  selectionToken+=1;
   selected=null;
   els.channelName.textContent='Επίλεξε κανάλι';els.channelGroup.textContent='WEBTV';els.logo.hidden=true;
   els.officialLive.hidden=true;els.sourceHuntToggle.hidden=true;els.sourceHunt.hidden=true;player.stop?.();
@@ -232,6 +234,7 @@ window.WebTVPlaylistAPI={
 };
 
 async function selectChannel(channel){
+  const token=++selectionToken;
   const previousId=selected?.id||'';
   selected=channel;
   syncActiveChannelRow(previousId);
@@ -239,11 +242,20 @@ async function selectChannel(channel){
   els.channelName.textContent=channel.name;els.channelGroup.textContent=channel.group||'WEBTV';
   applyImmediateLogo(els.logo,channel.logo);
   clearDiagnostics();const officialUrl=setOfficialLive(channel);renderEpg();
-  const stats=sources.getStats(channel),routes=sources.getSources(channel);
-  log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
-  try{await player.play(channel,routes);}
-  catch(error){log(`${channel.name}: ${error.message}`);if(officialUrl)setPlaybackState('error','Official fallback');}
-  finally{updateChannelRowStats(channel);}
+  const before=sources.getStats(channel);
+  setPlaybackState('loading',before.pending?'Resolving source':'Connecting');
+  try{
+    const routes=await sources.getSources(channel);
+    if(token!==selectionToken || selected!==channel)return;
+    const stats=sources.getStats(channel);
+    log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
+    await player.play(channel,routes);
+  }
+  catch(error){
+    if(token!==selectionToken || selected!==channel)return;
+    log(`${channel.name}: ${error.message}`);if(officialUrl)setPlaybackState('error','Official fallback');
+  }
+  finally{if(token===selectionToken && selected===channel)updateChannelRowStats(channel);}
 }
 
 async function testCandidateUrl(){
@@ -312,4 +324,4 @@ boot().catch(error=>{
   console.error(error);
 });
 
-console.info(`[WebTV] Main loaded · build ${BUILD_ID} · fast channel switching · shared EPG · route quarantine · D1 My Playlist is primary`);
+console.info(`[WebTV] Main loaded · build ${BUILD_ID} · fast channel switching · STRM resolution · shared EPG · route quarantine · D1 My Playlist is primary`);
