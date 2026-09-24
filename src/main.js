@@ -7,7 +7,7 @@ import { PlayerController } from './core/player.js?v=20260923-2315';
 import { formatTime, normalizeId, cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260924-2350';
+const BUILD_ID = '20260924-2410';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -48,6 +48,18 @@ const player = new PlayerController({
 function log(message){
   const stamp=new Date().toLocaleTimeString();
   els.diagLog.textContent=`[${stamp}] ${message}\n${els.diagLog.textContent}`.slice(0,18000);
+}
+function storageProbe(){
+  const key='webtv_v2_health_probe';
+  const previous=localStorage.getItem(key);
+  const next=String((Number(previous)||0)+1);
+  let writeOk=false, readBack='', error='';
+  try{
+    localStorage.setItem(key,next);
+    readBack=localStorage.getItem(key)||'';
+    writeOk=readBack===next;
+  }catch(e){error=e?.message||String(e);}
+  return {previous:previous||'',next,readBack,writeOk,error,origin:location.origin,href:location.href};
 }
 function registryUrl(){
   return (localStorage.getItem(REGISTRY_URL_KEY) || DEFAULT_REGISTRY).trim().replace(/\/$/,'');
@@ -347,6 +359,8 @@ async function boot(){
   {
     const hd=health.diagnostics();
     log(`HEALTH STORE · memory=${hd.memoryEntries} · primary=${hd.primaryEntries} (${hd.primaryBytes}B) · backup=${hd.backupEntries} (${hd.backupBytes}B) · key ${hd.storageKey}`);
+    const probe=storageProbe();
+    log(`STORAGE PROBE · origin=${probe.origin} · previous=${probe.previous||'∅'} · wrote=${probe.next} · read=${probe.readBack||'∅'} · ${probe.writeOk?'OK':'FAIL'}${probe.error?` · ${probe.error}`:''}`);
   }
   await sourceTask;
   renderGroups();renderChannels();
