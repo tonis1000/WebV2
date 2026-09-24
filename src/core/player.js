@@ -1,8 +1,9 @@
-import { CONFIG } from '../config.js?v=20260923-2215';
-import { isHls, isDash, isVideoFile } from './utils.js?v=20260920-1021';
+import { CONFIG, OFFICIAL_FALLBACKS } from '../config.js?v=20260924-1115';
+import { isHls, isDash, isVideoFile, normalizeId } from './utils.js?v=20260920-1021';
 
 const HARD_HTTP_STATUSES = new Set([403, 404, 410]);
 const TERMINAL_SIBLING_STATUSES = new Set([404, 410]);
+const TRUSTED_EMBED_HOSTS = new Set(['www.youtube-nocookie.com']);
 
 function readHttpStatus(data = {}) {
   const candidates = [
@@ -27,6 +28,20 @@ export function routeMediaType(route = {}) {
   return '';
 }
 
+export function officialFallbackFor(channel = {}) {
+  const key = normalizeId(channel?.id || channel?.originalId || channel?.name || '');
+  return OFFICIAL_FALLBACKS[key] || null;
+}
+
+function isTrustedEmbedUrl(value = '') {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && TRUSTED_EMBED_HOSTS.has(url.hostname) && url.pathname.startsWith('/embed/');
+  } catch {
+    return false;
+  }
+}
+
 export class PlayerController {
   constructor({ video, iframe, emptyState, health, onState, onDiagnostics }) {
     this.video = video;
@@ -42,12 +57,16 @@ export class PlayerController {
 
   async play(channel, routes) {
     const token = ++this.token;
+    const officialFallback = officialFallbackFor(channel);
     this.#resetMedia();
     this.onState('loading', 'Connecting');
+
     if (!routes.length) {
+      if (officialFallback) return this.#playOfficialFallback(officialFallback, token);
       this.onState('error', 'No active routes');
       throw new Error(`No active playback routes for ${channel.name}`);
     }
+
     let lastError = null;
     const terminalOriginals = new Set();
     for (const route of routes) {
@@ -91,6 +110,15 @@ export class PlayerController {
         this.#resetMedia();
       }
     }
+
+    if (officialFallback && token === this.token) {
+      try {
+        return await this.#playOfficialFallback(officialFallback, token);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
     this.onState('error', 'Playback failed');
     throw lastError || new Error('All playback routes failed');
   }
@@ -122,6 +150,52 @@ export class PlayerController {
     if (mediaType === 'dash') return this.#playDash(url, token);
     if (mediaType === 'video') return this.#playNative(url, token, 'native-video');
     throw new Error('Unsupported non-media source');
+  }
+
+  async #playOfficialFallback(fallback, token) {
+    const embedUrl = String(fallback?.embedUrl || '');
+    if (!isTrustedEmbedUrl(embedUrl)) throw new Error('Official fallback rejected: untrusted embed URL');
+
+    this.#resetMedia();
+    this.onState('loading', fallback.label || 'Official fallback');
+    this.emptyState.hidden = true;
+    this.video.hidden = true;
+    this.iframe.hidden = false;
+
+    const startedAt = performance.now();
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.iframe.onload = null;
+        this.iframe.onerror = null;
+      };
+      const done = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(value);
+      };
+      const onLoad = () => {
+        if (token !== this.token) return done(reject, new Error('Superseded'));
+        const startupMs = Math.round(performance.now() - startedAt);
+        const playerName = fallback.player || 'iframe';
+        const routeName = fallback.route || 'official-fallback';
+        this.onDiagnostics({
+          source: fallback.externalUrl || embedUrl,
+          route: routeName,
+          player: playerName,
+          startupMs,
+        });
+        this.onState('live', fallback.label || 'Official Live');
+        done(resolve, playerName);
+      };
+      const onError = () => done(reject, new Error('Official fallback iframe error'));
+      const timeout = setTimeout(() => done(reject, new Error('Official fallback startup timeout')), CONFIG.startupTimeoutMs);
+      this.iframe.onload = onLoad;
+      this.iframe.onerror = onError;
+      this.iframe.src = embedUrl;
+    });
   }
 
   #showVideo() {
