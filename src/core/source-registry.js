@@ -22,7 +22,7 @@ function headerIdentity(headers = {}) {
 }
 
 const BLOCKED = new Set((SOURCE_BLOCKLIST || []).map(cleanUrl).filter(Boolean));
-export const SOURCE_REGISTRY_BUILD_ID = '20260924-2145';
+export const SOURCE_REGISTRY_BUILD_ID = '20260924-2215';
 
 export function rankRoutesByHealth(routes = [], health) {
   const families = new Map();
@@ -167,6 +167,9 @@ export class SourceRegistry {
     return routes.filter((item, index, arr) => arr.findIndex(other => other.playbackUrl === item.playbackUrl) === index);
   }
   async getSources(channel) {
+    // localStorage is the canonical route-health state. Refresh immediately
+    // before every selection so ranking cannot use a stale in-memory snapshot.
+    this.health.refresh?.();
     const curated = await this.#resolvedCuratedSources(channel);
     const all = this.#allRoutes(channel, curated);
     const activeDirectOriginals = new Set(all
