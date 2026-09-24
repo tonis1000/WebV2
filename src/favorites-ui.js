@@ -10,6 +10,7 @@ async function loadCloud(){
     const r=await fetch(`${registryBase()}/api/favorites`,{cache:'no-store'});
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     const j=await r.json(),set=new Set((j.favorites||[]).map(String));
+    for(const id of load())set.add(id);
     save(set);cloudReady=true;return set;
   }catch{return load();}
 }
