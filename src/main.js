@@ -1,13 +1,13 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260923-2215';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
-import { HealthStore } from './core/health-store.js?v=20260924-2215';
+import { HealthStore } from './core/health-store.js?v=20260924-2320';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js?v=20260924-2245';
 import { EpgService } from './core/epg.js?v=20260923-2315';
 import { PlayerController } from './core/player.js?v=20260923-2315';
 import { formatTime, normalizeId, cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260924-2300';
+const BUILD_ID = '20260924-2320';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -272,6 +272,14 @@ async function selectChannel(channel){
     const stats=sources.getStats(channel);
     log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
     await player.play(channel,routes);
+    const postPlan = routes.map((route,index) => ({
+      rank:index+1,
+      route:route.route,
+      source:route.originalUrl,
+      score:Number(health.score(route.playbackUrl).toFixed(2)),
+      attempts:(health.get(route.playbackUrl)?.success||0)+(health.get(route.playbackUrl)?.fail||0),
+    }));
+    log(`HEALTH AFTER PLAY · ${postPlan.map(r=>`#${r.rank} ${r.route} score=${r.score} tries=${r.attempts} ${sourceLabel(r.source)}`).join(' | ')}`);
   }
   catch(error){
     if(token!==selectionToken || selected!==channel)return;
