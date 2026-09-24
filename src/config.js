@@ -1,6 +1,6 @@
 export const CONFIG = Object.freeze({
   appName: 'WebTV V2',
-  buildId: '20260923-2215',
+  buildId: '20260924-1115',
   registryUrl: 'https://webtv-registry.atonis.workers.dev',
   cacheBaseUrl: 'https://tv-cache.atonis.workers.dev',
   epgUrl: 'https://epg-proxy-gr.atonis.workers.dev/epg.xml',
@@ -24,6 +24,17 @@ export const OFFICIAL_LIVE = Object.freeze({
   ert3: 'https://live.ertflix.gr/',
   ertnews: 'https://live.ertflix.gr/',
   ant1: 'https://www.antenna.gr/live',
+  madtv: 'https://www.youtube.com/@madtvgreece/live',
+});
+
+export const OFFICIAL_FALLBACKS = Object.freeze({
+  madtv: Object.freeze({
+    label: 'Official YouTube',
+    route: 'official-youtube',
+    player: 'youtube-embed',
+    externalUrl: 'https://www.youtube.com/@madtvgreece/live',
+    embedUrl: 'https://www.youtube-nocookie.com/embed/live_stream?channel=UCs3cho4vcDuCze0tk3W9iVQ&autoplay=1&playsinline=1&rel=0',
+  }),
 });
 
 export const SOURCE_BLOCKLIST = Object.freeze([
@@ -65,4 +76,5 @@ export const CHANNEL_ALIASES = Object.freeze({
   star: ['STAR.gr', 'STAR.HD.gr', 'startv', 'STAR HD'],
   action24: ['ACTION24.gr', 'ACTION24.HD.gr'],
   kontra: ['KONTRA.gr', 'KONTRA.HD.gr'],
+  madtv: ['MADTV', 'MAD TV', 'MAD.TV.gr', 'MAD TV GREECE'],
 });
