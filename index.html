@@ -65,6 +65,36 @@
   </section>
   <script>
     (() => {
+      const COOKIE_CANARY = 'webtv_v2_cookie_canary';
+
+      const readCookie = () => {
+        const prefix = COOKIE_CANARY + '=';
+        const item = document.cookie
+          .split(';')
+          .map(value => value.trim())
+          .find(value => value.startsWith(prefix));
+        return item ? decodeURIComponent(item.slice(prefix.length)) : null;
+      };
+
+      const before = readCookie();
+      const next = String((Number(before) || 0) + 1);
+
+      document.cookie =
+        COOKIE_CANARY + '=' + encodeURIComponent(next) +
+        '; Max-Age=31536000; Path=/; SameSite=Lax; Secure';
+
+      const after = readCookie();
+
+      console.info(
+        '[PREBOOT V2 COOKIE]',
+        'before=', before,
+        'wrote=', next,
+        'after=', after
+      );
+    })();
+  </script>
+  <script>
+    (() => {
       const LOCAL_CANARY = 'webtv_v2_preboot_canary';
       const SESSION_CANARY = 'webtv_v2_preboot_session_canary';
       const storageProto = Storage.prototype;
