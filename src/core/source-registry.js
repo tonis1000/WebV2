@@ -1,6 +1,6 @@
 import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260923-2215';
-import { normalizeId, cleanUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js?v=20260920-1021';
-import { StrmResolver, isStrmReference } from './strm-resolver.js?v=20260924-0645';
+import { normalizeId, cleanUrl, parseIptvUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js?v=20260924-0900';
+import { StrmResolver, isStrmReference } from './strm-resolver.js?v=20260924-0900';
 
 function isPlayableMedia(url = '') {
   return isHls(url) || isDash(url) || isVideoFile(url);
@@ -15,6 +15,10 @@ function isWrongChannelSource(channel, url = '') {
   if (channelKey !== 'mega') return false;
   const value = String(url).toLowerCase();
   return value.includes('s99841657') || value.includes('mega%20news') || value.includes('mega-news') || value.includes('mega_news') || value.includes('/meganews');
+}
+
+function headerIdentity(headers = {}) {
+  return JSON.stringify(Object.entries(headers).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 const BLOCKED = new Set((SOURCE_BLOCKLIST || []).map(cleanUrl).filter(Boolean));
@@ -56,7 +60,7 @@ export class SourceRegistry {
     }
     return [];
   }
-  #cachedCuratedUrls(channel) {
+  #cachedCuratedSources(channel) {
     const out = [];
     for (const source of channel.directUrls || []) {
       if (!isStrmReference(source)) {
@@ -68,7 +72,7 @@ export class SourceRegistry {
     }
     return out;
   }
-  async #resolvedCuratedUrls(channel) {
+  async #resolvedCuratedSources(channel) {
     const resolved = await Promise.all((channel.directUrls || []).map(async source => {
       if (!isStrmReference(source)) return source;
       return this.strm.resolve(source);
@@ -76,34 +80,58 @@ export class SourceRegistry {
     return resolved.filter(Boolean);
   }
   #allRoutes(channel, curatedOverride = null) {
-    const curated = (curatedOverride || this.#cachedCuratedUrls(channel)).map(cleanUrl).filter(Boolean);
+    const curatedRaw = curatedOverride || this.#cachedCuratedSources(channel);
+    const curated = curatedRaw
+      .map(raw => ({ raw, ...parseIptvUrl(raw) }))
+      .filter(item => item.url);
 
     // Only persistent D1/My Playlist channels are trusted curated state.
     // URLs parsed from temporary external M3U playlists remain untrusted until
     // the user explicitly saves them into My Playlist.
     const temporary = channel?.sourceTrust === 'temporary';
-    const trustedSet = temporary ? new Set() : new Set(curated);
-    const sources = [...new Set([...curated, ...this.#remoteUrls(channel)]
-      .map(cleanUrl)
-      .filter(Boolean)
-      .filter(isPlayableMedia)
-      .filter(source => !isWrongChannelSource(channel, source))
-      .filter(source => trustedSet.has(source) || !BLOCKED.has(source)))];
+    const trustedSet = temporary ? new Set() : new Set(curated.map(item => item.url));
+
+    const seen = new Set();
+    const sources = [];
+    for (const raw of [...curatedRaw, ...this.#remoteUrls(channel)]) {
+      const parsed = parseIptvUrl(raw);
+      const source = parsed.url;
+      if (!source || !isPlayableMedia(source)) continue;
+      if (isWrongChannelSource(channel, source)) continue;
+      if (!trustedSet.has(source) && BLOCKED.has(source)) continue;
+
+      const key = `${source}|${headerIdentity(parsed.headers)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      sources.push({ ...parsed, trusted: trustedSet.has(source) });
+    }
 
     const routes = [];
     for (const source of sources) {
-      const trusted = trustedSet.has(source);
-      if (isSecureUrl(source)) {
-        routes.push({ originalUrl: source, playbackUrl: source, route: 'direct', saved: trusted });
+      if (isSecureUrl(source.url)) {
+        routes.push({
+          originalUrl: source.url,
+          playbackUrl: source.url,
+          route: 'direct',
+          saved: source.trusted,
+          requestHeaders: {},
+        });
       }
-      if (isHls(source) && CONFIG.workerForHls) {
-        routes.push({ originalUrl: source, playbackUrl: workerUrl(source), route: 'worker', saved: trusted });
+      if (isHls(source.url) && CONFIG.workerForHls) {
+        routes.push({
+          originalUrl: source.url,
+          playbackUrl: workerUrl(source.url, source.headers),
+          route: Object.keys(source.headers).length ? 'worker+headers' : 'worker',
+          saved: source.trusted,
+          requestHeaders: source.headers,
+        });
       }
     }
+
     return routes.filter((item, index, arr) => arr.findIndex(other => other.playbackUrl === item.playbackUrl) === index);
   }
   async getSources(channel) {
-    const curated = await this.#resolvedCuratedUrls(channel);
+    const curated = await this.#resolvedCuratedSources(channel);
     const all = this.#allRoutes(channel, curated);
     const activeDirectOriginals = new Set(all
       .filter(route => route.route === 'direct' && !this.health.isCoolingDown(route.playbackUrl))
@@ -116,7 +144,7 @@ export class SourceRegistry {
         // direct HLS route is still eligible. PlayerController already suppresses
         // sibling retries for terminal 404/410, so this specifically restores
         // proxy rescue after direct CORS/403 or transient browser failures.
-        return route.route === 'worker' && activeDirectOriginals.has(route.originalUrl);
+        return route.route.startsWith('worker') && activeDirectOriginals.has(route.originalUrl);
       })
       .sort((a, b) => {
         if (a.saved !== b.saved) return a.saved ? -1 : 1;
