@@ -1,13 +1,13 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260923-2215';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 import { HealthStore } from './core/health-store.js?v=20260924-2215';
-import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js?v=20260924-2215';
+import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js?v=20260924-2245';
 import { EpgService } from './core/epg.js?v=20260923-2315';
 import { PlayerController } from './core/player.js?v=20260923-2315';
 import { formatTime, normalizeId, cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260924-2215';
+const BUILD_ID = '20260924-2300';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -29,6 +29,12 @@ let selected = null;
 let catalogMode = 'cloud';
 let selectionToken = 0;
 const channelRows = new Map();
+
+window.WebTVDiagnosticsAPI={
+  buildId:BUILD_ID,
+  lastRoutePlan:[],
+  healthSummary:()=>({entries:Object.keys(health.map||{}).length,storageKey:health.storageKey})
+};
 
 const player = new PlayerController({
   video:els.video,
@@ -247,6 +253,22 @@ async function selectChannel(channel){
   try{
     const routes=await sources.getSources(channel);
     if(token!==selectionToken || selected!==channel)return;
+    const routePlan = routes.map((route,index) => {
+      const entry = health.get(route.playbackUrl);
+      return {
+        rank:index+1,
+        source:route.originalUrl,
+        route:route.route,
+        origin:route.saved?'D1/saved':'TV-cache/remote',
+        score:Number(health.score(route.playbackUrl).toFixed(2)),
+        attempts:Number(entry?.success||0)+Number(entry?.fail||0),
+        success:Number(entry?.success||0),
+        fail:Number(entry?.fail||0),
+        cooling:health.isCoolingDown(route.playbackUrl),
+      };
+    });
+    window.WebTVDiagnosticsAPI.lastRoutePlan=routePlan;
+    log(`PLAYBACK PLAN · ${channel.name} · ${routePlan.map(r=>`#${r.rank} ${r.route} ${r.origin} score=${r.score} ${sourceLabel(r.source)}`).join(' | ')}`);
     const stats=sources.getStats(channel);
     log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
     await player.play(channel,routes);
@@ -310,6 +332,7 @@ async function boot(){
     .catch(error=>log(`EPG unavailable: ${error.message}`));
 
   await loadCloudMyPlaylist({reason:'startup',preserveSelection:false});
+  log(`HEALTH STORE · ${Object.keys(health.map||{}).length} persisted route entries · key ${health.storageKey}`);
   await sourceTask;
   renderGroups();renderChannels();
 
