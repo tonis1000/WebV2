@@ -57,10 +57,11 @@ export class SourceRegistry {
   #allRoutes(channel) {
     const curated = (channel.directUrls || []).map(cleanUrl).filter(Boolean);
 
-    // D1 My Playlist sources are the only persistent curated source state.
-    // TV Cache remains background discovery/performance data and never becomes
-    // authoritative merely because it exists in the browser.
-    const trustedSet = new Set(curated);
+    // Only persistent D1/My Playlist channels are trusted curated state.
+    // URLs parsed from temporary external M3U playlists remain untrusted until
+    // the user explicitly saves them into My Playlist.
+    const temporary = channel?.sourceTrust === 'temporary';
+    const trustedSet = temporary ? new Set() : new Set(curated);
     const sources = [...new Set([...curated, ...this.#remoteUrls(channel)]
       .map(cleanUrl)
       .filter(Boolean)
