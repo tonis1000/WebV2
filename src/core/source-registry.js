@@ -69,16 +69,11 @@ export class SourceRegistry {
     return out;
   }
   async #resolvedCuratedUrls(channel) {
-    const out = [];
-    await Promise.all((channel.directUrls || []).map(async source => {
-      if (!isStrmReference(source)) {
-        out.push(source);
-        return;
-      }
-      const resolved = await this.strm.resolve(source);
-      if (resolved) out.push(resolved);
+    const resolved = await Promise.all((channel.directUrls || []).map(async source => {
+      if (!isStrmReference(source)) return source;
+      return this.strm.resolve(source);
     }));
-    return out;
+    return resolved.filter(Boolean);
   }
   #allRoutes(channel, curatedOverride = null) {
     const curated = (curatedOverride || this.#cachedCuratedUrls(channel)).map(cleanUrl).filter(Boolean);
