@@ -4,10 +4,10 @@ import { HealthStore } from './core/health-store.js?v=20260923-2315';
 import { SourceRegistry } from './core/source-registry.js?v=20260924-0645';
 import { EpgService } from './core/epg.js?v=20260923-2315';
 import { PlayerController } from './core/player.js?v=20260923-2315';
-import { formatTime, normalizeId, cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
+import { formatTime, normalizeId, cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260924-0645';
+const BUILD_ID = '20260924-0930';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -260,11 +260,21 @@ async function selectChannel(channel){
 
 async function testCandidateUrl(){
   if(!selected)return;
-  const url=cleanUrl(els.candidateUrl.value.trim());
+  const raw=els.candidateUrl.value.trim();
+  const parsed=parseIptvUrl(raw);
+  const url=parsed.url;
   if(!/^https?:\/\//i.test(url)){log('Candidate rejected: valid http/https URL required');return;}
   const routes=[];
-  if(/^https:\/\//i.test(url))routes.push({originalUrl:url,playbackUrl:url,route:'candidate-direct'});
-  if(isHls(url)&&CONFIG.workerForHls)routes.push({originalUrl:url,playbackUrl:workerUrl(url),route:'candidate-worker'});
+  if(/^https:\/\//i.test(url))routes.push({originalUrl:url,playbackUrl:url,route:'candidate-direct',requestHeaders:{}});
+  if(isHls(url)&&CONFIG.workerForHls){
+    const hasHeaders=Object.keys(parsed.headers).length>0;
+    routes.push({
+      originalUrl:url,
+      playbackUrl:workerUrl(url,parsed.headers),
+      route:hasHeaders?'candidate-worker+headers':'candidate-worker',
+      requestHeaders:parsed.headers
+    });
+  }
   if(!routes.length){log(`Candidate rejected: unsupported or insecure non-HLS URL · ${sourceLabel(url)}`);return;}
   clearDiagnostics();log(`Candidate test for ${selected.name} · ${sourceLabel(url)} · ${routes.length} route(s)`);
   try{await player.play({...selected,name:`${selected.name} candidate`},routes);}
@@ -324,4 +334,4 @@ boot().catch(error=>{
   console.error(error);
 });
 
-console.info(`[WebTV] Main loaded · build ${BUILD_ID} · fast channel switching · STRM resolution · shared EPG · route quarantine · D1 My Playlist is primary`);
+console.info(`[WebTV] Main loaded · build ${BUILD_ID} · fast channel switching · STRM resolution · header-aware candidate testing · shared EPG · route quarantine · D1 My Playlist is primary`);
