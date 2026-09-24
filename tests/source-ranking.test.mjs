@@ -37,3 +37,12 @@ const liveHealth={
 liveHealth.refresh();
 const synced=rankRoutesByHealth([route(a),route(c)],liveHealth);
 assert.equal(synced[0].originalUrl,c,'ranking must use refreshed persistent health state');
+
+const savedWeak=route('https://example.test/saved-weak.m3u8','direct',true);
+const remoteStrong=route('https://example.test/remote-strong.m3u8','direct',false);
+const provenanceHealth={score:url=>url===remoteStrong.playbackUrl?95:-15};
+const provenanceRanked=rankRoutesByHealth([savedWeak,remoteStrong],provenanceHealth);
+assert.equal(provenanceRanked[0].originalUrl,remoteStrong.originalUrl,'health must outrank provenance: proven-good remote before known-bad saved');
+const tieHealth={score:()=>0};
+const tieRanked=rankRoutesByHealth([remoteStrong,savedWeak],tieHealth);
+assert.equal(tieRanked[0].originalUrl,savedWeak.originalUrl,'saved/trusted source wins only when health scores tie');
