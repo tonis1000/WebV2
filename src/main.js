@@ -1,15 +1,17 @@
-import { CONFIG, OFFICIAL_LIVE } from './config.js?v=20260923-2215';
-import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
-import { HealthStore } from './core/health-store.js?v=20260924-2350';
-import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js?v=20260924-2245';
-import { EpgService } from './core/epg.js?v=20260923-2315';
-import { PlayerController } from './core/player.js?v=20260923-2315';
-import { formatTime, normalizeId, cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
-import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
+import { CONFIG, OFFICIAL_LIVE } from './config.js';
+import { parseM3U, dedupeChannels } from './core/channel-catalog.js';
+import { HealthStore } from './core/health-store.js';
+import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
+import { EpgService } from './core/epg.js';
+import { PlayerController } from './core/player.js';
+import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/utils.js';
+import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 
-const BUILD_ID = '20260924-2410';
+const BUILD_ID = '20260924-stabilization';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
+const DEBUG_FLAGS = new Set((new URLSearchParams(location.search).get('debug') || '').split(',').map(v => v.trim()).filter(Boolean));
+const DEBUG_STORAGE = DEBUG_FLAGS.has('storage') || DEBUG_FLAGS.has('all');
 const $ = id => document.getElementById(id);
 
 const els = {
@@ -50,6 +52,7 @@ function log(message){
   els.diagLog.textContent=`[${stamp}] ${message}\n${els.diagLog.textContent}`.slice(0,18000);
 }
 function storageProbe(){
+  if(!DEBUG_STORAGE)return null;
   const key='webtv_v2_health_probe';
   const previous=localStorage.getItem(key);
   const next=String((Number(previous)||0)+1);
@@ -108,7 +111,7 @@ function updateDiagnostics(info){
   els.diagStartup.textContent=info.startupMs?`${info.startupMs} ms`:'-';
   const source=sourceLabel(info.source);
   if(info.error)log(`FAIL ${info.route} · ${source} · ${info.error}`);
-  else log(`OK ${info.player} via ${info.route} · ${source} · ${info.startupMs} ms`);
+  else log(`${info.fallback?'FALLBACK':'OK'} ${info.player} via ${info.route} · ${source} · ${info.startupMs} ms`);
 }
 function setOfficialLive(channel){
   const key=normalizeId(channel?.id||channel?.originalId||channel?.name||'');
@@ -187,7 +190,7 @@ function clearSelectedIfMissing(){
   els.officialLive.hidden=true;els.sourceHuntToggle.hidden=true;els.sourceHunt.hidden=true;player.stop?.();
 }
 function applyPlaylistText(text,{mode='replace',label='Playlist'}={}){
-  const imported=parseM3U(text).map(channel=>({...channel,logo:safeLogo(channel.logo)}));
+  const imported=parseM3U(text).map(channel=>({...channel,logo:safeLogo(channel.logo),sourceTrust:'temporary'}));
   if(!imported.length)throw new Error('No #EXTINF channels found');
   channels=mode==='merge'?dedupeChannels([...channels,...imported]):dedupeChannels(imported);
   catalogMode='temporary';
@@ -204,7 +207,8 @@ function mapRegistryChannel(c){
     logo: safeLogo(c.logo||''),
     group: c.groupName||'Other',
     directUrls: [...new Set((c.sources||[]).map(s=>s?.url).filter(Boolean))],
-    position: Number(c.position)||0
+    position: Number(c.position)||0,
+    sourceTrust: 'curated'
   };
 }
 async function fetchCloudMyPlaylist(){
@@ -264,7 +268,7 @@ async function selectChannel(channel){
   setPlaybackState('loading',before.pending?'Resolving source':'Connecting');
   try{
     const routes=await sources.getSources(channel);
-    if(token!==selectionToken || selected!==channel)return;
+    if(token!==selectionToken || selected!==channel)return null;
     const routePlan = routes.map((route,index) => {
       const entry = health.get(route.playbackUrl);
       return {
@@ -283,7 +287,7 @@ async function selectChannel(channel){
     log(`PLAYBACK PLAN · ${channel.name} · ${routePlan.map(r=>`#${r.rank} ${r.route} ${r.origin} score=${r.score} ${sourceLabel(r.source)}`).join(' | ')}`);
     const stats=sources.getStats(channel);
     log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
-    await player.play(channel,routes);
+    const result=await player.play(channel,routes);
     const postPlan = routes.map((route,index) => ({
       rank:index+1,
       route:route.route,
@@ -292,40 +296,68 @@ async function selectChannel(channel){
       attempts:(health.get(route.playbackUrl)?.success||0)+(health.get(route.playbackUrl)?.fail||0),
     }));
     log(`HEALTH AFTER PLAY · ${postPlan.map(r=>`#${r.rank} ${r.route} score=${r.score} tries=${r.attempts} ${sourceLabel(r.source)}`).join(' | ')}`);
-    {
+    if(DEBUG_STORAGE){
       const hd=health.diagnostics();
       log(`HEALTH PERSIST · memory=${hd.memoryEntries} · primary=${hd.primaryEntries} (${hd.primaryBytes}B) · backup=${hd.backupEntries} (${hd.backupBytes}B)`);
     }
+    return result;
   }
   catch(error){
-    if(token!==selectionToken || selected!==channel)return;
-    log(`${channel.name}: ${error.message}`);if(officialUrl)setPlaybackState('error','Official fallback');
+    if(token!==selectionToken || selected!==channel)return null;
+    log(`${channel.name}: ${error.message}`);if(officialUrl)setPlaybackState('error','Official fallback unavailable');
+    throw error;
   }
   finally{if(token===selectionToken && selected===channel)updateChannelRowStats(channel);}
 }
 
-async function testCandidateUrl(){
-  if(!selected)return;
-  const raw=els.candidateUrl.value.trim();
+function buildCandidateRoutes(raw){
   const parsed=parseIptvUrl(raw);
   const url=parsed.url;
-  if(!/^https?:\/\//i.test(url)){log('Candidate rejected: valid http/https URL required');return;}
+  if(!/^https?:\/\//i.test(url))throw new Error('Valid http/https URL required');
   const routes=[];
-  if(/^https:\/\//i.test(url))routes.push({originalUrl:url,playbackUrl:url,route:'candidate-direct',requestHeaders:{}});
+  if(/^https:\/\//i.test(url))routes.push({originalUrl:url,playbackUrl:url,route:'candidate-direct',requestHeaders:{},saved:false});
   if(isHls(url)&&CONFIG.workerForHls){
     const hasHeaders=Object.keys(parsed.headers).length>0;
     routes.push({
       originalUrl:url,
       playbackUrl:workerUrl(url,parsed.headers),
       route:hasHeaders?'candidate-worker+headers':'candidate-worker',
-      requestHeaders:parsed.headers
+      requestHeaders:parsed.headers,
+      saved:false
     });
   }
-  if(!routes.length){log(`Candidate rejected: unsupported or insecure non-HLS URL · ${sourceLabel(url)}`);return;}
-  clearDiagnostics();log(`Candidate test for ${selected.name} · ${sourceLabel(url)} · ${routes.length} route(s)`);
-  try{await player.play({...selected,name:`${selected.name} candidate`},routes);}
-  catch(error){log(`Candidate failed · ${sourceLabel(url)} · ${error.message}`);}
+  if(!routes.length)throw new Error(`Unsupported or insecure non-HLS URL · ${sourceLabel(url)}`);
+  return {url,routes};
 }
+
+async function testCandidate(raw,{channel=selected}={}){
+  if(!channel)throw new Error('Select a channel first');
+  const {url,routes}=buildCandidateRoutes(raw);
+  clearDiagnostics();
+  log(`Candidate test for ${channel.name} · ${sourceLabel(url)} · ${routes.length} route(s)`);
+  try{
+    const result=await player.play({...channel,name:`${channel.name} candidate`},routes);
+    if(!result || result.fallback)throw new Error('Candidate did not produce verified stream playback');
+    return result;
+  }catch(error){
+    log(`Candidate failed · ${sourceLabel(url)} · ${error.message}`);
+    throw error;
+  }
+}
+
+async function testCandidateUrl(){
+  if(!selected)return;
+  const raw=els.candidateUrl.value.trim();
+  try{await testCandidate(raw,{channel:selected});}
+  catch(error){log(`Manual candidate test failed · ${error.message}`);}
+}
+
+window.WebTVPlaybackAPI={
+  testCandidate,
+  replaySelected:()=>selected?selectChannel(selected):Promise.resolve(null),
+  stop:()=>player.stop(),
+};
+
 function renderEpg(){
   if(!selected)return;
   const{current,next}=epg.get(selected);
@@ -356,11 +388,11 @@ async function boot(){
     .catch(error=>log(`EPG unavailable: ${error.message}`));
 
   await loadCloudMyPlaylist({reason:'startup',preserveSelection:false});
-  {
+  if(DEBUG_STORAGE){
     const hd=health.diagnostics();
     log(`HEALTH STORE · memory=${hd.memoryEntries} · primary=${hd.primaryEntries} (${hd.primaryBytes}B) · backup=${hd.backupEntries} (${hd.backupBytes}B) · key ${hd.storageKey}`);
     const probe=storageProbe();
-    log(`STORAGE PROBE · origin=${probe.origin} · previous=${probe.previous||'∅'} · wrote=${probe.next} · read=${probe.readBack||'∅'} · ${probe.writeOk?'OK':'FAIL'}${probe.error?` · ${probe.error}`:''}`);
+    if(probe)log(`STORAGE PROBE · origin=${probe.origin} · previous=${probe.previous||'∅'} · wrote=${probe.next} · read=${probe.readBack||'∅'} · ${probe.writeOk?'OK':'FAIL'}${probe.error?` · ${probe.error}`:''}`);
   }
   await sourceTask;
   renderGroups();renderChannels();
@@ -391,4 +423,4 @@ boot().catch(error=>{
   console.error(error);
 });
 
-console.info(`[WebTV] Main loaded · build ${BUILD_ID} · fast channel switching · STRM resolution · header-aware candidate testing · shared EPG · route quarantine · D1 My Playlist is primary`);
+console.info(`[WebTV] Main loaded · build ${BUILD_ID} · clean playback API · fast channel switching · STRM resolution · shared health scoring · D1 My Playlist is primary`);
