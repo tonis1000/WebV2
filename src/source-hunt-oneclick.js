@@ -1,6 +1,7 @@
 import { saveBestSourceToCurrent } from './source-save-policy.js?v=20260923-0815';
+import { officialFallbackFor } from './core/official-fallbacks.js?v=20260924-1435';
 
-const BUILD_ID = '20260923-2235';
+const BUILD_ID = '20260924-1435';
 const $ = id => document.getElementById(id);
 
 const panel = $('source-hunt');
@@ -18,6 +19,8 @@ function log(message){
   diagLog.textContent = `[${stamp}] ${message}\n${diagLog.textContent}`.slice(0, 18000);
 }
 function clean(value=''){return String(value || '').split('#')[0].trim();}
+function selectedChannel(){return window.WebTVPlaylistAPI?.getSelectedChannel?.() || null;}
+function currentOfficialFallback(){const selected=selectedChannel();return selected ? officialFallbackFor(selected) : null;}
 
 function directCandidateTester(){
   if(!panel) return null;
@@ -31,10 +34,10 @@ function ensureAdvancedUi(){
     details.id='hunt-advanced';
     details.className='hunt-advanced';
     const summary=document.createElement('summary');
-    summary.textContent='Advanced results';
+    summary.textContent='Advanced stream results';
     const hint=document.createElement('span');
     hint.className='muted small';
-    hint.textContent='Seeds, GitHub, Web, Forums and manual candidate lists';
+    hint.textContent='Seeds, GitHub, Web, Forums and manual stream candidate lists';
     details.append(summary,hint);
     const tester=directCandidateTester();
     if(tester && tester.parentElement===panel) panel.insertBefore(details,tester);
@@ -55,7 +58,7 @@ function ensureUi(){
     wrap.className = 'hunt-oneclick-wrap';
     wrap.innerHTML = `
       <button id="hunt-oneclick" class="button hunt-primary" type="button">Find & Test Best</button>
-      <span id="hunt-oneclick-status" class="hunt-oneclick-status">Ready</span>`;
+      <span id="hunt-oneclick-status" class="hunt-oneclick-status">Ready · streams first · official fallback last</span>`;
     heading.appendChild(wrap);
   }
   ensureAdvancedUi();
@@ -109,6 +112,14 @@ function waitForPlayback(url,timeoutMs=15000){
 function restoreSelectedPlayback(){
   document.querySelector('.channel-item.active')?.click();
 }
+function useOfficialFallback(status,channelName,reason){
+  const fallback=currentOfficialFallback();
+  if(!fallback)return false;
+  status.textContent=`${reason} · ${fallback.label || 'Official fallback'}`;
+  log(`ONE-CLICK FALLBACK ${channelName} · ${reason} · ${fallback.route || 'official-fallback'} · not saved to D1`);
+  restoreSelectedPlayback();
+  return true;
+}
 async function runOneClick(){
   const runHuntButton=$('run-hunt'),button=$('hunt-oneclick'),status=$('hunt-oneclick-status');
   const channelName=$('channel-name')?.textContent?.trim();
@@ -116,18 +127,23 @@ async function runOneClick(){
   if(!channelName||channelName==='Επίλεξε κανάλι'){status.textContent='Select a channel first';return;}
 
   button.disabled=true;window.WebTVSourceHuntBusy=true;
-  status.textContent=`Searching ${channelName}…`;log(`ONE-CLICK HUNT START ${channelName}`);
+  status.textContent=`Searching ${channelName}…`;log(`ONE-CLICK HUNT START ${channelName} · stream candidates first`);
   try{
     document.querySelectorAll('#hunt-results,#hunt-seed-results,#hunt-web-results,#hunt-forum-results').forEach(el=>{el.innerHTML='';});
     runHuntButton.click();
     const urls=await waitForDiscovery();
-    if(!urls.length){status.textContent='No fresh candidates found';log(`ONE-CLICK HUNT ${channelName} · no candidates`);return;}
+    if(!urls.length){
+      if(useOfficialFallback(status,channelName,'No fresh stream candidate'))return;
+      status.textContent='No fresh stream candidates · check Official Fallback Discovery';
+      log(`ONE-CLICK HUNT ${channelName} · no stream candidates · no verified official fallback`);
+      return;
+    }
 
-    status.textContent=`${urls.length} candidates · testing…`;
+    status.textContent=`${urls.length} stream candidates · testing…`;
     const limit=Math.min(urls.length,8);
     for(let i=0;i<limit;i++){
       const url=urls[i];
-      status.textContent=`Testing ${i+1}/${limit}`;
+      status.textContent=`Testing stream ${i+1}/${limit}`;
       candidateInput.value=url;candidateInput.dispatchEvent(new Event('input',{bubbles:true}));
       const playback=waitForPlayback(url);
       testButton.click();
@@ -135,22 +151,24 @@ async function runOneClick(){
       const result=await playback;
       if(!result.ok)continue;
 
-      status.textContent=`Working ✓ ${result.startup} ms · saving best…`;
+      status.textContent=`Working stream ✓ ${result.startup} ms · saving best…`;
       try{
         const saved=await saveBestSourceToCurrent(url,{maxSources:3});
-        status.textContent=`Best source saved ✓ · ${saved.kept.length}/3 kept`;
+        status.textContent=`Best stream saved ✓ · ${saved.kept.length}/3 kept`;
         log(`ONE-CLICK SUCCESS ${channelName} · winner ${url} · ${result.startup} ms · kept ${saved.kept.length} · dropped ${saved.dropped.length}`);
       }catch(error){
-        status.textContent=`Working ✓ ${result.startup} ms · save failed`;
+        status.textContent=`Working stream ✓ ${result.startup} ms · save failed`;
         log(`ONE-CLICK SAVE FAILED ${channelName} · ${url} · ${error.message}`);
       }
       return;
     }
 
-    status.textContent=`No working source in first ${limit} · restored`;
-    log(`ONE-CLICK DONE ${channelName} · no working candidate in ${limit}`);
+    if(useOfficialFallback(status,channelName,`No working stream in first ${limit}`))return;
+    status.textContent=`No working stream in first ${limit} · restored`;
+    log(`ONE-CLICK DONE ${channelName} · no working stream candidate in ${limit} · no verified official fallback`);
     restoreSelectedPlayback();
   }catch(error){
+    if(useOfficialFallback(status,channelName,`Stream hunt failed: ${error.message}`))return;
     status.textContent=`Failed · ${error.message}`;
     log(`ONE-CLICK ERROR ${channelName} · ${error.message}`);
     restoreSelectedPlayback();
@@ -165,4 +183,4 @@ if(!ensureUi()){
   setTimeout(()=>{ensureUi();observer.disconnect();},5000);
 }
 window.addEventListener('webtv:ready',ensureUi);
-console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · safe advanced UI`);
+console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · stream-first · verified official fallback last`);
