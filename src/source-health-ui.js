@@ -1,7 +1,10 @@
 import { CONFIG } from './config.js?v=20260923-2215';
-import { cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260924-0900';
+import { cleanUrl, parseIptvUrl, isHls, isDash, workerUrl } from './core/utils.js?v=20260924-0900';
+import { StrmResolver } from './core/strm-resolver.js?v=20260924-1919';
 
-const BUILD_ID = '20260924-1010';
+const BUILD_ID = '20260924-1919';
+const strmResolver = new StrmResolver();
+let renderToken = 0;
 const $ = id => document.getElementById(id);
 
 function loadHealthMap(){
@@ -23,7 +26,7 @@ function pct(entry){
   return total ? Math.round((Number(entry.success || 0) / total) * 100) : null;
 }
 
-function routeRows(channel){
+async function routeRows(channel){
   const map = loadHealthMap();
   const out = [];
   const seen = new Set();
@@ -33,7 +36,25 @@ function routeRows(channel){
     if(!source) continue;
 
     if(/\.strm(?:\?.*)?$/i.test(source)){
-      out.push({source,kind:'strm-ref',playbackUrl:'',entry:null,reference:true});
+      const info = await strmResolver.inspect(source);
+      const resolved = info?.resolvedUrl || '';
+      const resolvedParsed = parseIptvUrl(resolved);
+      const resolvedUrl = resolvedParsed.url || '';
+      const mediaType = isHls(resolvedUrl) ? 'HLS' : isDash(resolvedUrl) ? 'DASH' : resolvedUrl ? 'MEDIA' : 'UNRESOLVED';
+      const drm = Boolean(info?.drm);
+      const unsupported = drm && mediaType === 'DASH';
+      out.push({
+        source,
+        kind:'strm-ref',
+        playbackUrl:resolvedUrl,
+        entry:resolvedUrl ? (map[cleanUrl(resolvedUrl)] || null) : null,
+        reference:true,
+        resolvedUrl,
+        mediaType,
+        drm,
+        licenseType:info?.licenseType || '',
+        unsupported,
+      });
       continue;
     }
 
@@ -83,7 +104,8 @@ function metric(text){
   return span;
 }
 
-function render(){
+async function render(){
+  const token = ++renderToken;
   const summary = $('source-health-summary');
   const list = $('source-health-list');
   if(!summary || !list) return;
@@ -94,8 +116,9 @@ function render(){
     return;
   }
 
-  const rows = routeRows(channel);
-  const routedRows = rows.filter(r => !r.reference);
+  const rows = await routeRows(channel);
+  if(token !== renderToken) return;
+  const routedRows = rows.filter(r => !r.reference && !r.unsupported);
   const tested = routedRows.filter(r => r.entry && (Number(r.entry.success||0)+Number(r.entry.fail||0)) > 0);
   const cooling = routedRows.filter(r => Number(r.entry?.cooldownUntil || 0) > Date.now());
   const speeds = tested.map(r => Number(r.entry?.avgStartupMs || 0)).filter(Boolean);
@@ -113,7 +136,7 @@ function render(){
     const attempts = Number(entry.success||0)+Number(entry.fail||0);
     const successPct = pct(entry);
     const coolingNow = Number(entry.cooldownUntil||0) > Date.now();
-    const status = row.reference ? 'Reference' : !attempts ? 'Untested' : coolingNow ? 'Cooldown' : successPct >= 80 ? 'Strong' : successPct >= 50 ? 'Mixed' : 'Weak';
+    const status = row.unsupported ? 'Unsupported DRM' : row.reference ? (row.resolvedUrl ? 'Resolved' : 'Unresolved') : !attempts ? 'Untested' : coolingNow ? 'Cooldown' : successPct >= 80 ? 'Strong' : successPct >= 50 ? 'Mixed' : 'Weak';
 
     const item = document.createElement('div');
     item.className = `source-health-row${coolingNow?' cooling':''}`;
@@ -130,7 +153,16 @@ function render(){
     const metrics=document.createElement('div');
     metrics.className='source-health-metrics';
     if(row.reference){
-      metrics.append(metric('resolved lazily at playback'));
+      const detail = row.resolvedUrl
+        ? `${row.mediaType}${row.drm ? ` · DRM ${row.licenseType || 'detected'}` : ''}${row.unsupported ? ' · not usable by current player' : ''}`
+        : 'resolution failed or pending';
+      metrics.append(metric(detail));
+      if(row.resolvedUrl){
+        const resolved=document.createElement('code');
+        resolved.textContent=row.resolvedUrl;
+        resolved.title=row.resolvedUrl;
+        metrics.append(resolved);
+      }
     }else{
       metrics.append(
         metric(`${successPct === null ? '—' : `${successPct}%`} success`),
@@ -153,4 +185,4 @@ const diagPlayer = $('diag-player');
 if(diagPlayer) new MutationObserver(render).observe(diagPlayer,{childList:true,characterData:true,subtree:true});
 setInterval(render, 5000);
 render();
-console.info(`[WebTV] Source health UI loaded · build ${BUILD_ID} · header-aware routes`);
+console.info(`[WebTV] Source health UI loaded · build ${BUILD_ID} · resolved STRM + DRM visibility`);
