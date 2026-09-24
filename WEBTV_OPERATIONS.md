@@ -1,7 +1,7 @@
 # WebTV V2 · Master Operations Manual
 
 > **Canonical technical guide for the WebTV project**  
-> Last architecture update: **2026-09-22**  
+> Last architecture update: **2026-09-24**  
 > Repository: `tonis1000/WebV2`
 
 Read this file before a structural WebTV change. It records what runs where, what is authoritative, how data moves, how deployment works, and which safety rules must remain true.
@@ -342,6 +342,10 @@ src/pin-auth.js
 src/core/source-registry.js
   combines curated D1/direct sources with background TV Cache sources
   scores/cooldowns playback routes
+  preserves approved IPTV/Kodi header metadata for Worker playback
+
+src/core/strm-resolver.js
+  lazily resolves .strm indirections and preserves final Kodi-style URL options
 
 src/saved-sources-ui.js
   verified source save flow
@@ -418,7 +422,11 @@ Important resources:
 /channel-streams.json
 /proxy-map.json
 /proxy?url=...
+/?url=...
+/?h=<approved-header-context>&url=...
 ```
+
+The optional `h` context is playback transport metadata only. It is validated by the Worker and may contain only the approved `User-Agent`, `Referer` and `Origin` classes. It is propagated when the Worker rewrites HLS child playlists, URI resources/keys and media segments.
 
 TV Cache/background sources can supplement playback. D1 My Playlist sources have priority as curated routes.
 
@@ -459,10 +467,13 @@ change canonical source
 → review / branch if risky
 → merge to main
 → GitHub Action
+→ regression/syntax validation
 → Wrangler deploy
 → Cloudflare propagation wait
 → live verification
 ```
+
+For TV Cache/header-aware changes, `.github/workflows/deploy-tv-cache.yml` runs `tests/header-aware-proxy.test.mjs` before deployment.
 
 Registry deployment verification for v1.5 must confirm:
 
@@ -568,7 +579,7 @@ This is the architecture to preserve unless we explicitly decide together to cha
 
 ---
 
-## 16. Source handling checkpoint + next step · 2026-09-24
+## 16. Source handling checkpoint + header-aware proxy · 2026-09-24
 
 ### Current state
 
@@ -581,20 +592,26 @@ external M3U
 → channel directUrls
 → SourceRegistry
 → optional .strm resolution
-→ direct HLS route
-→ optional TV Cache Worker route
+→ parse approved IPTV/Kodi options
+→ direct clean HLS route
+→ optional TV Cache Worker route with approved header context
 → PlayerController
 ```
 
-Implemented and already merged:
+Implemented:
 
 - `.strm` references are resolved lazily at playback time by `src/core/strm-resolver.js`.
 - Resolution is cached in memory and duplicate/in-flight requests are deduplicated.
 - Nested `.strm` references are bounded.
+- Final `.strm` media lines retain Kodi-style `|...` options for later safe parsing.
 - Temporary external playlist sources remain untrusted until explicitly saved into D1 My Playlist.
 - `403` may receive one Worker rescue attempt.
 - `404/410` are treated as terminal for the same source and should not waste time retrying the sibling route.
-- IPTV/Kodi suffix syntax after `|` is currently stripped from the browser media URL so it does not corrupt HLS detection, route identity or Worker URL construction.
+- `src/core/utils.js` parses Kodi-style suffix options while keeping `cleanUrl()` compatible with existing callers.
+- `SourceRegistry` creates a clean direct route plus a `worker+headers` route when approved header metadata exists.
+- TV Cache validates and forwards only approved `User-Agent`, `Referer` and `Origin` values.
+- Worker-rewritten HLS child playlists, URI resources/keys and segments retain the same approved header context.
+- Header-context URLs have distinct cache/health identities without changing normal direct-stream identities.
 
 Example source syntax:
 
@@ -602,189 +619,74 @@ Example source syntax:
 https://example.com/live.m3u8|user-agent=Mozilla/5.0&referer=https://example.com/&origin=https://example.com
 ```
 
-Today the browser-facing URL becomes:
+Browser-facing direct URL:
 
 ```text
 https://example.com/live.m3u8
 ```
 
-This is correct for streams where the suffix is unnecessary, but it creates an important compatibility gap.
-
-### Known compatibility gap
-
-Some IPTV streams work in Kodi/VLC only because the values after `|` are converted into real HTTP request headers.
-
-Possible examples:
+Header-aware Worker route conceptually becomes:
 
 ```text
-User-Agent
-Referer
-Origin
+https://tv-cache.atonis.workers.dev/?h=<validated-context>&url=https%3A%2F%2Fexample.com%2Flive.m3u8
 ```
 
-A browser cannot reliably apply these arbitrary headers to HLS requests from `hls.js`. If WebTV simply strips the Kodi options, a source that is actually valid may return `403` and be incorrectly treated as dead.
+### Security rules
 
-Therefore **we may currently lose channels that depend on Kodi/VLC request headers**.
-
-### NEXT FEATURE: Kodi/VLC header-aware proxying
-
-The next implementation task is to preserve supported Kodi URL options and apply them through the TV Cache Worker instead of discarding them.
-
-Target architecture:
-
-```text
-raw IPTV source
-https://example.com/live.m3u8|user-agent=UA&referer=https://site.example/
-        │
-        ▼
-parse IPTV/Kodi options
-        │
-        ├── cleanUrl: https://example.com/live.m3u8
-        └── headers:
-              User-Agent: UA
-              Referer: https://site.example/
-        │
-        ▼
-SourceRegistry route model
-        │
-        ├── direct route uses clean URL only
-        └── worker route carries approved header metadata
-        │
-        ▼
-TV Cache Worker
-        │
-        ├── validates/whitelists allowed headers
-        ├── sends approved headers upstream
-        ├── rewrites HLS child URLs through the Worker
-        └── preserves the same approved headers for child playlists and segments
-```
-
-### Required implementation ownership
-
-#### `src/core/utils.js`
-
-Add parsing that returns both the underlying URL and supported Kodi options instead of permanently discarding the options.
-
-Conceptually:
-
-```js
-parseIptvUrl(raw) => {
-  url,
-  headers
-}
-```
-
-Do not break existing `cleanUrl()`, HLS detection, health keys or route dedupe.
-
-#### `src/core/source-registry.js`
-
-Carry approved header metadata with a route.
-
-A route may need fields conceptually similar to:
-
-```text
-originalUrl
-playbackUrl
-route
-saved
-requestHeaders
-```
-
-The exact representation can differ, but header-dependent sources must retain enough metadata for Worker playback.
-
-#### `workers/tv-cache.js`
-
-Add safe support for approved upstream request headers.
-
-Do **not** allow arbitrary client-controlled header injection.
-
-Initial whitelist should be deliberately small:
-
-```text
-User-Agent
-Referer
-Origin
-```
-
-`Cookie`, `Authorization`, proxy headers, Cloudflare headers and other sensitive headers are **not automatically allowed**. Adding any sensitive header class requires a separate deliberate security decision.
-
-### HLS propagation requirement
-
-Supporting headers only on the first master `.m3u8` request is not sufficient.
-
-The same approved header context must survive across:
-
-```text
-master.m3u8
-→ variant/child playlist.m3u8
-→ encryption/key request if applicable
-→ .ts / .m4s segments
-```
-
-If the Worker rewrites child URLs, the rewritten Worker URLs must retain a safe reference to the approved header context so every upstream HLS request receives the required headers.
-
-Do not expose secrets or raw sensitive header values unnecessarily in logs or persistent storage.
-
-### Security constraints
-
-The feature must preserve these rules:
+The header-aware transport preserves these rules:
 
 1. Never forward arbitrary headers supplied by a playlist.
-2. Maintain an explicit allowlist.
-3. Reject CR/LF and malformed header values.
-4. Do not allow callers to override `Host`, `Content-Length`, Cloudflare/proxy headers or authentication headers.
-5. Do not persist temporary playlist header metadata into D1 unless we explicitly design a schema and trust model for it later.
+2. Explicit allowlist only: `User-Agent`, `Referer`, `Origin`.
+3. CR/LF, control characters, malformed values and overlong values are rejected/ignored according to validation stage.
+4. Callers cannot use this mechanism to override `Host`, `Content-Length`, Cloudflare/proxy headers, `Cookie` or `Authorization`.
+5. Temporary playlist header metadata is not persisted into D1.
 6. D1 My Playlist remains the only permanent live playlist source of truth.
 7. Header-aware proxying is playback transport behavior, not a new playlist authority.
 
 ### Fallback policy
 
-Desired behavior for an HLS source carrying Kodi options:
+For an HLS source carrying Kodi options:
 
 ```text
 1. normalize + parse source
-2. direct clean URL may be tried when appropriate
+2. direct clean URL remains first when eligible
 3. if direct works → use direct
 4. if direct fails with browser/CORS/403 → try Worker with approved parsed headers
 5. if Worker succeeds → record route health success
-6. if Worker fails with terminal 404/410 → quarantine the source
+6. if Worker fails with terminal 404/410 → quarantine the source/sibling route
 7. avoid repeated retries during cooldown
 ```
 
-For a source whose options clearly require proxy-only behavior, we may later choose to prioritize the Worker route. Make that decision from verified logs rather than guessing.
+### Regression gate
 
-### Acceptance tests
+`tests/header-aware-proxy.test.mjs` verifies at minimum:
 
-Before considering the feature complete, verify at minimum:
+- normal HLS Worker URL behavior remains unchanged
+- Kodi suffix is separated from the browser media URL
+- `User-Agent`, `Referer`, `Origin` are preserved in approved context
+- unsupported header classes do not enter the approved context
+- CR/LF injection is rejected
+- `SourceRegistry` emits direct + `worker+headers` routes correctly
+- `.strm` resolution preserves final header metadata
+- master HLS rewrite preserves header context
+- child playlist rewrite preserves header context
+- `URI="..."` resources such as keys preserve header context
+- segment URLs preserve header context
 
-1. A normal HLS URL with no Kodi options still plays exactly as before.
-2. A URL containing `|user-agent=...` is not sent literally to the browser/upstream.
-3. A URL containing `|referer=...` reaches the Worker with an approved Referer value.
-4. A URL containing `|origin=...` reaches the Worker with an approved Origin value.
-5. Unsupported/malicious header names are ignored or rejected.
-6. CR/LF header injection is rejected.
-7. HLS master playlist loads with required headers.
-8. Variant playlist loads with the same header context.
-9. Segments load with the same header context.
-10. Existing `403` Worker rescue behavior still works.
-11. Existing `404/410` terminal sibling suppression still works.
-12. Existing `.strm` resolution still works.
-13. Source health/cooldown continues to identify routes consistently.
-14. Temporary external playlist remains temporary and page reload returns to D1 My Playlist.
-15. Existing D1 playlist reads/writes and Source Hunt behavior remain unchanged.
+The TV Cache deployment workflow runs syntax checks plus this regression test before Wrangler deploy.
 
-### Recommended first regression samples
+### Recommended live regression samples
 
-Use the existing external playlist that exposed the issue:
+Use:
 
 ```text
 https://raw.githubusercontent.com/don24crk/Don24crk-Repository/refs/heads/master/android.m3u
 ```
 
-Check especially entries that use:
+Check especially:
 
 - `.strm` indirection such as MAK/MTV
-- Kodi-style `|user-agent=...` syntax such as MADTV-style entries
-- normal Siliconweb HLS entries to ensure no regression
+- MADTV-style `|user-agent=...` source
+- normal Siliconweb HLS sources to ensure no regression
 
 The goal is **not** to force every broken upstream stream to work. The goal is to stop losing otherwise valid Kodi/VLC-compatible channels merely because WebTV ignored required request-header metadata.

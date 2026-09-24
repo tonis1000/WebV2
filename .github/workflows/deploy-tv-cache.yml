@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - 'workers/tv-cache.js'
+      - 'src/core/utils.js'
+      - 'src/core/source-registry.js'
+      - 'src/core/strm-resolver.js'
+      - 'tests/header-aware-proxy.test.mjs'
       - '.github/workflows/deploy-tv-cache.yml'
 
 permissions:
@@ -29,7 +33,12 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Validate source
-        run: node --check workers/tv-cache.js
+        run: |
+          node --check workers/tv-cache.js
+          node --check src/core/utils.js
+          node --check src/core/source-registry.js
+          node --check src/core/strm-resolver.js
+          node tests/header-aware-proxy.test.mjs
 
       - name: Build Wrangler config
         shell: bash

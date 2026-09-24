@@ -1,9 +1,11 @@
+import { cleanUrl } from './utils.js?v=20260924-0900';
+
 const DEFAULT_TIMEOUT_MS = 5000;
 const FAILURE_TTL_MS = 60 * 1000;
 const MAX_DEPTH = 3;
 
 function canonicalReferenceUrl(value = '') {
-  const raw = String(value || '').trim();
+  const raw = cleanUrl(value);
   if (!raw) return '';
   try {
     const url = new URL(raw);
@@ -38,10 +40,10 @@ function extractHttpUrl(text = '') {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     if (!/^https?:\/\//i.test(line)) continue;
-    // Kodi-style URL options after "|" require custom request headers that the
-    // browser player cannot apply. Keep the underlying HTTP media URL.
-    const browserUrl = line.split('|', 1)[0].trim();
-    if (browserUrl) return browserUrl;
+    // Preserve Kodi-style `|...` options on the final media URL. They are
+    // parsed later by SourceRegistry and applied only through the safe Worker
+    // allowlist. Reference detection itself still uses the clean underlying URL.
+    return line;
   }
   return '';
 }
@@ -107,9 +109,12 @@ export class StrmResolver {
   async #resolveRecursive(referenceUrl, depth) {
     if (depth >= MAX_DEPTH) return '';
     const text = await fetchText(referenceUrl, this.timeoutMs);
-    const candidate = canonicalReferenceUrl(extractHttpUrl(text));
+    const candidateRaw = extractHttpUrl(text);
+    const candidate = canonicalReferenceUrl(candidateRaw);
     if (!candidate) return '';
-    if (!isStrmReference(candidate)) return candidate;
+
+    // Final media URL: keep the raw line so Kodi/VLC header options survive.
+    if (!isStrmReference(candidate)) return candidateRaw;
 
     const nestedCached = this.peek(candidate);
     if (nestedCached) return nestedCached;
