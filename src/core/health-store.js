@@ -8,9 +8,29 @@ export class HealthStore {
     this.#prune();
   }
   #load() { try { const raw = localStorage.getItem(this.storageKey); return raw ? JSON.parse(raw) : {}; } catch { return {}; } }
-  #save() { try { localStorage.setItem(this.storageKey, JSON.stringify(this.map)); } catch {} }
+  #save() {
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify(this.map));
+      return true;
+    } catch (error) {
+      console.warn('[WebTV] HealthStore persist failed', error);
+      return false;
+    }
+  }
   refresh() {
-    this.map = this.#load();
+    // Merge persisted state into the live map. Never replace newer in-memory
+    // observations with an empty/stale storage snapshot.
+    const persisted = this.#load();
+    for (const [key, incoming] of Object.entries(persisted)) {
+      const current = this.map[key];
+      if (!current) {
+        this.map[key] = incoming;
+        continue;
+      }
+      const currentTs = Math.max(current.lastSuccess || 0, current.lastFailure || 0);
+      const incomingTs = Math.max(incoming.lastSuccess || 0, incoming.lastFailure || 0);
+      if (incomingTs > currentTs) this.map[key] = incoming;
+    }
     this.#prune();
     return this.map;
   }
