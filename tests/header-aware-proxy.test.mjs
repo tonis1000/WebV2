@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { parseIptvUrl, workerUrl, cleanUrl } from '../src/core/utils.js';
 import { SourceRegistry } from '../src/core/source-registry.js';
-import { routeMediaType, officialFallbackFor } from '../src/core/player.js';
+import { routeMediaType } from '../src/core/player.js';
+import { officialFallbackFor, officialDiscoveryLinks, isTrustedOfficialEmbedUrl } from '../src/core/official-fallbacks.js';
 import worker from '../workers/tv-cache.js';
 
 const health = {
@@ -33,6 +34,12 @@ assert.equal(madFallback?.route, 'official-youtube');
 assert.equal(madFallback?.externalUrl, 'https://www.youtube.com/@madtvgreece/live');
 assert.match(madFallback?.embedUrl || '', /^https:\/\/www\.youtube-nocookie\.com\/embed\/live_stream\?channel=UCs3cho4vcDuCze0tk3W9iVQ/);
 assert.equal(officialFallbackFor({ id: 'open', name: 'OPEN' }), null);
+assert.equal(isTrustedOfficialEmbedUrl(madFallback?.embedUrl), true);
+assert.equal(isTrustedOfficialEmbedUrl('https://evil.example/embed/live_stream?channel=x'), false);
+const discoveryLinks = officialDiscoveryLinks({ id: 'MADTV', name: 'MADTV' });
+assert.equal(discoveryLinks.length, 4);
+assert.ok(discoveryLinks.every(item => /^https:\/\//.test(item.url)));
+assert.ok(discoveryLinks.some(item => item.kind === 'official-youtube'));
 
 const registry = new SourceRegistry(health);
 let routes = await registry.getSources({ id: 'header-test', name: 'Header Test', directUrls: [raw], sourceTrust: 'temporary' });
@@ -99,4 +106,4 @@ const badReq = new Request(`https://tv-cache.atonis.workers.dev/?h=${badPayload}
 const badResp = await worker.fetch(badReq, { TV_CACHE: {} }, ctx);
 assert.equal(badResp.status, 400);
 
-console.log('header-aware proxy regression tests: PASS');
+console.log('header-aware proxy + official fallback regression tests: PASS');

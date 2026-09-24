@@ -1,0 +1,55 @@
+name: Validate WebTV Frontend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'src/config.js'
+      - 'src/core/official-fallbacks.js'
+      - 'src/core/player.js'
+      - 'src/source-hunt-engine.js'
+      - 'src/source-hunt-web.js'
+      - 'src/source-hunt-oneclick.js'
+      - 'src/source-save-policy.js'
+      - 'tests/header-aware-proxy.test.mjs'
+      - '.github/workflows/validate-frontend.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'src/config.js'
+      - 'src/core/official-fallbacks.js'
+      - 'src/core/player.js'
+      - 'src/source-hunt-engine.js'
+      - 'src/source-hunt-web.js'
+      - 'src/source-hunt-oneclick.js'
+      - 'src/source-save-policy.js'
+      - 'tests/header-aware-proxy.test.mjs'
+      - '.github/workflows/validate-frontend.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-webtv-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate JavaScript syntax
+        run: |
+          node --check src/core/official-fallbacks.js
+          node --check src/core/player.js
+          node --check src/source-hunt-engine.js
+          node --check src/source-hunt-web.js
+          node --check src/source-hunt-oneclick.js
+          node --check src/source-save-policy.js
+
+      - name: Run playback and fallback regression tests
+        run: node tests/header-aware-proxy.test.mjs

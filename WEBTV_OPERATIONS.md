@@ -347,12 +347,21 @@ src/core/source-registry.js
 src/core/strm-resolver.js
   lazily resolves .strm indirections and preserves final Kodi-style URL options
 
+src/core/official-fallbacks.js
+  validates configured official fallbacks
+  generates official discovery searches
+  keeps official embed trust separate from IPTV source trust
+
 src/saved-sources-ui.js
   verified source save flow
 
 src/source-hunt-engine.js
 src/source-hunt-web.js
-  source discovery
+  stream discovery + separate official fallback discovery lane
+
+src/source-hunt-oneclick.js
+  tests real stream candidates first
+  falls back to a verified official route only after stream search/testing is exhausted
 
 src/sidebar-now.js
   sidebar now-playing EPG + timeline
@@ -401,8 +410,32 @@ Discovery philosophy:
 - fresh web results
 - forums / Reddit/community evidence
 - known seeds as candidates, not automatic truth
+- official broadcaster/YouTube/live/embed discovery as a **separate fallback lane**
 
-A found URL is not trusted merely because it was discovered. Successful real playback is the verification boundary before a source is saved.
+A found stream URL is not trusted merely because it was discovered. Successful real playback is the verification boundary before a stream source is saved.
+
+Official fallbacks follow different rules:
+
+- they are never mixed into the IPTV candidate list
+- they are never auto-saved into D1 channel sources
+- they do not participate in normal route health scores/cooldowns
+- only explicitly configured and trusted official fallbacks may autoplay after stream routes fail
+- discovery links may help locate an official YouTube live, broadcaster live page, official embed, HLS or DASH endpoint, but discovery alone does not make it trusted
+
+Source Hunt therefore has two lanes:
+
+```text
+STREAM SOURCES
+  GitHub / M3U / Web / Forums / STRM / HLS / DASH
+  → real playback test
+  → verified stream may be saved to D1
+
+OFFICIAL FALLBACKS
+  official YouTube / official live page / official embed / official HLS-DASH
+  → provenance + embed/trust verification
+  → code-reviewed OFFICIAL_FALLBACKS registry
+  → used only after normal stream routes fail
+```
 
 ---
 
@@ -458,6 +491,7 @@ Corresponding workflows:
 .github/workflows/deploy-epg-proxy-gr.yml
 .github/workflows/deploy-source-hunt.yml
 .github/workflows/deploy-tv-cache.yml
+.github/workflows/validate-frontend.yml
 ```
 
 Normal flow:
@@ -468,12 +502,14 @@ change canonical source
 → merge to main
 → GitHub Action
 → regression/syntax validation
-→ Wrangler deploy
+→ Wrangler deploy when a Worker changed
 → Cloudflare propagation wait
 → live verification
 ```
 
 For TV Cache/header-aware changes, `.github/workflows/deploy-tv-cache.yml` runs `tests/header-aware-proxy.test.mjs` before deployment.
+
+For frontend/source-discovery changes, `.github/workflows/validate-frontend.yml` performs JavaScript syntax checks and runs the shared playback/fallback regression suite without unnecessarily redeploying a Worker.
 
 Registry deployment verification for v1.5 must confirm:
 
@@ -690,3 +726,87 @@ Check especially:
 - normal Siliconweb HLS sources to ensure no regression
 
 The goal is **not** to force every broken upstream stream to work. The goal is to stop losing otherwise valid Kodi/VLC-compatible channels merely because WebTV ignored required request-header metadata.
+
+---
+
+## 17. Official fallback discovery + playback · 2026-09-24
+
+### Purpose
+
+Official fallbacks are a last-resort playback class, not another source authority.
+
+The runtime order is:
+
+```text
+1. curated/direct stream routes
+2. Worker/header-aware stream routes
+3. resolved STRM/media routes
+4. verified official fallback
+5. fail cleanly
+```
+
+A verified fallback may be an official YouTube live/embed or another explicitly reviewed official player type supported in the future.
+
+### Current implementation
+
+- `OFFICIAL_FALLBACKS` in `src/config.js` is the reviewed registry.
+- `src/core/official-fallbacks.js` validates trusted embed hosts and provides discovery searches.
+- MADTV currently has a verified official YouTube fallback.
+- `PlayerController` tries an official fallback only after normal routes are exhausted or unavailable.
+- Official fallback success is shown in Diagnostics but is not written into IPTV route health.
+- Source Hunt renders a dedicated **Official Fallback Discovery** lane for every selected channel.
+- `Find & Test Best` still tests real stream candidates first. If no working stream is found and a verified fallback already exists, it restores the selected channel and lets normal playback activate that fallback.
+
+### Non-blocking rule
+
+Official discovery must not delay normal playback.
+
+```text
+channel click
+→ normal playback starts immediately
+
+Source Hunt / official searches
+→ user-triggered discovery only
+→ no startup dependency
+→ no required third-party search response before playback
+```
+
+### Persistence rule
+
+Do not save official fallback URLs through `saveBestSourceToCurrent()`.
+
+```text
+verified stream URL
+→ may enter D1 channel sources
+
+official fallback
+→ stays in reviewed code registry
+→ separate trust model
+→ no D1 source-health identity
+```
+
+If official fallbacks are ever moved into D1, that requires an explicit schema with fields for fallback type, provenance, verification status, embed URL, external URL and trust policy. Do not overload the existing stream-source schema.
+
+### Verification rule
+
+Before adding a new official fallback:
+
+1. Confirm broadcaster/channel provenance.
+2. Confirm the fallback represents the intended channel, not a clip, show, fan account or unrelated subchannel.
+3. Confirm the external URL is HTTPS.
+4. For embeds, allowlist the embed host/type explicitly.
+5. Confirm the fallback does not bypass normal stream priority.
+6. Add/update regression coverage.
+7. Merge through normal review/validation.
+
+### Regression gate
+
+`.github/workflows/validate-frontend.yml` runs on relevant frontend changes and checks:
+
+- JavaScript syntax for Source Hunt, save policy, player and official fallback helpers
+- shared playback/header regression tests
+- trusted MADTV fallback resolution
+- rejection of untrusted embed hosts
+- official discovery link generation
+
+This keeps discovery/fallback work from causing unnecessary Worker deploys while still giving it a CI gate.

@@ -1,4 +1,6 @@
-const BUILD_ID = '20260923-2215';
+import { officialFallbackFor, officialDiscoveryLinks } from './core/official-fallbacks.js?v=20260924-1435';
+
+const BUILD_ID = '20260924-1435';
 const API = 'https://api.github.com';
 const FRESH_DAYS = 30;
 const MAX_REPOS = 8;
@@ -26,6 +28,7 @@ const CHANNEL_FINGERPRINTS = {
   'Star TV': ['star tv', 'startv', 'star channel', 'star.gr'],
   'Action 24': ['action 24', 'action24', 'action tv', 'action24.gr'],
   'Kontra': ['kontra', 'kontra channel', 'kontrachannel.gr'],
+  'MADTV': ['madtv', 'mad tv', 'mad tv greece', 'madtvgreece'],
 };
 
 const SEED_REPOS = [
@@ -50,6 +53,11 @@ function fingerprints(name) { return CHANNEL_FINGERPRINTS[name] || [String(name 
 function normalize(text = '') { return String(text).toLowerCase().replace(/[^a-z0-9α-ωάέήίόύώϊϋΐΰ]+/gi, ' '); }
 function relevance(text, name) { const hay = normalize(text); let best = 0; for (const fp of fingerprints(name)) { const needle = normalize(fp).trim(); if (!needle) continue; if (hay.includes(needle)) best = Math.max(best, needle.length >= 6 ? 4 : 3); } return best; }
 function urlRelevance(url, name) { return relevance(url, name); }
+function currentChannel(name = '') {
+  const selected = window.WebTVPlaylistAPI?.getSelectedChannel?.();
+  if (selected) return selected;
+  return { id: name, originalId: name, name };
+}
 
 async function gh(path) {
   const response = await fetch(`${API}${path}`, { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' });
@@ -161,11 +169,62 @@ function dedupeAndRank(items) {
   return [...map.values()].sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')) || (b.score || 0) - (a.score || 0)).slice(0, 8);
 }
 
+function ensureOfficialUi() {
+  if (!panel) return null;
+  let wrap = $('hunt-official');
+  if (wrap) return wrap;
+  wrap = document.createElement('div');
+  wrap.id = 'hunt-official';
+  wrap.className = 'hunt-auto';
+  wrap.innerHTML = `<div class="hunt-auto-head"><div><strong>Official Fallback Discovery</strong><span id="hunt-official-status">Select a channel · verified registry + official searches</span></div></div><div id="hunt-official-results" class="hunt-results"></div>`;
+  const tester = panel.querySelector('.candidate-tester');
+  panel.insertBefore(wrap, tester || null);
+  return wrap;
+}
+
+function renderOfficialDiscovery(name = '') {
+  ensureOfficialUi();
+  const results = $('hunt-official-results');
+  const status = $('hunt-official-status');
+  if (!results || !status) return;
+  results.innerHTML = '';
+  if (!name || name === 'Επίλεξε κανάλι') {
+    status.textContent = 'Select a channel · verified registry + official searches';
+    return;
+  }
+
+  const channel = currentChannel(name);
+  const fallback = officialFallbackFor(channel);
+  const searches = officialDiscoveryLinks(channel);
+  status.textContent = fallback
+    ? `Verified fallback available · ${fallback.label || fallback.route || 'official'}`
+    : 'No verified fallback yet · official discovery links ready';
+
+  if (fallback) {
+    const card = document.createElement('div'); card.className = 'hunt-result';
+    const meta = document.createElement('div'), strong = document.createElement('strong'), detail = document.createElement('span'), code = document.createElement('code');
+    strong.textContent = `Verified · ${fallback.label || 'Official fallback'}`;
+    detail.textContent = 'Used only after normal stream routes fail. Not stored as an IPTV source.';
+    code.textContent = fallback.externalUrl || fallback.embedUrl || '';
+    meta.append(strong, detail, code);
+    const open = document.createElement('a'); open.className = 'button'; open.textContent = 'Open official ↗'; open.href = fallback.externalUrl || '#'; open.target = '_blank'; open.rel = 'noopener noreferrer';
+    card.append(meta, open); results.appendChild(card);
+  }
+
+  for (const item of searches) {
+    const card = document.createElement('div'); card.className = 'hunt-result';
+    const meta = document.createElement('div'), strong = document.createElement('strong'), detail = document.createElement('span');
+    strong.textContent = item.label; detail.textContent = item.detail; meta.append(strong, detail);
+    const open = document.createElement('a'); open.className = 'button ghost'; open.textContent = 'Search ↗'; open.href = item.url; open.target = '_blank'; open.rel = 'noopener noreferrer';
+    card.append(meta, open); results.appendChild(card);
+  }
+}
+
 function ensureUi() {
-  if (!panel) return null; let wrap = $('hunt-auto'); if (wrap) return wrap;
+  if (!panel) return null; let wrap = $('hunt-auto'); if (wrap) { ensureOfficialUi(); return wrap; }
   wrap = document.createElement('div'); wrap.id = 'hunt-auto'; wrap.className = 'hunt-auto';
   wrap.innerHTML = `<div class="hunt-auto-head"><div><strong>Automatic Hunt</strong><span id="hunt-auto-status">Ready · bounded scan · last ${FRESH_DAYS} days</span></div><button id="run-hunt" class="button" type="button">Run Hunt</button></div><div id="hunt-results" class="hunt-results"></div>`;
-  const tester = panel.querySelector('.candidate-tester'); panel.insertBefore(wrap, tester || null); return wrap;
+  const tester = panel.querySelector('.candidate-tester'); panel.insertBefore(wrap, tester || null); ensureOfficialUi(); return wrap;
 }
 function renderResults(items, name) {
   const results = $('hunt-results'); if (!results) return; results.innerHTML = '';
@@ -181,16 +240,24 @@ function renderResults(items, name) {
 }
 async function runHunt() {
   const name = channelNameEl?.textContent?.trim(); if (!name || name === 'Επίλεξε κανάλι') return;
+  renderOfficialDiscovery(name);
   const button = $('run-hunt'), status = $('hunt-auto-status'), since = sinceDate(); if (button) button.disabled = true;
-  if (status) status.textContent = `Searching ${name} · bounded scan…`; log(`RUN HUNT ${name} · bounded exact M3U · max ${MAX_RAW_FILES} raw files · ${FRESH_DAYS}d`);
+  if (status) status.textContent = `Searching ${name} · bounded scan…`; log(`RUN HUNT ${name} · streams + official fallback discovery · max ${MAX_RAW_FILES} raw files · ${FRESH_DAYS}d`);
   try {
     const settled = await Promise.allSettled([huntIssues(name, since), huntRepositories(name)]);
     const items = dedupeAndRank(settled.flatMap(result => result.status === 'fulfilled' ? result.value : [])); renderResults(items, name);
     const failures = settled.filter(result => result.status === 'rejected').length;
-    if (status) status.textContent = `${items.length} candidate${items.length === 1 ? '' : 's'} · max ${MAX_RAW_FILES} raw files${failures ? ' · partial' : ''}`;
-    log(`HUNT DONE ${name} · ${items.length} candidate(s) · bounded scan${failures ? ` · ${failures} source(s) failed` : ''}`);
+    if (status) status.textContent = `${items.length} stream candidate${items.length === 1 ? '' : 's'} · official searches ready · max ${MAX_RAW_FILES} raw files${failures ? ' · partial' : ''}`;
+    log(`HUNT DONE ${name} · ${items.length} stream candidate(s) · official fallback lane ready${failures ? ` · ${failures} source(s) failed` : ''}`);
   } catch (error) { if (status) status.textContent = `Search failed: ${error.message}`; renderResults([], name); log(`HUNT ERROR ${name} · ${error.message}`); }
   finally { if (button) button.disabled = false; }
 }
 
-if (ensureUi()) { $('run-hunt')?.addEventListener('click', runHunt); log(`Source Hunt engine loaded · build ${BUILD_ID} · bounded ${MAX_RAW_FILES} raw files max`); }
+if (ensureUi()) {
+  $('run-hunt')?.addEventListener('click', runHunt);
+  const refreshOfficial = () => renderOfficialDiscovery(channelNameEl?.textContent?.trim() || '');
+  if (channelNameEl) new MutationObserver(refreshOfficial).observe(channelNameEl, { childList: true, characterData: true, subtree: true });
+  window.addEventListener('webtv:ready', refreshOfficial);
+  refreshOfficial();
+  log(`Source Hunt engine loaded · build ${BUILD_ID} · streams + official fallback discovery · bounded ${MAX_RAW_FILES} raw files max`);
+}
