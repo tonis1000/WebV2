@@ -1,12 +1,13 @@
-const BUILD_ID = '20260923-0715';
+const BUILD_ID = '20260924-2008';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
+const FILTER_KEY = 'webtv_v2_favorites_filter_v1';
 const $ = id => document.getElementById(id);
 
 const list = $('channel-list');
 const toolbar = document.querySelector('.sidebar .toolbar');
 const channelActions = document.querySelector('.channel-actions');
 const channelName = $('channel-name');
-let favoritesOnly = false;
+let favoritesOnly = localStorage.getItem(FILTER_KEY) === '1';
 let scheduled = false;
 
 function load(){
@@ -31,8 +32,11 @@ function ensureUi(){
     button.textContent = '☆ Favorites';
     button.title = 'Show only favorite channels';
     toolbar.appendChild(button);
+    button.classList.toggle('active', favoritesOnly);
+    button.textContent = favoritesOnly ? '★ Favorites only' : '☆ Favorites';
     button.addEventListener('click',()=>{
       favoritesOnly = !favoritesOnly;
+      try{localStorage.setItem(FILTER_KEY,favoritesOnly?'1':'0');}catch{}
       button.classList.toggle('active', favoritesOnly);
       button.textContent = favoritesOnly ? '★ Favorites only' : '☆ Favorites';
       scheduleApply();
@@ -103,4 +107,4 @@ if(list) new MutationObserver(scheduleApply).observe(list,{childList:true,subtre
 if(channelName) new MutationObserver(updateSelectedButton).observe(channelName,{childList:true,characterData:true,subtree:true});
 window.addEventListener('webtv:ready',()=>{ensureUi();scheduleApply();});
 scheduleApply();
-console.info(`[WebTV] Favorites UI loaded · build ${BUILD_ID} · local UI preference only`);
+console.info(`[WebTV] Favorites UI loaded · build ${BUILD_ID} · persistent favorites + filter state`);
