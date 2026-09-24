@@ -1,5 +1,6 @@
-import { CONFIG } from '../config.js?v=20260923-2215';
-import { cleanUrl } from './utils.js?v=20260920-1021';
+import { CONFIG } from '../config.js';
+import { cleanUrl } from './utils.js';
+import { scoreHealthEntry } from './health-scoring.js';
 
 const HEALTH_BACKUP_KEY_SUFFIX = '__backup';
 
@@ -42,8 +43,6 @@ export class HealthStore {
     }
   }
   refresh() {
-    // Merge persisted state into the live map. Never replace newer in-memory
-    // observations with an empty/stale storage snapshot.
     const persisted = this.#load();
     for (const [key, incoming] of Object.entries(persisted)) {
       const current = this.map[key];
@@ -103,17 +102,7 @@ export class HealthStore {
   get(value) { return this.map[this.#key(value)] || null; }
   isCoolingDown(value) { return (this.get(value)?.cooldownUntil || 0) > Date.now(); }
   cooldownRemainingMs(value) { return Math.max(0, (this.get(value)?.cooldownUntil || 0) - Date.now()); }
-  score(value) {
-    const entry = this.get(value);
-    if (!entry) return 0;
-    if (this.isCoolingDown(value)) return -1000;
-    const attempts = entry.success + entry.fail;
-    const ratio = attempts ? entry.success / attempts : 0;
-    const recency = entry.lastSuccess ? Math.max(0, 1 - ((Date.now() - entry.lastSuccess) / CONFIG.healthMaxAgeMs)) : 0;
-    const speed = entry.avgStartupMs > 0 ? Math.max(0, 1 - Math.min(entry.avgStartupMs, 15000) / 15000) : 0;
-    const failurePenalty = Math.min((entry.consecutiveFailures || 0) * 15, 45);
-    return (ratio * 70) + (recency * 20) + (speed * 10) - failurePenalty;
-  }
+  score(value) { return scoreHealthEntry(this.get(value)); }
   clear() {
     this.map = {};
     try {
