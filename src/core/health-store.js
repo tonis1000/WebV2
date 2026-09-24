@@ -1,16 +1,40 @@
 import { CONFIG } from '../config.js?v=20260923-2215';
 import { cleanUrl } from './utils.js?v=20260920-1021';
 
+const HEALTH_BACKUP_KEY_SUFFIX = '__backup';
+
 export class HealthStore {
   constructor(storageKey = CONFIG.healthStorageKey) {
     this.storageKey = storageKey;
     this.map = this.#load();
     this.#prune();
   }
-  #load() { try { const raw = localStorage.getItem(this.storageKey); return raw ? JSON.parse(raw) : {}; } catch { return {}; } }
+  #load() {
+    const parse = raw => {
+      if (!raw) return null;
+      try {
+        const value = JSON.parse(raw);
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+      } catch { return null; }
+    };
+    try {
+      const primary = parse(localStorage.getItem(this.storageKey));
+      const backup = parse(localStorage.getItem(this.storageKey + HEALTH_BACKUP_KEY_SUFFIX));
+      const primaryCount = primary ? Object.keys(primary).length : 0;
+      const backupCount = backup ? Object.keys(backup).length : 0;
+      if (primaryCount || !backupCount) return primary || {};
+      console.warn('[WebTV] HealthStore primary empty; recovered backup', backupCount);
+      return backup || {};
+    } catch (error) {
+      console.warn('[WebTV] HealthStore load failed', error);
+      return {};
+    }
+  }
   #save() {
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.map));
+      const serialized = JSON.stringify(this.map);
+      localStorage.setItem(this.storageKey, serialized);
+      localStorage.setItem(this.storageKey + HEALTH_BACKUP_KEY_SUFFIX, serialized);
       return true;
     } catch (error) {
       console.warn('[WebTV] HealthStore persist failed', error);
@@ -90,7 +114,31 @@ export class HealthStore {
     const failurePenalty = Math.min((entry.consecutiveFailures || 0) * 15, 45);
     return (ratio * 70) + (recency * 20) + (speed * 10) - failurePenalty;
   }
-  clear() { this.map = {}; try { localStorage.removeItem(this.storageKey); } catch {} }
+  clear() {
+    this.map = {};
+    try {
+      localStorage.removeItem(this.storageKey);
+      localStorage.removeItem(this.storageKey + HEALTH_BACKUP_KEY_SUFFIX);
+    } catch {}
+  }
+  diagnostics() {
+    let primaryRaw = null, backupRaw = null;
+    try {
+      primaryRaw = localStorage.getItem(this.storageKey);
+      backupRaw = localStorage.getItem(this.storageKey + HEALTH_BACKUP_KEY_SUFFIX);
+    } catch {}
+    const count = raw => {
+      try { return raw ? Object.keys(JSON.parse(raw) || {}).length : 0; } catch { return -1; }
+    };
+    return {
+      memoryEntries:Object.keys(this.map || {}).length,
+      primaryEntries:count(primaryRaw),
+      backupEntries:count(backupRaw),
+      primaryBytes:primaryRaw?.length || 0,
+      backupBytes:backupRaw?.length || 0,
+      storageKey:this.storageKey,
+    };
+  }
   #prune() {
     const cutoff = Date.now() - CONFIG.healthMaxAgeMs;
     let changed = false;
