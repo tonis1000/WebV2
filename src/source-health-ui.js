@@ -2,7 +2,7 @@ import { CONFIG } from './config.js?v=20260923-2215';
 import { cleanUrl, parseIptvUrl, isHls, isDash, workerUrl } from './core/utils.js?v=20260924-0900';
 import { StrmResolver } from './core/strm-resolver.js?v=20260924-1919';
 
-const BUILD_ID = '20260924-1919';
+const BUILD_ID = '20260924-2300';
 const strmResolver = new StrmResolver();
 let renderToken = 0;
 const $ = id => document.getElementById(id);
@@ -118,6 +118,8 @@ async function render(){
 
   const rows = await routeRows(channel);
   if(token !== renderToken) return;
+  const plan = window.WebTVDiagnosticsAPI?.lastRoutePlan || [];
+  const planByRoute = new Map(plan.map(item => [`${cleanUrl(item.source)}|${item.route}`, item]));
   const routedRows = rows.filter(r => !r.reference && !r.unsupported);
   const tested = routedRows.filter(r => r.entry && (Number(r.entry.success||0)+Number(r.entry.fail||0)) > 0);
   const cooling = routedRows.filter(r => Number(r.entry?.cooldownUntil || 0) > Date.now());
@@ -138,6 +140,7 @@ async function render(){
     const coolingNow = Number(entry.cooldownUntil||0) > Date.now();
     const status = row.unsupported ? 'Unsupported DRM' : row.reference ? (row.resolvedUrl ? 'Resolved' : 'Unresolved') : !attempts ? 'Untested' : coolingNow ? 'Cooldown' : successPct >= 80 ? 'Strong' : successPct >= 50 ? 'Mixed' : 'Weak';
 
+    const planRow = !row.reference ? planByRoute.get(`${cleanUrl(row.source)}|${row.kind}`) : null;
     const item = document.createElement('div');
     item.className = `source-health-row${coolingNow?' cooling':''}`;
 
@@ -164,6 +167,7 @@ async function render(){
         metrics.append(resolved);
       }
     }else{
+      if(planRow) metrics.append(metric(`rank #${planRow.rank} · score ${planRow.score} · ${planRow.origin}`));
       metrics.append(
         metric(`${successPct === null ? '—' : `${successPct}%`} success`),
         metric(`${attempts} tries`),
