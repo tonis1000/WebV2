@@ -1,6 +1,6 @@
 import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260923-2215';
 import { normalizeId, cleanUrl, parseIptvUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js?v=20260924-0900';
-import { StrmResolver, isStrmReference } from './strm-resolver.js?v=20260924-0900';
+import { StrmResolver, isStrmReference } from './strm-resolver.js?v=20260924-1919';
 
 function isPlayableMedia(url = '') {
   return isHls(url) || isDash(url) || isVideoFile(url);
@@ -68,14 +68,21 @@ export class SourceRegistry {
         continue;
       }
       const resolved = this.strm.peek(source);
-      if (resolved) out.push(resolved);
+      const info = this.strm.peekInfo(source);
+      // DRM STRM references need license configuration that the current
+      // PlayerController does not provide. Do not inject them as fake fallbacks.
+      if (resolved && !info?.drm) out.push(resolved);
     }
     return out;
   }
   async #resolvedCuratedSources(channel) {
     const resolved = await Promise.all((channel.directUrls || []).map(async source => {
       if (!isStrmReference(source)) return source;
-      return this.strm.resolve(source);
+      const resolvedUrl = await this.strm.resolve(source);
+      const info = this.strm.peekInfo(source);
+      // Keep DRM references visible to diagnostics, but skip them in playback
+      // until PlayerController has explicit EME/Widevine license support.
+      return info?.drm ? '' : resolvedUrl;
     }));
     return resolved.filter(Boolean);
   }
