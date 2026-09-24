@@ -1,6 +1,6 @@
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 
-const BUILD_ID = '20260924-0635';
+const BUILD_ID = '20260924-2008';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
@@ -292,7 +292,7 @@ function ensureMyUi(){
   const section=document.createElement('section');
   section.id='my-playlist-library';section.className='my-playlist-library';
   section.innerHTML=`<div class="my-playlist-hero"><div class="my-playlist-mark">★</div><div><p class="eyebrow">PRIMARY · D1</p><h3>My Playlist</h3><p class="muted small">Η μοναδική live playlist του WebTV. Φορτώνει αυτόματα στο sidebar από Cloudflare D1.</p></div><div class="my-playlist-hero-actions"><span id="my-playlist-count" class="freshness-badge">0 channels</span><button id="my-playlist-use" class="button" type="button">Show My Playlist</button><button id="my-playlist-export" class="button ghost" type="button">Export M3U</button></div></div><div id="my-playlist-channels" class="my-playlist-channels"></div>`;
-  savedHead.parentNode.insertBefore(section,savedHead);
+  savedHead.parentNode.insertBefore(section,savedHead.nextSibling);
   $('my-playlist-use')?.addEventListener('click',async()=>{
     try{
       await api()?.reloadCloudMyPlaylist?.({reason:'playlist-manager',preserveSelection:false});
@@ -457,9 +457,22 @@ async function moveMyChannel(from,to){
     await renderMyPlaylist({reuseCache:true});
   }
 }
-function showSources(channel){
-  const urls=channel.directUrls||[];
-  alert(urls.length?`${channel.name}\n\n${urls.map((u,i)=>`${i+1}. ${u}`).join('\n\n')}`:`${channel.name}\n\nNo stream source stored.`);
+async function showSources(channel){
+  const current=(channel.directUrls||[]).join('\n');
+  const urlsText=prompt(`${channel.name} · Sources\n\nEdit freely: one URL per line. You can copy, delete, reorder or add a URL.`,current);
+  if(urlsText===null)return;
+  const urls=[...new Set(urlsText.split(/\r?\n/).map(s=>s.trim()).filter(s=>/^https?:\/\//i.test(s)))];
+  try{
+    myCache=await fetchMyPlaylist();myCacheLoaded=true;
+    const key=normalize(channel.id||channel.originalId||channel.name);
+    const index=myCache.findIndex(c=>normalize(c.id||c.originalId||c.name)===key);
+    if(index<0)throw new Error('Channel is no longer in My Playlist');
+    const edited={...myCache[index],directUrls:urls};
+    await putRegistryChannel(edited,index,true);
+    setStatus(`${edited.name} sources updated · ${urls.length} saved`,'ok');
+    log(`MY PLAYLIST SOURCES EDIT · ${edited.name} · ${urls.length} source(s) · D1`);
+    await refreshPrimary({reason:'edit-sources'});
+  }catch(error){setStatus(error.message,'error');log(`D1 SOURCE EDIT FAILED · ${error.message}`);}
 }
 
 async function renderSaved(){
@@ -525,6 +538,12 @@ function bind(){
     if(!p.hidden){renderMyPlaylist().catch(e=>setStatus(e.message,'error'));renderSaved().catch(()=>{});}
   });
   $('playlist-manager-close')?.addEventListener('click',()=>{const p=$('playlist-manager');if(p)p.hidden=true;});
+  document.addEventListener('pointerdown',event=>{
+    const p=$('playlist-manager');
+    if(!p||p.hidden)return;
+    if(p.contains(event.target)||$('playlist-manager-toggle')?.contains(event.target))return;
+    p.hidden=true;
+  });
   $('playlist-test-url')?.addEventListener('click',testUrl);
   $('playlist-load-url')?.addEventListener('click',()=>loadTemporary('url'));
   $('playlist-save-url')?.addEventListener('click',()=>saveCurrent('url'));
