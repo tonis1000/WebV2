@@ -810,3 +810,112 @@ Before adding a new official fallback:
 - official discovery link generation
 
 This keeps discovery/fallback work from causing unnecessary Worker deploys while still giving it a CI gate.
+
+---
+
+## 18. Repository integration audit · 2026-09-24
+
+A repository-wide compatibility review was performed after the header-aware playback and official-fallback work. The goal was to verify that the pieces cooperate as one system instead of merely passing isolated feature tests.
+
+### Audited runtime path
+
+```text
+index.html
+→ main.js / Playlist Manager
+→ D1 My Playlist
+→ SourceRegistry
+→ optional STRM resolution
+→ direct / Worker / worker+headers routes
+→ PlayerController
+→ route health + cooldown
+→ verified official fallback only after stream exhaustion
+
+Source Hunt
+→ local + external stream discovery
+→ one-click real playback testing
+→ verified stream save policy
+→ separate official fallback discovery lane
+```
+
+The audit covered the loaded frontend modules, relative imports, import-map targets, Source Hunt ordering, D1/playlist ownership, player routing, header-aware Worker behavior, official-fallback isolation, health/cooldown boundaries and deployment workflows.
+
+### Result
+
+The current architecture is internally compatible. No broken local script reference, missing relative import or conflicting Source Hunt wiring was found by the automated integration audit.
+
+Confirmed boundaries:
+
+- D1 remains the only permanent My Playlist authority.
+- Temporary external playlists remain temporary until an explicit protected save.
+- Header-aware metadata remains transport-only and is not silently persisted to D1.
+- Official fallback results are not included in stream candidate auto-test/auto-save collection.
+- Verified official fallback playback remains outside normal IPTV route health/cooldown state.
+- `Source Hunt engine → external discovery → one-click` load order is intentional and verified.
+- Frontend-only changes do not needlessly trigger TV Cache deployment.
+- Canonical Worker sources and their deployment workflows are present.
+
+### Exact current stream/fallback priority contract
+
+Do not simplify the current runtime into a claim that every source type has a global hard-coded ranking. The implemented contract is more precise:
+
+```text
+1. persistent D1/My Playlist sources are trusted/curated before background TV Cache sources
+2. for the same HLS source, DIRECT is attempted before its Worker sibling
+3. Worker / worker+headers may rescue browser/CORS/403 failures
+4. STRM references resolve lazily into real media routes
+5. route health/cooldown influences ordering and suppresses repeated bad routes
+6. only after usable stream routes are exhausted does PlayerController use a verified official fallback
+7. if no stream and no verified fallback works, fail cleanly
+```
+
+### Important source-metadata boundary
+
+The Registry/D1 `channel_sources` table already stores fields such as `origin` and `priority`, and the Registry API returns sources ordered by D1 priority. The current browser catalog, however, primarily consumes the ordered source URLs for playback and does **not** currently enforce a separate automatic `official-origin beats verified-origin` rank for HLS/DASH streams.
+
+Therefore:
+
+- an official HLS/DASH endpoint that is discovered, playback-tested and saved is a normal trusted D1 stream source under the current browser policy
+- it is **not** automatically promoted above every other trusted stream merely because its D1 `origin` says `official`
+- health, route eligibility, saved/trusted status and existing source order still matter
+- official YouTube/embed fallback is a different trust class and remains last-resort through `OFFICIAL_FALLBACKS`
+
+This is a deliberate documentation boundary so future work does not assume an origin-aware stream ranking that has not yet been implemented. If origin-aware ranking is added later, preserve D1 source metadata end-to-end through `main.js`, Playlist Manager, save policy and `SourceRegistry`, then add regression tests before changing this section.
+
+### CI hardening added by this audit
+
+`.github/workflows/validate-frontend.yml` now triggers for:
+
+```text
+index.html
+src/**/*.js
+tests/**/*.mjs
+WEBTV_OPERATIONS.md
+```
+
+It performs:
+
+1. syntax validation for **every** JavaScript file under `src/`
+2. `tests/header-aware-proxy.test.mjs`
+3. `tests/frontend-integration.test.mjs`
+
+`tests/frontend-integration.test.mjs` checks at minimum:
+
+- local scripts referenced by `index.html` exist
+- import-map targets exist
+- relative imports across `src/` resolve to real files
+- Source Hunt module load order remains valid
+- official fallback result cards cannot leak into stream auto-test/auto-save selectors
+- frontend validation and TV Cache deployment triggers stay separated
+- canonical Worker and workflow files remain present
+
+### Audit status
+
+At the time this checkpoint was written:
+
+```text
+all src JavaScript syntax checks              PASS
+header-aware playback/fallback regression     PASS
+frontend repository integration audit         PASS
+```
+
+Keep this checkpoint as the baseline for later Source Hunt, player, fallback, health or deployment changes.
