@@ -35,17 +35,29 @@ export function isStrmReference(value = '') {
   }
 }
 
-function extractHttpUrl(text = '') {
+function parseStrmText(text = '') {
+  let mediaUrl = '';
+  let licenseType = '';
+  let licenseKey = '';
   for (const rawLine of String(text).replace(/\r/g, '').split('\n')) {
     const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    if (!/^https?:\/\//i.test(line)) continue;
-    // Preserve Kodi-style `|...` options on the final media URL. They are
-    // parsed later by SourceRegistry and applied only through the safe Worker
-    // allowlist. Reference detection itself still uses the clean underlying URL.
-    return line;
+    if (!line) continue;
+    const prop = line.match(/^#KODIPROP:([^=]+)=(.*)$/i);
+    if (prop) {
+      const key = prop[1].trim().toLowerCase();
+      const value = prop[2].trim();
+      if (key === 'inputstream.adaptive.license_type') licenseType = value;
+      if (key === 'inputstream.adaptive.license_key') licenseKey = value;
+      continue;
+    }
+    if (!line.startsWith('#') && /^https?:\/\//i.test(line) && !mediaUrl) mediaUrl = line;
   }
-  return '';
+  return {
+    mediaUrl,
+    drm: Boolean(licenseType || licenseKey),
+    licenseType,
+    licenseKey,
+  };
 }
 
 async function fetchText(url, timeoutMs) {
@@ -78,6 +90,18 @@ export class StrmResolver {
     return entry.resolvedUrl || '';
   }
 
+  peekInfo(value = '') {
+    const key = canonicalReferenceUrl(value);
+    const entry = key ? this.cache.get(key) : null;
+    if (!entry || (!entry.resolvedUrl && entry.expiresAt <= Date.now())) return null;
+    return entry.info || null;
+  }
+
+  async inspect(value = '') {
+    await this.resolve(value);
+    return this.peekInfo(value);
+  }
+
   async resolve(value = '') {
     const key = canonicalReferenceUrl(value);
     if (!key || !isStrmReference(key)) return '';
@@ -89,15 +113,21 @@ export class StrmResolver {
     if (this.inFlight.has(key)) return this.inFlight.get(key);
 
     const task = this.#resolveRecursive(key, 0)
-      .then(resolvedUrl => {
+      .then(info => {
+        const resolvedUrl = info?.resolvedUrl || '';
         this.cache.set(key, {
           resolvedUrl,
+          info: info || { resolvedUrl: '', drm: false, licenseType: '', licenseKey: '' },
           expiresAt: resolvedUrl ? Number.POSITIVE_INFINITY : Date.now() + FAILURE_TTL_MS,
         });
         return resolvedUrl;
       })
       .catch(() => {
-        this.cache.set(key, { resolvedUrl: '', expiresAt: Date.now() + FAILURE_TTL_MS });
+        this.cache.set(key, {
+          resolvedUrl: '',
+          info: { resolvedUrl: '', drm: false, licenseType: '', licenseKey: '' },
+          expiresAt: Date.now() + FAILURE_TTL_MS,
+        });
         return '';
       })
       .finally(() => this.inFlight.delete(key));
@@ -107,17 +137,23 @@ export class StrmResolver {
   }
 
   async #resolveRecursive(referenceUrl, depth) {
-    if (depth >= MAX_DEPTH) return '';
+    if (depth >= MAX_DEPTH) return { resolvedUrl: '', drm: false, licenseType: '', licenseKey: '' };
     const text = await fetchText(referenceUrl, this.timeoutMs);
-    const candidateRaw = extractHttpUrl(text);
-    const candidate = canonicalReferenceUrl(candidateRaw);
-    if (!candidate) return '';
+    const parsed = parseStrmText(text);
+    const candidate = canonicalReferenceUrl(parsed.mediaUrl);
+    if (!candidate) return { resolvedUrl: '', ...parsed };
 
-    // Final media URL: keep the raw line so Kodi/VLC header options survive.
-    if (!isStrmReference(candidate)) return candidateRaw;
+    if (!isStrmReference(candidate)) {
+      return { resolvedUrl: parsed.mediaUrl, ...parsed };
+    }
 
-    const nestedCached = this.peek(candidate);
-    if (nestedCached) return nestedCached;
-    return this.#resolveRecursive(candidate, depth + 1);
+    const nestedCached = this.peekInfo(candidate);
+    const nested = nestedCached || await this.#resolveRecursive(candidate, depth + 1);
+    return {
+      ...nested,
+      drm: parsed.drm || Boolean(nested?.drm),
+      licenseType: parsed.licenseType || nested?.licenseType || '',
+      licenseKey: parsed.licenseKey || nested?.licenseKey || '',
+    };
   }
 }
