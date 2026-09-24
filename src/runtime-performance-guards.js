@@ -1,5 +1,6 @@
-const BUILD_ID = '20260923-2315';
-const PLAYLIST_CACHE_TTL_MS = 3000;
+const BUILD_ID = '20260924-0635';
+const CLOUD_PLAYLIST_CACHE_TTL_MS = 3000;
+const TEMPORARY_PLAYLIST_CACHE_TTL_MS = 5 * 60 * 1000;
 const BAD_LOGO_PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="42" height="42"%3E%3Crect width="100%25" height="100%25" rx="8" fill="%2310161c"/%3E%3C/svg%3E';
 const SLOW_LOGO_URLS = new Set([
   'https://i.ibb.co/f2rCKjh/mega.jpg',
@@ -29,7 +30,7 @@ if (srcDescriptor?.set && srcDescriptor?.get) {
 
 const nativeFetch = window.fetch.bind(window);
 let cachedResponse = null;
-let cacheUntil = 0;
+let cachedAt = 0;
 let inFlight = null;
 let generation = 0;
 
@@ -53,9 +54,14 @@ function isMyPlaylistWrite(url, method) {
   return method !== 'GET' && isRegistryHost(url) && url.pathname.startsWith('/api/my-playlist');
 }
 
+function myPlaylistCacheTtlMs() {
+  const temporary = window.WebTVPlaylistAPI?.getCatalogMode?.() === 'temporary';
+  return temporary ? TEMPORARY_PLAYLIST_CACHE_TTL_MS : CLOUD_PLAYLIST_CACHE_TTL_MS;
+}
+
 function invalidateMyPlaylistCache() {
   cachedResponse = null;
-  cacheUntil = 0;
+  cachedAt = 0;
   generation += 1;
 }
 
@@ -71,7 +77,8 @@ window.fetch = async function webTvFetch(input, init = {}) {
 
   if (!isMyPlaylistRead(url, method)) return nativeFetch(input, init);
 
-  if (cachedResponse && Date.now() < cacheUntil) return cachedResponse.clone();
+  const ttl = myPlaylistCacheTtlMs();
+  if (cachedResponse && cachedAt && (Date.now() - cachedAt) < ttl) return cachedResponse.clone();
   if (inFlight) return (await inFlight).clone();
 
   const startGeneration = generation;
@@ -79,7 +86,7 @@ window.fetch = async function webTvFetch(input, init = {}) {
     .then(response => {
       if (response.ok && startGeneration === generation) {
         cachedResponse = response.clone();
-        cacheUntil = Date.now() + PLAYLIST_CACHE_TTL_MS;
+        cachedAt = Date.now();
       }
       return response;
     })
@@ -94,4 +101,4 @@ window.WebTVRuntimeGuards = {
   sanitizeImageUrl,
 };
 
-console.info(`[WebTV] Runtime performance guards loaded · build ${BUILD_ID} · D1 read coalescing + image guard`);
+console.info(`[WebTV] Runtime performance guards loaded · build ${BUILD_ID} · adaptive D1 read cache + image guard`);

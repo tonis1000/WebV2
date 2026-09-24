@@ -44,6 +44,13 @@ export class HealthStore {
     this.#save();
     return entry;
   }
+  quarantine(value, { cooldownMs = CONFIG.failureCooldownMaxMs, reason = '' } = {}) {
+    const entry = this.#entry(value);
+    entry.cooldownUntil = Math.max(entry.cooldownUntil || 0, Date.now() + Math.max(0, Number(cooldownMs) || 0));
+    if (reason) entry.lastFailureReason = reason;
+    this.#save();
+    return entry;
+  }
   get(value) { return this.map[this.#key(value)] || null; }
   isCoolingDown(value) { return (this.get(value)?.cooldownUntil || 0) > Date.now(); }
   cooldownRemainingMs(value) { return Math.max(0, (this.get(value)?.cooldownUntil || 0) - Date.now()); }

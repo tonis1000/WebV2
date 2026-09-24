@@ -2,6 +2,7 @@ import { CONFIG } from '../config.js?v=20260923-2215';
 import { isHls, isDash, isVideoFile } from './utils.js?v=20260920-1021';
 
 const HARD_HTTP_STATUSES = new Set([403, 404, 410]);
+const TERMINAL_SIBLING_STATUSES = new Set([404, 410]);
 
 function readHttpStatus(data = {}) {
   const candidates = [
@@ -40,8 +41,10 @@ export class PlayerController {
       throw new Error(`No active playback routes for ${channel.name}`);
     }
     let lastError = null;
+    const terminalOriginals = new Set();
     for (const route of routes) {
       if (token !== this.token) return;
+      if (!route.saved && terminalOriginals.has(route.originalUrl)) continue;
       const startedAt = performance.now();
       try {
         const player = await this.#attempt(route, token);
@@ -59,6 +62,21 @@ export class PlayerController {
           hardCooldownMs: hardDead ? CONFIG.failureCooldownMaxMs : 0,
           reason: httpStatus ? `HTTP ${httpStatus}` : error.message,
         });
+
+        // 404/410 identify a missing/gone source, so proxying the same URL is
+        // wasted work. A 403 is different: a Worker can legitimately rescue a
+        // browser/CORS-restricted source, so one worker fallback remains allowed.
+        if (hardDead && TERMINAL_SIBLING_STATUSES.has(httpStatus)) {
+          terminalOriginals.add(route.originalUrl);
+          for (const sibling of routes) {
+            if (sibling === route || sibling.saved || sibling.originalUrl !== route.originalUrl) continue;
+            this.health.quarantine(sibling.playbackUrl, {
+              cooldownMs: CONFIG.failureCooldownMaxMs,
+              reason: `HTTP ${httpStatus} sibling source`,
+            });
+          }
+        }
+
         const cooling = (entry.cooldownUntil || 0) > Date.now();
         const permanentText = hardDead ? ` · HTTP ${httpStatus} quarantine` : '';
         this.onDiagnostics({ source: route.originalUrl, route: route.route, player: 'failed', startupMs: 0, error: cooling ? `${error.message}${permanentText} · cooldown` : `${error.message}${permanentText}` });
