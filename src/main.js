@@ -7,7 +7,7 @@ import { PlayerController } from './core/player.js?v=20260923-2315';
 import { formatTime, normalizeId, cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js?v=20260923-2235';
 
-const BUILD_ID = '20260924-0930';
+const BUILD_ID = '20260924-2030';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
@@ -324,6 +324,11 @@ els.search.addEventListener('input',renderChannels);
 els.group.addEventListener('change',renderChannels);
 els.diagToggle.addEventListener('click',()=>{els.diagnostics.hidden=!els.diagnostics.hidden;});
 els.sourceHuntToggle.addEventListener('click',()=>{if(selected){renderSourceHunt(selected);els.sourceHunt.hidden=!els.sourceHunt.hidden;}});
+document.addEventListener('pointerdown',event=>{
+  if(els.sourceHunt.hidden)return;
+  if(els.sourceHunt.contains(event.target)||els.sourceHuntToggle.contains(event.target))return;
+  els.sourceHunt.hidden=true;
+});
 els.clearHealth.addEventListener('click',()=>{health.clear();log('Health data cleared');renderChannels();});
 els.testCandidate.addEventListener('click',testCandidateUrl);
 els.candidateUrl.addEventListener('keydown',event=>{if(event.key==='Enter')testCandidateUrl();});
