@@ -104,8 +104,20 @@ export class SourceRegistry {
   }
   async getSources(channel) {
     const curated = await this.#resolvedCuratedUrls(channel);
-    return this.#allRoutes(channel, curated)
-      .filter(route => !this.health.isCoolingDown(route.playbackUrl))
+    const all = this.#allRoutes(channel, curated);
+    const activeDirectOriginals = new Set(all
+      .filter(route => route.route === 'direct' && !this.health.isCoolingDown(route.playbackUrl))
+      .map(route => route.originalUrl));
+
+    return all
+      .filter(route => {
+        if (!this.health.isCoolingDown(route.playbackUrl)) return true;
+        // Keep one cooled Worker route available as a rescue sibling while the
+        // direct HLS route is still eligible. PlayerController already suppresses
+        // sibling retries for terminal 404/410, so this specifically restores
+        // proxy rescue after direct CORS/403 or transient browser failures.
+        return route.route === 'worker' && activeDirectOriginals.has(route.originalUrl);
+      })
       .sort((a, b) => {
         if (a.saved !== b.saved) return a.saved ? -1 : 1;
         if (a.originalUrl === b.originalUrl && a.route !== b.route) {
