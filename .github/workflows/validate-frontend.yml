@@ -44,5 +44,8 @@ jobs:
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
 
+      - name: Run source ranking regression test
+        run: node tests/source-ranking.test.mjs
+
       - name: Run frontend integration audit
         run: node tests/frontend-integration.test.mjs
