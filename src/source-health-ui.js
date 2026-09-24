@@ -1,7 +1,7 @@
 import { CONFIG } from './config.js?v=20260923-2215';
-import { cleanUrl, isHls, workerUrl } from './core/utils.js?v=20260920-1021';
+import { cleanUrl, parseIptvUrl, isHls, workerUrl } from './core/utils.js?v=20260924-0900';
 
-const BUILD_ID = '20260923-0715';
+const BUILD_ID = '20260924-1010';
 const $ = id => document.getElementById(id);
 
 function loadHealthMap(){
@@ -28,11 +28,21 @@ function routeRows(channel){
   const out = [];
   const seen = new Set();
   for(const raw of channel?.directUrls || []){
-    const source = cleanUrl(raw);
+    const parsed = parseIptvUrl(raw);
+    const source = parsed.url;
     if(!source) continue;
+
+    if(/\.strm(?:\?.*)?$/i.test(source)){
+      out.push({source,kind:'strm-ref',playbackUrl:'',entry:null,reference:true});
+      continue;
+    }
+
     const candidates = [];
     if(/^https:\/\//i.test(source)) candidates.push({kind:'direct',playbackUrl:source});
-    if(isHls(source) && CONFIG.workerForHls) candidates.push({kind:'worker',playbackUrl:workerUrl(source)});
+    if(isHls(source) && CONFIG.workerForHls){
+      const hasHeaders = Object.keys(parsed.headers).length > 0;
+      candidates.push({kind:hasHeaders?'worker+headers':'worker',playbackUrl:workerUrl(source,parsed.headers)});
+    }
     for(const route of candidates){
       if(seen.has(route.playbackUrl)) continue;
       seen.add(route.playbackUrl);
@@ -85,11 +95,12 @@ function render(){
   }
 
   const rows = routeRows(channel);
-  const tested = rows.filter(r => r.entry && (Number(r.entry.success||0)+Number(r.entry.fail||0)) > 0);
-  const cooling = rows.filter(r => Number(r.entry?.cooldownUntil || 0) > Date.now());
+  const routedRows = rows.filter(r => !r.reference);
+  const tested = routedRows.filter(r => r.entry && (Number(r.entry.success||0)+Number(r.entry.fail||0)) > 0);
+  const cooling = routedRows.filter(r => Number(r.entry?.cooldownUntil || 0) > Date.now());
   const speeds = tested.map(r => Number(r.entry?.avgStartupMs || 0)).filter(Boolean);
   const avg = speeds.length ? Math.round(speeds.reduce((a,b)=>a+b,0)/speeds.length) : 0;
-  summary.textContent = `${tested.length}/${rows.length} tested${cooling.length?` · ${cooling.length} cooling`:''}${avg?` · ${avg} ms avg`:''}`;
+  summary.textContent = `${tested.length}/${routedRows.length} tested${cooling.length?` · ${cooling.length} cooling`:''}${avg?` · ${avg} ms avg`:''}`;
   list.innerHTML = '';
 
   if(!rows.length){
@@ -102,7 +113,7 @@ function render(){
     const attempts = Number(entry.success||0)+Number(entry.fail||0);
     const successPct = pct(entry);
     const coolingNow = Number(entry.cooldownUntil||0) > Date.now();
-    const status = !attempts ? 'Untested' : coolingNow ? 'Cooldown' : successPct >= 80 ? 'Strong' : successPct >= 50 ? 'Mixed' : 'Weak';
+    const status = row.reference ? 'Reference' : !attempts ? 'Untested' : coolingNow ? 'Cooldown' : successPct >= 80 ? 'Strong' : successPct >= 50 ? 'Mixed' : 'Weak';
 
     const item = document.createElement('div');
     item.className = `source-health-row${coolingNow?' cooling':''}`;
@@ -118,12 +129,16 @@ function render(){
 
     const metrics=document.createElement('div');
     metrics.className='source-health-metrics';
-    metrics.append(
-      metric(`${successPct === null ? '—' : `${successPct}%`} success`),
-      metric(`${attempts} tries`),
-      metric(`${entry.avgStartupMs ? `${entry.avgStartupMs} ms` : '—'} startup`),
-      metric(`last OK ${fmtWhen(entry.lastSuccess)}`)
-    );
+    if(row.reference){
+      metrics.append(metric('resolved lazily at playback'));
+    }else{
+      metrics.append(
+        metric(`${successPct === null ? '—' : `${successPct}%`} success`),
+        metric(`${attempts} tries`),
+        metric(`${entry.avgStartupMs ? `${entry.avgStartupMs} ms` : '—'} startup`),
+        metric(`last OK ${fmtWhen(entry.lastSuccess)}`)
+      );
+    }
 
     item.append(main,metrics);
     list.appendChild(item);
@@ -138,4 +153,4 @@ const diagPlayer = $('diag-player');
 if(diagPlayer) new MutationObserver(render).observe(diagPlayer,{childList:true,characterData:true,subtree:true});
 setInterval(render, 5000);
 render();
-console.info(`[WebTV] Source health UI loaded · build ${BUILD_ID}`);
+console.info(`[WebTV] Source health UI loaded · build ${BUILD_ID} · header-aware routes`);
