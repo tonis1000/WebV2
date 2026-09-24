@@ -1,7 +1,29 @@
-const BUILD_ID = '20260924-2008';
+const BUILD_ID = '20260924-2030';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
 const FILTER_KEY = 'webtv_v2_favorites_filter_v1';
 const $ = id => document.getElementById(id);
+const DEFAULT_REGISTRY = 'https://webtv-registry.atonis.workers.dev';
+function registryBase(){return (localStorage.getItem('webtv_v2_registry_url')||DEFAULT_REGISTRY).trim().replace(/\/$/,'');}
+let cloudReady=false;
+async function loadCloud(){
+  try{
+    const r=await fetch(`${registryBase()}/api/favorites`,{cache:'no-store'});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const j=await r.json(),set=new Set((j.favorites||[]).map(String));
+    save(set);cloudReady=true;return set;
+  }catch{return load();}
+}
+async function saveCloud(set){
+  try{
+    const auth=window.WebTVRegistryAuth;
+    if(!auth?.ensureSession)return false;
+    if(!auth.token?.())await auth.ensureSession({interactive:true});
+    const token=auth.token?.()||'';
+    const r=await fetch(`${registryBase()}/api/favorites`,{method:'PUT',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({favorites:[...set]})});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    cloudReady=true;return true;
+  }catch{return false;}
+}
 
 const list = $('channel-list');
 const toolbar = document.querySelector('.sidebar .toolbar');
@@ -49,12 +71,13 @@ function ensureUi(){
     button.type = 'button';
     button.className = 'button ghost favorite-channel';
     button.hidden = true;
-    button.addEventListener('click',()=>{
+    button.addEventListener('click',async()=>{
       const id = selectedId();
       if(!id) return;
       const set = load();
       if(set.has(id)) set.delete(id); else set.add(id);
       save(set);
+      await saveCloud(set);
       updateSelectedButton();
       scheduleApply();
     });
@@ -105,6 +128,7 @@ function scheduleApply(){
 ensureUi();
 if(list) new MutationObserver(scheduleApply).observe(list,{childList:true,subtree:false});
 if(channelName) new MutationObserver(updateSelectedButton).observe(channelName,{childList:true,characterData:true,subtree:true});
-window.addEventListener('webtv:ready',()=>{ensureUi();scheduleApply();});
+window.addEventListener('webtv:ready',async()=>{ensureUi();await loadCloud();scheduleApply();});
+loadCloud().then(scheduleApply);
 scheduleApply();
-console.info(`[WebTV] Favorites UI loaded · build ${BUILD_ID} · persistent favorites + filter state`);
+console.info(`[WebTV] Favorites UI loaded · build ${BUILD_ID} · D1 cloud favorites + persistent filter state`);
