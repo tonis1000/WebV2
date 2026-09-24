@@ -1,6 +1,6 @@
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 
-const BUILD_ID = '20260922-2115';
+const BUILD_ID = '20260924-0635';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
@@ -12,6 +12,7 @@ const $ = id => document.getElementById(id);
 let dbPromise;
 let tested = null;
 let myCache = [];
+let myCacheLoaded = false;
 
 function log(message){
   const box=$('diagnostic-log');
@@ -19,7 +20,7 @@ function log(message){
   const stamp=new Date().toLocaleTimeString();
   box.textContent=`[${stamp}] ${message}\n${box.textContent}`.slice(0,18000);
 }
-function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));}
 function escAttr(value=''){return String(value||'').replace(/"/g,"'");}
 function normalize(value=''){return String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9α-ω]+/gi,'-').replace(/^-+|-+$/g,'');}
 function uid(){return `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;}
@@ -151,6 +152,7 @@ function selectedChannel(){return api()?.getSelectedChannel?.()||null;}
 
 async function refreshPrimary({forceSidebar=false,reason='write'}={}){
   myCache=await fetchMyPlaylist();
+  myCacheLoaded=true;
   await renderMyPlaylist({reuseCache:true});
   await updateMyAction();
   const bridge=api();
@@ -307,7 +309,7 @@ async function renderMyPlaylist({reuseCache=false}={}){
   ensureMyUi();
   const box=$('my-playlist-channels'),count=$('my-playlist-count');
   if(!box)return;
-  if(!reuseCache)myCache=await fetchMyPlaylist();
+  if(!reuseCache){myCache=await fetchMyPlaylist();myCacheLoaded=true;}
   const channels=myCache;
   if(count)count.textContent=`${channels.length} channel${channels.length===1?'':'s'}`;
   box.innerHTML='';
@@ -362,7 +364,7 @@ async function updateRegistryOrder(channels){
 
 async function myContains(channel){
   if(!channel)return false;
-  if(!myCache.length)myCache=await fetchMyPlaylist();
+  if(!myCacheLoaded){myCache=await fetchMyPlaylist();myCacheLoaded=true;}
   const key=normalize(channel.id||channel.originalId||channel.name);
   return myCache.some(c=>normalize(c.id||c.originalId||c.name)===key);
 }
@@ -393,7 +395,7 @@ async function toggleSelectedInMy(){
 }
 async function addMyChannel(channel){
   try{
-    myCache=await fetchMyPlaylist();
+    myCache=await fetchMyPlaylist();myCacheLoaded=true;
     const key=normalize(channel.id||channel.originalId||channel.name);
     if(myCache.some(c=>normalize(c.id||c.originalId||c.name)===key)){
       setStatus(`${channel.name} is already in My Playlist`,'idle');return;
@@ -428,7 +430,7 @@ async function editMyChannel(channel){
   if(urlsText===null)return;
   const urls=[...new Set(urlsText.split(/\r?\n|,/).map(s=>s.trim()).filter(s=>/^https?:\/\//i.test(s)))];
   try{
-    myCache=await fetchMyPlaylist();
+    myCache=await fetchMyPlaylist();myCacheLoaded=true;
     const key=normalize(channel.id||channel.originalId||channel.name);
     const index=myCache.findIndex(c=>normalize(c.id||c.originalId||c.name)===key);
     if(index<0)throw new Error('Channel is no longer in My Playlist');
@@ -442,7 +444,7 @@ async function editMyChannel(channel){
 async function moveMyChannel(from,to){
   if(to<0)return;
   try{
-    myCache=await fetchMyPlaylist();
+    myCache=await fetchMyPlaylist();myCacheLoaded=true;
     if(from<0||from>=myCache.length||to<0||to>=myCache.length)return;
     const moved=myCache.splice(from,1)[0];myCache.splice(to,0,moved);
     await updateRegistryOrder(myCache);
@@ -451,7 +453,7 @@ async function moveMyChannel(from,to){
     await refreshPrimary({reason:'reorder'});
   }catch(error){
     setStatus(`Reorder failed · ${error.message}`,'error');
-    myCache=await fetchMyPlaylist().catch(()=>[]);
+    myCache=await fetchMyPlaylist().catch(()=>[]);myCacheLoaded=true;
     await renderMyPlaylist({reuseCache:true});
   }
 }
@@ -507,6 +509,7 @@ async function startup(){
   ensureMyUi();
   try{
     myCache=await fetchMyPlaylist();
+    myCacheLoaded=true;
     await renderMyPlaylist({reuseCache:true});
   }catch(error){
     setStatus(`My Playlist D1 read failed · ${error.message}`,'error');
@@ -529,8 +532,8 @@ function bind(){
   $('playlist-load-paste')?.addEventListener('click',()=>loadTemporary('paste'));
   $('playlist-save-paste')?.addEventListener('click',()=>saveCurrent('paste'));
   $('playlist-add-url')?.addEventListener('keydown',e=>{if(e.key==='Enter')testUrl();});
-  $('channel-list')?.addEventListener('click',()=>setTimeout(()=>{myCache=[];updateMyAction();},0));
-  const observer=new MutationObserver(()=>{myCache=[];updateMyAction();});
+  $('channel-list')?.addEventListener('click',()=>setTimeout(()=>updateMyAction(),0));
+  const observer=new MutationObserver(()=>updateMyAction());
   const name=$('channel-name');
   if(name)observer.observe(name,{childList:true,characterData:true,subtree:true});
   window.addEventListener('webtv:cloud-read-synced',()=>renderSaved().catch(()=>{}));
@@ -544,7 +547,7 @@ window.WebTVMyPlaylistAPI={
   addSourceToCurrent:async(url)=>{
     const c=selectedChannel();
     if(!c)throw new Error('No channel selected');
-    myCache=await fetchMyPlaylist();
+    myCache=await fetchMyPlaylist();myCacheLoaded=true;
     const key=normalize(c.id||c.originalId||c.name);
     let index=myCache.findIndex(x=>normalize(x.id||x.originalId||x.name)===key);
     let target;
@@ -567,4 +570,4 @@ ensureMyUi();
 window.addEventListener('webtv:ready',()=>startup().catch(error=>setStatus(`Startup failed · ${error.message}`,'error')),{once:true});
 if(window.WebTVPlaylistAPI?.ready)startup().catch(()=>{});
 
-log(`Playlist Manager loaded · build ${BUILD_ID} · D1 My Playlist is primary`);
+log(`Playlist Manager loaded · build ${BUILD_ID} · D1 My Playlist is primary · selection-safe cache`);
