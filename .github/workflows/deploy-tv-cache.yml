@@ -9,8 +9,6 @@ on:
       - 'src/core/utils.js'
       - 'src/core/source-registry.js'
       - 'src/core/strm-resolver.js'
-      - 'src/core/player.js'
-      - 'tests/header-aware-proxy.test.mjs'
       - '.github/workflows/deploy-tv-cache.yml'
 
 permissions:
