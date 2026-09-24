@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { parseIptvUrl, workerUrl, cleanUrl } from '../src/core/utils.js';
 import { SourceRegistry } from '../src/core/source-registry.js';
-import { routeMediaType } from '../src/core/player.js';
+import { routeMediaType, officialFallbackFor } from '../src/core/player.js';
 import worker from '../workers/tv-cache.js';
 
 const health = {
@@ -27,6 +27,12 @@ assert.match(headerWorker, /^https:\/\/tv-cache\.atonis\.workers\.dev\/\?h=[A-Za
 assert.ok(headerWorker.endsWith('live.m3u8'));
 assert.equal(routeMediaType({ originalUrl: parsed.url, playbackUrl: headerWorker }), 'hls');
 assert.equal(routeMediaType({ originalUrl: 'https://example.com/live.mpd', playbackUrl: 'https://proxy.example/?url=encoded' }), 'dash');
+
+const madFallback = officialFallbackFor({ id: 'MADTV', name: 'MADTV' });
+assert.equal(madFallback?.route, 'official-youtube');
+assert.equal(madFallback?.externalUrl, 'https://www.youtube.com/@madtvgreece/live');
+assert.match(madFallback?.embedUrl || '', /^https:\/\/www\.youtube-nocookie\.com\/embed\/live_stream\?channel=UCs3cho4vcDuCze0tk3W9iVQ/);
+assert.equal(officialFallbackFor({ id: 'open', name: 'OPEN' }), null);
 
 const registry = new SourceRegistry(health);
 let routes = await registry.getSources({ id: 'header-test', name: 'Header Test', directUrls: [raw], sourceTrust: 'temporary' });
