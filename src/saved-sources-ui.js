@@ -1,7 +1,7 @@
-import { cleanUrl, normalizeId } from './core/utils.js?v=20260920-1021';
+import { cleanUrl, normalizeId, parseIptvUrl } from './core/utils.js?v=20260924-0900';
 import { saveBestSourceToCurrent } from './source-save-policy.js?v=20260923-0815';
 
-const BUILD_ID = '20260923-0825';
+const BUILD_ID = '20260924-0930';
 const LEGACY_STORAGE_KEY = 'webtv_v2_saved_sources';
 const $ = id => document.getElementById(id);
 
@@ -39,9 +39,16 @@ if (candidateInput && testButton && channelName) {
   function log(message){if(!diagLog)return;const stamp=new Date().toLocaleTimeString();diagLog.textContent=`[${stamp}] ${message}\n${diagLog.textContent}`.slice(0,18000);}
   function resetVerification(message=''){pending=null;verified=null;clearTimeout(restoreTimer);saveButton.hidden=true;saveButton.disabled=false;saveButton.textContent='Save Source';status.textContent=message;}
   function beginCandidateTracking(){
-    const url=cleanUrl(candidateInput.value.trim()),name=channelName.textContent.trim();
+    const parsed=parseIptvUrl(candidateInput.value.trim()),url=parsed.url,name=channelName.textContent.trim();
     if(!url||!/^https?:\/\//i.test(url)||!name||name==='Επίλεξε κανάλι'){resetVerification();return;}
-    pending={url,channelName:name,channelKey:normalizeId(name),startedAt:Date.now(),oneClick:window.WebTVSourceHuntBusy===true};
+    pending={
+      url,
+      hasRequestHeaders:Object.keys(parsed.headers).length>0,
+      channelName:name,
+      channelKey:normalizeId(name),
+      startedAt:Date.now(),
+      oneClick:window.WebTVSourceHuntBusy===true
+    };
     verified=null;clearTimeout(restoreTimer);saveButton.hidden=true;
     status.textContent=pending.oneClick?'Testing automatically…':'Testing… playback must start before Save Source is enabled.';
   }
@@ -57,6 +64,12 @@ if (candidateInput && testButton && channelName) {
 
   async function persistSnapshot(snapshot){
     if(!snapshot)return;
+    if(snapshot.headerDependent){
+      saveButton.hidden=true;
+      status.textContent='Verified ✓ via temporary request headers. Not saved to D1 because persistent header metadata is not supported yet.';
+      log(`SOURCE NOT SAVED ${snapshot.channelName} · header-dependent transport is temporary by policy`);
+      return {kept:[],dropped:[]};
+    }
     saveButton.hidden=false;saveButton.disabled=true;saveButton.textContent='Saving…';
     status.textContent=`Verified ✓ ${snapshot.route||snapshot.player}${snapshot.startupMs?` · ${snapshot.startupMs} ms`:''}. Keeping best sources…`;
     try{
@@ -83,7 +96,16 @@ if (candidateInput && testButton && channelName) {
     if(!source||source!==pending.url)return;
 
     if(player!=='-'&&player!=='failed'&&startupMs>0&&playbackStatus?.classList.contains('live')){
-      verified={...pending,route,player,startupMs,verifiedAt:new Date().toISOString()};
+      const headerDependent=pending.hasRequestHeaders&&route.includes('headers');
+      verified={...pending,route,player,startupMs,headerDependent,verifiedAt:new Date().toISOString()};
+
+      if(headerDependent){
+        saveButton.hidden=true;
+        status.textContent=`Verified ✓ ${startupMs} ms via request headers. Temporary playback only; D1 save is intentionally disabled.`;
+        log(`CANDIDATE VERIFIED TEMPORARY ${pending.channelName} · ${pending.url} · ${route} · ${startupMs} ms`);
+        return;
+      }
+
       saveButton.hidden=pending.oneClick;
       saveButton.disabled=false;
       status.textContent=pending.oneClick?`Verified ✓ ${startupMs} ms · selecting as best source…`:`Verified ✓ ${startupMs} ms. Click Save Source to keep it.`;
@@ -110,11 +132,11 @@ if (candidateInput && testButton && channelName) {
 
   window.addEventListener('webtv:source-policy-saved',event=>{
     const detail=event.detail||{};
-    if(verified&&cleanUrl(detail.winner||'')===cleanUrl(verified.url)){
+    if(verified&&!verified.headerDependent&&cleanUrl(detail.winner||'')===cleanUrl(verified.url)){
       saveButton.hidden=true;
       status.textContent=`Saved ✓ best source kept · ${(detail.kept||[]).length}/3 curated sources in D1.`;
     }
   });
-  saveButton.addEventListener('click',()=>{if(verified)enqueueVerified({...verified}).catch(()=>{});});
-  log(`Saved Sources UI loaded · build ${BUILD_ID} · manual test requires explicit save`);
+  saveButton.addEventListener('click',()=>{if(verified&&!verified.headerDependent)enqueueVerified({...verified}).catch(()=>{});});
+  log(`Saved Sources UI loaded · build ${BUILD_ID} · manual test supports temporary header-aware playback · explicit save required`);
 }
