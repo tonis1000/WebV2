@@ -1,6 +1,7 @@
-import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260924-1115';
-import { normalizeId, cleanUrl, parseIptvUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js?v=20260924-0900';
-import { StrmResolver, isStrmReference } from './strm-resolver.js?v=20260924-1919';
+import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js';
+import { normalizeId, cleanUrl, parseIptvUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js';
+import { StrmResolver, isStrmReference } from './strm-resolver.js';
+import { isRejectedChannelSource } from './source-rules.js';
 
 function isPlayableMedia(url = '') {
   return isHls(url) || isDash(url) || isVideoFile(url);
@@ -10,19 +11,12 @@ function isSecureUrl(url = '') {
   return /^https:\/\//i.test(url);
 }
 
-function isWrongChannelSource(channel, url = '') {
-  const channelKey = normalizeId(channel?.id || channel?.originalId || channel?.name || '');
-  if (channelKey !== 'mega') return false;
-  const value = String(url).toLowerCase();
-  return value.includes('s99841657') || value.includes('mega%20news') || value.includes('mega-news') || value.includes('mega_news') || value.includes('/meganews');
-}
-
 function headerIdentity(headers = {}) {
   return JSON.stringify(Object.entries(headers).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 const BLOCKED = new Set((SOURCE_BLOCKLIST || []).map(cleanUrl).filter(Boolean));
-export const SOURCE_REGISTRY_BUILD_ID = '20260924-2245';
+export const SOURCE_REGISTRY_BUILD_ID = '20260924-stabilization';
 
 export function rankRoutesByHealth(routes = [], health) {
   const families = new Map();
@@ -39,8 +33,6 @@ export function rankRoutesByHealth(routes = [], health) {
       const bScore = Math.max(...b.routes.map(score));
       if (aScore !== bScore) return bScore - aScore;
 
-      // Trust/provenance is a tie-breaker only. A proven-good remote/cache
-      // source must outrank a saved source that is known to fail.
       const aSaved = a.routes.some(route => route.saved);
       const bSaved = b.routes.some(route => route.saved);
       if (aSaved !== bSaved) return aSaved ? -1 : 1;
@@ -100,8 +92,6 @@ export class SourceRegistry {
       }
       const resolved = this.strm.peek(source);
       const info = this.strm.peekInfo(source);
-      // DRM STRM references need license configuration that the current
-      // PlayerController does not provide. Do not inject them as fake fallbacks.
       if (resolved && !info?.drm) out.push(resolved);
     }
     return out;
@@ -111,8 +101,6 @@ export class SourceRegistry {
       if (!isStrmReference(source)) return source;
       const resolvedUrl = await this.strm.resolve(source);
       const info = this.strm.peekInfo(source);
-      // Keep DRM references visible to diagnostics, but skip them in playback
-      // until PlayerController has explicit EME/Widevine license support.
       return info?.drm ? '' : resolvedUrl;
     }));
     return resolved.filter(Boolean);
@@ -123,9 +111,6 @@ export class SourceRegistry {
       .map(raw => ({ raw, ...parseIptvUrl(raw) }))
       .filter(item => item.url);
 
-    // Only persistent D1/My Playlist channels are trusted curated state.
-    // URLs parsed from temporary external M3U playlists remain untrusted until
-    // the user explicitly saves them into My Playlist.
     const temporary = channel?.sourceTrust === 'temporary';
     const trustedSet = temporary ? new Set() : new Set(curated.map(item => item.url));
 
@@ -135,7 +120,7 @@ export class SourceRegistry {
       const parsed = parseIptvUrl(raw);
       const source = parsed.url;
       if (!source || !isPlayableMedia(source)) continue;
-      if (isWrongChannelSource(channel, source)) continue;
+      if (isRejectedChannelSource(channel, source)) continue;
       if (!trustedSet.has(source) && BLOCKED.has(source)) continue;
 
       const key = `${source}|${headerIdentity(parsed.headers)}`;
@@ -169,8 +154,6 @@ export class SourceRegistry {
     return routes.filter((item, index, arr) => arr.findIndex(other => other.playbackUrl === item.playbackUrl) === index);
   }
   async getSources(channel) {
-    // localStorage is the canonical route-health state. Refresh immediately
-    // before every selection so ranking cannot use a stale in-memory snapshot.
     this.health.refresh?.();
     const curated = await this.#resolvedCuratedSources(channel);
     const all = this.#allRoutes(channel, curated);
@@ -180,15 +163,9 @@ export class SourceRegistry {
 
     const active = all.filter(route => {
       if (!this.health.isCoolingDown(route.playbackUrl)) return true;
-      // Keep one cooled Worker route available as a rescue sibling while the
-      // direct HLS route is still eligible. PlayerController already suppresses
-      // sibling retries for terminal 404/410, so this specifically restores
-      // proxy rescue after direct CORS/403 or transient browser failures.
       return route.route.startsWith('worker') && activeDirectOriginals.has(route.originalUrl);
     });
 
-    // Rank complete source families. A proven-good family must beat older weak
-    // families, while DIRECT remains the first attempt inside that family.
     return rankRoutesByHealth(active, this.health);
   }
   getStats(channel) {
