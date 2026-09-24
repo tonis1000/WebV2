@@ -9,6 +9,11 @@ export class HealthStore {
   }
   #load() { try { const raw = localStorage.getItem(this.storageKey); return raw ? JSON.parse(raw) : {}; } catch { return {}; } }
   #save() { try { localStorage.setItem(this.storageKey, JSON.stringify(this.map)); } catch {} }
+  refresh() {
+    this.map = this.#load();
+    this.#prune();
+    return this.map;
+  }
   #key(value) { return cleanUrl(value); }
   #entry(value) {
     const key = this.#key(value);
