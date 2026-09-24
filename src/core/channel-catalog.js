@@ -25,7 +25,15 @@ export function parseM3U(text = '') {
       if (candidate.startsWith('#EXTINF')) break;
       if (!candidate.startsWith('#') && /^https?:\/\//i.test(candidate)) { directUrl = candidate; break; }
     }
-    channels.push({ id: normalizeId(id || name), originalId: id || name, name, logo, group, directUrls: directUrl ? [directUrl] : [] });
+    channels.push({
+      id: normalizeId(id || name),
+      originalId: id || name,
+      name,
+      logo,
+      group,
+      directUrls: directUrl ? [directUrl] : [],
+      sourceTrust: 'temporary',
+    });
   }
   return dedupeChannels(channels);
 }
