@@ -1,5 +1,6 @@
 import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260923-2215';
 import { normalizeId, cleanUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js?v=20260920-1021';
+import { StrmResolver, isStrmReference } from './strm-resolver.js?v=20260924-0645';
 
 function isPlayableMedia(url = '') {
   return isHls(url) || isDash(url) || isVideoFile(url);
@@ -23,6 +24,7 @@ export class SourceRegistry {
     this.health = healthStore;
     this.remoteMap = {};
     this.aliasIndex = this.#buildAliasIndex();
+    this.strm = new StrmResolver({ timeoutMs: Math.min(CONFIG.requestTimeoutMs || 5000, 5000) });
   }
   #buildAliasIndex() {
     const map = new Map();
@@ -54,8 +56,32 @@ export class SourceRegistry {
     }
     return [];
   }
-  #allRoutes(channel) {
-    const curated = (channel.directUrls || []).map(cleanUrl).filter(Boolean);
+  #cachedCuratedUrls(channel) {
+    const out = [];
+    for (const source of channel.directUrls || []) {
+      if (!isStrmReference(source)) {
+        out.push(source);
+        continue;
+      }
+      const resolved = this.strm.peek(source);
+      if (resolved) out.push(resolved);
+    }
+    return out;
+  }
+  async #resolvedCuratedUrls(channel) {
+    const out = [];
+    await Promise.all((channel.directUrls || []).map(async source => {
+      if (!isStrmReference(source)) {
+        out.push(source);
+        return;
+      }
+      const resolved = await this.strm.resolve(source);
+      if (resolved) out.push(resolved);
+    }));
+    return out;
+  }
+  #allRoutes(channel, curatedOverride = null) {
+    const curated = (curatedOverride || this.#cachedCuratedUrls(channel)).map(cleanUrl).filter(Boolean);
 
     // Only persistent D1/My Playlist channels are trusted curated state.
     // URLs parsed from temporary external M3U playlists remain untrusted until
@@ -81,8 +107,9 @@ export class SourceRegistry {
     }
     return routes.filter((item, index, arr) => arr.findIndex(other => other.playbackUrl === item.playbackUrl) === index);
   }
-  getSources(channel) {
-    return this.#allRoutes(channel)
+  async getSources(channel) {
+    const curated = await this.#resolvedCuratedUrls(channel);
+    return this.#allRoutes(channel, curated)
       .filter(route => !this.health.isCoolingDown(route.playbackUrl))
       .sort((a, b) => {
         if (a.saved !== b.saved) return a.saved ? -1 : 1;
@@ -95,7 +122,13 @@ export class SourceRegistry {
   }
   getStats(channel) {
     const all = this.#allRoutes(channel);
+    const unresolvedReferences = (channel.directUrls || []).filter(source => isStrmReference(source) && !this.strm.peek(source)).length;
     const cooling = all.filter(route => this.health.isCoolingDown(route.playbackUrl)).length;
-    return { total: all.length, active: all.length - cooling, cooling };
+    return {
+      total: all.length + unresolvedReferences,
+      active: all.length - cooling + unresolvedReferences,
+      cooling,
+      pending: unresolvedReferences,
+    };
   }
 }
