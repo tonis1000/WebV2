@@ -22,6 +22,35 @@ function headerIdentity(headers = {}) {
 }
 
 const BLOCKED = new Set((SOURCE_BLOCKLIST || []).map(cleanUrl).filter(Boolean));
+export const SOURCE_REGISTRY_BUILD_ID = '20260924-2145';
+
+export function rankRoutesByHealth(routes = [], health) {
+  const families = new Map();
+  routes.forEach((route, index) => {
+    const key = `${route.saved ? 'saved' : 'remote'}|${route.originalUrl}`;
+    if (!families.has(key)) families.set(key, { routes: [], firstIndex: index });
+    families.get(key).routes.push(route);
+  });
+
+  const score = route => Number(health?.score?.(route.playbackUrl) || 0);
+  return [...families.values()]
+    .sort((a, b) => {
+      const aSaved = a.routes.some(route => route.saved);
+      const bSaved = b.routes.some(route => route.saved);
+      if (aSaved !== bSaved) return aSaved ? -1 : 1;
+
+      const aScore = Math.max(...a.routes.map(score));
+      const bScore = Math.max(...b.routes.map(score));
+      if (aScore !== bScore) return bScore - aScore;
+      return a.firstIndex - b.firstIndex;
+    })
+    .flatMap(family => family.routes.sort((a, b) => {
+      if (a.route === b.route) return 0;
+      if (a.route === 'direct') return -1;
+      if (b.route === 'direct') return 1;
+      return score(b) - score(a);
+    }));
+}
 
 export class SourceRegistry {
   constructor(healthStore) {
@@ -153,36 +182,9 @@ export class SourceRegistry {
       return route.route.startsWith('worker') && activeDirectOriginals.has(route.originalUrl);
     });
 
-    // Rank whole source families, not individual routes. The previous comparator
-    // mixed a DIRECT-before-WORKER rule with per-route health scores, which could
-    // become non-transitive and leave an older weak source ahead of a known-good
-    // source. A family inherits the best health score of its routes; families are
-    // then ordered by trust + learned health, while DIRECT stays before its own
-    // WORKER sibling.
-    const families = new Map();
-    active.forEach((route, index) => {
-      const key = `${route.saved ? 'saved' : 'remote'}|${route.originalUrl}`;
-      if (!families.has(key)) families.set(key, { routes: [], firstIndex: index });
-      families.get(key).routes.push(route);
-    });
-
-    return [...families.values()]
-      .sort((a, b) => {
-        const aSaved = a.routes.some(route => route.saved);
-        const bSaved = b.routes.some(route => route.saved);
-        if (aSaved !== bSaved) return aSaved ? -1 : 1;
-
-        const aScore = Math.max(...a.routes.map(route => this.health.score(route.playbackUrl)));
-        const bScore = Math.max(...b.routes.map(route => this.health.score(route.playbackUrl)));
-        if (aScore !== bScore) return bScore - aScore;
-        return a.firstIndex - b.firstIndex;
-      })
-      .flatMap(family => family.routes.sort((a, b) => {
-        if (a.route === b.route) return 0;
-        if (a.route === 'direct') return -1;
-        if (b.route === 'direct') return 1;
-        return this.health.score(b.playbackUrl) - this.health.score(a.playbackUrl);
-      }));
+    // Rank complete source families. A proven-good family must beat older weak
+    // families, while DIRECT remains the first attempt inside that family.
+    return rankRoutesByHealth(active, this.health);
   }
   getStats(channel) {
     const all = this.#allRoutes(channel);
