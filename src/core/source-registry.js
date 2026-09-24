@@ -22,7 +22,7 @@ function headerIdentity(headers = {}) {
 }
 
 const BLOCKED = new Set((SOURCE_BLOCKLIST || []).map(cleanUrl).filter(Boolean));
-export const SOURCE_REGISTRY_BUILD_ID = '20260924-2215';
+export const SOURCE_REGISTRY_BUILD_ID = '20260924-2245';
 
 export function rankRoutesByHealth(routes = [], health) {
   const families = new Map();
@@ -35,13 +35,15 @@ export function rankRoutesByHealth(routes = [], health) {
   const score = route => Number(health?.score?.(route.playbackUrl) || 0);
   return [...families.values()]
     .sort((a, b) => {
-      const aSaved = a.routes.some(route => route.saved);
-      const bSaved = b.routes.some(route => route.saved);
-      if (aSaved !== bSaved) return aSaved ? -1 : 1;
-
       const aScore = Math.max(...a.routes.map(score));
       const bScore = Math.max(...b.routes.map(score));
       if (aScore !== bScore) return bScore - aScore;
+
+      // Trust/provenance is a tie-breaker only. A proven-good remote/cache
+      // source must outrank a saved source that is known to fail.
+      const aSaved = a.routes.some(route => route.saved);
+      const bSaved = b.routes.some(route => route.saved);
+      if (aSaved !== bSaved) return aSaved ? -1 : 1;
       return a.firstIndex - b.firstIndex;
     })
     .flatMap(family => family.routes.sort((a, b) => {
