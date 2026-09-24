@@ -1,4 +1,4 @@
-const BUILD_ID = '20260923-2145';
+const BUILD_ID = '20260924-0635';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const URL_KEY = 'webtv_v2_registry_url';
@@ -141,7 +141,7 @@ document.addEventListener('visibilitychange', () => {
   if(!document.hidden) runSync('visible');
 });
 document.getElementById('playlist-manager-toggle')?.addEventListener('click', () => {
-  runSync('open-playlists', { force:true });
+  runSync('open-playlists');
 }, { capture: true });
 
-console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · 15m background sync; no focus sync`);
+console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · 15m background sync; 5m open/visible throttle`);
