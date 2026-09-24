@@ -1,4 +1,4 @@
-import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260923-2215';
+import { CONFIG, CHANNEL_ALIASES, SOURCE_BLOCKLIST } from '../config.js?v=20260924-1115';
 import { normalizeId, cleanUrl, parseIptvUrl, workerUrl, isHls, isDash, isVideoFile } from './utils.js?v=20260924-0900';
 import { StrmResolver, isStrmReference } from './strm-resolver.js?v=20260924-1919';
 
