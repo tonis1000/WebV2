@@ -1,4 +1,4 @@
-const VERSION = '1.4';
+const VERSION = '1.5';
 const DEFAULT_REGISTRY_URL = 'https://webtv-registry.atonis.workers.dev';
 
 function cors(origin = '*') {
@@ -48,6 +48,22 @@ function safeEqual(a, b) {
   return x === 0;
 }
 
+async function validateRegistrySession(token, env) {
+  const body = JSON.stringify({ token });
+  const headers = { 'content-type': 'application/json' };
+
+  if (env.REGISTRY && typeof env.REGISTRY.fetch === 'function') {
+    return env.REGISTRY.fetch(new Request('https://registry.internal/api/session/validate', {
+      method: 'POST', headers, body,
+    }));
+  }
+
+  const registry = clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL;
+  return fetch(`${registry.replace(/\/+$/, '')}/api/session/validate`, {
+    method: 'POST', headers, body, cache: 'no-store',
+  });
+}
+
 async function requireAdmin(request, env, origin) {
   const customToken = clean(request.headers.get('x-webtv-session'));
   const auth = request.headers.get('authorization') || '';
@@ -55,21 +71,17 @@ async function requireAdmin(request, env, origin) {
   const token = customToken || bearerToken;
   if (!token) return json({ error: 'Trusted-device session required', authDebug: 'missing-session-header' }, 401, origin);
 
-  const registry = clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(`${registry.replace(/\/+$/, '')}/api/session/validate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token }),
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-    if (!response.ok) return json({ error: 'Trusted-device session required', authDebug: 'registry-rejected-session' }, 401, origin);
+    const response = await Promise.race([
+      validateRegistrySession(token, env),
+      new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(new Error('timeout')), { once: true })),
+    ]);
+    if (!response.ok) return json({ error: 'Trusted-device session required', authDebug: 'registry-rejected-session', registryStatus: response.status }, 401, origin);
     return null;
   } catch {
-    return json({ error: 'Registry session validation unavailable' }, 503, origin);
+    return json({ error: 'Registry session validation unavailable', authDebug: 'registry-validation-unavailable' }, 503, origin);
   } finally {
     clearTimeout(timer);
   }
@@ -140,14 +152,11 @@ async function providerJson(server, username, password, action = '') {
   try {
     const response = await fetch(url.toString(), {
       headers: { 'User-Agent': 'Mozilla/5.0 WebTV-V2 Xtream Bridge' },
-      redirect: 'follow',
-      signal: controller.signal,
+      redirect: 'follow', signal: controller.signal,
     });
     if (!response.ok) throw new Error(`Xtream provider HTTP ${response.status}`);
     return await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  } finally { clearTimeout(timer); }
 }
 
 async function validateAccount(server, username, password) {
@@ -157,8 +166,7 @@ async function validateAccount(server, username, password) {
   if (!authenticated) throw new Error('Xtream login rejected by provider');
   const allowed = Array.isArray(user.allowed_output_formats) ? user.allowed_output_formats : [];
   return {
-    status: user.status || 'Active',
-    expiresAt: Number(user.exp_date || 0) || null,
+    status: user.status || 'Active', expiresAt: Number(user.exp_date || 0) || null,
     maxConnections: Number(user.max_connections || 0) || null,
     activeConnections: Number(user.active_cons || 0) || null,
     allowedOutputFormats: allowed,
@@ -200,10 +208,7 @@ async function deleteAccount(env, id) {
 }
 
 async function accountCredentials(env, row) {
-  return {
-    username: await decryptText(row.usernameEnc, env),
-    password: await decryptText(row.passwordEnc, env),
-  };
+  return { username: await decryptText(row.usernameEnc, env), password: await decryptText(row.passwordEnc, env) };
 }
 
 async function buildPlaybackUrl(requestUrl, env, accountId, streamId) {
@@ -224,12 +229,10 @@ async function channelsForAccount(request, env, account) {
     const streamId = String(stream.stream_id ?? '').trim();
     if (!streamId) return null;
     return {
-      id: `xtream:${account.id}:${streamId}`,
-      streamId,
+      id: `xtream:${account.id}:${streamId}`, streamId,
       tvgId: clean(stream.epg_channel_id || stream.tv_archive_id || stream.name || streamId),
       name: clean(stream.name) || `Stream ${streamId}`,
-      logo: clean(stream.stream_icon),
-      group: categoryMap.get(String(stream.category_id)) || 'Xtream',
+      logo: clean(stream.stream_icon), group: categoryMap.get(String(stream.category_id)) || 'Xtream',
       categoryId: String(stream.category_id ?? ''),
       playbackUrl: await buildPlaybackUrl(request.url, env, account.id, streamId),
     };
@@ -259,13 +262,16 @@ export default {
       if (path === '/' || path === '/api/status') {
         await ensureTable(env);
         const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM xtream_accounts`).first();
-        return json({ ok: true, service: 'WebTV Xtream Bridge', version: VERSION, accounts: Number(row?.n || 0), registryUrl: clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL }, 200, origin);
+        return json({
+          ok: true, service: 'WebTV Xtream Bridge', version: VERSION,
+          accounts: Number(row?.n || 0),
+          registryUrl: clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL,
+          registryBinding: Boolean(env.REGISTRY),
+        }, 200, origin);
       }
 
       const streamMatch = path.match(/^\/stream\/([^/]+)\/([^/]+)\.m3u8$/);
-      if (streamMatch && request.method === 'GET') {
-        return streamRedirect(request, env, decodeURIComponent(streamMatch[1]), decodeURIComponent(streamMatch[2]), origin);
-      }
+      if (streamMatch && request.method === 'GET') return streamRedirect(request, env, decodeURIComponent(streamMatch[1]), decodeURIComponent(streamMatch[2]), origin);
 
       if (path === '/api/accounts' && request.method === 'GET') {
         const denied = await requireAdmin(request, env, origin); if (denied) return denied;
