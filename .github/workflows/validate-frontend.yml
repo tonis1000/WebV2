@@ -8,15 +8,19 @@ on:
       - 'index.html'
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
+      - 'workers/webtv-xtream.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
+      - '.github/workflows/deploy-webtv-xtream.yml'
   pull_request:
     paths:
       - 'index.html'
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
+      - 'workers/webtv-xtream.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
+      - '.github/workflows/deploy-webtv-xtream.yml'
 
 permissions:
   contents: read
@@ -41,11 +45,17 @@ jobs:
             node --check "$file"
           done < <(find src -type f -name '*.js' | sort)
 
+      - name: Validate Xtream Worker syntax
+        run: node --input-type=module --check < workers/webtv-xtream.js
+
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
 
       - name: Run source ranking regression test
         run: node tests/source-ranking.test.mjs
+
+      - name: Run Xtream source regression test
+        run: node tests/xtream-client.test.mjs
 
       - name: Run frontend integration audit
         run: node tests/frontend-integration.test.mjs
