@@ -3,6 +3,8 @@ import { normalizeId, cleanUrl, parseIptvUrl, workerUrl, isHls, isDash, isVideoF
 import { StrmResolver, isStrmReference } from './strm-resolver.js';
 import { isRejectedChannelSource } from './source-rules.js';
 
+const SOURCE_ORDER_MODE_KEY = 'webtv_v2_source_order_modes';
+
 function isPlayableMedia(url = '') {
   return isHls(url) || isDash(url) || isVideoFile(url);
 }
@@ -15,8 +17,21 @@ function headerIdentity(headers = {}) {
   return JSON.stringify(Object.entries(headers).sort(([a], [b]) => a.localeCompare(b)));
 }
 
+function channelOrderKey(channel = {}) {
+  return normalizeId(channel.id || channel.originalId || channel.name || '');
+}
+
+export function sourceOrderMode(channel = {}) {
+  try {
+    const map = JSON.parse(localStorage.getItem(SOURCE_ORDER_MODE_KEY) || '{}');
+    return map?.[channelOrderKey(channel)] === 'manual' ? 'manual' : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
 const BLOCKED = new Set((SOURCE_BLOCKLIST || []).map(cleanUrl).filter(Boolean));
-export const SOURCE_REGISTRY_BUILD_ID = '20260924-stabilization';
+export const SOURCE_REGISTRY_BUILD_ID = '20260926-source-order';
 
 export function rankRoutesByHealth(routes = [], health) {
   const families = new Map();
@@ -153,10 +168,19 @@ export class SourceRegistry {
 
     return routes.filter((item, index, arr) => arr.findIndex(other => other.playbackUrl === item.playbackUrl) === index);
   }
+  async getAllRoutes(channel) {
+    const curated = await this.#resolvedCuratedSources(channel);
+    return this.#allRoutes(channel, curated);
+  }
   async getSources(channel) {
     this.health.refresh?.();
-    const curated = await this.#resolvedCuratedSources(channel);
-    const all = this.#allRoutes(channel, curated);
+    const all = await this.getAllRoutes(channel);
+    const mode = sourceOrderMode(channel);
+
+    if (mode === 'manual') {
+      return all.map(route => ({ ...route, orderMode: 'manual' }));
+    }
+
     const activeDirectOriginals = new Set(all
       .filter(route => route.route === 'direct' && !this.health.isCoolingDown(route.playbackUrl))
       .map(route => route.originalUrl));
@@ -166,7 +190,7 @@ export class SourceRegistry {
       return route.route.startsWith('worker') && activeDirectOriginals.has(route.originalUrl);
     });
 
-    return rankRoutesByHealth(active, this.health);
+    return rankRoutesByHealth(active, this.health).map(route => ({ ...route, orderMode: 'auto' }));
   }
   getStats(channel) {
     const all = this.#allRoutes(channel);
@@ -174,9 +198,10 @@ export class SourceRegistry {
     const cooling = all.filter(route => this.health.isCoolingDown(route.playbackUrl)).length;
     return {
       total: all.length + unresolvedReferences,
-      active: all.length - cooling + unresolvedReferences,
+      active: sourceOrderMode(channel) === 'manual' ? all.length + unresolvedReferences : all.length - cooling + unresolvedReferences,
       cooling,
       pending: unresolvedReferences,
+      orderMode: sourceOrderMode(channel),
     };
   }
 }
