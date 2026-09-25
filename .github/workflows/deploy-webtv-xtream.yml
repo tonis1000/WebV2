@@ -136,12 +136,12 @@ jobs:
               "$XTREAM_URL/api/status?verify=${GITHUB_SHA}-${attempt}" \
               -o /tmp/webtv-xtream-status.json; then
               cat /tmp/webtv-xtream-status.json
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-xtream-status.json','utf8'));process.exit(j.version==='1.6'&&j.service==='WebTV Xtream Bridge'&&j.registryBinding===true?0:1)"; then
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-xtream-status.json','utf8'));process.exit(j.version==='1.7'&&j.service==='WebTV Xtream Bridge'&&j.registryBinding===true&&j.hlsProxy===true?0:1)"; then
                 exit 0
               fi
             fi
             echo "Waiting for Cloudflare propagation · attempt $attempt/30"
             sleep 3
           done
-          echo '::error::Xtream Worker did not expose v1.6 with Registry service binding after 90 seconds'
+          echo '::error::Xtream Worker did not expose v1.7 with Registry binding + HLS proxy after 90 seconds'
           exit 1
