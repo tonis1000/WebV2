@@ -1,0 +1,86 @@
+name: Deploy WebTV Xtream Mock Provider
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'workers/webtv-xtream-mock.js'
+      - '.github/workflows/deploy-webtv-xtream-mock.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-webtv-xtream-mock
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
+  MOCK_WORKER_NAME: webtv-xtream-mock
+  MOCK_URL: https://webtv-xtream-mock.atonis.workers.dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Cloudflare token
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not configured"
+            exit 1
+          fi
+
+      - name: Validate Worker syntax
+        shell: bash
+        run: node --input-type=module --check < workers/webtv-xtream-mock.js
+
+      - name: Build temporary Wrangler config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > wrangler.xtream-mock.ci.toml <<EOF
+          name = "$MOCK_WORKER_NAME"
+          main = "workers/webtv-xtream-mock.js"
+          compatibility_date = "2026-09-25"
+          workers_dev = true
+          preview_urls = false
+          EOF
+
+      - name: Deploy Xtream Mock Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.xtream-mock.ci.toml
+
+      - name: Verify live mock provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error "$MOCK_URL/api/status?verify=${GITHUB_SHA}-${attempt}" -o /tmp/mock-status.json; then
+              cat /tmp/mock-status.json
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/mock-status.json','utf8'));process.exit(j.version==='1.0'&&j.service==='WebTV Xtream Test Provider'&&j.channels===3?0:1)"; then
+                curl --fail --silent --show-error "$MOCK_URL/player_api.php?username=test_user&password=test_pass" -o /tmp/mock-login.json
+                curl --fail --silent --show-error "$MOCK_URL/player_api.php?username=test_user&password=test_pass&action=get_live_categories" -o /tmp/mock-categories.json
+                curl --fail --silent --show-error "$MOCK_URL/player_api.php?username=test_user&password=test_pass&action=get_live_streams" -o /tmp/mock-streams.json
+                node -e "const fs=require('fs');const login=JSON.parse(fs.readFileSync('/tmp/mock-login.json'));const cats=JSON.parse(fs.readFileSync('/tmp/mock-categories.json'));const streams=JSON.parse(fs.readFileSync('/tmp/mock-streams.json'));if(String(login.user_info?.auth)!=='1'||cats.length!==3||streams.length!==3)process.exit(1);console.log('Verified Xtream mock login + 3 categories + 3 streams')"
+                exit 0
+              fi
+            fi
+            echo "Waiting for mock provider propagation · attempt $attempt/30"
+            sleep 3
+          done
+          echo '::error::Xtream mock provider did not verify after 90 seconds'
+          exit 1
