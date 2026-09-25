@@ -9,3 +9,4 @@ try{
 import './xtream-ui.js?v=20260925-xtream6';
 import './xtream-preview-actions.js?v=20260925-xtream-click1';
 import './xtream-enhancements.js?v=20260925-xtream-enh2';
+import './source-order-controls.js?v=20260926-order1';
