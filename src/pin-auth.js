@@ -1,4 +1,4 @@
-const BUILD_ID='20260922-0732';
+const BUILD_ID='20260925-xtream-auth';
 const DEFAULT_REGISTRY='https://webtv-registry.atonis.workers.dev';
 const URL_KEY='webtv_v2_registry_url';
 const TOKEN_KEY='webtv_v2_registry_token';
@@ -66,8 +66,11 @@ function hideLegacyPanel(){
   document.head.appendChild(style);
 }
 
-const WRITE_IDS=new Set(['playlist-save-url','playlist-save-paste','my-playlist-channel-action','save-candidate']);
-const WRITE_LABELS=new Set(['Rename','Delete','Edit','Remove','Retry Save','Save Source','★ Add to My Playlist','Remove from My Playlist']);
+const WRITE_IDS=new Set([
+  'playlist-save-url','playlist-save-paste','my-playlist-channel-action','save-candidate',
+  'xtream-connect-save','xtream-delete'
+]);
+const WRITE_LABELS=new Set(['Rename','Delete','Edit','Remove','Retry Save','Save Source','★ Add to My Playlist','Remove from My Playlist','Test & Save','Delete account']);
 function isWriteButton(button){
   if(!button)return false;
   if(WRITE_IDS.has(button.id))return true;
