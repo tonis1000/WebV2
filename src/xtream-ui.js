@@ -167,6 +167,67 @@ function saveBridgeSetting() {
   }
 }
 
+async function runAuthDiagnostics() {
+  const out = $('xtream-diagnostics-output');
+  const button = $('xtream-auth-diagnostics');
+  if (!out) return;
+  if (button) button.disabled = true;
+  out.hidden = false;
+  out.textContent = 'Running diagnostics…';
+
+  const lines = [];
+  const token = localStorage.getItem('webtv_v2_registry_token') || '';
+  lines.push(`Token present: ${token ? 'YES' : 'NO'}${token ? ` (${token.length} chars)` : ''}`);
+
+  try {
+    const r = await fetch('https://webtv-registry.atonis.workers.dev/api/session', {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      cache: 'no-store',
+    });
+    lines.push(`Registry /api/session: ${r.status}`);
+  } catch (error) {
+    lines.push(`Registry /api/session: ERROR ${error.message}`);
+  }
+
+  try {
+    const r = await fetch('https://webtv-registry.atonis.workers.dev/api/session/validate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+      cache: 'no-store',
+    });
+    let body = '';
+    try { body = await r.text(); } catch {}
+    lines.push(`Registry /api/session/validate: ${r.status}${body ? ` · ${body.slice(0, 160)}` : ''}`);
+  } catch (error) {
+    lines.push(`Registry /api/session/validate: ERROR ${error.message}`);
+  }
+
+  try {
+    const r = await fetch(`${xtreamBridgeUrl()}/api/status?diag=${Date.now()}`, { cache: 'no-store' });
+    let body = {};
+    try { body = await r.json(); } catch {}
+    lines.push(`Xtream bridge /api/status: ${r.status} · version ${body.version || '?'} · service ${body.service || '?'}`);
+  } catch (error) {
+    lines.push(`Xtream bridge /api/status: ERROR ${error.message}`);
+  }
+
+  try {
+    const r = await fetch(`${xtreamBridgeUrl()}/api/accounts?diag=${Date.now()}`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      cache: 'no-store',
+    });
+    let body = '';
+    try { body = await r.text(); } catch {}
+    lines.push(`Xtream /api/accounts auth: ${r.status}${body ? ` · ${body.slice(0, 180)}` : ''}`);
+  } catch (error) {
+    lines.push(`Xtream /api/accounts auth: ERROR ${error.message}`);
+  }
+
+  out.textContent = lines.join('\n');
+  if (button) button.disabled = false;
+}
+
 function injectUi() {
   const grid = document.querySelector('#playlist-manager .playlist-manager-grid');
   if (!grid || $('xtream-tool-card')) return;
@@ -204,6 +265,10 @@ function injectUi() {
         <button id="xtream-save-bridge" class="button ghost" type="button">Save</button>
       </div>
     </details>
+    <div class="playlist-actions">
+      <button id="xtream-auth-diagnostics" class="button ghost" type="button">Auth diagnostics</button>
+    </div>
+    <pre id="xtream-diagnostics-output" class="diagnostic-log" hidden style="white-space:pre-wrap;max-height:220px;overflow:auto"></pre>
     <div id="xtream-status" class="playlist-manager-status" data-tone="idle">Xtream ready · press Test & Save</div>
   `;
   grid.appendChild(card);
@@ -213,6 +278,7 @@ function injectUi() {
   $('xtream-load')?.addEventListener('click', loadSelectedAccount);
   $('xtream-delete')?.addEventListener('click', removeSelectedAccount);
   $('xtream-save-bridge')?.addEventListener('click', saveBridgeSetting);
+  $('xtream-auth-diagnostics')?.addEventListener('click', runAuthDiagnostics);
 
   const token = window.WebTVRegistryAuth?.token?.() || '';
   if (token) refreshAccounts({ quiet: true, interactive: false }).catch(() => {});
@@ -224,5 +290,6 @@ else injectUi();
 window.WebTVXtream = {
   refreshAccounts,
   loadSelectedAccount,
+  runAuthDiagnostics,
   getLoaded: () => loaded,
 };
