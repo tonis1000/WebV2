@@ -233,6 +233,7 @@ export class PlayerController {
     this.#showVideo();
     if (window.Hls?.isSupported()) {
       this.hls = new window.Hls({
+        enableWorker: false,
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
         backBufferLength: 10,
