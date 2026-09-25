@@ -1,4 +1,4 @@
-const VERSION = '1.0';
+const VERSION = '1.1';
 const TEST_USERNAME = 'test_user';
 const TEST_PASSWORD = 'test_pass';
 const SAMPLE_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
@@ -56,6 +56,7 @@ const categories = [
   { category_id: '10', category_name: 'WebTV Test · News', parent_id: 0 },
   { category_id: '20', category_name: 'WebTV Test · Sports', parent_id: 0 },
   { category_id: '30', category_name: 'WebTV Test · Movies', parent_id: 0 },
+  { category_id: '40', category_name: 'Greece', parent_id: 0 },
 ];
 
 const streams = [
@@ -96,6 +97,20 @@ const streams = [
     epg_channel_id: 'webtv.test.movies',
     added: '1790370000',
     category_id: '30',
+    custom_sid: '',
+    tv_archive: 0,
+    direct_source: '',
+    tv_archive_duration: 0,
+  },
+  {
+    num: 4,
+    name: 'MEGA',
+    stream_type: 'live',
+    stream_id: 1101,
+    stream_icon: '',
+    epg_channel_id: 'mega.gr',
+    added: '1790370000',
+    category_id: '40',
     custom_sid: '',
     tv_archive: 0,
     direct_source: '',
