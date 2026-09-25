@@ -1,5 +1,5 @@
-const VERSION = '1.1';
-const SESSION_DAYS = 180;
+const VERSION = '1.2';
+const DEFAULT_REGISTRY_URL = 'https://webtv-registry.atonis.workers.dev';
 
 function cors(origin = '*') {
   return {
@@ -48,27 +48,28 @@ function safeEqual(a, b) {
   return x === 0;
 }
 
-async function verifySession(token, env) {
-  if (!token || !env.ADMIN_TOKEN) return false;
-  if (token === env.ADMIN_TOKEN) return true;
-  const parts = token.split('.');
-  if (parts.length !== 2) return false;
-  try {
-    const expected = await hmac(env.ADMIN_TOKEN, parts[0]);
-    const supplied = fromB64url(parts[1]);
-    if (!safeEqual(expected, supplied)) return false;
-    const payload = JSON.parse(new TextDecoder().decode(fromB64url(parts[0])));
-    return payload?.v === 1 && Number(payload.exp) > Math.floor(Date.now() / 1000);
-  } catch {
-    return false;
-  }
-}
-
 async function requireAdmin(request, env, origin) {
   const auth = request.headers.get('authorization') || '';
   const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!await verifySession(token, env)) return json({ error: 'Trusted-device session required' }, 401, origin);
-  return null;
+  if (!token) return json({ error: 'Trusted-device session required' }, 401, origin);
+
+  const registry = clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${registry.replace(/\/+$/, '')}/api/session`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!response.ok) return json({ error: 'Trusted-device session required' }, 401, origin);
+    return null;
+  } catch {
+    return json({ error: 'Registry session validation unavailable' }, 503, origin);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function normalizeServer(value = '') {
@@ -255,7 +256,7 @@ export default {
       if (path === '/' || path === '/api/status') {
         await ensureTable(env);
         const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM xtream_accounts`).first();
-        return json({ ok: true, service: 'WebTV Xtream Bridge', version: VERSION, accounts: Number(row?.n || 0), sessionDays: SESSION_DAYS }, 200, origin);
+        return json({ ok: true, service: 'WebTV Xtream Bridge', version: VERSION, accounts: Number(row?.n || 0), registryUrl: clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL }, 200, origin);
       }
 
       const streamMatch = path.match(/^\/stream\/([^/]+)\/([^/]+)\.m3u8$/);
