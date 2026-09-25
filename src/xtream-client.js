@@ -50,7 +50,10 @@ async function bridgeFetch(path, options = {}, { timeoutMs = 15000, requireAuth 
   try {
     const headers = new Headers(options.headers || {});
     if (json && !headers.has('content-type')) headers.set('content-type', 'application/json');
-    if (token) headers.set('authorization', `Bearer ${token}`);
+    if (token) {
+      headers.set('x-webtv-session', token);
+      headers.set('authorization', `Bearer ${token}`);
+    }
 
     const response = await fetch(`${xtreamBridgeUrl()}${path}`, {
       cache: 'no-store',
@@ -60,7 +63,10 @@ async function bridgeFetch(path, options = {}, { timeoutMs = 15000, requireAuth 
     });
     let body = {};
     try { body = await response.json(); } catch {}
-    if (!response.ok) throw new Error(body.error || `Xtream bridge HTTP ${response.status}`);
+    if (!response.ok) {
+      const detail = body.authDebug ? ` · ${body.authDebug}` : '';
+      throw new Error((body.error || `Xtream bridge HTTP ${response.status}`) + detail);
+    }
     return body;
   } finally {
     clearTimeout(timer);
