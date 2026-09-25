@@ -126,11 +126,20 @@ function refreshDiagnosticsMode(){
   if(value)value.textContent=c?(getMode(c)==='manual'?'MANUAL · Your order':'AUTO · Health ranked'):'AUTO · Health ranked';
 }
 
-const observer=new MutationObserver(()=>{ensureEditorControls().catch(()=>{});refreshDiagnosticsMode();});
-observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
-document.addEventListener('click',()=>setTimeout(refreshDiagnosticsMode,0));
-window.addEventListener('webtv:source-order-mode',refreshDiagnosticsMode);
-ensureEditorControls().catch(()=>{});refreshDiagnosticsMode();
+let observer=null;
+function startSourceOrderUi(){
+  if(observer)return;
+  observer=new MutationObserver(()=>{ensureEditorControls().catch(()=>{});refreshDiagnosticsMode();});
+  observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
+  document.addEventListener('click',()=>setTimeout(refreshDiagnosticsMode,0));
+  window.addEventListener('webtv:source-order-mode',refreshDiagnosticsMode);
+  ensureEditorControls().catch(()=>{});
+  refreshDiagnosticsMode();
+  console.info('[WebTV] Source order controls ready · AUTO Health + MANUAL user order + per-channel health reset');
+}
+
+if(window.WebTVPlaylistAPI?.ready)startSourceOrderUi();
+else window.addEventListener('webtv:ready',startSourceOrderUi,{once:true});
 
 window.WebTVSourceOrder={getMode,setMode,resetHealthForChannel};
-console.info('[WebTV] Source order controls loaded · AUTO Health + MANUAL user order + per-channel health reset');
+console.info('[WebTV] Source order controls loaded · waiting for WebTV ready');
