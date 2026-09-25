@@ -7,7 +7,7 @@ import {
   summarizeXtreamChannels,
   xtreamBridgeUrl,
   setXtreamBridgeUrl,
-} from './xtream-client.js?v=20260925-xtream1';
+} from './xtream-client.js?v=20260925-xtream3';
 
 const $ = id => document.getElementById(id);
 let accounts = [];
