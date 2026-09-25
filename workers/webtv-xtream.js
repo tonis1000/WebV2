@@ -1,4 +1,4 @@
-const VERSION = '1.2';
+const VERSION = '1.3';
 const DEFAULT_REGISTRY_URL = 'https://webtv-registry.atonis.workers.dev';
 
 function cors(origin = '*') {
@@ -57,9 +57,10 @@ async function requireAdmin(request, env, origin) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(`${registry.replace(/\/+$/, '')}/api/session`, {
-      method: 'GET',
-      headers: { authorization: `Bearer ${token}` },
+    const response = await fetch(`${registry.replace(/\/+$/, '')}/api/session/validate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
       cache: 'no-store',
       signal: controller.signal,
     });
