@@ -52,11 +52,12 @@ async function markXtreamSavedCards(){
   for(const card of box.querySelectorAll('.playlist-card')){
     const title=card.querySelector('.playlist-card-title strong')?.textContent||'';
     const item=rows.find(x=>x.name===title);if(!item)continue;
-    card.dataset.xtreamAccount=item.url.slice(7);
-    const icon=card.querySelector('.playlist-card-icon');if(icon)icon.textContent='👤';
+    const accountId=item.url.slice(7);
+    if(card.dataset.xtreamAccount!==accountId)card.dataset.xtreamAccount=accountId;
+    const icon=card.querySelector('.playlist-card-icon');if(icon&&icon.textContent!=='👤')icon.textContent='👤';
     const buttons=[...card.querySelectorAll('button')];
-    const load=buttons.find(b=>b.textContent.trim()==='Load');if(load)load.textContent='Load live';
-    const exp=buttons.find(b=>b.textContent.trim()==='Export');if(exp)exp.hidden=true;
+    const load=buttons.find(b=>['Load','Load live'].includes(b.textContent.trim()));if(load&&load.textContent.trim()!=='Load live')load.textContent='Load live';
+    const exp=buttons.find(b=>b.textContent.trim()==='Export');if(exp&&!exp.hidden)exp.hidden=true;
   }
 }
 
@@ -77,26 +78,33 @@ document.addEventListener('click',e=>{
 },true);
 
 function closeMergeDialog(){document.getElementById('xtream-merge-overlay')?.remove();}
+async function putMyChannel(payload){await ensureSession();return reg('/api/my-playlist/channel',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});}
 async function openMergeDialog(channel){
   const source=xtreamSource(channel);if(!source)return;
   const mine=await window.WebTVMyPlaylistAPI?.getMyPlaylist?.()||[];
   closeMergeDialog();
   const overlay=document.createElement('div');overlay.id='xtream-merge-overlay';overlay.className='source-editor-overlay';
   const options=mine.map((c,i)=>`<option value="${i}">${String(c.name||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</option>`).join('');
-  overlay.innerHTML=`<section class="source-editor" role="dialog" aria-modal="true"><div class="source-editor-head"><div><p class="eyebrow">XTREAM → MY PLAYLIST</p><h3>${channel.name}</h3></div><button id="xtream-merge-close" class="button ghost" type="button">Close</button></div><p class="muted small">Διάλεξε αν το κανάλι θα αποθηκευτεί ξεχωριστά ή αν η Xtream πηγή θα προστεθεί σε υπάρχον κανάλι της My Playlist.</p><div style="display:grid;gap:10px"><button id="xtream-save-separate" class="button playlists" type="button">Save as separate channel</button><select id="xtream-merge-target"><option value="">Choose existing channel…</option>${options}</select><button id="xtream-merge-source" class="button" type="button">Add Xtream source to selected channel</button></div></section>`;
+  overlay.innerHTML=`<section class="source-editor" role="dialog" aria-modal="true"><div class="source-editor-head"><div><p class="eyebrow">XTREAM → MY PLAYLIST</p><h3>${String(channel.name||'Xtream channel').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</h3></div><button id="xtream-merge-close" class="button ghost" type="button">Close</button></div><p class="muted small">Διάλεξε αν το κανάλι θα αποθηκευτεί ξεχωριστά ή αν η Xtream πηγή θα προστεθεί σε υπάρχον κανάλι της My Playlist.</p><div style="display:grid;gap:10px"><button id="xtream-save-separate" class="button playlists" type="button">Save as separate channel</button><select id="xtream-merge-target"><option value="-1">Choose existing channel…</option>${options}</select><button id="xtream-merge-source" class="button" type="button">Add Xtream source to selected channel</button></div></section>`;
   document.body.appendChild(overlay);
   $('xtream-merge-close').onclick=closeMergeDialog;overlay.addEventListener('pointerdown',ev=>{if(ev.target===overlay)closeMergeDialog();});
-  $('xtream-save-separate').onclick=async()=>{try{await window.WebTVMyPlaylistAPI.addCurrent();closeMergeDialog();}catch(err){setStatus(err.message,'error');}};
+  $('xtream-save-separate').onclick=async()=>{
+    try{
+      const base=norm(channel.id||channel.originalId||channel.name)||'xtream-channel';
+      let id=base;let n=2;const ids=new Set(mine.map(c=>norm(c.id||c.originalId||c.name)));
+      while(ids.has(id))id=`${base}-xtream-${n++}`;
+      const payload={id,name:channel.name,tvgId:channel.originalId||channel.id||channel.name,logo:channel.logo||'',groupName:channel.group||'Xtream',directUrls:[source],sources:[{url:source,origin:'xtream',priority:100}],position:mine.length,replaceSources:true};
+      await putMyChannel(payload);await window.WebTVMyPlaylistAPI?.reload?.();setStatus(`${channel.name} saved as separate channel`,'ok');closeMergeDialog();
+    }catch(err){setStatus(err.message,'error');}
+  };
   $('xtream-merge-source').onclick=async()=>{
-    const idx=Number($('xtream-merge-target').value);if(!Number.isInteger(idx)||!mine[idx]){setStatus('Choose a My Playlist channel first','error');return;}
+    const idx=Number($('xtream-merge-target').value);if(!Number.isInteger(idx)||idx<0||!mine[idx]){setStatus('Choose a My Playlist channel first','error');return;}
     const target=mine[idx];
     try{
-      await ensureSession();
       const urls=[...new Set([...(target.directUrls||[]),source])];
+      if(urls.length===(target.directUrls||[]).length){setStatus(`This Xtream source is already saved in ${target.name}`,'idle');return;}
       const payload={id:norm(target.id||target.originalId||target.name),name:target.name,tvgId:target.originalId||target.id||target.name,logo:target.logo||'',groupName:target.group||'Other',directUrls:urls,sources:urls.map((url,i)=>({url,origin:url===source?'xtream':'curated',priority:100+i})),position:Number.isFinite(target.position)?target.position:idx,replaceSources:true};
-      await reg('/api/my-playlist/channel',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
-      await window.WebTVMyPlaylistAPI?.reload?.();
-      setStatus(`${channel.name} Xtream source added to ${target.name}`,'ok');closeMergeDialog();
+      await putMyChannel(payload);await window.WebTVMyPlaylistAPI?.reload?.();setStatus(`${channel.name} Xtream source added to ${target.name}`,'ok');closeMergeDialog();
     }catch(err){setStatus(err.message,'error');}
   };
 }
@@ -107,7 +115,8 @@ document.addEventListener('click',e=>{
   e.preventDefault();e.stopImmediatePropagation();openMergeDialog(c).catch(err=>setStatus(err.message,'error'));
 },true);
 
-const observer=new MutationObserver(()=>{ensureSaveButton();markXtreamSavedCards().catch(()=>{});});
+let marking=false;
+const observer=new MutationObserver(()=>{ensureSaveButton();if(marking)return;marking=true;markXtreamSavedCards().catch(()=>{}).finally(()=>{marking=false;});});
 observer.observe(document.documentElement,{childList:true,subtree:true});
 ensureSaveButton();markXtreamSavedCards().catch(()=>{});
 
