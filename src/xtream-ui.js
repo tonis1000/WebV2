@@ -7,7 +7,7 @@ import {
   summarizeXtreamChannels,
   xtreamBridgeUrl,
   setXtreamBridgeUrl,
-} from './xtream-client.js?v=20260925-xtream3';
+} from './xtream-client.js?v=20260925-xtream4';
 
 const $ = id => document.getElementById(id);
 let accounts = [];
@@ -214,7 +214,7 @@ async function runAuthDiagnostics() {
 
   try {
     const r = await fetch(`${xtreamBridgeUrl()}/api/accounts?diag=${Date.now()}`, {
-      headers: token ? { authorization: `Bearer ${token}` } : {},
+      headers: token ? { 'x-webtv-session': token, authorization: `Bearer ${token}` } : {},
       cache: 'no-store',
     });
     let body = '';
