@@ -1,4 +1,4 @@
-const VERSION = '1.0';
+const VERSION = '1.1';
 const SESSION_DAYS = 180;
 
 function cors(origin = '*') {
@@ -83,11 +83,14 @@ function endpoint(server, path) {
   return new URL(path.replace(/^\//, ''), `${normalizeServer(server)}/`).href;
 }
 
+function encryptionSecret(env) {
+  const secret = String(env.XTREAM_ENCRYPTION_KEY || '');
+  if (secret.length < 24) throw new Error('XTREAM_ENCRYPTION_KEY must be configured as a Cloudflare secret');
+  return secret;
+}
+
 async function encryptionKey(env) {
-  if (!env.XTREAM_ENCRYPTION_KEY || String(env.XTREAM_ENCRYPTION_KEY).length < 24) {
-    throw new Error('XTREAM_ENCRYPTION_KEY must be configured as a Cloudflare secret');
-  }
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.XTREAM_ENCRYPTION_KEY));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(encryptionSecret(env)));
   return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
@@ -106,8 +109,9 @@ async function decryptText(value, env) {
   return new TextDecoder().decode(plain);
 }
 
-function randomToken() {
-  return b64url(crypto.getRandomValues(new Uint8Array(24)));
+async function playbackSignature(env, accountId, streamId) {
+  const sig = await hmac(encryptionSecret(env), `xtream-playback:v1:${accountId}:${streamId}`);
+  return b64url(sig).slice(0, 32);
 }
 
 async function ensureTable(env) {
@@ -117,7 +121,6 @@ async function ensureTable(env) {
     server TEXT NOT NULL,
     username_enc TEXT NOT NULL,
     password_enc TEXT NOT NULL,
-    playback_key TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`).run();
@@ -137,8 +140,7 @@ async function providerJson(server, username, password, action = '') {
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`Xtream provider HTTP ${response.status}`);
-    const data = await response.json();
-    return data;
+    return await response.json();
   } finally {
     clearTimeout(timer);
   }
@@ -167,7 +169,7 @@ async function listAccounts(env) {
 
 async function getAccount(env, id) {
   await ensureTable(env);
-  return env.DB.prepare(`SELECT id,name,server,username_enc AS usernameEnc,password_enc AS passwordEnc,playback_key AS playbackKey,created_at AS createdAt,updated_at AS updatedAt FROM xtream_accounts WHERE id=?`).bind(id).first();
+  return env.DB.prepare(`SELECT id,name,server,username_enc AS usernameEnc,password_enc AS passwordEnc,created_at AS createdAt,updated_at AS updatedAt FROM xtream_accounts WHERE id=?`).bind(id).first();
 }
 
 async function saveAccount(env, payload) {
@@ -179,14 +181,12 @@ async function saveAccount(env, payload) {
   const tested = await validateAccount(server, username, password);
   const id = clean(payload.id) || `xt_${crypto.randomUUID()}`;
   const name = clean(payload.name) || new URL(server).host;
-  const existing = await getAccount(env, id);
-  const playbackKey = existing?.playbackKey || randomToken();
   const usernameEnc = await encryptText(username, env);
   const passwordEnc = await encryptText(password, env);
-  await env.DB.prepare(`INSERT INTO xtream_accounts(id,name,server,username_enc,password_enc,playback_key,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+  await env.DB.prepare(`INSERT INTO xtream_accounts(id,name,server,username_enc,password_enc,created_at,updated_at)
+    VALUES(?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET name=excluded.name,server=excluded.server,username_enc=excluded.username_enc,password_enc=excluded.password_enc,updated_at=CURRENT_TIMESTAMP`)
-    .bind(id, name, server, usernameEnc, passwordEnc, playbackKey).run();
+    .bind(id, name, server, usernameEnc, passwordEnc).run();
   return { id, name, server, tested };
 }
 
@@ -202,9 +202,10 @@ async function accountCredentials(env, row) {
   };
 }
 
-function buildPlaybackUrl(requestUrl, account, streamId) {
+async function buildPlaybackUrl(requestUrl, env, accountId, streamId) {
   const url = new URL(requestUrl);
-  return `${url.origin}/stream/${encodeURIComponent(account.id)}/${encodeURIComponent(streamId)}.m3u8?k=${encodeURIComponent(account.playbackKey)}`;
+  const sig = await playbackSignature(env, accountId, streamId);
+  return `${url.origin}/stream/${encodeURIComponent(accountId)}/${encodeURIComponent(streamId)}.m3u8?s=${encodeURIComponent(sig)}`;
 }
 
 async function channelsForAccount(request, env, account) {
@@ -214,8 +215,10 @@ async function channelsForAccount(request, env, account) {
     providerJson(account.server, creds.username, creds.password, 'get_live_streams'),
   ]);
   const categoryMap = new Map((Array.isArray(categories) ? categories : []).map(c => [String(c.category_id), clean(c.category_name) || 'Xtream']));
-  return (Array.isArray(streams) ? streams : []).map(stream => {
+  const rows = Array.isArray(streams) ? streams : [];
+  return Promise.all(rows.map(async stream => {
     const streamId = String(stream.stream_id ?? '').trim();
+    if (!streamId) return null;
     return {
       id: `xtream:${account.id}:${streamId}`,
       streamId,
@@ -224,17 +227,17 @@ async function channelsForAccount(request, env, account) {
       logo: clean(stream.stream_icon),
       group: categoryMap.get(String(stream.category_id)) || 'Xtream',
       categoryId: String(stream.category_id ?? ''),
-      playbackUrl: buildPlaybackUrl(request.url, account, streamId),
+      playbackUrl: await buildPlaybackUrl(request.url, env, account.id, streamId),
     };
-  }).filter(channel => channel.streamId);
+  })).then(items => items.filter(Boolean));
 }
 
 async function streamRedirect(request, env, accountId, streamId, origin) {
   const account = await getAccount(env, accountId);
   if (!account) return json({ error: 'Xtream account not found' }, 404, origin);
-  const requestUrl = new URL(request.url);
-  const key = requestUrl.searchParams.get('k') || '';
-  if (!key || key !== account.playbackKey) return json({ error: 'Invalid playback key' }, 403, origin);
+  const supplied = fromB64url(new URL(request.url).searchParams.get('s') || '');
+  const expected = fromB64url(await playbackSignature(env, accountId, streamId));
+  if (!safeEqual(supplied, expected)) return json({ error: 'Invalid playback signature' }, 403, origin);
   const creds = await accountCredentials(env, account);
   const upstream = `${account.server}/live/${encodeURIComponent(creds.username)}/${encodeURIComponent(creds.password)}/${encodeURIComponent(streamId)}.m3u8`;
   return Response.redirect(upstream, 302);
