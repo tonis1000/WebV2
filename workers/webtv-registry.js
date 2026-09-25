@@ -105,9 +105,10 @@ function toM3u(channels){const lines=['#EXTM3U'];for(const c of channels){const 
 export default{async fetch(request,env){
   const origin=requestOrigin(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});if(!env.DB)return json({error:'D1 binding DB is not configured'},503,origin);const url=new URL(request.url),path=url.pathname.replace(/\/+$/,'')||'/';
   try{
-    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
+    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
     if(path==='/api/login'&&request.method==='POST')return await pinLogin(request,env,origin);
     if(path==='/api/session'&&request.method==='GET'){const auth=request.headers.get('authorization')||'',token=auth.replace(/^Bearer\s+/i,'').trim();const ok=await verifySession(token,env);return json({ok},ok?200:401,origin);}
+    if(path==='/api/session/validate'&&request.method==='POST'){const body=await readJson(request);const ok=await verifySession(clean(body.token),env);return json({ok},ok?200:401,origin);}
     if(path==='/playlist.m3u'&&request.method==='GET')return text(toM3u(await myPlaylist(env)),200,'audio/x-mpegurl;charset=utf-8',origin);
     if(path==='/api/playlists'&&request.method==='GET')return json({playlists:await listPlaylists(env)},200,origin);
     if(path==='/api/playlists'&&request.method==='POST'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;return json({ok:true,playlist:await upsertSavedPlaylist(env,await readJson(request))},200,origin);}
