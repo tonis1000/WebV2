@@ -33,6 +33,28 @@ function selectedMode() {
   return document.querySelector('input[name="playlist-mode"]:checked')?.value || 'replace';
 }
 
+function activatePreviewChannel(channel) {
+  const bridge = window.WebTVPlaylistAPI;
+  const catalog = bridge?.getChannels?.() || [];
+  const wantedId = String(channel?.tvgId || channel?.id || channel?.streamId || channel?.name || '');
+  const match = catalog.find(item => {
+    const itemId = String(item?.originalId || item?.id || item?.name || '');
+    return (wantedId && itemId === wantedId) || String(item?.name || '') === String(channel?.name || '');
+  });
+  if (!match) {
+    setStatus(`Could not find ${channel?.name || 'channel'} in the temporary sidebar`, 'error');
+    return;
+  }
+  const row = [...document.querySelectorAll('#channel-list [data-channel-id]')]
+    .find(el => String(el.dataset.channelId || '') === String(match.id || ''));
+  if (!row) {
+    setStatus(`Channel row for ${channel?.name || 'channel'} is not available`, 'error');
+    return;
+  }
+  row.click();
+  setStatus(`${channel.name} selected · close Playlist Manager to view playback`, 'ok');
+}
+
 function renderPreview(channels, account) {
   const box = $('playlist-preview');
   if (!box) return;
@@ -44,14 +66,18 @@ function renderPreview(channels, account) {
   box.appendChild(top);
   const chips = document.createElement('div');
   chips.className = 'playlist-preview-chips';
-  for (const name of summary.sample) {
-    const chip = document.createElement('span');
-    chip.textContent = name;
+  for (const channel of channels.slice(0, 8)) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'button ghost mini';
+    chip.textContent = channel.name;
+    chip.title = `Play ${channel.name}`;
+    chip.addEventListener('click', () => activatePreviewChannel(channel));
     chips.appendChild(chip);
   }
-  if (summary.count > summary.sample.length) {
+  if (summary.count > 8) {
     const more = document.createElement('span');
-    more.textContent = `+${summary.count - summary.sample.length} more`;
+    more.textContent = `+${summary.count - 8} more`;
     chips.appendChild(more);
   }
   box.appendChild(chips);
@@ -132,7 +158,7 @@ async function loadSelectedAccount() {
     const label = `Xtream · ${loaded.account?.name || loaded.account?.server || accountId}`;
     const result = bridge.applyText(text, { mode: selectedMode(), label });
     renderPreview(loaded.channels, loaded.account);
-    setStatus(`${result.imported} Xtream channels loaded temporarily · ${selectedMode()}`, 'ok');
+    setStatus(`${result.imported} Xtream channels loaded temporarily · ${selectedMode()} · click a channel below to play`, 'ok');
   } catch (error) {
     setStatus(error.message, 'error');
   }
