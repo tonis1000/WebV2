@@ -34,27 +34,28 @@ async function ensureTrustedSession() {
   if (auth?.ensureSession) {
     const ok = await auth.ensureSession({ interactive: true });
     if (!ok) throw new Error('Trusted-device session is required');
-    return;
+  } else if (!registryToken()) {
+    throw new Error('Trusted-device session is required');
   }
-  if (!registryToken()) throw new Error('Trusted-device session is required');
-}
 
-function authHeaders(json = false) {
-  const headers = {};
-  if (json) headers['content-type'] = 'application/json';
   const token = registryToken();
-  if (token) headers.authorization = `Bearer ${token}`;
-  return headers;
+  if (!token) throw new Error('Trusted-device session is required');
+  return token;
 }
 
-async function bridgeFetch(path, options = {}, { timeoutMs = 15000, requireAuth = true } = {}) {
-  if (requireAuth) await ensureTrustedSession();
+async function bridgeFetch(path, options = {}, { timeoutMs = 15000, requireAuth = true, json = false } = {}) {
+  const token = requireAuth ? await ensureTrustedSession() : '';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const headers = new Headers(options.headers || {});
+    if (json && !headers.has('content-type')) headers.set('content-type', 'application/json');
+    if (token) headers.set('authorization', `Bearer ${token}`);
+
     const response = await fetch(`${xtreamBridgeUrl()}${path}`, {
       cache: 'no-store',
       ...options,
+      headers,
       signal: controller.signal,
     });
     let body = {};
@@ -67,7 +68,7 @@ async function bridgeFetch(path, options = {}, { timeoutMs = 15000, requireAuth 
 }
 
 export async function listXtreamAccounts() {
-  const result = await bridgeFetch('/api/accounts', { headers: authHeaders() });
+  const result = await bridgeFetch('/api/accounts');
   return Array.isArray(result.accounts) ? result.accounts : [];
 }
 
@@ -75,25 +76,19 @@ export async function saveXtreamAccount({ id = '', name = '', server = '', usern
   if (!server || !username || !password) throw new Error('Server, username and password are required');
   const result = await bridgeFetch('/api/accounts', {
     method: 'POST',
-    headers: authHeaders(true),
     body: JSON.stringify({ id, name, server, username, password }),
-  }, { timeoutMs: 20000 });
+  }, { timeoutMs: 20000, json: true });
   return result.account;
 }
 
 export async function deleteXtreamAccount(id) {
   if (!id) return;
-  await bridgeFetch(`/api/accounts/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  });
+  await bridgeFetch(`/api/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 export async function loadXtreamChannels(accountId) {
   if (!accountId) throw new Error('Choose an Xtream account');
-  const result = await bridgeFetch(`/api/accounts/${encodeURIComponent(accountId)}/channels`, {
-    headers: authHeaders(),
-  }, { timeoutMs: 25000 });
+  const result = await bridgeFetch(`/api/accounts/${encodeURIComponent(accountId)}/channels`, {}, { timeoutMs: 25000 });
   return {
     account: result.account || null,
     channels: Array.isArray(result.channels) ? result.channels : [],
