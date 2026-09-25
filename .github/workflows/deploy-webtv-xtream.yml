@@ -99,6 +99,10 @@ jobs:
           [vars]
           REGISTRY_URL = "$REGISTRY_URL"
 
+          [[services]]
+          binding = "REGISTRY"
+          service = "webtv-registry"
+
           [[d1_databases]]
           binding = "DB"
           database_name = "$D1_DATABASE_NAME"
@@ -131,12 +135,12 @@ jobs:
               "$XTREAM_URL/api/status?verify=${GITHUB_SHA}-${attempt}" \
               -o /tmp/webtv-xtream-status.json; then
               cat /tmp/webtv-xtream-status.json
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-xtream-status.json','utf8'));process.exit(j.version==='1.4'&&j.service==='WebTV Xtream Bridge'?0:1)"; then
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-xtream-status.json','utf8'));process.exit(j.version==='1.5'&&j.service==='WebTV Xtream Bridge'&&j.registryBinding===true?0:1)"; then
                 exit 0
               fi
             fi
             echo "Waiting for Cloudflare propagation · attempt $attempt/30"
             sleep 3
           done
-          echo '::error::Xtream Worker did not expose v1.4 after 90 seconds'
+          echo '::error::Xtream Worker did not expose v1.5 with Registry service binding after 90 seconds'
           exit 1
