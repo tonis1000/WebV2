@@ -6,4 +6,4 @@ try{
 
 // Xtream source UI is loaded here so index.html does not need another entry point.
 // It injects its card into Playlist Manager and reuses WebTVPlaylistAPI at click time.
-import './xtream-ui.js?v=20260925-xtream1';
+import './xtream-ui.js?v=20260925-xtream2';
