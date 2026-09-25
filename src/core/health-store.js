@@ -9,6 +9,7 @@ export class HealthStore {
     this.storageKey = storageKey;
     this.map = this.#load();
     this.#prune();
+    try { window.WebTVHealthStore = this; } catch {}
   }
   #load() {
     const parse = raw => {
@@ -103,6 +104,18 @@ export class HealthStore {
   isCoolingDown(value) { return (this.get(value)?.cooldownUntil || 0) > Date.now(); }
   cooldownRemainingMs(value) { return Math.max(0, (this.get(value)?.cooldownUntil || 0) - Date.now()); }
   score(value) { return scoreHealthEntry(this.get(value)); }
+  clearValues(values = []) {
+    let removed = 0;
+    for (const value of values) {
+      const key = this.#key(value);
+      if (key && Object.prototype.hasOwnProperty.call(this.map, key)) {
+        delete this.map[key];
+        removed += 1;
+      }
+    }
+    if (removed) this.#save();
+    return removed;
+  }
   clear() {
     this.map = {};
     try {
