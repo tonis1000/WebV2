@@ -1,0 +1,127 @@
+name: Deploy WebTV Xtream Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'workers/webtv-xtream.js'
+      - '.github/workflows/deploy-webtv-xtream.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-webtv-xtream
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
+  XTREAM_WORKER_NAME: webtv-xtream
+  XTREAM_URL: https://webtv-xtream.atonis.workers.dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Worker syntax
+        shell: bash
+        run: node --input-type=module --check < workers/webtv-xtream.js
+
+      - name: Validate Cloudflare token
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not configured as a GitHub Actions secret"
+            exit 1
+          fi
+
+      - name: Resolve existing D1 database
+        id: d1
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OPTIONAL_D1_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "${OPTIONAL_D1_ID:-}" ]; then
+            echo "database_id=$OPTIONAL_D1_ID" >> "$GITHUB_OUTPUT"
+            echo "database_name=webtv-registry" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          npx --yes wrangler@latest d1 list --json > /tmp/d1.json
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs');
+          const raw = JSON.parse(fs.readFileSync('/tmp/d1.json', 'utf8'));
+          const rows = Array.isArray(raw) ? raw : (raw.result || raw.databases || []);
+          const normalized = rows.map(x => ({ id: x.uuid || x.id || x.database_id, name: x.name || x.database_name || '' })).filter(x => x.id);
+          let chosen = normalized.find(x => x.name === 'webtv-registry');
+          if (!chosen) chosen = normalized.find(x => /webtv.*registry|registry.*webtv/i.test(x.name));
+          if (!chosen && normalized.length === 1) chosen = normalized[0];
+          if (!chosen) {
+            console.error('Could not identify the WebTV D1 database. Set CLOUDFLARE_D1_DATABASE_ID.');
+            process.exit(1);
+          }
+          console.log(`database_id=${chosen.id}`);
+          console.log(`database_name=${chosen.name || 'webtv-registry'}`);
+          NODE
+
+      - name: Build temporary Wrangler config
+        shell: bash
+        env:
+          D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
+          D1_DATABASE_NAME: ${{ steps.d1.outputs.database_name }}
+        run: |
+          set -euo pipefail
+          cat > wrangler.xtream.ci.toml <<EOF
+          name = "$XTREAM_WORKER_NAME"
+          main = "workers/webtv-xtream.js"
+          compatibility_date = "2026-09-25"
+          workers_dev = true
+          preview_urls = false
+          keep_vars = true
+
+          [secrets]
+          required = ["ADMIN_TOKEN", "XTREAM_ENCRYPTION_KEY"]
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "$D1_DATABASE_NAME"
+          database_id = "$D1_DATABASE_ID"
+          EOF
+
+      - name: Deploy Xtream Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.xtream.ci.toml --keep-vars
+
+      - name: Verify live Xtream Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              -H 'Cache-Control: no-cache' \
+              "$XTREAM_URL/api/status?verify=${GITHUB_SHA}-${attempt}" \
+              -o /tmp/webtv-xtream-status.json; then
+              cat /tmp/webtv-xtream-status.json
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-xtream-status.json','utf8'));process.exit(j.version==='1.1'&&j.service==='WebTV Xtream Bridge'?0:1)"; then
+                exit 0
+              fi
+            fi
+            echo "Waiting for Cloudflare propagation · attempt $attempt/30"
+            sleep 3
+          done
+          echo '::error::Xtream Worker did not expose v1.1 after 90 seconds'
+          exit 1
