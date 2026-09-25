@@ -20,6 +20,15 @@ function setStatus(text, tone = 'idle') {
   el.dataset.tone = tone;
 }
 
+async function ensureUiSession() {
+  const auth = window.WebTVRegistryAuth;
+  if (!auth?.ensureSession) throw new Error('Trusted-device auth is not ready. Reload the page once.');
+  setStatus('Checking trusted-device access…', 'busy');
+  const ok = await auth.ensureSession({ interactive: true });
+  if (!ok) throw new Error('Trusted-device session required');
+  return true;
+}
+
 function selectedMode() {
   return document.querySelector('input[name="playlist-mode"]:checked')?.value || 'replace';
 }
@@ -66,18 +75,22 @@ function renderAccounts() {
   if (accounts.some(a => a.id === current)) select.value = current;
 }
 
-async function refreshAccounts({ quiet = false } = {}) {
+async function refreshAccounts({ quiet = false, interactive = true } = {}) {
   try {
+    if (interactive) await ensureUiSession();
     if (!quiet) setStatus('Loading Xtream accounts…', 'busy');
     accounts = await listXtreamAccounts();
     renderAccounts();
     if (!quiet) setStatus(`${accounts.length} Xtream account${accounts.length === 1 ? '' : 's'} ready`, 'ok');
+    return accounts;
   } catch (error) {
-    setStatus(error.message, 'error');
+    if (!quiet) setStatus(error.message, 'error');
+    throw error;
   }
 }
 
 async function connectAndSave() {
+  const button = $('xtream-connect-save');
   const name = $('xtream-name')?.value.trim() || '';
   const server = $('xtream-server')?.value.trim() || '';
   const username = $('xtream-username')?.value.trim() || '';
@@ -87,14 +100,18 @@ async function connectAndSave() {
     return;
   }
   try {
+    if (button) button.disabled = true;
+    await ensureUiSession();
     setStatus('Testing Xtream login and saving securely…', 'busy');
     const account = await saveXtreamAccount({ name, server, username, password });
     $('xtream-password').value = '';
-    await refreshAccounts({ quiet: true });
+    await refreshAccounts({ quiet: true, interactive: false });
     $('xtream-account-select').value = account.id;
     setStatus(`${account.name || account.server} connected · credentials stored encrypted in D1`, 'ok');
   } catch (error) {
-    setStatus(error.message, 'error');
+    setStatus(`Xtream test failed · ${error.message}`, 'error');
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -105,6 +122,7 @@ async function loadSelectedAccount() {
     return;
   }
   try {
+    await ensureUiSession();
     setStatus('Loading Xtream live channels…', 'busy');
     loaded = await loadXtreamChannels(accountId);
     if (!loaded.channels.length) throw new Error('No live channels returned by this Xtream account');
@@ -126,10 +144,11 @@ async function removeSelectedAccount() {
   const account = accounts.find(a => a.id === accountId);
   if (!confirm(`Delete Xtream account “${account?.name || account?.server || accountId}”? Channels already saved in My Playlist will stop working until their source is replaced.`)) return;
   try {
+    await ensureUiSession();
     setStatus('Deleting Xtream account…', 'busy');
     await deleteXtreamAccount(accountId);
     loaded = null;
-    await refreshAccounts({ quiet: true });
+    await refreshAccounts({ quiet: true, interactive: false });
     setStatus('Xtream account deleted', 'idle');
   } catch (error) {
     setStatus(error.message, 'error');
@@ -185,7 +204,7 @@ function injectUi() {
         <button id="xtream-save-bridge" class="button ghost" type="button">Save</button>
       </div>
     </details>
-    <div id="xtream-status" class="playlist-manager-status" data-tone="idle">Xtream ready</div>
+    <div id="xtream-status" class="playlist-manager-status" data-tone="idle">Xtream ready · press Test & Save</div>
   `;
   grid.appendChild(card);
 
@@ -195,7 +214,8 @@ function injectUi() {
   $('xtream-delete')?.addEventListener('click', removeSelectedAccount);
   $('xtream-save-bridge')?.addEventListener('click', saveBridgeSetting);
 
-  refreshAccounts({ quiet: true });
+  const token = window.WebTVRegistryAuth?.token?.() || '';
+  if (token) refreshAccounts({ quiet: true, interactive: false }).catch(() => {});
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectUi, { once: true });
