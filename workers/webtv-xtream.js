@@ -1,11 +1,11 @@
-const VERSION = '1.3';
+const VERSION = '1.4';
 const DEFAULT_REGISTRY_URL = 'https://webtv-registry.atonis.workers.dev';
 
 function cors(origin = '*') {
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type,authorization',
+    'access-control-allow-headers': 'content-type,authorization,x-webtv-session',
     'access-control-max-age': '86400',
   };
 }
@@ -49,9 +49,11 @@ function safeEqual(a, b) {
 }
 
 async function requireAdmin(request, env, origin) {
+  const customToken = clean(request.headers.get('x-webtv-session'));
   const auth = request.headers.get('authorization') || '';
-  const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!token) return json({ error: 'Trusted-device session required' }, 401, origin);
+  const bearerToken = auth.replace(/^Bearer\s+/i, '').trim();
+  const token = customToken || bearerToken;
+  if (!token) return json({ error: 'Trusted-device session required', authDebug: 'missing-session-header' }, 401, origin);
 
   const registry = clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL;
   const controller = new AbortController();
@@ -64,7 +66,7 @@ async function requireAdmin(request, env, origin) {
       cache: 'no-store',
       signal: controller.signal,
     });
-    if (!response.ok) return json({ error: 'Trusted-device session required' }, 401, origin);
+    if (!response.ok) return json({ error: 'Trusted-device session required', authDebug: 'registry-rejected-session' }, 401, origin);
     return null;
   } catch {
     return json({ error: 'Registry session validation unavailable' }, 503, origin);
