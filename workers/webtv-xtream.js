@@ -1,11 +1,12 @@
-const VERSION = '1.6';
+const VERSION = '1.7';
 const DEFAULT_REGISTRY_URL = 'https://webtv-registry.atonis.workers.dev';
 
 function cors(origin = '*') {
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type,authorization,x-webtv-session',
+    'access-control-allow-headers': 'content-type,authorization,x-webtv-session,range',
+    'access-control-expose-headers': 'content-length,content-range,accept-ranges',
     'access-control-max-age': '86400',
   };
 }
@@ -244,7 +245,79 @@ async function channelsForAccount(request, env, account) {
   })).then(items => items.filter(Boolean));
 }
 
-async function streamRedirect(request, env, accountId, streamId, origin) {
+function isManifestResponse(response, targetUrl) {
+  const type = (response.headers.get('content-type') || '').toLowerCase();
+  return type.includes('mpegurl') || type.includes('m3u8') || new URL(targetUrl).pathname.toLowerCase().endsWith('.m3u8');
+}
+
+async function proxyUrlFor(requestUrl, env, absoluteTarget) {
+  const token = await encryptText(absoluteTarget, env);
+  const base = new URL(requestUrl);
+  return `${base.origin}/hls-proxy?u=${encodeURIComponent(token)}`;
+}
+
+async function rewriteManifest(text, finalUrl, requestUrl, env) {
+  const rewrite = async ref => {
+    const value = String(ref || '').trim();
+    if (!value || value.startsWith('data:')) return value;
+    const absolute = new URL(value, finalUrl).href;
+    return proxyUrlFor(requestUrl, env, absolute);
+  };
+
+  const out = [];
+  for (const rawLine of String(text).split(/\r?\n/)) {
+    let line = rawLine;
+    if (line.startsWith('#')) {
+      const matches = [...line.matchAll(/URI="([^"]+)"/g)];
+      for (const match of matches) {
+        const proxied = await rewrite(match[1]);
+        line = line.replace(match[0], `URI="${proxied}"`);
+      }
+      out.push(line);
+      continue;
+    }
+    if (line.trim()) line = await rewrite(line.trim());
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+async function fetchUpstream(targetUrl, request) {
+  const headers = new Headers();
+  const range = request.headers.get('range');
+  if (range) headers.set('range', range);
+  headers.set('user-agent', 'Mozilla/5.0 WebTV-V2 Xtream Bridge');
+  return fetch(targetUrl, { headers, redirect: 'follow', cache: 'no-store' });
+}
+
+async function proxyUpstream(request, env, targetUrl, origin) {
+  const response = await fetchUpstream(targetUrl, request);
+  if (!response.ok && response.status !== 206) {
+    let preview = '';
+    try { preview = (await response.text()).replace(/\s+/g, ' ').slice(0, 120); } catch {}
+    return json({ error: `Xtream stream HTTP ${response.status}${preview ? ` · ${preview}` : ''}` }, response.status, origin);
+  }
+
+  const headers = new Headers(cors(origin));
+  const copyHeaders = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified'];
+  for (const key of copyHeaders) {
+    const value = response.headers.get(key);
+    if (value) headers.set(key, value);
+  }
+  headers.set('cache-control', 'no-store');
+
+  if (isManifestResponse(response, response.url || targetUrl)) {
+    const text = await response.text();
+    const rewritten = await rewriteManifest(text, response.url || targetUrl, request.url, env);
+    headers.set('content-type', 'application/vnd.apple.mpegurl;charset=utf-8');
+    headers.delete('content-length');
+    return new Response(rewritten, { status: 200, headers });
+  }
+
+  return new Response(response.body, { status: response.status, headers });
+}
+
+async function streamProxy(request, env, accountId, streamId, origin) {
   const account = await getAccount(env, accountId);
   if (!account) return json({ error: 'Xtream account not found' }, 404, origin);
   const supplied = fromB64url(new URL(request.url).searchParams.get('s') || '');
@@ -252,7 +325,17 @@ async function streamRedirect(request, env, accountId, streamId, origin) {
   if (!safeEqual(supplied, expected)) return json({ error: 'Invalid playback signature' }, 403, origin);
   const creds = await accountCredentials(env, account);
   const upstream = `${account.server}/live/${encodeURIComponent(creds.username)}/${encodeURIComponent(creds.password)}/${encodeURIComponent(streamId)}.m3u8`;
-  return Response.redirect(upstream, 302);
+  return proxyUpstream(request, env, upstream, origin);
+}
+
+async function encryptedProxy(request, env, origin) {
+  const token = new URL(request.url).searchParams.get('u') || '';
+  if (!token) return json({ error: 'Missing HLS proxy target' }, 400, origin);
+  let target = '';
+  try { target = await decryptText(token, env); }
+  catch { return json({ error: 'Invalid HLS proxy target' }, 403, origin); }
+  if (!/^https?:\/\//i.test(target)) return json({ error: 'Invalid HLS proxy URL' }, 400, origin);
+  return proxyUpstream(request, env, target, origin);
 }
 
 export default {
@@ -267,12 +350,16 @@ export default {
       if (path === '/' || path === '/api/status') {
         await ensureTable(env);
         const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM xtream_accounts`).first();
-        return json({ ok: true, service: 'WebTV Xtream Bridge', version: VERSION, accounts: Number(row?.n || 0), registryUrl: clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL, registryBinding: Boolean(env.REGISTRY?.fetch) }, 200, origin);
+        return json({ ok: true, service: 'WebTV Xtream Bridge', version: VERSION, accounts: Number(row?.n || 0), registryUrl: clean(env.REGISTRY_URL) || DEFAULT_REGISTRY_URL, registryBinding: Boolean(env.REGISTRY?.fetch), hlsProxy: true }, 200, origin);
+      }
+
+      if (path === '/hls-proxy' && request.method === 'GET') {
+        return encryptedProxy(request, env, origin);
       }
 
       const streamMatch = path.match(/^\/stream\/([^/]+)\/([^/]+)\.m3u8$/);
       if (streamMatch && request.method === 'GET') {
-        return streamRedirect(request, env, decodeURIComponent(streamMatch[1]), decodeURIComponent(streamMatch[2]), origin);
+        return streamProxy(request, env, decodeURIComponent(streamMatch[1]), decodeURIComponent(streamMatch[2]), origin);
       }
 
       if (path === '/api/accounts' && request.method === 'GET') {
