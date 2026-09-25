@@ -8,4 +8,4 @@ try{
 // It injects its card into Playlist Manager and reuses WebTVPlaylistAPI at click time.
 import './xtream-ui.js?v=20260925-xtream6';
 import './xtream-preview-actions.js?v=20260925-xtream-click1';
-import './xtream-enhancements.js?v=20260925-xtream-enh1';
+import './xtream-enhancements.js?v=20260925-xtream-enh2';
