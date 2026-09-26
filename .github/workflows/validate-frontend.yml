@@ -10,10 +10,12 @@ on:
       - 'tests/**/*.mjs'
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-source-verifier.js'
+      - 'workers/webtv-source-discovery.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
       - '.github/workflows/deploy-source-verifier.yml'
+      - '.github/workflows/deploy-source-discovery.yml'
   pull_request:
     paths:
       - 'index.html'
@@ -21,10 +23,12 @@ on:
       - 'tests/**/*.mjs'
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-source-verifier.js'
+      - 'workers/webtv-source-discovery.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
       - '.github/workflows/deploy-source-verifier.yml'
+      - '.github/workflows/deploy-source-discovery.yml'
 
 permissions:
   contents: read
@@ -55,6 +59,9 @@ jobs:
       - name: Validate Source Verifier Worker syntax
         run: node --input-type=module --check < workers/webtv-source-verifier.js
 
+      - name: Validate Source Discovery Worker syntax
+        run: node --input-type=module --check < workers/webtv-source-discovery.js
+
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
 
@@ -76,10 +83,16 @@ jobs:
       - name: Run Source Verifier Worker regression test
         run: node tests/source-verifier-worker.test.mjs
 
-      - name: Run Discovery Phase 3 isolation regression test
+      - name: Run external discovery client regression test
+        run: node tests/discovery-external.test.mjs
+
+      - name: Run Source Discovery Worker regression test
+        run: node tests/source-discovery-worker.test.mjs
+
+      - name: Run Discovery Phase 4 isolation regression test
         run: node tests/discovery-isolation.test.mjs
 
-      - name: Run Discovery Phase 3 browser smoke test
+      - name: Run Discovery Phase 4 browser smoke test
         run: node tests/discovery-browser-smoke.mjs
 
       - name: Run frontend integration audit
