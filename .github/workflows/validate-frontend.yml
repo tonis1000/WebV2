@@ -67,6 +67,8 @@ jobs:
         run: node tests/xtream-client.test.mjs
       - name: Run authorized Xtream discovery regression test
         run: node tests/authorized-xtream-discovery.test.mjs
+      - name: Run explicit Discovery promotion regression test
+        run: node tests/discovery-promotion.test.mjs
       - name: Run Discovery candidate/state regression test
         run: node tests/discovery-candidate.test.mjs
       - name: Run Discovery local-source regression test
