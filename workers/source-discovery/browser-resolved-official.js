@@ -66,6 +66,14 @@ function safeDiagnostics(value={}){
     after:side(value?.after),
   };
 }
+function safeObservationSummary(observations=[]){
+  return observations.slice(0,8).map(observation=>{
+    let host='';
+    try{host=new URL(String(observation?.url||'')).hostname.toLowerCase();}catch{}
+    const headers=sanitizeHeaders(observation?.headers);
+    return{sourceType:typeOf(String(observation?.url||'')),host,resourceType:String(observation?.resourceType||'').slice(0,40),headerNames:Object.keys(headers)};
+  }).filter(item=>item.host&&item.sourceType);
+}
 
 async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
   const binding=env.BROWSER_RESOLVER;
@@ -98,9 +106,9 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
       seen.add(url);candidates.push(mediaCandidate(channel,entry,observation,pageUrl));
       if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;
     }
-    return{status:response.status,candidates,observationCount:observations.length,error:'',endpoint:endpointLabel,diagnostics:safeDiagnostics(payload?.diagnostics)};
+    return{status:response.status,candidates,observationCount:observations.length,observedMedia:safeObservationSummary(observations),error:'',endpoint:endpointLabel,diagnostics:safeDiagnostics(payload?.diagnostics)};
   }catch(error){
-    return{status:error?.name==='AbortError'?408:0,candidates:[],observationCount:0,error:error?.message||String(error),endpoint:endpointLabel,diagnostics:safeDiagnostics()};
+    return{status:error?.name==='AbortError'?408:0,candidates:[],observationCount:0,observedMedia:[],error:error?.message||String(error),endpoint:endpointLabel,diagnostics:safeDiagnostics()};
   }finally{clearTimeout(timer);}
 }
 
@@ -115,7 +123,7 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   const reports=[];const candidates=[];const seen=new Set();
   for(const pageUrl of browserPages.slice(0,2)){
     const result=await resolvePage({pageUrl,channel,entry,env,fetchImpl});
-    reports.push({url:pageUrl,status:result.status,observations:result.observationCount,matches:result.candidates.length,error:result.error,endpoint:result.endpoint,diagnostics:result.diagnostics});
+    reports.push({url:pageUrl,status:result.status,observations:result.observationCount,observedMedia:result.observedMedia,matches:result.candidates.length,error:result.error,endpoint:result.endpoint,diagnostics:result.diagnostics});
     for(const candidate of result.candidates){if(seen.has(candidate.sourceUrl))continue;seen.add(candidate.sourceUrl);candidates.push(candidate);if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;}
     if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;
   }
@@ -127,4 +135,4 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   };
 }
 
-export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics };
+export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary };
