@@ -7,6 +7,12 @@ const MAX_OBSERVATIONS=24;
 const ALLOWED_PAGE_HOSTS=new Set(['live.ertflix.gr','www.antenna.gr']);
 const APPROVED_HEADER_NAMES=new Set(['user-agent','referer','origin']);
 const MEDIA_RE=/\.(?:m3u8|mpd|mp4|webm)(?:[?#]|$)/i;
+const ERT_CHANNEL_LABELS=Object.freeze({
+  ert1:['ert1','ερτ1'],
+  ert2:['ert2','ερτ2'],
+  ert3:['ert3','ερτ3'],
+  ertnews:['ertnews','ερτnews','ertνεws'],
+});
 
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json;charset=utf-8','cache-control':'no-store'}});}
 function authorized(request,env){
@@ -37,7 +43,10 @@ function timeoutFrom(body={}){
   return Math.max(2500,Math.min(MAX_TIMEOUT_MS,requested));
 }
 function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
-function cleanLabel(value=''){return String(value||'').replace(/\s+/g,' ').trim().slice(0,80);}
+function normalizedChannelKey(channel={}){
+  const value=String(channel.id||channel.originalId||channel.tvgId||channel.name||'');
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,'');
+}
 
 async function pageDiagnostics(page){
   try{
@@ -55,6 +64,25 @@ async function pageDiagnostics(page){
       };
     });
   }catch{return{title:'',pathname:'',videoCount:0,iframeCount:0,buttonCount:0,iframeHosts:[],buttonLabels:[]};}
+}
+
+async function clickSelectedChannel(page,channel={}){
+  const key=normalizedChannelKey(channel);
+  const targets=ERT_CHANNEL_LABELS[key]||[];
+  if(!targets.length)return{clicked:false,label:''};
+  try{
+    return await page.evaluate(targetsIn=>{
+      const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,'');
+      const targets=new Set(targetsIn.map(normalize));
+      const nodes=[...document.querySelectorAll('button,[role="button"],a')];
+      for(const node of nodes){
+        const raw=String(node.getAttribute('aria-label')||node.textContent||node.title||'').replace(/\s+/g,' ').trim();
+        if(!raw||!targets.has(normalize(raw)))continue;
+        try{node.click();return{clicked:true,label:raw.slice(0,80)};}catch{}
+      }
+      return{clicked:false,label:''};
+    },targets);
+  }catch{return{clicked:false,label:''};}
 }
 
 async function nudgePlayback(page){
@@ -109,6 +137,8 @@ async function resolve(body,env){
     await page.goto(pageUrl.href,{waitUntil:'domcontentloaded',timeout:timeoutMs});
     await sleep(700);
     const before=await pageDiagnostics(page);
+    const selection=await clickSelectedChannel(page,body?.channel||{});
+    if(selection.clicked)await sleep(900);
     await nudgePlayback(page);
     const remaining=Math.max(0,Math.min(5000,timeoutMs-(Date.now()-started)));
     if(remaining)await sleep(remaining);
@@ -117,7 +147,7 @@ async function resolve(body,env){
       service:'WebTV Browser Resolver',version:VERSION,url:pageUrl.href,
       elapsedMs:Date.now()-started,
       observations:observations.slice(0,MAX_OBSERVATIONS),
-      diagnostics:{before,after},
+      diagnostics:{before,selection,after},
       limits:{timeoutMs,maxObservations:MAX_OBSERVATIONS},
     };
   }finally{
@@ -143,4 +173,4 @@ export default {
   }
 };
 
-export { ALLOWED_PAGE_HOSTS, APPROVED_HEADER_NAMES, MEDIA_RE, sanitizeHeaders, safePageUrl, timeoutFrom, pageDiagnostics };
+export { ALLOWED_PAGE_HOSTS, APPROVED_HEADER_NAMES, MEDIA_RE, ERT_CHANNEL_LABELS, sanitizeHeaders, safePageUrl, timeoutFrom, pageDiagnostics, normalizedChannelKey };
