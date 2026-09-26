@@ -29,6 +29,7 @@ assert.equal(external.includes('EXTERNAL_DISCOVERY_TIMEOUT_MS=9000'),true,'Exter
 assert.equal(external.includes('curated-remote-feeds'),true,'Phase 4 must retain the curated remote feed provider');
 assert.equal(external.includes('github-public-playlists'),true,'Phase 4 must expose the GitHub public playlist provider explicitly');
 assert.equal(external.includes('recent-web-search'),true,'Phase 4 must expose the recent web search provider explicitly');
+assert.equal(external.includes('strm-specific-discovery'),true,'Phase 4 must expose the STRM-specific provider explicitly');
 assert.equal(combined.includes('api.github.com'),false,'Browser Discovery must not call GitHub directly; GitHub access belongs to the Worker provider');
 assert.equal(combined.includes('api.search.brave.com'),false,'Browser Discovery must not call Brave directly; web search belongs to the Worker provider');
 assert.equal(combined.includes('BRAVE_API_KEY'),false,'Brave credentials must never enter browser Discovery modules');
