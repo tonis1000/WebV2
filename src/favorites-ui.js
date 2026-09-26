@@ -1,4 +1,4 @@
-import './right-rail-preview.js?v=20260926-rail7';
+import './right-rail-preview.js?v=20260926-rail8';
 
 const BUILD_ID = '20260924-2030';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
@@ -74,6 +74,7 @@ function ensureUi(){
     button.type = 'button';
     button.className = 'button ghost favorite-channel';
     button.hidden = true;
+    button.textContent = '☆ Favorite';
     button.addEventListener('click',async()=>{
       const id = selectedId();
       if(!id) return;
@@ -93,7 +94,12 @@ function updateSelectedButton(){
   if(!button) return;
   const id = selectedId();
   button.hidden = !id;
-  if(!id) return;
+  if(!id){
+    button.textContent = '☆ Favorite';
+    button.classList.remove('active');
+    button.title = 'Select a channel first';
+    return;
+  }
   const fav = isFavorite(id);
   button.textContent = fav ? '★ Favorite' : '☆ Favorite';
   button.classList.toggle('active', fav);
