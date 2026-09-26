@@ -11,6 +11,7 @@ permissions:
 
 # Re-run after Brave error-detail hotfix deployment.
 # Re-run after valid Brave Search API key replacement.
+# Manual retry requested after Cloudflare secret update.
 jobs:
   diagnose:
     runs-on: ubuntu-latest
