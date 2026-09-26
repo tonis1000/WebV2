@@ -75,6 +75,10 @@ jobs:
         run: node tests/xtream-client.test.mjs
       - name: Run Xtream preview route encryption regression test
         run: node tests/xtream-preview-routes.test.mjs
+      - name: Run Xtream channel cleanup route regression test
+        run: node tests/xtream-channel-cleanup-route.test.mjs
+      - name: Run Xtream channel lifecycle regression test
+        run: node tests/xtream-channel-lifecycle.test.mjs
       - name: Run authorized Xtream discovery regression test
         run: node tests/authorized-xtream-discovery.test.mjs
       - name: Run new Xtream preview candidate regression test
