@@ -1,8 +1,9 @@
 import { GITHUB_PUBLIC_PLAYLISTS_PROVIDER, discoverGithubPublicPlaylists } from './source-discovery/github-public-playlists.js';
 import { RECENT_WEB_SEARCH_PROVIDER, discoverRecentWebSearch } from './source-discovery/recent-web-search.js';
 import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source-discovery/strm-specific-discovery.js';
+import { OFFICIAL_PROVIDER_LANE, discoverOfficialProvider } from './source-discovery/official-provider-lane.js';
 
-const VERSION='1.3';
+const VERSION='1.4';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=6000;
 const MAX_FETCH_BYTES=1200000;
@@ -151,6 +152,13 @@ async function discover(request,env={}){
       return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});
     }catch(error){return json({error:error?.message||String(error),provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},502);}
   }
+  if(provider===OFFICIAL_PROVIDER_LANE){
+    if(String(env.DISABLE_OFFICIAL_PROVIDER_LANE||'')==='1')return json({error:'Provider disabled',provider:OFFICIAL_PROVIDER_LANE},503);
+    try{
+      const result=await discoverOfficialProvider({channel,freshness});
+      return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});
+    }catch(error){return json({error:error?.message||String(error),provider:OFFICIAL_PROVIDER_LANE},502);}
+  }
   return json({error:'Unsupported provider'},400);
 }
 
@@ -163,10 +171,11 @@ export default {
       [GITHUB_PUBLIC_PLAYLISTS_PROVIDER]:String(env?.DISABLE_GITHUB_PUBLIC_PLAYLISTS||'')!=='1',
       [RECENT_WEB_SEARCH_PROVIDER]:String(env?.DISABLE_RECENT_WEB_SEARCH||'')!=='1'&&Boolean(env?.BRAVE_API_KEY),
       [STRM_SPECIFIC_DISCOVERY_PROVIDER]:String(env?.DISABLE_STRM_SPECIFIC_DISCOVERY||'')!=='1',
+      [OFFICIAL_PROVIDER_LANE]:String(env?.DISABLE_OFFICIAL_PROVIDER_LANE||'')!=='1',
     },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.length}});
     if(request.method==='POST'&&url.pathname==='/discover')return discover(request,env);
     return json({error:'Not found'},404);
   }
 };
 
-export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_CONCURRENCY, MAX_RESULTS, normalize, benignBase, candidateMatches, parseM3u };
+export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, OFFICIAL_PROVIDER_LANE, FETCH_TIMEOUT_MS, MAX_CONCURRENCY, MAX_RESULTS, normalize, benignBase, candidateMatches, parseM3u };
