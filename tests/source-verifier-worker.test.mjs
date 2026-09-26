@@ -29,7 +29,7 @@ try{
   assert.equal(body.results[2].status,'DRM');
   assert.equal(body.results[2].drmDetected,true);
   assert.equal(body.results[3].status,'FAILED');
-  assert.match(body.results[3].detail,/Private\/local targets/);
+  assert.match(body.results[3].detail,/Private(?: IP|\/local) targets are not allowed/);
 
   const tooMany=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidates:Array.from({length:5},(_,i)=>({candidateId:String(i),sourceType:'hls',sourceUrl:`https://good.test/${i}.m3u8`}))})}),{});
   assert.equal(tooMany.status,413);
