@@ -15,7 +15,7 @@ const verified={
 assert.equal(canPromoteCandidate(verified,expectedChannel,{id:'mega',name:'MEGA'}),true);
 assert.equal(promotionBlockReason({...verified,verificationStatus:'UNVERIFIED',verified:false},expectedChannel,expectedChannel),'Only VERIFIED candidates can be added');
 assert.equal(promotionBlockReason({...verified,saveEligible:false},expectedChannel,expectedChannel),'This candidate is not eligible for My Playlist');
-assert.equal(promotionBlockReason({...verified,candidateKind:'official-page'},expectedChannel,expectedChannel),'This candidate is not eligible for My Playlist');
+assert.equal(promotionBlockReason({...verified,candidateKind:'official-page'},expectedChannel,expectedChannel),'Official fallback pages cannot be saved as media sources');
 assert.equal(promotionBlockReason({...verified,requiredHeaders:{Referer:'https://example.invalid/'}},expectedChannel,expectedChannel),'Persistent request-header metadata is not supported yet');
 assert.match(promotionBlockReason(verified,expectedChannel,{id:'skai',name:'SKAI'}),/Selected channel changed/);
 
