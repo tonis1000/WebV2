@@ -29,13 +29,12 @@ jobs:
           node tests/xtream-channel-cleanup-route.test.mjs
           node tests/xtream-channel-lifecycle.test.mjs
           git diff --check
-      - name: Commit integrated lifecycle changes and remove patcher
+      - name: Commit source and worker integration
         shell: bash
         run: |
           set -euo pipefail
-          rm -f tmp/phase53_apply.py .github/workflows/phase53-apply.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add src/xtream-client.js src/playlist-manager.js workers/xtream-preview-routes.js
           git commit -m 'Integrate Phase 5.3 Xtream source lifecycle'
           git push origin HEAD:phase53-xtream-source-lifecycle

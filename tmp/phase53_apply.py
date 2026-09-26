@@ -107,38 +107,4 @@ replace_once(
     "      overlay.hidden=true;\n      await refreshPrimary({reason:'edit-sources'});\n      await cleanupXtreamAfterSourceRemoval(previousUrls,urls,'EDIT SOURCES');"
 )
 
-# Validation workflow: run both lifecycle layers.
-replace_once(
-    '.github/workflows/validate-frontend.yml',
-    "      - name: Run Xtream preview route encryption regression test\n        run: node tests/xtream-preview-routes.test.mjs\n",
-    "      - name: Run Xtream preview route encryption regression test\n        run: node tests/xtream-preview-routes.test.mjs\n"
-    "      - name: Run Xtream channel cleanup route regression test\n        run: node tests/xtream-channel-cleanup-route.test.mjs\n"
-    "      - name: Run Xtream channel lifecycle regression test\n        run: node tests/xtream-channel-lifecycle.test.mjs\n"
-)
-
-# Production gate: unauthenticated lifecycle delete must be refused before any D1 write.
-replace_once(
-    '.github/workflows/deploy-webtv-xtream.yml',
-    "            preview_auth=0\n",
-    "            preview_auth=0\n            cleanup_auth=0\n"
-)
-replace_once(
-    '.github/workflows/deploy-webtv-xtream.yml',
-    "            cat /tmp/webtv-xtream-preview-auth.json 2>/dev/null || true\n            if [ \"$status_ok\" = 1 ] && [ \"$preview_options\" = 204 ] && [ \"$preview_auth\" = 401 ]; then\n",
-    "            cat /tmp/webtv-xtream-preview-auth.json 2>/dev/null || true\n"
-    "            cleanup_auth=$(curl --silent --output /tmp/webtv-xtream-cleanup-auth.json --write-out '%{http_code}' -X DELETE \"$XTREAM_URL/api/channel-sources/xch_livegate12345678?verify=${GITHUB_SHA}-${attempt}\" || true)\n"
-    "            cat /tmp/webtv-xtream-cleanup-auth.json 2>/dev/null || true\n"
-    "            if [ \"$status_ok\" = 1 ] && [ \"$preview_options\" = 204 ] && [ \"$preview_auth\" = 401 ] && [ \"$cleanup_auth\" = 401 ]; then\n"
-)
-replace_once(
-    '.github/workflows/deploy-webtv-xtream.yml',
-    "            echo \"Waiting for Cloudflare propagation · attempt $attempt/30 · status=$status_ok options=$preview_options auth=$preview_auth\"\n",
-    "            echo \"Waiting for Cloudflare propagation · attempt $attempt/30 · status=$status_ok options=$preview_options auth=$preview_auth cleanup=$cleanup_auth\"\n"
-)
-replace_once(
-    '.github/workflows/deploy-webtv-xtream.yml',
-    "          echo '::error::Xtream Worker did not expose legacy bridge + Phase 5.2 preview auth boundary after 90 seconds'\n",
-    "          echo '::error::Xtream Worker did not expose legacy bridge + Phase 5.2/5.3 auth boundaries after 90 seconds'\n"
-)
-
-print('Phase 5.3 integration patch applied')
+print('Phase 5.3 source/worker integration patch applied')
