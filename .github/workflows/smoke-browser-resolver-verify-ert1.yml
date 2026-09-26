@@ -35,9 +35,9 @@ jobs:
           if(!discoveryResponse.ok)throw new Error(`Discovery HTTP ${discoveryResponse.status}`);
           const discovery=await discoveryResponse.json();
           const candidates=(Array.isArray(discovery.candidates)?discovery.candidates:[])
-            .filter(c=>c.sourceType==='dash'&&c.trustClass==='OFFICIAL'&&c.saveEligible===true)
+            .filter(c=>c.sourceType==='dash'&&['OFFICIAL','OFFICIAL_OBSERVED'].includes(c.trustClass))
             .slice(0,4);
-          if(!candidates.length)throw new Error('No official DASH candidate from browser discovery');
+          if(!candidates.length)throw new Error('No ERT DASH candidate from browser discovery');
 
           const verifierResponse=await fetch(VERIFIER,{
             method:'POST',
