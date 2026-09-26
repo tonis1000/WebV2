@@ -40,10 +40,10 @@ try{
     '--virtual-time-budget=3000','--dump-dom','http://127.0.0.1:4173/tests/discovery-browser-smoke.html'
   ]);
   assert.equal(run.status,0,`Chrome exited ${run.status}: ${run.stderr}`);
-  assert.match(run.stdout,/data-phase2-result="PASS"/,`Browser smoke did not pass. DOM:\n${run.stdout}\nSTDERR:\n${run.stderr}`);
+  assert.match(run.stdout,/data-phase3-result="PASS"/,`Browser smoke did not pass. DOM:\n${run.stdout}\nSTDERR:\n${run.stderr}`);
   assert.match(run.stdout,/SIDEBAR-STABLE/);
   assert.match(run.stdout,/PLAYER-STABLE/);
-  console.log('discovery Phase 2 browser smoke PASS');
+  console.log('discovery Phase 3 browser smoke PASS');
 }finally{
   await new Promise(resolve=>server.close(resolve));
 }
