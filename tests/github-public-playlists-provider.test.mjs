@@ -31,7 +31,7 @@ try{
 
   const request=new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER,freshness:'24h',channel:{name:'MEGA',id:'mega',originalId:'MEGA'}})});
   const response=await discovery.fetch(request,{});assert.equal(response.status,200);const body=await response.json();
-  assert.equal(body.version,'1.3');
+  assert.equal(body.version,'1.4');
   assert.equal(body.provider,GITHUB_PUBLIC_PLAYLISTS_PROVIDER);
   assert.equal(body.freshnessRequested,'24h');assert.equal(body.freshnessApplied,true);assert.equal(body.candidates.length,1);assert.equal(body.candidates[0].sourceUrl,'https://github-found.test/mega.m3u8');assert.equal(body.candidates[0].discoveryProvider,GITHUB_PUBLIC_PLAYLISTS_PROVIDER);assert.match(body.candidates[0].sourceOrigin,/fixture\/recent-greek-iptv/);assert.match(body.candidates[0].freshness,/^repo-pushed:/);assert.equal(body.reports.searches.length,2);assert.equal(body.reports.repositories.length,1);assert.equal(body.reports.subrequestsUsed,4);assert.equal(seenSearches.length,2);
 

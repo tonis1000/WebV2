@@ -5,7 +5,7 @@ export const FRESHNESS_OPTIONS = Object.freeze([
 ]);
 export const DEFAULT_FRESHNESS = '7d';
 
-const EMPTY_LANES=Object.freeze({myPlaylist:0,savedPlaylists:0,xtream:0,curatedRemoteFeeds:0,githubPublicPlaylists:0,recentWebSearch:0,strmSpecific:0,total:0});
+const EMPTY_LANES=Object.freeze({myPlaylist:0,savedPlaylists:0,xtream:0,curatedRemoteFeeds:0,githubPublicPlaylists:0,recentWebSearch:0,strmSpecific:0,officialProvider:0,total:0});
 
 function uniqueCandidates(items=[]){
   const seen=new Set();const out=[];

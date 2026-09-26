@@ -5,12 +5,14 @@ export const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 export const GITHUB_PUBLIC_PLAYLISTS_PROVIDER='github-public-playlists';
 export const RECENT_WEB_SEARCH_PROVIDER='recent-web-search';
 export const STRM_SPECIFIC_DISCOVERY_PROVIDER='strm-specific-discovery';
+export const OFFICIAL_PROVIDER_LANE='official-provider-lane';
 export const EXTERNAL_DISCOVERY_TIMEOUT_MS=9000;
 export const PROVIDER_FLAGS=Object.freeze({
   [CURATED_REMOTE_FEEDS_PROVIDER]:true,
   [GITHUB_PUBLIC_PLAYLISTS_PROVIDER]:true,
   [RECENT_WEB_SEARCH_PROVIDER]:true,
   [STRM_SPECIFIC_DISCOVERY_PROVIDER]:true,
+  [OFFICIAL_PROVIDER_LANE]:true,
 });
 
 function timeoutSignal(parentSignal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS){
@@ -45,3 +47,4 @@ export function discoverCuratedRemoteFeeds(channel,options={}){return discoverPr
 export function discoverGithubPublicPlaylists(channel,options={}){return discoverProvider(GITHUB_PUBLIC_PLAYLISTS_PROVIDER,channel,options);}
 export function discoverRecentWebSearch(channel,options={}){return discoverProvider(RECENT_WEB_SEARCH_PROVIDER,channel,options);}
 export function discoverStrmSpecific(channel,options={}){return discoverProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER,channel,options);}
+export function discoverOfficialProvider(channel,options={}){return discoverProvider(OFFICIAL_PROVIDER_LANE,channel,options);}

@@ -86,6 +86,10 @@ export function createCandidate(input={}) {
     healthScore:Number.isFinite(Number(input.healthScore)) ? Number(input.healthScore) : null,
     duplicateOf:input.duplicateOf || null,
     matchConfidence,
+    candidateKind:String(input.candidateKind||'media'),
+    trustClass:String(input.trustClass||''),
+    saveEligible:input.saveEligible!==false,
+    officialPageUrl:String(input.officialPageUrl||''),
   });
 }
 
