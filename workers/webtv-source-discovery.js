@@ -162,7 +162,7 @@ async function discover(request,env={}){
   }
   if(provider===BROWSER_RESOLVED_OFFICIAL_PROVIDER){
     if(String(env.DISABLE_BROWSER_RESOLVED_OFFICIAL||'')==='1')return json({error:'Provider disabled',provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER},503);
-    if(!env.BROWSER_RESOLVER_URL)return json({error:'BROWSER_RESOLVER_URL is not configured',provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,available:false},503);
+    if(!env.BROWSER_RESOLVER_URL||!env.BROWSER_RESOLVER_TOKEN)return json({error:'Browser resolver URL/token are not configured',provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,available:false},503);
     try{
       const result=await discoverBrowserResolvedOfficial({channel,freshness,env});
       return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});
@@ -181,7 +181,7 @@ export default {
       [RECENT_WEB_SEARCH_PROVIDER]:String(env?.DISABLE_RECENT_WEB_SEARCH||'')!=='1'&&Boolean(env?.BRAVE_API_KEY),
       [STRM_SPECIFIC_DISCOVERY_PROVIDER]:String(env?.DISABLE_STRM_SPECIFIC_DISCOVERY||'')!=='1',
       [OFFICIAL_PROVIDER_LANE]:String(env?.DISABLE_OFFICIAL_PROVIDER_LANE||'')!=='1',
-      [BROWSER_RESOLVED_OFFICIAL_PROVIDER]:String(env?.DISABLE_BROWSER_RESOLVED_OFFICIAL||'')!=='1'&&Boolean(env?.BROWSER_RESOLVER_URL),
+      [BROWSER_RESOLVED_OFFICIAL_PROVIDER]:String(env?.DISABLE_BROWSER_RESOLVED_OFFICIAL||'')!=='1'&&Boolean(env?.BROWSER_RESOLVER_URL)&&Boolean(env?.BROWSER_RESOLVER_TOKEN),
     },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.length}});
     if(request.method==='POST'&&url.pathname==='/discover')return discover(request,env);
     return json({error:'Not found'},404);
