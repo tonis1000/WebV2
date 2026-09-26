@@ -96,15 +96,27 @@ const frontendWorkflow = read('.github/workflows/validate-frontend.yml');
 assert.match(frontendWorkflow, /src\/\*\*\/\*\.js/, 'Frontend validation should cover all src/**/*.js changes');
 assert.match(frontendWorkflow, /tests\/\*\*\/\*\.mjs/, 'Frontend validation should cover all tests/**/*.mjs changes');
 assert.match(frontendWorkflow, /workers\/webtv-source-discovery\.js/, 'Frontend validation should cover Source Discovery Worker changes');
+assert.match(frontendWorkflow, /workers\/source-discovery\/\*\*\/\*\.js/, 'Frontend validation should cover Source Discovery provider modules');
 assert.match(frontendWorkflow, /source-discovery-worker\.test\.mjs/, 'Frontend validation should run Source Discovery Worker regression');
+assert.match(frontendWorkflow, /github-public-playlists-provider\.test\.mjs/, 'Frontend validation should run GitHub provider regression');
 
 const discoveryClient=read('src/discovery/external-discovery-client.js');
 assert.match(discoveryClient,/webtv-source-discovery\.atonis\.workers\.dev/, 'Phase 4 client must use the dedicated Source Discovery Worker');
 assert.match(discoveryClient,/curated-remote-feeds/, 'Phase 4 client must expose the curated remote feed provider');
-assert.doesNotMatch(discoveryClient,/WebTVPlaybackAPI|WebTVMyPlaylistAPI|SourceRegistry/, 'External discovery client must not cross playback or persistence boundaries');
+assert.match(discoveryClient,/github-public-playlists/, 'Phase 4 client must expose the GitHub public playlist provider');
+assert.doesNotMatch(discoveryClient,/api\.github\.com|WebTVPlaybackAPI|WebTVMyPlaylistAPI|SourceRegistry/, 'Browser external discovery must stay behind its Worker and outside playback/persistence');
+
+const discoveryWorker=read('workers/webtv-source-discovery.js');
+const githubProvider=read('workers/source-discovery/github-public-playlists.js');
+assert.match(discoveryWorker,/github-public-playlists\.js/, 'Source Discovery Worker must route through the dedicated GitHub provider module');
+assert.match(githubProvider,/GITHUB_MAX_SUBREQUESTS=10/, 'GitHub provider must retain a hard subrequest budget');
+assert.match(githubProvider,/pushed:>=/, 'GitHub provider must apply repository freshness at the search query');
+assert.doesNotMatch(githubProvider,/search\/code/, 'GitHub provider must not use credential-sensitive Code Search');
 
 const discoveryDeploy=read('.github/workflows/deploy-source-discovery.yml');
 assert.match(discoveryDeploy,/workers\/webtv-source-discovery\.js/, 'Source Discovery deploy must be scoped to its canonical Worker');
+assert.match(discoveryDeploy,/workers\/source-discovery\/\*\*\/\*\.js/, 'Source Discovery deploy must include provider module changes');
+assert.match(discoveryDeploy,/github-public-playlists/, 'Source Discovery live gate must cover the GitHub provider');
 assert.doesNotMatch(discoveryDeploy,/src\/main\.js|src\/core\/player\.js/, 'Frontend-only runtime changes must not trigger Source Discovery deploy');
 
 for (const rel of [
@@ -114,6 +126,7 @@ for (const rel of [
   'workers/tv-cache.js',
   'workers/webtv-source-verifier.js',
   'workers/webtv-source-discovery.js',
+  'workers/source-discovery/github-public-playlists.js',
   '.github/workflows/deploy-webtv-registry.yml',
   '.github/workflows/deploy-epg-proxy-gr.yml',
   '.github/workflows/deploy-source-hunt.yml',
