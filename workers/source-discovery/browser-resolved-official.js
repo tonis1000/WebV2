@@ -52,22 +52,26 @@ function mediaCandidate(channel,entry,observation,pageUrl){
 }
 
 async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
-  const endpoint=safeResolverUrl(env.BROWSER_RESOLVER_URL);
-  const endpointLabel=`${endpoint.hostname}${endpoint.pathname}`;
+  const binding=env.BROWSER_RESOLVER;
+  const endpoint=binding?.fetch?null:safeResolverUrl(env.BROWSER_RESOLVER_URL);
+  const endpointLabel=binding?.fetch?'service:webtv-browser-resolver/resolve':`${endpoint.hostname}${endpoint.pathname}`;
   const token=String(env.BROWSER_RESOLVER_TOKEN||'').trim();
   if(!token)throw new Error('BROWSER_RESOLVER_TOKEN is not configured');
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(new DOMException('browser resolver timeout','AbortError')),BROWSER_RESOLVER_TIMEOUT_MS);
   try{
     const headers={'content-type':'application/json','accept':'application/json','authorization':`Bearer ${token}`};
-    const response=await fetchImpl(endpoint.href,{
+    const init={
       method:'POST',headers,signal:controller.signal,cache:'no-store',
       body:JSON.stringify({
         url:pageUrl,
         channel:{id:String(channel.id||''),originalId:String(channel.originalId||''),name:String(channel.name||''),tvgId:String(channel.tvgId||'')},
         capture:{extensions:['m3u8','mpd','mp4','webm'],includeRequestHeaders:true,timeoutMs:BROWSER_RESOLVER_TIMEOUT_MS},
       }),
-    });
+    };
+    const response=binding?.fetch
+      ? await binding.fetch(new Request('https://browser-resolver.internal/resolve',init))
+      : await fetchImpl(endpoint.href,init);
     let payload={};try{payload=await response.json();}catch{}
     if(!response.ok)throw new Error(`${payload?.error||`Browser resolver HTTP ${response.status}`} @ ${endpointLabel}`);
     const observations=Array.isArray(payload?.observations)?payload.observations:[];
@@ -85,9 +89,9 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
 }
 
 export async function discoverBrowserResolvedOfficial({channel={},freshness='7d',env={},fetchImpl=fetch}={}){
-  if(!env.BROWSER_RESOLVER_URL||!env.BROWSER_RESOLVER_TOKEN)return{
+  if((!env.BROWSER_RESOLVER&&!env.BROWSER_RESOLVER_URL)||!env.BROWSER_RESOLVER_TOKEN)return{
     provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:false,available:false,freshnessRequested:freshness,freshnessApplied:false,candidates:[],
-    reports:{pages:[],registryKey:'',owner:'',reason:'Browser resolver URL/token are not configured'},
+    reports:{pages:[],registryKey:'',owner:'',reason:'Browser resolver binding/URL or token is not configured'},
   };
   const key=channelKey(channel);const entry=key?OFFICIAL_PROVIDER_REGISTRY[key]:null;
   if(!entry)return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:false,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{pages:[],registryKey:'',owner:'',reason:'channel not in official registry'}};
