@@ -1,6 +1,6 @@
 import puppeteer from '@cloudflare/puppeteer';
 
-const VERSION='1.2';
+const VERSION='1.3';
 const DEFAULT_TIMEOUT_MS=10000;
 const MAX_TIMEOUT_MS=12000;
 const MAX_OBSERVATIONS=24;
@@ -18,11 +18,13 @@ function timeoutFrom(body={}){const requested=Number(body?.capture?.timeoutMs)||
 function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 function normalizedChannelKey(channel={}){const value=String(channel.id||channel.originalId||channel.tvgId||channel.name||'');return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,'');}
 function isHttpsRemote(raw=''){try{const u=new URL(String(raw||''));return u.protocol==='https:'&&u.hostname&&!u.hostname.endsWith('.local')&&u.hostname!=='localhost';}catch{return false;}}
-function responseKind(contentType='',url=''){const type=String(contentType||'').toLowerCase();if(type.includes('dash+xml')||/\.mpd(?:[?#]|$)/i.test(url))return'dash';if(type.includes('mpegurl')||/\.m3u8(?:[?#]|$)/i.test(url))return'hls';if(type.startsWith('video/')||/\.(?:mp4|webm)(?:[?#]|$)/i.test(url))return'video';return'';}
+function responseKind(contentType='',url=''){const type=String(contentType||'').toLowerCase();if(type.includes('dash+xml')||/\.mpd(?:[?#]|$)/i.test(url))return'dash';if(type.includes('mpegurl')||type.includes('x-mpegurl')||/\.m3u8(?:[?#]|$)/i.test(url))return'hls';if(type.startsWith('video/')||/\.(?:mp4|webm)(?:[?#]|$)/i.test(url))return'video';return'';}
 
 async function pageDiagnostics(page){try{return await page.evaluate(()=>{const safeHost=value=>{try{return new URL(value,location.href).hostname}catch{return''}};const label=el=>String(el.getAttribute('aria-label')||el.textContent||el.title||'').replace(/\s+/g,' ').trim().slice(0,80);return{title:String(document.title||'').slice(0,120),pathname:location.pathname,videoCount:document.querySelectorAll('video').length,iframeCount:document.querySelectorAll('iframe').length,buttonCount:document.querySelectorAll('button').length,iframeHosts:[...new Set([...document.querySelectorAll('iframe[src]')].map(el=>safeHost(el.src)).filter(Boolean))].slice(0,8),buttonLabels:[...new Set([...document.querySelectorAll('button,[role="button"]')].map(label).filter(Boolean))].slice(0,12)};});}catch{return{title:'',pathname:'',videoCount:0,iframeCount:0,buttonCount:0,iframeHosts:[],buttonLabels:[]};}}
 async function clickSelectedChannel(page,channel={}){const key=normalizedChannelKey(channel);const targets=ERT_CHANNEL_LABELS[key]||[];if(!targets.length)return{clicked:false,label:''};try{return await page.evaluate(targetsIn=>{const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,'');const targets=new Set(targetsIn.map(normalize));for(const node of document.querySelectorAll('button,[role="button"],a')){const raw=String(node.getAttribute('aria-label')||node.textContent||node.title||'').replace(/\s+/g,' ').trim();if(!raw||!targets.has(normalize(raw)))continue;try{node.click();return{clicked:true,label:raw.slice(0,80)};}catch{}}return{clicked:false,label:''};},targets);}catch{return{clicked:false,label:''};}}
 async function nudgePlayback(page){try{await page.evaluate(async()=>{for(const video of document.querySelectorAll('video')){try{video.muted=true;await video.play();}catch{}}for(const selector of ['button.vjs-play-control','.brid-overlay-play-button','[aria-label="Play"]','[aria-label*="play" i]','.play-button','.player-play']){const el=document.querySelector(selector);if(el){try{el.click();}catch{}}}});}catch{}}
+
+function makeObservation(request,url){const requestHeaders=request.headers();return{url,method:request.method(),resourceType:request.resourceType(),headers:sanitizeHeaders(requestHeaders),requestHeaderNames:safeHeaderNames(requestHeaders),responseStatus:null,responseContentType:'',redirectedFrom:'',finalUrl:'',finalStatus:null,finalContentType:'',finalKind:''};}
 
 async function resolve(body,env){
   if(!env.BROWSER)throw new Error('Browser binding is not configured');
@@ -30,16 +32,14 @@ async function resolve(body,env){
   try{
     browser=await puppeteer.launch(env.BROWSER);const page=await browser.newPage();page.setDefaultNavigationTimeout(timeoutMs);page.setDefaultTimeout(timeoutMs);
     page.on('request',request=>{try{
-      const url=request.url();const chain=typeof request.redirectChain==='function'?request.redirectChain():[];const inherited=chain.some(parent=>mediaSeeds.has(parent.url()));const isSeed=MEDIA_RE.test(url);if(!isSeed&&!inherited)return;if(byUrl.has(url))return;
-      if(isSeed)mediaSeeds.add(url);
-      const requestHeaders=request.headers();const item={url,method:request.method(),resourceType:request.resourceType(),headers:sanitizeHeaders(requestHeaders),requestHeaderNames:safeHeaderNames(requestHeaders),responseStatus:null,responseContentType:'',redirectedFrom:chain.length?chain[chain.length-1].url():'',finalUrl:'',finalStatus:null,finalContentType:'',finalKind:''};
-      byUrl.set(url,item);observations.push(item);
+      const url=request.url();const chain=typeof request.redirectChain==='function'?request.redirectChain():[];const inherited=chain.some(parent=>mediaSeeds.has(parent.url()));const isSeed=MEDIA_RE.test(url);if(!isSeed&&!inherited)return;if(byUrl.has(url))return;if(isSeed)mediaSeeds.add(url);
+      const item=makeObservation(request,url);item.redirectedFrom=chain.length?chain[chain.length-1].url():'';byUrl.set(url,item);observations.push(item);
     }catch{}});
     page.on('response',response=>{try{
-      const url=response.url();const request=response.request();const chain=typeof request.redirectChain==='function'?request.redirectChain():[];const inherited=chain.some(parent=>mediaSeeds.has(parent.url()));if(!MEDIA_RE.test(url)&&!inherited)return;
-      let item=byUrl.get(url);if(!item&&inherited){const requestHeaders=request.headers();item={url,method:request.method(),resourceType:request.resourceType(),headers:sanitizeHeaders(requestHeaders),requestHeaderNames:safeHeaderNames(requestHeaders),responseStatus:null,responseContentType:'',redirectedFrom:chain.length?chain[chain.length-1].url():'',finalUrl:'',finalStatus:null,finalContentType:'',finalKind:''};byUrl.set(url,item);observations.push(item);}
-      if(!item)return;const status=response.status();const contentType=String(response.headers()?.['content-type']||'').split(';')[0].slice(0,120);item.responseStatus=status;item.responseContentType=contentType;
-      if(status>=200&&status<300&&isHttpsRemote(url)){item.finalUrl=url;item.finalStatus=status;item.finalContentType=contentType;item.finalKind=responseKind(contentType,url);}
+      const url=response.url();const request=response.request();const status=response.status();const contentType=String(response.headers()?.['content-type']||'').split(';')[0].slice(0,120);const kind=responseKind(contentType,url);const chain=typeof request.redirectChain==='function'?request.redirectChain():[];const inherited=chain.some(parent=>mediaSeeds.has(parent.url()));const relevant=MEDIA_RE.test(url)||inherited||Boolean(kind);if(!relevant)return;
+      let item=byUrl.get(url);if(!item){item=makeObservation(request,url);item.redirectedFrom=chain.length?chain[chain.length-1].url():'';byUrl.set(url,item);observations.push(item);}
+      item.responseStatus=status;item.responseContentType=contentType;
+      if(status>=200&&status<300&&isHttpsRemote(url)&&kind){item.finalUrl=url;item.finalStatus=status;item.finalContentType=contentType;item.finalKind=kind;}
     }catch{}});
     await page.goto(pageUrl.href,{waitUntil:'domcontentloaded',timeout:timeoutMs});await sleep(700);const before=await pageDiagnostics(page);const selection=await clickSelectedChannel(page,body?.channel||{});if(selection.clicked)await sleep(900);await nudgePlayback(page);const remaining=Math.max(0,Math.min(5000,timeoutMs-(Date.now()-started)));if(remaining)await sleep(remaining);const after=await pageDiagnostics(page);
     return{service:'WebTV Browser Resolver',version:VERSION,url:pageUrl.href,elapsedMs:Date.now()-started,observations:observations.slice(0,MAX_OBSERVATIONS),diagnostics:{before,selection,after},limits:{timeoutMs,maxObservations:MAX_OBSERVATIONS}};
