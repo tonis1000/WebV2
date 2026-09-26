@@ -1,0 +1,9 @@
+name = "webtv-browser-resolver"
+main = "src/index.js"
+compatibility_date = "2026-09-27"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = false
+
+[browser]
+binding = "BROWSER"
