@@ -59,8 +59,8 @@ jobs:
         run: |
           for attempt in $(seq 1 12); do
             STATUS=$(curl --fail --silent --show-error "$WORKER_URL/" || true)
-            if node -e "try{const s=JSON.parse(process.argv[1]);if(s.service!=='WebTV Browser Resolver'||s.version!=='1.1'||s.ready!==true)process.exit(1);console.log(JSON.stringify(s,null,2));}catch{process.exit(1)}" "$STATUS"; then
-              echo "Browser Resolver v1.1 is live and ready."
+            if node -e "try{const s=JSON.parse(process.argv[1]);if(s.service!=='WebTV Browser Resolver'||s.version!=='1.2'||s.ready!==true)process.exit(1);console.log(JSON.stringify(s,null,2));}catch{process.exit(1)}" "$STATUS"; then
+              echo "Browser Resolver v1.2 is live and ready."
               exit 0
             fi
             echo "Waiting for Browser Resolver propagation ($attempt/12)…"
