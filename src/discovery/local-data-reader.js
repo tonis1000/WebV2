@@ -1,3 +1,6 @@
+const SAVED_DB='webtv-v2-playlists';
+const SAVED_STORE='playlists';
+
 function cloneChannel(channel={}) {
   return {
     id:String(channel.id||''),
@@ -38,6 +41,36 @@ function cloneLoadedXtream(loaded=null) {
   };
 }
 
+async function existingSavedPlaylistCache() {
+  if (!globalThis.indexedDB || typeof indexedDB.databases!=='function') return [];
+  let databases=[];
+  try { databases=await indexedDB.databases(); }
+  catch { return []; }
+  if (!databases.some(db=>db?.name===SAVED_DB)) return [];
+
+  return new Promise(resolve=>{
+    const request=indexedDB.open(SAVED_DB);
+    request.onupgradeneeded=()=>{
+      try { request.transaction?.abort(); } catch {}
+      resolve([]);
+    };
+    request.onerror=()=>resolve([]);
+    request.onsuccess=()=>{
+      const db=request.result;
+      if (!db.objectStoreNames.contains(SAVED_STORE)) {db.close();resolve([]);return;}
+      try {
+        const tx=db.transaction(SAVED_STORE,'readonly');
+        const getAll=tx.objectStore(SAVED_STORE).getAll();
+        getAll.onerror=()=>{db.close();resolve([]);};
+        getAll.onsuccess=()=>{
+          const rows=(getAll.result||[]).filter(item=>item?.id!=='__my_playlist__').map(cloneSavedPlaylist);
+          db.close();resolve(rows);
+        };
+      } catch {db.close();resolve([]);}
+    };
+  });
+}
+
 export async function readLocalSourceContext() {
   const playlistApi=window.WebTVPlaylistAPI;
   const catalogMode=playlistApi?.getCatalogMode?.()||'';
@@ -45,13 +78,7 @@ export async function readLocalSourceContext() {
     ? (playlistApi?.getChannels?.()||[]).map(cloneChannel)
     : [];
 
-  let savedPlaylists=[];
-  const savedApi=window.WebTVSavedPlaylistsReadAPI;
-  if (savedApi?.getAllCached) {
-    const rows=await savedApi.getAllCached();
-    savedPlaylists=(rows||[]).map(cloneSavedPlaylist);
-  }
-
+  const savedPlaylists=await existingSavedPlaylistCache();
   const loadedXtream=cloneLoadedXtream(window.WebTVXtream?.getLoaded?.()||null);
 
   return Object.freeze({
