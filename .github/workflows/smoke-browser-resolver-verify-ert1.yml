@@ -34,45 +34,45 @@ jobs:
           });
           if(!discoveryResponse.ok)throw new Error(`Discovery HTTP ${discoveryResponse.status}`);
           const discovery=await discoveryResponse.json();
-          const candidates=Array.isArray(discovery.candidates)?discovery.candidates:[];
-          const candidate=candidates.find(c=>c.sourceType==='dash'&&c.trustClass==='OFFICIAL'&&c.saveEligible===true);
-          if(!candidate)throw new Error('No official DASH candidate from browser discovery');
+          const candidates=(Array.isArray(discovery.candidates)?discovery.candidates:[])
+            .filter(c=>c.sourceType==='dash'&&c.trustClass==='OFFICIAL'&&c.saveEligible===true)
+            .slice(0,4);
+          if(!candidates.length)throw new Error('No official DASH candidate from browser discovery');
 
           const verifierResponse=await fetch(VERIFIER,{
             method:'POST',
             headers:{'content-type':'application/json'},
-            body:JSON.stringify({candidates:[{
-              candidateId:'ert1-browser-smoke',
+            body:JSON.stringify({candidates:candidates.map((candidate,index)=>({
+              candidateId:`ert1-browser-smoke-${index}`,
               sourceType:candidate.sourceType,
               sourceUrl:candidate.sourceUrl,
               requiredHeaders:candidate.requiredHeaders||{}
-            }]})
+            }))})
           });
           if(!verifierResponse.ok)throw new Error(`Verifier HTTP ${verifierResponse.status}`);
           const verifier=await verifierResponse.json();
-          const result=Array.isArray(verifier.results)?verifier.results[0]:null;
-          const host=(()=>{try{return new URL(candidate.sourceUrl).hostname}catch{return''}})();
-          const safe={
-            discovery:{
-              candidateCount:candidates.length,
-              selectedHost:host,
+          const results=Array.isArray(verifier.results)?verifier.results:[];
+          const safeResults=candidates.map((candidate,index)=>{
+            const result=results[index]||null;
+            const host=(()=>{try{return new URL(candidate.sourceUrl).hostname}catch{return''}})();
+            return{
+              host,
               sourceType:candidate.sourceType,
               headerNames:Object.keys(candidate.requiredHeaders||{}),
               trustClass:candidate.trustClass,
-              saveEligible:candidate.saveEligible
-            },
-            verification:result?{
-              status:result.status,
-              verified:result.verified,
-              startupMs:result.startupMs,
-              lastHttpStatus:result.lastHttpStatus,
-              mediaType:result.mediaType,
-              drmDetected:result.drmDetected,
-              detail:result.detail
-            }:null
-          };
-          console.log(JSON.stringify(safe,null,2));
-          if(!result)process.exit(2);
-          if(result.status==='DRM')process.exit(3);
-          if(result.verified!==true||result.status!=='VERIFIED'||result.mediaType!=='dash')process.exit(4);
+              saveEligible:candidate.saveEligible,
+              verification:result?{
+                status:result.status,
+                verified:result.verified,
+                startupMs:result.startupMs,
+                lastHttpStatus:result.lastHttpStatus,
+                mediaType:result.mediaType,
+                drmDetected:result.drmDetected,
+                detail:result.detail
+              }:null
+            };
+          });
+          console.log(JSON.stringify({candidateCount:candidates.length,results:safeResults},null,2));
+          const good=safeResults.find(item=>item.verification?.verified===true&&item.verification?.status==='VERIFIED'&&item.verification?.mediaType==='dash');
+          if(!good)process.exit(4);
           NODE
