@@ -1635,3 +1635,206 @@ POST /discover for MEGA
 The live deployment gate intentionally does **not** require a particular stream URL to exist forever. Curated upstream content changes. Unit tests own deterministic matching semantics; the live gate owns real outbound connectivity/provider execution.
 
 Only after PR CI, main CI, Source Discovery live verification and Pages deployment are green is Provider #1 considered complete. The next Phase 4 slice may then add Provider #2 separately, with its own kill switch and regression gate.
+
+---
+
+## 23. Source Discovery V2 Phase 4 provider #2 · GitHub Public Playlists · 2026-09-26
+
+Provider #2 adds **recent public GitHub repository discovery** while preserving the Phase 4 rule that every provider is explicit, bounded and independently disableable. It does not reuse legacy Source Hunt and it does not expose GitHub directly to the browser.
+
+### Current Source Discovery service
+
+```text
+Worker: webtv-source-discovery
+URL: https://webtv-source-discovery.atonis.workers.dev
+Source: workers/webtv-source-discovery.js
+Provider module: workers/source-discovery/github-public-playlists.js
+Workflow: .github/workflows/deploy-source-discovery.yml
+Version: 1.1
+
+Enabled provider IDs:
+curated-remote-feeds
+github-public-playlists
+```
+
+The browser continues to call only:
+
+```text
+POST https://webtv-source-discovery.atonis.workers.dev/discover
+```
+
+`src/discovery/external-discovery-client.js` never calls `api.github.com` directly. GitHub access belongs to the Worker provider boundary.
+
+### Explicit UI lanes
+
+Phase 4 now exposes separate provider actions:
+
+```text
+[Find Local Sources]
+[Find Curated Feeds]
+[Search GitHub Playlists]
+[Cancel Search]
+[Verify]
+[Verify All]
+[Cancel Verify]
+```
+
+Curated and GitHub results keep separate lane counts in temporary Discovery state. Running one external provider does not erase the other provider or the Local lanes. Cross-provider duplicate source URLs collapse in the temporary result set.
+
+### GitHub provider discovery contract
+
+Provider #2 uses the public GitHub **Repository Search** endpoint. It deliberately does **not** use GitHub Code Search.
+
+Current search terms:
+
+```text
+greek iptv
+greece m3u
+```
+
+The requested freshness window becomes a real repository query filter:
+
+```text
+24h → pushed:>=<date one day ago>
+7d  → pushed:>=<date seven days ago>
+30d → pushed:>=<date thirty days ago>
+```
+
+Returned repository metadata is filtered again by the provider. Archived repositories and forks are skipped. The provider then inspects only a small number of root-level playlist-like files instead of cloning or recursively downloading repositories.
+
+### Bounded GitHub provider limits
+
+```text
+GitHub/API upstream timeout          6000 ms
+Browser external request timeout     9000 ms
+Repository search calls/request      2
+Maximum repositories inspected       4
+Maximum playlist files/repository    2
+Maximum total subrequests            10
+Maximum unique candidates            12
+Maximum inspected playlist body      1.2 MB
+```
+
+The hard subrequest budget counts search, repository contents and raw playlist fetches together. Exhausting the budget ends further provider work instead of allowing an unbounded crawl.
+
+### Freshness semantics
+
+Provider #2 can truthfully apply freshness to the **repository**, because GitHub exposes repository `pushed_at` and supports `pushed:` search filtering.
+
+It reports:
+
+```text
+freshnessRequested = 24h / 7d / 30d
+freshnessApplied   = true
+candidate.freshness = "repo-pushed:<repository pushed_at>"
+```
+
+This does **not** mean an individual M3U entry or stream URL was created at that timestamp. Repository activity and playlist-entry age are different facts. The provider therefore records repository push freshness without pretending it knows the publication age of each stream entry.
+
+### Matching and candidate trust
+
+Playlist entries discovered through GitHub use the same conservative channel identity boundary as Provider #1:
+
+```text
+MEGA ↔ MEGA HD       accepted HIGH
+MEGA ↔ MEGA News     rejected
+```
+
+Every result remains:
+
+```text
+verificationStatus = UNVERIFIED
+verified            = false
+```
+
+A repository match, a fresh `pushed_at`, or a valid M3U line is not verification. Only the separate Source Verifier may change the temporary verification state.
+
+### Kill switches
+
+Provider #2 can be disabled independently at both browser and Worker layers:
+
+```text
+browser provider flag:
+PROVIDER_FLAGS['github-public-playlists']
+
+Worker runtime kill switch:
+DISABLE_GITHUB_PUBLIC_PLAYLISTS=1
+```
+
+Disabling Provider #2 does not disable Curated Remote Feeds, the verifier, Source Hunt, Registry, player, Xtream or TV Cache.
+
+### Hard Provider #2 prohibitions
+
+GitHub Public Playlists must not:
+
+- use GitHub Code Search
+- require GitHub credentials in the browser
+- expose GitHub API access from frontend code
+- clone arbitrary repositories
+- recursively crawl entire repository trees
+- exceed the fixed subrequest budget
+- treat repository `pushed_at` as stream-entry publication time
+- save candidates to D1
+- mutate SourceRegistry
+- call the normal player
+- write route health
+- run automatically or continuously in the background
+- turn discovery success into verification success
+
+### Regression gate
+
+Provider #2 adds:
+
+```text
+tests/github-public-playlists-provider.test.mjs
+```
+
+and expands the existing external client, Worker router, isolation, browser-smoke and integration-audit tests.
+
+The deterministic provider test proves at minimum:
+
+- `pushed:>=YYYY-MM-DD` is present in Repository Search
+- only playlist-like root files are fetched
+- the hard request budget exists
+- GitHub candidate provenance is retained
+- candidate freshness records repository push time
+- `MEGA News` does not leak into `MEGA`
+- returned candidates remain temporary
+- the provider kill switch returns 503
+
+The browser smoke now performs:
+
+```text
+Local scan             → 3 candidates
+Curated provider       → +1
+GitHub provider         → +1
+Temporary total        → 5
+Both external results  → UNVERIFIED
+Verify All             → separate verifier only
+Close panel            → sidebar/player sentinels unchanged
+```
+
+### Deployment live gate
+
+The Source Discovery deployment workflow now verifies **both** external providers after Wrangler deploy:
+
+```text
+GET /
+→ version === 1.1
+→ curated-remote-feeds enabled
+→ github-public-playlists enabled
+
+POST curated-remote-feeds
+→ four curated feed reports
+→ at least one public curated upstream must return HTTP 200
+
+POST github-public-playlists
+→ freshnessApplied === true
+→ GitHub search reports returned
+→ at least one real GitHub Repository Search request must return HTTP 200
+→ candidates array structurally valid, even if a particular live search currently yields zero matching channel candidates
+```
+
+The live gate intentionally tests provider execution and real upstream connectivity, not a permanent fixed GitHub result. Public repositories change over time. Deterministic unit tests own exact matching semantics; the live gate owns the fact that the deployed Worker can actually reach and execute the provider.
+
+Provider #2 is considered complete only after final-head PR CI, main-branch CI, Source Discovery v1.1 live verification and Pages deployment all succeed.

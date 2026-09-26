@@ -5,6 +5,13 @@ assert.equal(MAX_CONCURRENCY,2);
 assert.equal(candidateMatches('#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA HD",MEGA HD',{name:'MEGA',id:'mega'}),true);
 assert.equal(candidateMatches('#EXTINF:-1 tvg-id="MEGA-NEWS" tvg-name="MEGA News",MEGA News',{name:'MEGA',id:'mega'}),false);
 
+const statusResponse=await discovery.fetch(new Request('https://discovery.test/'),{});
+assert.equal(statusResponse.status,200);
+const status=await statusResponse.json();
+assert.equal(status.version,'1.1');
+assert.equal(status.providers['curated-remote-feeds'],true);
+assert.equal(status.providers['github-public-playlists'],true);
+
 const sample=`#EXTM3U
 #EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA HD",MEGA HD
 https://good.test/mega.m3u8

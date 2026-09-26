@@ -11,6 +11,7 @@ on:
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
+      - 'workers/source-discovery/**/*.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
@@ -24,6 +25,7 @@ on:
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
+      - 'workers/source-discovery/**/*.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
@@ -60,7 +62,13 @@ jobs:
         run: node --input-type=module --check < workers/webtv-source-verifier.js
 
       - name: Validate Source Discovery Worker syntax
-        run: node --input-type=module --check < workers/webtv-source-discovery.js
+        shell: bash
+        run: |
+          node --input-type=module --check < workers/webtv-source-discovery.js
+          while IFS= read -r file; do
+            echo "Checking $file"
+            node --check "$file"
+          done < <(find workers/source-discovery -type f -name '*.js' | sort)
 
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
@@ -88,6 +96,9 @@ jobs:
 
       - name: Run Source Discovery Worker regression test
         run: node tests/source-discovery-worker.test.mjs
+
+      - name: Run GitHub public playlist provider regression test
+        run: node tests/github-public-playlists-provider.test.mjs
 
       - name: Run Discovery Phase 4 isolation regression test
         run: node tests/discovery-isolation.test.mjs

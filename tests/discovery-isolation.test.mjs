@@ -32,7 +32,7 @@ for (const forbidden of [
   'indexedDB',
 ]) assert.equal(combined.includes(forbidden),false,`Discovery Phase 4 must not reference ${forbidden}`);
 
-assert.equal(/\bfetch\s*\(/.test(nonNetwork),false,'Only dedicated Discovery clients may perform network calls');
+assert.equal(/\bfetch\s*\(/.test(nonNetwork),false,'Only dedicated Discovery clients may perform browser network calls');
 assert.equal(/fetchImpl\s*\(/.test(verifier),true,'Verifier client must isolate its network call behind fetchImpl');
 assert.equal(verifier.includes('/verify'),true,'Verifier client may call only the verifier endpoint');
 assert.equal(verifier.includes('MAX_CONCURRENCY=2'),true,'Verifier client concurrency must remain bounded at 2');
@@ -40,7 +40,9 @@ assert.equal(verifier.includes('REQUEST_TIMEOUT_MS=7000'),true,'Verifier client 
 assert.equal(/fetchImpl\s*\(/.test(external),true,'External discovery client must isolate its network call behind fetchImpl');
 assert.equal(external.includes('/discover'),true,'External discovery client may call only the discovery endpoint');
 assert.equal(external.includes('EXTERNAL_DISCOVERY_TIMEOUT_MS=9000'),true,'External discovery request timeout must remain bounded');
-assert.equal(external.includes('curated-remote-feeds'),true,'Phase 4 must expose only the curated remote feed provider');
+assert.equal(external.includes('curated-remote-feeds'),true,'Phase 4 must retain the curated remote feed provider');
+assert.equal(external.includes('github-public-playlists'),true,'Phase 4 must expose the GitHub public playlist provider explicitly');
+assert.equal(combined.includes('api.github.com'),false,'Browser Discovery must not call GitHub directly; GitHub access belongs to the Worker provider');
 assert.equal(combined.includes('localStorage'),false,'Discovery results must not persist in localStorage');
 assert.equal(combined.includes('sessionStorage'),false,'Discovery results must not persist in sessionStorage');
 assert.equal(combined.includes('WebTVSavedPlaylistsReadAPI'),true,'Saved Playlist cache must be read through its owner API');
