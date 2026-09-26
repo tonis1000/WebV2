@@ -1,7 +1,7 @@
 const PARAM = 'layout';
 const VALUE = 'rail';
 const DESKTOP = '(min-width: 1180px)';
-const BUILD_ID = '20260926-right-rail-preview-v2';
+const BUILD_ID = '20260926-right-rail-preview-v3';
 
 const enabled = new URLSearchParams(location.search).get(PARAM) === VALUE;
 if (!enabled) {
@@ -157,7 +157,7 @@ if (!enabled) {
     html.rail-preview .desktop-rail-stack{display:flex;flex-direction:column;align-items:stretch;gap:10px}
     html.rail-preview .rail-brand{padding:2px 4px 8px;border-bottom:1px solid rgba(99,179,255,.14)}
     html.rail-preview .rail-brand .eyebrow{margin:0;color:var(--accent);font-size:.78rem;letter-spacing:.15em}
-    html.rail-preview .rail-clock{display:block;padding:2px 4px 12px;color:#d7e8f6;font-size:.9rem;border-bottom:1px solid rgba(99,179,255,.12)}
+    html.rail-preview .rail-clock{display:block;padding:2px 4px 12px;margin-bottom:14px;color:#d7e8f6;font-size:.9rem;border-bottom:1px solid rgba(99,179,255,.12)}
     html.rail-preview .rail-control{width:100%;min-height:40px;justify-content:center;text-align:center;margin:0!important}
     html.rail-preview #favorite-channel.rail-control{background:#33270d;border-color:#886817;color:#ffe39b}
     html.rail-preview #playlist-manager-toggle.rail-control{background:#123f59;border-color:#2e83ad;color:#d9f3ff}
