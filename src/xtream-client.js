@@ -119,6 +119,18 @@ export async function saveXtreamChannelFromPreview(previewToken, streamId, { nam
   return result.source;
 }
 
+export async function deleteXtreamChannelSource(id) {
+  const sourceId = String(id || '').trim();
+  if (!/^xch_[A-Za-z0-9_-]{8,64}$/.test(sourceId)) throw new Error('Invalid Xtream channel source ID');
+  const result = await bridgeFetch(`/api/channel-sources/${encodeURIComponent(sourceId)}`, { method: 'DELETE' });
+  return {
+    id: String(result.id || sourceId),
+    deleted: Boolean(result.deleted),
+    reason: String(result.reason || ''),
+    references: Number(result.references || 0),
+  };
+}
+
 export async function deleteXtreamAccount(id) {
   if (!id) return;
   await bridgeFetch(`/api/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
