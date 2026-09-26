@@ -29,12 +29,19 @@
     window.fetch=async(url,options={})=>{
       if(String(url).includes('webtv-source-discovery')){
         const body=JSON.parse(options.body||'{}');
+        const github=body.provider==='github-public-playlists';
         return new Response(JSON.stringify({
-          service:'WebTV Source Discovery',version:'1.0',provider:'curated-remote-feeds',
-          freshnessRequested:body.freshness||'7d',freshnessApplied:false,
-          freshnessNote:'Curated feeds are checked live',
-          candidates:[{channelName:'MEGA',sourceType:'hls',sourceUrl:'https://external.test/mega.m3u8',sourceOrigin:'fixture-feed',discoveryProvider:'curated-remote-feeds',freshness:'live-feed-check',matchConfidence:'HIGH'}],
-          reports:[{feed:'fixture-feed',status:200,count:1}]
+          service:'WebTV Source Discovery',version:'1.1',provider:body.provider,
+          freshnessRequested:body.freshness||'7d',freshnessApplied:github,
+          freshnessNote:github?'Repository pushed_at filter applied':'Curated feeds are checked live',
+          candidates:[{
+            channelName:'MEGA',sourceType:'hls',
+            sourceUrl:github?'https://github-external.test/mega.m3u8':'https://external.test/mega.m3u8',
+            sourceOrigin:github?'github:fixture/recent/playlist.m3u':'fixture-feed',
+            discoveryProvider:body.provider,
+            freshness:github?'repo-pushed:2026-09-26T00:00:00Z':'live-feed-check',matchConfidence:'HIGH'
+          }],
+          reports:github?{searches:[{status:200}],repositories:[{repo:'fixture/recent',status:200,matches:1}]}:[{feed:'fixture-feed',status:200,count:1}]
         }),{status:200,headers:{'content-type':'application/json'}});
       }
       const body=JSON.parse(options.body||'{}');
@@ -64,7 +71,9 @@
       await api.scanLocal();
       const local=api.snapshot();
       await api.scanExternal();
-      const external=api.snapshot();
+      const curated=api.snapshot();
+      await api.scanGithub();
+      const github=api.snapshot();
       const cardCount=document.querySelectorAll('#discovery-results .discovery-card').length;
       await api.verifyAll();
       const verified=api.snapshot();
@@ -74,7 +83,8 @@
       const closed=api.snapshot();
       const verifiedCount=verified.candidates.filter(x=>x.verificationStatus==='VERIFIED').length;
       const failedCount=verified.candidates.filter(x=>x.verificationStatus==='HTTP 404').length;
-      const externalCandidate=external.candidates.find(x=>x.discoveryProvider==='curated-remote-feeds');
+      const curatedCandidate=github.candidates.find(x=>x.discoveryProvider==='curated-remote-feeds');
+      const githubCandidate=github.candidates.find(x=>x.discoveryProvider==='github-public-playlists');
       const pass=Boolean(
         api &&
         opened.open===true &&
@@ -86,14 +96,19 @@
         local.lanes.savedPlaylists===1 &&
         local.lanes.xtream===1 &&
         local.lanes.total===3 &&
-        external.externalStatus==='done' &&
-        external.lanes.curatedRemoteFeeds===1 &&
-        external.lanes.total===4 &&
-        external.candidates.length===4 &&
-        externalCandidate?.verificationStatus==='UNVERIFIED' &&
-        cardCount===4 &&
+        curated.externalStatus==='done' &&
+        curated.lanes.curatedRemoteFeeds===1 &&
+        curated.lanes.total===4 &&
+        github.externalStatus==='done' &&
+        github.lanes.curatedRemoteFeeds===1 &&
+        github.lanes.githubPublicPlaylists===1 &&
+        github.lanes.total===5 &&
+        github.candidates.length===5 &&
+        curatedCandidate?.verificationStatus==='UNVERIFIED' &&
+        githubCandidate?.verificationStatus==='UNVERIFIED' &&
+        cardCount===5 &&
         verified.verifyStatus==='done' &&
-        verifiedCount===3 &&
+        verifiedCount===4 &&
         failedCount===1 &&
         changed.freshness==='24h' &&
         closed.open===false &&
@@ -102,7 +117,7 @@
         player.textContent===before.player
       );
       document.documentElement.dataset.phase4Result=pass?'PASS':'FAIL';
-      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,verifiedCount,failedCount,opened,local,external,verified,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
+      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,verifiedCount,failedCount,opened,local,curated,github,verified,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
     }catch(error){
       document.documentElement.dataset.phase4Result='ERROR';
       document.getElementById('result').textContent=String(error?.stack||error);
