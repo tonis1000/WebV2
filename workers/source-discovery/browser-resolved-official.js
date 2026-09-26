@@ -95,8 +95,9 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   };
   const key=channelKey(channel);const entry=key?OFFICIAL_PROVIDER_REGISTRY[key]:null;
   if(!entry)return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:false,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{pages:[],registryKey:'',owner:'',reason:'channel not in official registry'}};
+  const browserPages=/^ert(?:1|2|3|news)$/.test(key)?['https://live.ertflix.gr/live']:(entry.pages||[]);
   const reports=[];const candidates=[];const seen=new Set();
-  for(const pageUrl of (entry.pages||[]).slice(0,2)){
+  for(const pageUrl of browserPages.slice(0,2)){
     const result=await resolvePage({pageUrl,channel,entry,env,fetchImpl});
     reports.push({url:pageUrl,status:result.status,observations:result.observationCount,matches:result.candidates.length,error:result.error,endpoint:result.endpoint});
     for(const candidate of result.candidates){if(seen.has(candidate.sourceUrl))continue;seen.add(candidate.sourceUrl);candidates.push(candidate);if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;}
