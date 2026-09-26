@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'workers/webtv-source-verifier.js'
+      - 'tests/fixtures/source-verifier-working.m3u8'
       - '.github/workflows/deploy-source-verifier.yml'
 
 permissions:
@@ -57,19 +58,28 @@ jobs:
       - name: Verify live Worker status and controlled probes
         shell: bash
         run: |
-          set -euo pipefail
+          set -u -o pipefail
+          GOOD_URL="https://raw.githubusercontent.com/tonis1000/WebV2/$GITHUB_SHA/tests/fixtures/source-verifier-working.m3u8"
+          DEAD_URL="https://raw.githubusercontent.com/tonis1000/WebV2/$GITHUB_SHA/tests/fixtures/source-verifier-dead-does-not-exist.m3u8"
+
           for attempt in $(seq 1 12); do
-            curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" -o /tmp/verifier-status.json || true
-            if node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/verifier-status.json','utf8'));process.exit(j.service==='WebTV Source Verifier'&&j.version==='1.0'&&j.timeoutMs===6000&&j.maxConcurrency===2?0:1)}catch{process.exit(1)}"; then
-              GOOD=$(curl --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"good\",\"sourceType\":\"hls\",\"sourceUrl\":\"$WORKER_URL/fixture/working.m3u8\"}}")
-              DEAD=$(curl --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"dead\",\"sourceType\":\"hls\",\"sourceUrl\":\"$WORKER_URL/fixture/dead\"}}")
-              node -e "const good=JSON.parse(process.argv[1]),dead=JSON.parse(process.argv[2]);if(good.results?.[0]?.status!=='VERIFIED'||dead.results?.[0]?.status!=='HTTP 404')process.exit(1);console.log(JSON.stringify({good:good.results[0],dead:dead.results[0]},null,2));" "$GOOD" "$DEAD"
-              echo "Source Verifier v1.0 is live and controlled good/dead probes passed."
-              exit 0
+            rm -f /tmp/verifier-status.json
+            if curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" -o /tmp/verifier-status.json \
+              && node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/verifier-status.json','utf8'));process.exit(j.service==='WebTV Source Verifier'&&j.version==='1.0'&&j.timeoutMs===6000&&j.maxConcurrency===2?0:1)}catch{process.exit(1)}"; then
+
+              GOOD=$(curl --fail --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"good\",\"sourceType\":\"hls\",\"sourceUrl\":\"$GOOD_URL\"}}" || true)
+              DEAD=$(curl --fail --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"dead\",\"sourceType\":\"hls\",\"sourceUrl\":\"$DEAD_URL\"}}" || true)
+
+              if node -e "try{const good=JSON.parse(process.argv[1]),dead=JSON.parse(process.argv[2]);if(good.results?.[0]?.status!=='VERIFIED'||dead.results?.[0]?.status!=='HTTP 404')process.exit(1);console.log(JSON.stringify({good:good.results[0],dead:dead.results[0]},null,2));}catch{process.exit(1)}" "$GOOD" "$DEAD"; then
+                echo "Source Verifier v1.0 is live and external controlled good/dead probes passed."
+                exit 0
+              fi
             fi
-            echo "Waiting for Cloudflare propagation ($attempt/12)…"
+
+            echo "Waiting for Worker/fixture propagation ($attempt/12)…"
             sleep 5
           done
+
           echo "::error::Source Verifier live verification failed"
           cat /tmp/verifier-status.json 2>/dev/null || true
           exit 1
