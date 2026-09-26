@@ -1,0 +1,27 @@
+name: Phase 4.6 Live Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/phase46-live-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe production Xtream bridge and public mock
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRIDGE='https://webtv-xtream.atonis.workers.dev'
+          MOCK='https://webtv-xtream-mock.atonis.workers.dev'
+          STATUS=$(curl --fail --silent --show-error "$BRIDGE/api/status")
+          UNAUTH_CODE=$(curl --silent --output /tmp/unauth.json --write-out '%{http_code}' "$BRIDGE/api/accounts")
+          MOCK_STATUS=$(curl --fail --silent --show-error "$MOCK/api/status")
+          STREAMS=$(curl --fail --silent --show-error "$MOCK/player_api.php?username=test_user&password=test_pass&action=get_live_streams")
+          node -e "const s=JSON.parse(process.argv[1]),m=JSON.parse(process.argv[2]),x=JSON.parse(process.argv[3]); const ok=s.service==='WebTV Xtream Bridge'&&s.version==='1.7'&&s.registryBinding===true&&s.hlsProxy===true&&process.argv[4]==='401'&&m.service==='WebTV Xtream Test Provider'&&Array.isArray(x)&&x.some(c=>String(c.name)==='MEGA'&&String(c.stream_id)==='1101'); if(!ok){console.error(JSON.stringify({status:s,unauth:process.argv[4],mock:m,mega:x.find(c=>String(c.name)==='MEGA')||null},null,2));process.exit(1)} console.log(JSON.stringify({bridge:{service:s.service,version:s.version,registryBinding:s.registryBinding,hlsProxy:s.hlsProxy},unauthorizedAccountsHttp:Number(process.argv[4]),mock:{service:m.service,version:m.version,mega:x.find(c=>String(c.name)==='MEGA')}},null,2));" "$STATUS" "$MOCK_STATUS" "$STREAMS" "$UNAUTH_CODE"
