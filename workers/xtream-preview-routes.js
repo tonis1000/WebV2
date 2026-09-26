@@ -140,6 +140,20 @@ async function saveChannelOnly(requestUrl,env,payload,streamId,name=''){
   return{id,name:sourceName,server:payload.server,streamId,playbackUrl:await channelPlaybackUrl(requestUrl,env,id,streamId)};
 }
 
+async function deleteChannelOnly(env,sourceId){
+  await ensureTables(env);
+  const id=clean(sourceId);
+  if(!/^xch_[A-Za-z0-9_-]{8,64}$/.test(id))throw errorWithStatus('Invalid Xtream channel source ID');
+  const existing=await env.DB.prepare(`SELECT id FROM xtream_channel_sources WHERE id=?`).bind(id).first();
+  if(!existing)return{id,deleted:false,reason:'not-found',references:0};
+  const needle=`/channel-stream/${id}/`;
+  const referenceRow=await env.DB.prepare(`SELECT COUNT(*) AS n FROM channel_sources s JOIN my_playlist m ON m.channel_id=s.channel_id WHERE s.enabled=1 AND instr(s.url, ?) > 0`).bind(needle).first();
+  const references=Math.max(0,Number(referenceRow?.n||0));
+  if(references>0)return{id,deleted:false,reason:'still-referenced',references};
+  await env.DB.prepare(`DELETE FROM xtream_channel_sources WHERE id=?`).bind(id).run();
+  return{id,deleted:true,reason:'deleted',references:0};
+}
+
 async function proxyUrlFor(requestUrl,env,absoluteTarget){const token=await encryptText(absoluteTarget,env);const base=new URL(requestUrl);return`${base.origin}/hls-proxy?u=${encodeURIComponent(token)}`;}
 async function rewriteManifest(text,finalUrl,requestUrl,env){
   const rewrite=async ref=>{const value=String(ref||'').trim();if(!value||value.startsWith('data:'))return value;return proxyUrlFor(requestUrl,env,new URL(value,finalUrl).href);};
@@ -177,7 +191,7 @@ async function channelStream(request,env,sourceId,streamId,origin){
   return proxyUpstream(request,env,upstream,origin);
 }
 
-function isPhase52Path(path){return path==='/api/preview'||path==='/api/accounts/from-preview'||path==='/api/channel-sources'||/^\/preview-stream\/[^/]+\.m3u8$/.test(path)||/^\/channel-stream\/[^/]+\/[^/]+\.m3u8$/.test(path);}
+function isPhase52Path(path){return path==='/api/preview'||path==='/api/accounts/from-preview'||path==='/api/channel-sources'||/^\/api\/channel-sources\/[^/]+$/.test(path)||/^\/preview-stream\/[^/]+\.m3u8$/.test(path)||/^\/channel-stream\/[^/]+\/[^/]+\.m3u8$/.test(path);}
 
 export async function handleXtreamPreviewRoute(request,env){
   const url=new URL(request.url);const path=url.pathname.replace(/\/+$/,'')||'/';
@@ -201,6 +215,8 @@ export async function handleXtreamPreviewRoute(request,env){
       const denied=await requireAdmin(request,env,origin);if(denied)return denied;
       const body=await request.json();const streamId=clean(body.streamId);if(!streamId)throw errorWithStatus('Xtream stream ID is required');const payload=await readPreviewToken(env,body.previewToken||'');const source=await saveChannelOnly(request.url,env,payload,streamId,body.name||'');return json({ok:true,source},200,origin);
     }
+    const cleanupMatch=path.match(/^\/api\/channel-sources\/([^/]+)$/);
+    if(cleanupMatch&&request.method==='DELETE'){const denied=await requireAdmin(request,env,origin);if(denied)return denied;const result=await deleteChannelOnly(env,decodeURIComponent(cleanupMatch[1]));return json({ok:true,...result},200,origin);}
     const previewMatch=path.match(/^\/preview-stream\/([^/]+)\.m3u8$/);if(previewMatch&&request.method==='GET')return previewStream(request,env,decodeURIComponent(previewMatch[1]),origin);
     const channelMatch=path.match(/^\/channel-stream\/([^/]+)\/([^/]+)\.m3u8$/);if(channelMatch&&request.method==='GET')return channelStream(request,env,decodeURIComponent(channelMatch[1]),decodeURIComponent(channelMatch[2]),origin);
     return json({error:'Not found'},404,origin);

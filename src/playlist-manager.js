@@ -1,4 +1,5 @@
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
+import { diffRemovedUrls, cleanupRemovedXtreamChannelSources } from './xtream-channel-lifecycle.js?v=20260926-1800';
 
 const BUILD_ID = '20260924-2030';
 const DB_NAME = 'webtv-v2-playlists';
@@ -149,6 +150,15 @@ function channelPayload(channel,position=999999,replaceSources=true){
 }
 function api(){return window.WebTVPlaylistAPI||null;}
 function selectedChannel(){return api()?.getSelectedChannel?.()||null;}
+async function cleanupXtreamAfterSourceRemoval(previousUrls,currentUrls,context){
+  const removed=diffRemovedUrls(previousUrls,currentUrls);
+  if(!removed.length)return{cleaned:[],retained:[],failed:[]};
+  const result=await cleanupRemovedXtreamChannelSources(removed);
+  if(result.cleaned.length)log(`XTREAM CHANNEL CLEANUP ${context} · deleted ${result.cleaned.length} orphan secret(s)`);
+  if(result.retained.length)log(`XTREAM CHANNEL CLEANUP ${context} · retained ${result.retained.length} referenced secret(s)`);
+  if(result.failed.length)log(`XTREAM CHANNEL CLEANUP ${context} · ${result.failed.length} cleanup failure(s) · My Playlist write remains committed`);
+  return result;
+}
 
 async function refreshPrimary({forceSidebar=false,reason='write'}={}){
   myCache=await fetchMyPlaylist();
@@ -415,10 +425,15 @@ async function addMyChannel(channel){
 async function removeMyChannel(channel){
   if(!confirm(`Remove “${channel.name}” from My Playlist?`))return;
   try{
+    myCache=await fetchMyPlaylist();myCacheLoaded=true;
+    const key=normalize(channel.id||channel.originalId||channel.name);
+    const current=myCache.find(c=>normalize(c.id||c.originalId||c.name)===key);
+    const previousUrls=[...(current?.directUrls||channel.directUrls||[])];
     await deleteRegistryChannel(channel.id||channel.originalId||channel.name);
     setStatus(`${channel.name} removed from My Playlist`,'idle');
     log(`MY PLAYLIST REMOVE · ${channel.name} · D1`);
     await refreshPrimary({reason:'remove-channel'});
+    await cleanupXtreamAfterSourceRemoval(previousUrls,[],'REMOVE CHANNEL');
     if(myCache.length)await updateRegistryOrder(myCache).catch(()=>{});
   }catch(error){setStatus(error.message,'error');log(`D1 REMOVE CHANNEL FAILED · ${error.message}`);}
 }
@@ -435,11 +450,13 @@ async function editMyChannel(channel){
     const key=normalize(channel.id||channel.originalId||channel.name);
     const index=myCache.findIndex(c=>normalize(c.id||c.originalId||c.name)===key);
     if(index<0)throw new Error('Channel is no longer in My Playlist');
+    const previousUrls=[...(myCache[index].directUrls||[])];
     const edited={...myCache[index],name:name.trim(),group:(group||'Other').trim(),directUrls:urls};
     await putRegistryChannel(edited,index,true);
     setStatus(`${edited.name} updated`,'ok');
     log(`MY PLAYLIST EDIT · ${edited.name} · ${urls.length} source(s) · D1`);
     await refreshPrimary({reason:'edit-channel'});
+    await cleanupXtreamAfterSourceRemoval(previousUrls,urls,'EDIT CHANNEL');
   }catch(error){setStatus(error.message,'error');log(`D1 EDIT CHANNEL FAILED · ${error.message}`);}
 }
 async function moveMyChannel(from,to){
@@ -488,12 +505,14 @@ async function showSources(channel){
       const key=normalize(channel.id||channel.originalId||channel.name);
       const index=myCache.findIndex(c=>normalize(c.id||c.originalId||c.name)===key);
       if(index<0)throw new Error('Channel is no longer in My Playlist');
+      const previousUrls=[...(myCache[index].directUrls||[])];
       const edited={...myCache[index],directUrls:urls};
       await putRegistryChannel(edited,index,true);
       setStatus(`${edited.name} sources updated · ${urls.length} saved`,'ok');
       log(`MY PLAYLIST SOURCES EDIT · ${edited.name} · ${urls.length} source(s) · D1`);
       overlay.hidden=true;
       await refreshPrimary({reason:'edit-sources'});
+      await cleanupXtreamAfterSourceRemoval(previousUrls,urls,'EDIT SOURCES');
     }catch(error){setStatus(error.message,'error');log(`D1 SOURCE EDIT FAILED · ${error.message}`);}
   };
   overlay.hidden=false;setTimeout(()=>area.focus(),0);
