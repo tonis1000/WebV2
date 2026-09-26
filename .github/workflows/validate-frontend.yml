@@ -9,6 +9,8 @@ on:
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'workers/webtv-xtream.js'
+      - 'workers/webtv-xtream-router.js'
+      - 'workers/xtream-preview-routes.js'
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
@@ -23,6 +25,8 @@ on:
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'workers/webtv-xtream.js'
+      - 'workers/webtv-xtream-router.js'
+      - 'workers/xtream-preview-routes.js'
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
@@ -51,7 +55,11 @@ jobs:
           set -euo pipefail
           while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find src -type f -name '*.js' | sort)
       - name: Validate Xtream Worker syntax
-        run: node --input-type=module --check < workers/webtv-xtream.js
+        shell: bash
+        run: |
+          node --input-type=module --check < workers/webtv-xtream.js
+          node --check workers/xtream-preview-routes.js
+          node --check workers/webtv-xtream-router.js
       - name: Validate Source Verifier Worker syntax
         run: node --input-type=module --check < workers/webtv-source-verifier.js
       - name: Validate Source Discovery Worker syntax
@@ -65,8 +73,12 @@ jobs:
         run: node tests/source-ranking.test.mjs
       - name: Run Xtream source regression test
         run: node tests/xtream-client.test.mjs
+      - name: Run Xtream preview route encryption regression test
+        run: node tests/xtream-preview-routes.test.mjs
       - name: Run authorized Xtream discovery regression test
         run: node tests/authorized-xtream-discovery.test.mjs
+      - name: Run new Xtream preview candidate regression test
+        run: node tests/new-xtream-preview.test.mjs
       - name: Run explicit Discovery promotion regression test
         run: node tests/discovery-promotion.test.mjs
       - name: Run Discovery candidate/state regression test
@@ -91,7 +103,7 @@ jobs:
         run: node tests/official-provider-lane.test.mjs
       - name: Run Discovery Phase 4 isolation regression test
         run: node tests/discovery-isolation.test.mjs
-      - name: Run Discovery Phase 4 browser smoke test
+      - name: Run Discovery Phase 5 browser smoke test
         run: node tests/discovery-browser-smoke.mjs
       - name: Run frontend integration audit
         run: node tests/frontend-integration.test.mjs
