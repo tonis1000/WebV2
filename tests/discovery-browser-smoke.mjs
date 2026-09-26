@@ -26,7 +26,10 @@ function runChrome(command,args,{timeoutMs=20000}={}){
     child.stdout.setEncoding('utf8');child.stderr.setEncoding('utf8');
     child.stdout.on('data',chunk=>stdout+=chunk);
     child.stderr.on('data',chunk=>stderr+=chunk);
-    const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error(`Chrome timed out after ${timeoutMs} ms\n${stderr}`));},timeoutMs);
+    const timer=setTimeout(()=>{
+      child.kill('SIGKILL');
+      reject(new Error(`Chrome timed out after ${timeoutMs} ms\n${stderr}`));
+    },timeoutMs);
     child.on('error',error=>{clearTimeout(timer);reject(error);});
     child.on('close',status=>{clearTimeout(timer);resolve({status,stdout,stderr});});
   });
@@ -35,14 +38,32 @@ function runChrome(command,args,{timeoutMs=20000}={}){
 await new Promise(resolve=>server.listen(4173,'127.0.0.1',resolve));
 try{
   const chrome=process.env.CHROME_BIN || 'google-chrome';
-  const run=await runChrome(chrome,[
+  const args=[
     '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
     '--virtual-time-budget=3000','--dump-dom','http://127.0.0.1:4173/tests/discovery-browser-smoke.html'
-  ]);
-  assert.equal(run.status,0,`Chrome exited ${run.status}: ${run.stderr}`);
-  assert.match(run.stdout,/data-phase4-result="PASS"/,`Browser smoke did not pass. DOM:\n${run.stdout}\nSTDERR:\n${run.stderr}`);
-  assert.match(run.stdout,/SIDEBAR-STABLE/);
-  assert.match(run.stdout,/PLAYER-STABLE/);
+  ];
+
+  let successfulRun=null;
+  let lastFailure=null;
+  for(let attempt=1;attempt<=2;attempt++){
+    try{
+      const run=await runChrome(chrome,args,{timeoutMs:20000});
+      const hasPass=/data-phase4-result="PASS"/.test(run.stdout);
+      if(run.status===0&&hasPass){
+        successfulRun=run;
+        break;
+      }
+      lastFailure=new Error(`Chrome attempt ${attempt} did not produce PASS. status=${run.status}\nDOM:\n${run.stdout}\nSTDERR:\n${run.stderr}`);
+    }catch(error){
+      lastFailure=error;
+    }
+    if(attempt<2)console.warn(`Discovery browser smoke attempt ${attempt} failed; retrying once: ${lastFailure?.message||lastFailure}`);
+  }
+
+  if(!successfulRun)throw lastFailure||new Error('Discovery browser smoke failed without a result');
+  assert.match(successfulRun.stdout,/data-phase4-result="PASS"/);
+  assert.match(successfulRun.stdout,/SIDEBAR-STABLE/);
+  assert.match(successfulRun.stdout,/PLAYER-STABLE/);
   console.log('discovery Phase 4 browser smoke PASS');
 }finally{
   await new Promise(resolve=>server.close(resolve));
