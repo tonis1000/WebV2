@@ -44,6 +44,17 @@ try{
   assert.equal(seen.filter(url=>url.includes('api.search.brave.com')).length,2);
   assert.equal(seen.some(url=>url.includes('youtube.com')),false,'blocked social result must not be fetched');
 
+  globalThis.fetch=async(input)=>{
+    const url=new URL(String(input));
+    if(url.hostname==='api.search.brave.com')return new Response(JSON.stringify({error:{code:'VALIDATION',detail:'fixture validation detail',status:422}}),{status:422,headers:{'content-type':'application/json'}});
+    throw new Error(`Unexpected fetch ${url}`);
+  };
+  const rejected=await discoverRecentWebSearch({channel:{name:'MEGA'},freshness:'7d',env:{BRAVE_API_KEY:'fixture-key'},parseM3u});
+  assert.equal(rejected.reports.searches[0].status,422);
+  assert.match(rejected.reports.searches[0].error,/VALIDATION/);
+  assert.match(rejected.reports.searches[0].error,/fixture validation detail/);
+  assert.match(rejected.reports.searches[0].error,/422/);
+
   await assert.rejects(()=>discoverRecentWebSearch({channel:{name:'MEGA'},freshness:'7d',env:{},parseM3u}),/BRAVE_API_KEY/);
   console.log('recent web search provider tests PASS');
 }finally{globalThis.fetch=originalFetch;}
