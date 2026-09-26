@@ -20,43 +20,22 @@ try{
     if(url.hostname==='api.github.com'&&url.pathname==='/search/repositories'){
       const q=url.searchParams.get('q')||'';seenSearches.push(q);
       assert.match(q,/pushed:>=\d{4}-\d{2}-\d{2}/);
-      return new Response(JSON.stringify({items:[{
-        full_name:'fixture/recent-greek-iptv',default_branch:'main',pushed_at:new Date().toISOString(),fork:false,archived:false,
-      }]}),{status:200,headers:{'content-type':'application/json','x-ratelimit-remaining':'9'}});
+      return new Response(JSON.stringify({items:[{full_name:'fixture/recent-greek-iptv',default_branch:'main',pushed_at:new Date().toISOString(),fork:false,archived:false}]}),{status:200,headers:{'content-type':'application/json','x-ratelimit-remaining':'9'}});
     }
     if(url.hostname==='api.github.com'&&url.pathname==='/repos/fixture/recent-greek-iptv/contents'){
-      return new Response(JSON.stringify([
-        {type:'file',name:'playlist.m3u',size:500,download_url:'https://raw.githubusercontent.com/fixture/recent-greek-iptv/main/playlist.m3u'},
-        {type:'file',name:'README.md',size:100,download_url:'https://raw.githubusercontent.com/fixture/recent-greek-iptv/main/README.md'},
-      ]),{status:200,headers:{'content-type':'application/json'}});
+      return new Response(JSON.stringify([{type:'file',name:'playlist.m3u',size:500,download_url:'https://raw.githubusercontent.com/fixture/recent-greek-iptv/main/playlist.m3u'},{type:'file',name:'README.md',size:100,download_url:'https://raw.githubusercontent.com/fixture/recent-greek-iptv/main/README.md'}]),{status:200,headers:{'content-type':'application/json'}});
     }
-    if(url.hostname==='raw.githubusercontent.com'&&url.pathname.endsWith('/playlist.m3u')){
-      return new Response(sample,{status:200,headers:{'content-type':'audio/x-mpegurl'}});
-    }
+    if(url.hostname==='raw.githubusercontent.com'&&url.pathname.endsWith('/playlist.m3u'))return new Response(sample,{status:200,headers:{'content-type':'audio/x-mpegurl'}});
     throw new Error(`Unexpected fetch ${url}`);
   };
 
   const request=new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER,freshness:'24h',channel:{name:'MEGA',id:'mega',originalId:'MEGA'}})});
-  const response=await discovery.fetch(request,{});
-  assert.equal(response.status,200);
-  const body=await response.json();
-  assert.equal(body.version,'1.1');
+  const response=await discovery.fetch(request,{});assert.equal(response.status,200);const body=await response.json();
+  assert.equal(body.version,'1.2');
   assert.equal(body.provider,GITHUB_PUBLIC_PLAYLISTS_PROVIDER);
-  assert.equal(body.freshnessRequested,'24h');
-  assert.equal(body.freshnessApplied,true);
-  assert.equal(body.candidates.length,1);
-  assert.equal(body.candidates[0].sourceUrl,'https://github-found.test/mega.m3u8');
-  assert.equal(body.candidates[0].discoveryProvider,GITHUB_PUBLIC_PLAYLISTS_PROVIDER);
-  assert.match(body.candidates[0].sourceOrigin,/fixture\/recent-greek-iptv/);
-  assert.match(body.candidates[0].freshness,/^repo-pushed:/);
-  assert.equal(body.reports.searches.length,2);
-  assert.equal(body.reports.repositories.length,1);
-  assert.equal(body.reports.subrequestsUsed,4);
-  assert.equal(seenSearches.length,2);
+  assert.equal(body.freshnessRequested,'24h');assert.equal(body.freshnessApplied,true);assert.equal(body.candidates.length,1);assert.equal(body.candidates[0].sourceUrl,'https://github-found.test/mega.m3u8');assert.equal(body.candidates[0].discoveryProvider,GITHUB_PUBLIC_PLAYLISTS_PROVIDER);assert.match(body.candidates[0].sourceOrigin,/fixture\/recent-greek-iptv/);assert.match(body.candidates[0].freshness,/^repo-pushed:/);assert.equal(body.reports.searches.length,2);assert.equal(body.reports.repositories.length,1);assert.equal(body.reports.subrequestsUsed,4);assert.equal(seenSearches.length,2);
 
   const disabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER,channel:{name:'MEGA'}})}),{DISABLE_GITHUB_PUBLIC_PLAYLISTS:'1'});
-  assert.equal(disabled.status,503);
-  assert.equal((await disabled.json()).provider,GITHUB_PUBLIC_PLAYLISTS_PROVIDER);
-
+  assert.equal(disabled.status,503);assert.equal((await disabled.json()).provider,GITHUB_PUBLIC_PLAYLISTS_PROVIDER);
   console.log('GitHub public playlist provider tests PASS');
 }finally{globalThis.fetch=originalFetch;}
