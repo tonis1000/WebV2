@@ -10,6 +10,7 @@ permissions:
   contents: read
 
 # Re-run after Brave error-detail hotfix deployment.
+# Re-run after valid Brave Search API key replacement.
 jobs:
   diagnose:
     runs-on: ubuntu-latest
