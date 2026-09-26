@@ -85,7 +85,16 @@ function safeObservationSummary(observations=[]){
     let host='';
     try{host=new URL(String(observation?.url||'')).hostname.toLowerCase();}catch{}
     const headers=sanitizeHeaders(observation?.headers);
-    return{sourceType:typeOf(String(observation?.url||'')),host,resourceType:String(observation?.resourceType||'').slice(0,40),headerNames:Object.keys(headers)};
+    const requestHeaderNames=Array.isArray(observation?.requestHeaderNames)
+      ? [...new Set(observation.requestHeaderNames.map(name=>String(name||'').toLowerCase()).filter(Boolean))].slice(0,32)
+      : [];
+    return{
+      sourceType:typeOf(String(observation?.url||'')),
+      host,
+      resourceType:String(observation?.resourceType||'').slice(0,40),
+      headerNames:Object.keys(headers),
+      requestHeaderNames,
+    };
   }).filter(item=>item.host&&item.sourceType);
 }
 
