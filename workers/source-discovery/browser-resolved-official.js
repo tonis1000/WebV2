@@ -16,7 +16,7 @@ function safeResolverUrl(value=''){
   const url=new URL(String(value||'').trim());
   if(url.protocol!=='https:')throw new Error('Browser resolver endpoint must use HTTPS');
   if(!url.hostname||url.hostname==='localhost'||url.hostname.endsWith('.local'))throw new Error('Browser resolver endpoint rejected');
-  if(url.pathname==='/'||!url.pathname)url.pathname='/resolve';
+  if(url.pathname==='/'||!url.pathname||url.pathname==='/resolve/')url.pathname='/resolve';
   return url;
 }
 function sanitizeHeaders(headers={}){
@@ -53,6 +53,7 @@ function mediaCandidate(channel,entry,observation,pageUrl){
 
 async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
   const endpoint=safeResolverUrl(env.BROWSER_RESOLVER_URL);
+  const endpointLabel=`${endpoint.hostname}${endpoint.pathname}`;
   const token=String(env.BROWSER_RESOLVER_TOKEN||'').trim();
   if(!token)throw new Error('BROWSER_RESOLVER_TOKEN is not configured');
   const controller=new AbortController();
@@ -68,7 +69,7 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
       }),
     });
     let payload={};try{payload=await response.json();}catch{}
-    if(!response.ok)throw new Error(payload?.error||`Browser resolver HTTP ${response.status}`);
+    if(!response.ok)throw new Error(`${payload?.error||`Browser resolver HTTP ${response.status}`} @ ${endpointLabel}`);
     const observations=Array.isArray(payload?.observations)?payload.observations:[];
     const candidates=[];const seen=new Set();
     for(const observation of observations){
@@ -77,9 +78,9 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
       seen.add(url);candidates.push(mediaCandidate(channel,entry,observation,pageUrl));
       if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;
     }
-    return{status:response.status,candidates,observationCount:observations.length,error:''};
+    return{status:response.status,candidates,observationCount:observations.length,error:'',endpoint:endpointLabel};
   }catch(error){
-    return{status:error?.name==='AbortError'?408:0,candidates:[],observationCount:0,error:error?.message||String(error)};
+    return{status:error?.name==='AbortError'?408:0,candidates:[],observationCount:0,error:error?.message||String(error),endpoint:endpointLabel};
   }finally{clearTimeout(timer);}
 }
 
@@ -93,7 +94,7 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   const reports=[];const candidates=[];const seen=new Set();
   for(const pageUrl of (entry.pages||[]).slice(0,2)){
     const result=await resolvePage({pageUrl,channel,entry,env,fetchImpl});
-    reports.push({url:pageUrl,status:result.status,observations:result.observationCount,matches:result.candidates.length,error:result.error});
+    reports.push({url:pageUrl,status:result.status,observations:result.observationCount,matches:result.candidates.length,error:result.error,endpoint:result.endpoint});
     for(const candidate of result.candidates){if(seen.has(candidate.sourceUrl))continue;seen.add(candidate.sourceUrl);candidates.push(candidate);if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;}
     if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;
   }
