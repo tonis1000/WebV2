@@ -36,18 +36,24 @@ function refererIsOfficialErt(headers={}){
   const clean=sanitizeHeaders(headers);
   try{return new URL(clean.Referer||'').hostname.toLowerCase()==='live.ertflix.gr';}catch{return false;}
 }
-function isErtProvisionalObservation(entry,observation){
-  if(entry?.owner!=='ERT'||!refererIsOfficialErt(observation?.headers))return false;
-  try{
-    const url=new URL(String(observation?.url||''));
-    return url.protocol==='https:'&&url.hostname.toLowerCase().endsWith(ERT_PROVISIONAL_SUFFIX)&&Boolean(typeOf(url.href));
-  }catch{return false;}
+function isErtProvisionalUrl(entry,url,headers={}){
+  if(entry?.owner!=='ERT'||!refererIsOfficialErt(headers))return false;
+  try{const parsed=new URL(String(url||''));return parsed.protocol==='https:'&&parsed.hostname.toLowerCase().endsWith(ERT_PROVISIONAL_SUFFIX);}catch{return false;}
+}
+function candidateUrl(observation={}){
+  const finalStatus=Number(observation.finalStatus);
+  const finalUrl=String(observation.finalUrl||'').trim();
+  if(finalStatus>=200&&finalStatus<300&&finalUrl)return finalUrl;
+  return String(observation.url||'').trim();
+}
+function candidateType(observation={},url=''){
+  return String(observation.finalKind||'').trim()||typeOf(url)||typeOf(String(observation.url||''));
 }
 function mediaCandidate(channel,entry,observation,pageUrl,{provisional=false}={}){
-  const sourceUrl=String(observation?.url||'').trim();
+  const sourceUrl=candidateUrl(observation);
   return{
     channelName:String(channel.name||''),
-    sourceType:typeOf(sourceUrl),
+    sourceType:candidateType(observation,sourceUrl),
     sourceUrl,
     requiredHeaders:sanitizeHeaders(observation?.headers),
     sourceOrigin:`official-browser:${entry.owner}`,
@@ -59,43 +65,37 @@ function mediaCandidate(channel,entry,observation,pageUrl,{provisional=false}={}
     trustClass:provisional?'OFFICIAL_OBSERVED':'OFFICIAL',
     saveEligible:!provisional,
     officialPageUrl:pageUrl,
-    browserResponseStatus:Number.isFinite(Number(observation?.responseStatus))?Number(observation.responseStatus):null,
-    browserResponseContentType:String(observation?.responseContentType||'').slice(0,120),
+    browserResponseStatus:Number.isFinite(Number(observation?.finalStatus))?Number(observation.finalStatus):(Number.isFinite(Number(observation?.responseStatus))?Number(observation.responseStatus):null),
+    browserResponseContentType:String(observation?.finalContentType||observation?.responseContentType||'').slice(0,120),
+    browserRedirectResolved:Boolean(observation?.finalUrl&&observation.finalUrl!==observation.url),
     verificationDetail:provisional
       ? 'Observed during playback from the official ERT page on a shared CDN; verification is mandatory before any promotion.'
       : 'Observed from an allowlisted official page after browser execution; verifier still required',
   };
 }
 function safeDiagnostics(value={}){
-  const side=input=>({
-    title:String(input?.title||'').slice(0,120),
-    pathname:String(input?.pathname||'').slice(0,200),
-    videoCount:Number(input?.videoCount)||0,
-    iframeCount:Number(input?.iframeCount)||0,
-    buttonCount:Number(input?.buttonCount)||0,
-    iframeHosts:Array.isArray(input?.iframeHosts)?input.iframeHosts.map(String).slice(0,8):[],
-    buttonLabels:Array.isArray(input?.buttonLabels)?input.buttonLabels.map(v=>String(v).slice(0,80)).slice(0,12):[],
-  });
+  const side=input=>({title:String(input?.title||'').slice(0,120),pathname:String(input?.pathname||'').slice(0,200),videoCount:Number(input?.videoCount)||0,iframeCount:Number(input?.iframeCount)||0,buttonCount:Number(input?.buttonCount)||0,iframeHosts:Array.isArray(input?.iframeHosts)?input.iframeHosts.map(String).slice(0,8):[],buttonLabels:Array.isArray(input?.buttonLabels)?input.buttonLabels.map(v=>String(v).slice(0,80)).slice(0,12):[]});
   return{before:side(value?.before),selection:{clicked:Boolean(value?.selection?.clicked),label:String(value?.selection?.label||'').slice(0,80)},after:side(value?.after)};
 }
+function safeHost(raw=''){try{return new URL(String(raw||'')).hostname.toLowerCase();}catch{return'';}}
 function safeObservationSummary(observations=[]){
   return observations.slice(0,8).map(observation=>{
-    let host='';
-    try{host=new URL(String(observation?.url||'')).hostname.toLowerCase();}catch{}
     const headers=sanitizeHeaders(observation?.headers);
-    const requestHeaderNames=Array.isArray(observation?.requestHeaderNames)
-      ? [...new Set(observation.requestHeaderNames.map(name=>String(name||'').toLowerCase()).filter(Boolean))].slice(0,32)
-      : [];
+    const requestHeaderNames=Array.isArray(observation?.requestHeaderNames)?[...new Set(observation.requestHeaderNames.map(name=>String(name||'').toLowerCase()).filter(Boolean))].slice(0,32):[];
     return{
-      sourceType:typeOf(String(observation?.url||'')),
-      host,
+      sourceType:typeOf(String(observation?.url||''))||String(observation?.finalKind||''),
+      host:safeHost(observation?.url),
       resourceType:String(observation?.resourceType||'').slice(0,40),
       headerNames:Object.keys(headers),
       requestHeaderNames,
       responseStatus:Number.isFinite(Number(observation?.responseStatus))?Number(observation.responseStatus):null,
       responseContentType:String(observation?.responseContentType||'').slice(0,120),
+      finalHost:safeHost(observation?.finalUrl),
+      finalStatus:Number.isFinite(Number(observation?.finalStatus))?Number(observation.finalStatus):null,
+      finalContentType:String(observation?.finalContentType||'').slice(0,120),
+      finalKind:String(observation?.finalKind||'').slice(0,20),
     };
-  }).filter(item=>item.host&&item.sourceType);
+  }).filter(item=>item.host||item.finalHost);
 }
 
 async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
@@ -115,18 +115,17 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
     const observations=Array.isArray(payload?.observations)?payload.observations:[];
     const candidates=[];const seen=new Set();
     for(const observation of observations){
-      const url=String(observation?.url||'').trim();
-      if(!typeOf(url)||seen.has(url))continue;
+      const url=candidateUrl(observation);const sourceType=candidateType(observation,url);
+      if(!sourceType||!url||seen.has(url))continue;
       const strict=hostAllowed(url,entry.mediaHosts||[]);
-      const provisional=!strict&&isErtProvisionalObservation(entry,observation);
+      const provisional=!strict&&isErtProvisionalUrl(entry,url,observation?.headers);
       if(!strict&&!provisional)continue;
       seen.add(url);candidates.push(mediaCandidate(channel,entry,observation,pageUrl,{provisional}));
       if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;
     }
     return{status:response.status,candidates,observationCount:observations.length,observedMedia:safeObservationSummary(observations),error:'',endpoint:endpointLabel,diagnostics:safeDiagnostics(payload?.diagnostics)};
-  }catch(error){
-    return{status:error?.name==='AbortError'?408:0,candidates:[],observationCount:0,observedMedia:[],error:error?.message||String(error),endpoint:endpointLabel,diagnostics:safeDiagnostics()};
-  }finally{clearTimeout(timer);}
+  }catch(error){return{status:error?.name==='AbortError'?408:0,candidates:[],observationCount:0,observedMedia:[],error:error?.message||String(error),endpoint:endpointLabel,diagnostics:safeDiagnostics()};}
+  finally{clearTimeout(timer);}
 }
 
 export async function discoverBrowserResolvedOfficial({channel={},freshness='7d',env={},fetchImpl=fetch}={}){
@@ -144,4 +143,4 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Official pages are resolved live in a browser backend; discovery time is not publication time.',limits:{timeoutMs:BROWSER_RESOLVER_TIMEOUT_MS,maxCandidates:BROWSER_RESOLVER_MAX_CANDIDATES},candidates,reports:{pages:reports,registryKey:key,owner:entry.owner}};
 }
 
-export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary, isErtProvisionalObservation };
+export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary, candidateUrl, candidateType };
