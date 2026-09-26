@@ -81,7 +81,6 @@ const savePolicy = read('src/source-save-policy.js');
 assert.match(healthStore, /scoreHealthEntry/, 'HealthStore should use shared health scoring');
 assert.match(savePolicy, /scoreSourceUrl/, 'Source save policy should use shared health scoring');
 assert.doesNotMatch(savePolicy, /function routeHealthScore/, 'Source save policy must not keep a second scoring formula');
-
 assert.match(index, /Content-Security-Policy/, 'index.html should define a CSP boundary');
 
 const engine = read('src/source-hunt-engine.js');
@@ -99,42 +98,39 @@ assert.match(frontendWorkflow, /workers\/webtv-source-discovery\.js/, 'Frontend 
 assert.match(frontendWorkflow, /workers\/source-discovery\/\*\*\/\*\.js/, 'Frontend validation should cover Source Discovery provider modules');
 assert.match(frontendWorkflow, /source-discovery-worker\.test\.mjs/, 'Frontend validation should run Source Discovery Worker regression');
 assert.match(frontendWorkflow, /github-public-playlists-provider\.test\.mjs/, 'Frontend validation should run GitHub provider regression');
+assert.match(frontendWorkflow, /recent-web-search-provider\.test\.mjs/, 'Frontend validation should run Recent Web provider regression');
 
 const discoveryClient=read('src/discovery/external-discovery-client.js');
 assert.match(discoveryClient,/webtv-source-discovery\.atonis\.workers\.dev/, 'Phase 4 client must use the dedicated Source Discovery Worker');
 assert.match(discoveryClient,/curated-remote-feeds/, 'Phase 4 client must expose the curated remote feed provider');
 assert.match(discoveryClient,/github-public-playlists/, 'Phase 4 client must expose the GitHub public playlist provider');
-assert.doesNotMatch(discoveryClient,/api\.github\.com|WebTVPlaybackAPI|WebTVMyPlaylistAPI|SourceRegistry/, 'Browser external discovery must stay behind its Worker and outside playback/persistence');
+assert.match(discoveryClient,/recent-web-search/, 'Phase 4 client must expose the recent web provider');
+assert.doesNotMatch(discoveryClient,/api\.github\.com|api\.search\.brave\.com|BRAVE_API_KEY|WebTVPlaybackAPI|WebTVMyPlaylistAPI|SourceRegistry/, 'Browser external discovery must stay behind its Worker and outside credentials/playback/persistence');
 
 const discoveryWorker=read('workers/webtv-source-discovery.js');
 const githubProvider=read('workers/source-discovery/github-public-playlists.js');
+const webProvider=read('workers/source-discovery/recent-web-search.js');
 assert.match(discoveryWorker,/github-public-playlists\.js/, 'Source Discovery Worker must route through the dedicated GitHub provider module');
+assert.match(discoveryWorker,/recent-web-search\.js/, 'Source Discovery Worker must route through the dedicated Recent Web provider module');
 assert.match(githubProvider,/GITHUB_MAX_SUBREQUESTS=10/, 'GitHub provider must retain a hard subrequest budget');
 assert.match(githubProvider,/pushed:>=/, 'GitHub provider must apply repository freshness at the search query');
 assert.doesNotMatch(githubProvider,/search\/code/, 'GitHub provider must not use credential-sensitive Code Search');
+assert.match(webProvider,/WEB_MAX_SUBREQUESTS=8/, 'Recent Web provider must retain a hard subrequest budget');
+assert.match(webProvider,/WEB_MAX_PAGE_SCANS=4/, 'Recent Web provider must retain a page scan cap');
+assert.match(webProvider,/api\.search\.brave\.com/, 'Recent Web provider must call Brave directly from the Worker');
+assert.match(webProvider,/freshness/, 'Recent Web provider must send an explicit search freshness window');
+assert.doesNotMatch(webProvider,/source-huntatonisworkersdev/, 'Recent Web provider must not route through legacy Source Hunt');
 
 const discoveryDeploy=read('.github/workflows/deploy-source-discovery.yml');
 assert.match(discoveryDeploy,/workers\/webtv-source-discovery\.js/, 'Source Discovery deploy must be scoped to its canonical Worker');
 assert.match(discoveryDeploy,/workers\/source-discovery\/\*\*\/\*\.js/, 'Source Discovery deploy must include provider module changes');
 assert.match(discoveryDeploy,/github-public-playlists/, 'Source Discovery live gate must cover the GitHub provider');
+assert.match(discoveryDeploy,/recent-web-search/, 'Source Discovery live gate must cover the Recent Web provider');
+assert.match(discoveryDeploy,/BRAVE_API_KEY/, 'Source Discovery live gate must explain the Brave secret dependency');
 assert.doesNotMatch(discoveryDeploy,/src\/main\.js|src\/core\/player\.js/, 'Frontend-only runtime changes must not trigger Source Discovery deploy');
 
 for (const rel of [
-  'workers/webtv-registry.js',
-  'workers/epg-proxy-gr.js',
-  'workers/source-huntatonisworkersdev.js',
-  'workers/tv-cache.js',
-  'workers/webtv-source-verifier.js',
-  'workers/webtv-source-discovery.js',
-  'workers/source-discovery/github-public-playlists.js',
-  '.github/workflows/deploy-webtv-registry.yml',
-  '.github/workflows/deploy-epg-proxy-gr.yml',
-  '.github/workflows/deploy-source-hunt.yml',
-  '.github/workflows/deploy-tv-cache.yml',
-  '.github/workflows/deploy-source-verifier.yml',
-  '.github/workflows/deploy-source-discovery.yml',
-]) {
-  assert.ok(existsSync(path.join(ROOT, rel)), `Canonical runtime/deploy file missing: ${rel}`);
-}
+  'workers/webtv-registry.js','workers/epg-proxy-gr.js','workers/source-huntatonisworkersdev.js','workers/tv-cache.js','workers/webtv-source-verifier.js','workers/webtv-source-discovery.js','workers/source-discovery/github-public-playlists.js','workers/source-discovery/recent-web-search.js','.github/workflows/deploy-webtv-registry.yml','.github/workflows/deploy-epg-proxy-gr.yml','.github/workflows/deploy-source-hunt.yml','.github/workflows/deploy-tv-cache.yml','.github/workflows/deploy-source-verifier.yml','.github/workflows/deploy-source-discovery.yml',
+]) assert.ok(existsSync(path.join(ROOT, rel)), `Canonical runtime/deploy file missing: ${rel}`);
 
 console.log(`frontend integration audit: PASS · ${jsFiles.length} src JS files · ${localScripts.length} local scripts`);
