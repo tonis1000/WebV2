@@ -16,6 +16,7 @@ function safeResolverUrl(value=''){
   const url=new URL(String(value||'').trim());
   if(url.protocol!=='https:')throw new Error('Browser resolver endpoint must use HTTPS');
   if(!url.hostname||url.hostname==='localhost'||url.hostname.endsWith('.local'))throw new Error('Browser resolver endpoint rejected');
+  if(url.pathname==='/'||!url.pathname)url.pathname='/resolve';
   return url;
 }
 function sanitizeHeaders(headers={}){
@@ -52,11 +53,12 @@ function mediaCandidate(channel,entry,observation,pageUrl){
 
 async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
   const endpoint=safeResolverUrl(env.BROWSER_RESOLVER_URL);
+  const token=String(env.BROWSER_RESOLVER_TOKEN||'').trim();
+  if(!token)throw new Error('BROWSER_RESOLVER_TOKEN is not configured');
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(new DOMException('browser resolver timeout','AbortError')),BROWSER_RESOLVER_TIMEOUT_MS);
   try{
-    const headers={'content-type':'application/json','accept':'application/json'};
-    if(env.BROWSER_RESOLVER_TOKEN)headers.authorization=`Bearer ${env.BROWSER_RESOLVER_TOKEN}`;
+    const headers={'content-type':'application/json','accept':'application/json','authorization':`Bearer ${token}`};
     const response=await fetchImpl(endpoint.href,{
       method:'POST',headers,signal:controller.signal,cache:'no-store',
       body:JSON.stringify({
@@ -82,9 +84,9 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
 }
 
 export async function discoverBrowserResolvedOfficial({channel={},freshness='7d',env={},fetchImpl=fetch}={}){
-  if(!env.BROWSER_RESOLVER_URL)return{
+  if(!env.BROWSER_RESOLVER_URL||!env.BROWSER_RESOLVER_TOKEN)return{
     provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:false,available:false,freshnessRequested:freshness,freshnessApplied:false,candidates:[],
-    reports:{pages:[],registryKey:'',owner:'',reason:'BROWSER_RESOLVER_URL is not configured'},
+    reports:{pages:[],registryKey:'',owner:'',reason:'Browser resolver URL/token are not configured'},
   };
   const key=channelKey(channel);const entry=key?OFFICIAL_PROVIDER_REGISTRY[key]:null;
   if(!entry)return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:false,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{pages:[],registryKey:'',owner:'',reason:'channel not in official registry'}};
@@ -103,4 +105,4 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   };
 }
 
-export { sanitizeHeaders, typeOf };
+export { sanitizeHeaders, safeResolverUrl, typeOf };
