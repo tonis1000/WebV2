@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
 
+# Re-run after rotating both Workers from the same Brave API key clipboard.
 jobs:
   diagnose:
     runs-on: ubuntu-latest
@@ -17,7 +18,7 @@ jobs:
       WORKER_URL: https://webtv-source-discovery.atonis.workers.dev
       LEGACY_WORKER_URL: https://source-huntatonisworkersdev.atonis.workers.dev
     steps:
-      - name: Compare production Brave freshness with legacy worker
+      - name: Compare both Workers after identical Brave key rotation
         shell: bash
         run: |
           set -u -o pipefail
