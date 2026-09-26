@@ -1,0 +1,50 @@
+name: Smoke Browser Resolver ERT1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/smoke-browser-resolver-ert1.yml'
+
+permissions:
+  contents: read
+
+env:
+  DISCOVERY_URL: https://webtv-source-discovery.atonis.workers.dev/discover
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve ERT1 through browser lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE=$(curl --fail --silent --show-error -X POST "$DISCOVERY_URL" \
+            -H 'content-type: application/json' \
+            --data '{"provider":"browser-resolved-official","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1","tvgId":"ERT1"}}')
+          node - <<'NODE' "$RESPONSE"
+          const body=JSON.parse(process.argv[2]);
+          const safe={
+            provider:body.provider,
+            recognized:body.recognized,
+            available:body.available,
+            reports:body.reports?.pages||[],
+            candidates:(body.candidates||[]).map(c=>({
+              sourceType:c.sourceType,
+              host:(()=>{try{return new URL(c.sourceUrl).hostname}catch{return''}})(),
+              headerNames:Object.keys(c.requiredHeaders||{}),
+              trustClass:c.trustClass,
+              saveEligible:c.saveEligible,
+              origin:c.sourceOrigin
+            }))
+          };
+          console.log(JSON.stringify(safe,null,2));
+          if(body.provider!=='browser-resolved-official') process.exit(1);
+          if(body.recognized!==true || body.available!==true) process.exit(2);
+          if(!Array.isArray(body.reports?.pages) || body.reports.pages.length===0) process.exit(3);
+          if(!Array.isArray(body.candidates) || body.candidates.length===0) process.exit(4);
+          if(!body.candidates.some(c=>['hls','dash','video'].includes(c.sourceType))) process.exit(5);
+          NODE
