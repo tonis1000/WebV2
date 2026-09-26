@@ -4,11 +4,16 @@ export const OFFICIAL_MAX_PAGES=2;
 export const OFFICIAL_MAX_BODY_BYTES=1200000;
 export const OFFICIAL_MAX_CANDIDATES=8;
 
+const ERT_MEDIA_HOSTS=Object.freeze([
+  'live.ertflix.gr','ertflix.gr','www.ertflix.gr',
+  'ert-ucdn.broadpeak-aas.com','ert-live.siliconweb.com',
+]);
+
 const REGISTRY=Object.freeze({
-  ert1:Object.freeze({owner:'ERT',pages:['https://live.ertflix.gr/'],mediaHosts:['live.ertflix.gr','ertflix.gr','www.ertflix.gr']}),
-  ert2:Object.freeze({owner:'ERT',pages:['https://live.ertflix.gr/'],mediaHosts:['live.ertflix.gr','ertflix.gr','www.ertflix.gr']}),
-  ert3:Object.freeze({owner:'ERT',pages:['https://live.ertflix.gr/'],mediaHosts:['live.ertflix.gr','ertflix.gr','www.ertflix.gr']}),
-  ertnews:Object.freeze({owner:'ERT',pages:['https://live.ertflix.gr/'],mediaHosts:['live.ertflix.gr','ertflix.gr','www.ertflix.gr']}),
+  ert1:Object.freeze({owner:'ERT',pages:['https://live.ertflix.gr/'],mediaHosts:ERT_MEDIA_HOSTS}),
+  ert2:Object.freeze({owner:'ERT',pages:['https://live.ertflix.gr/'],mediaHosts:ERT_MEDIA_HOSTS}),
+  ert3:Object.freeze({owner:'ERT',pages:['https://live.ertflix.gr/'],mediaHosts:ERT_MEDIA_HOSTS}),
+  ertnews:Object.freeze({owner:'ERT',pages:['https://live.ertflix.gr/'],mediaHosts:ERT_MEDIA_HOSTS}),
   ant1:Object.freeze({owner:'ANT1',pages:['https://www.antenna.gr/live'],mediaHosts:['antenna.gr','www.antenna.gr']}),
   madtv:Object.freeze({
     owner:'MAD TV',
@@ -96,4 +101,4 @@ export async function discoverOfficialProvider({channel={},freshness='7d',fetchI
   };
 }
 
-export { REGISTRY as OFFICIAL_PROVIDER_REGISTRY, channelKey, extractMediaUrls, hostAllowed };
+export { REGISTRY as OFFICIAL_PROVIDER_REGISTRY, ERT_MEDIA_HOSTS, channelKey, extractMediaUrls, hostAllowed };
