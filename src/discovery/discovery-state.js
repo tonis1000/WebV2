@@ -54,8 +54,10 @@ export class DiscoveryState {
     this.scanMessage=String(message||'');
   }
   setScanResult({candidates=[],lanes=EMPTY_LANES,message=''}={}){
-    this.candidates=uniqueCandidates(candidates);
-    this.lanes=Object.freeze({...EMPTY_LANES,...(lanes||{}),curatedRemoteFeeds:this.lanes.curatedRemoteFeeds||0});
+    const external=this.candidates.filter(item=>item?.discoveryProvider==='curated-remote-feeds');
+    this.candidates=uniqueCandidates([...(candidates||[]),...external]);
+    const externalCount=this.lanes.curatedRemoteFeeds||external.length;
+    this.lanes=Object.freeze({...EMPTY_LANES,...(lanes||{}),curatedRemoteFeeds:externalCount,total:this.candidates.length});
     this.scanStatus='done';
     this.scanMessage=String(message||'');
     this.lastScanAt=new Date().toISOString();
@@ -71,7 +73,8 @@ export class DiscoveryState {
     this.externalMessage=String(message||'');
   }
   mergeExternalResult({candidates=[],count=null,message=''}={}){
-    this.candidates=uniqueCandidates([...this.candidates,...(candidates||[])]);
+    const local=this.candidates.filter(item=>item?.discoveryProvider!=='curated-remote-feeds');
+    this.candidates=uniqueCandidates([...local,...(candidates||[])]);
     const externalCount=count===null?(candidates||[]).length:Number(count)||0;
     this.lanes=Object.freeze({...EMPTY_LANES,...this.lanes,curatedRemoteFeeds:externalCount,total:this.candidates.length});
     if(this.scanStatus==='idle')this.scanStatus='done';
