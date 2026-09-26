@@ -1,7 +1,6 @@
 const PARAM = 'layout';
-const VALUE = 'rail';
 const DESKTOP = '(min-width: 1180px)';
-const BUILD_ID = '20260926-right-rail-default-v6';
+const BUILD_ID = '20260926-right-rail-default-v7';
 
 const layoutMode = new URLSearchParams(location.search).get(PARAM);
 const enabled = layoutMode !== 'classic';
@@ -46,6 +45,19 @@ if (!enabled) {
     return rail;
   }
 
+  function ensureCatalogBadge() {
+    let badge = document.getElementById('current-catalog-badge');
+    if (badge) return badge;
+    badge = document.createElement('span');
+    badge.id = 'current-catalog-badge';
+    badge.className = 'current-catalog-badge';
+    badge.textContent = '★ My Playlist: My Playlist';
+    badge.title = 'Current catalog: My Playlist';
+    const actions = document.querySelector('.topbar-actions');
+    if (actions) actions.appendChild(badge);
+    return badge;
+  }
+
   function findDiscoveryButton() {
     return [...document.querySelectorAll('button')].find(button => /discovery\s*beta/i.test(button.textContent || '')) || null;
   }
@@ -57,12 +69,12 @@ if (!enabled) {
 
     const brand = document.querySelector('.topbar > div:first-child');
     const clock = document.getElementById('clock');
-    const favorite = document.getElementById('favorite-channel');
     const playlists = document.getElementById('playlist-manager-toggle');
-    const catalog = document.getElementById('current-catalog-badge');
+    const catalog = ensureCatalogBadge();
     const hunt = document.getElementById('source-hunt-toggle');
     const discovery = findDiscoveryButton();
     const diagnostics = document.getElementById('diagnostics-toggle');
+    const favorite = document.getElementById('favorite-channel');
 
     [brand, clock, playlists, catalog, hunt, discovery, diagnostics, favorite]
       .filter(Boolean)
@@ -161,13 +173,14 @@ if (!enabled) {
     html.rail-preview .rail-brand .eyebrow{margin:0;color:var(--accent);font-size:.78rem;letter-spacing:.15em}
     html.rail-preview .rail-clock{display:block;padding:2px 4px 12px;margin-bottom:30px;color:#d7e8f6;font-size:.9rem;border-bottom:1px solid rgba(99,179,255,.12)}
     html.rail-preview .rail-control{width:100%;min-height:40px;justify-content:center;text-align:center;margin:0!important}
-    html.rail-preview #favorite-channel.rail-control{background:#33270d;border-color:#886817;color:#ffe39b}
     html.rail-preview #playlist-manager-toggle.rail-control{background:#123f59;border-color:#2e83ad;color:#d9f3ff}
     html.rail-preview #current-catalog-badge.rail-control{display:flex!important;max-width:none;padding:9px 10px;background:#0d1d29;border-color:#315d7a;color:#bfe0ff;border-radius:10px;white-space:normal;line-height:1.2}
-    html.rail-preview #source-hunt-toggle.rail-control{background:#33250e;border-color:#86651f;color:#ffe0a0}
+    html.rail-preview #source-hunt-toggle.rail-control{display:flex!important;background:#33250e;border-color:#86651f;color:#ffe0a0}
+    html.rail-preview #source-hunt-toggle.rail-control[hidden]{opacity:.5;pointer-events:none}
     html.rail-preview #diagnostics-toggle.rail-control{background:#091116;border-color:#33414c;color:#f4f7fa}
+    html.rail-preview #favorite-channel.rail-control{display:flex!important;background:#33270d;border-color:#886817;color:#ffe39b}
+    html.rail-preview #favorite-channel.rail-control[hidden]{opacity:.5;pointer-events:none}
     html.rail-preview .rail-favorite{margin-top:12px!important}
-    html.rail-preview .channel-actions #favorite-channel{display:none!important}
     html.rail-preview .now-playing{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;padding-top:10px}
     html.rail-preview #program-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;max-height:2.8em;line-height:1.4;transition:max-height .18s ease;color:var(--muted)}
     html.rail-preview #program-description.is-expandable{cursor:pointer;position:relative;padding-right:20px}
