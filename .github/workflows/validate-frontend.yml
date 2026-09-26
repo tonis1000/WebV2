@@ -83,6 +83,8 @@ jobs:
         run: node tests/recent-web-search-provider.test.mjs
       - name: Run STRM-specific discovery provider regression test
         run: node tests/strm-specific-discovery-provider.test.mjs
+      - name: Run official provider lane regression test
+        run: node tests/official-provider-lane.test.mjs
       - name: Run Discovery Phase 4 isolation regression test
         run: node tests/discovery-isolation.test.mjs
       - name: Run Discovery Phase 4 browser smoke test
