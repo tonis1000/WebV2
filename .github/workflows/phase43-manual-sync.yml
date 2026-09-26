@@ -1,0 +1,177 @@
+name: Phase 4.3 Manual Sync
+
+on:
+  push:
+    branches: [phase4-recent-web-discovery]
+    paths:
+      - '.github/workflows/phase43-manual-sync.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: phase4-recent-web-discovery
+      - name: Append Phase 4.3 operations checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q '^## 24\. Source Discovery V2 Phase 4 provider #3' WEBTV_OPERATIONS.md; then
+            cat >> WEBTV_OPERATIONS.md <<'EOF'
+
+---
+
+## 24. Source Discovery V2 Phase 4 provider #3 · Recent Web Search · 2026-09-26
+
+Provider #3 adds bounded recent public-web discovery through the dedicated `webtv-source-discovery` Worker. It does not route through legacy Source Hunt and does not expose Brave credentials to browser code.
+
+### Current Source Discovery service
+
+```text
+Worker: webtv-source-discovery
+URL: https://webtv-source-discovery.atonis.workers.dev
+Source: workers/webtv-source-discovery.js
+Provider module: workers/source-discovery/recent-web-search.js
+Workflow: .github/workflows/deploy-source-discovery.yml
+Version: 1.2
+
+Enabled provider IDs:
+curated-remote-feeds
+github-public-playlists
+recent-web-search
+```
+
+### Runtime boundary
+
+```text
+selected channel
+      │ explicit Search Recent Web
+      ▼
+src/discovery/external-discovery-client.js
+      │ POST /discover
+      ▼
+webtv-source-discovery Worker
+      │
+      └── provider: recent-web-search
+              ├── Brave Search API
+              ├── real freshness window
+              ├── bounded relevant-page scans
+              ├── conservative URL extraction
+              └── temporary UNVERIFIED candidates only
+      ▼
+Discovery in-memory state
+      │
+      └── explicit Source Verifier remains separate
+
+player + sidebar + SourceRegistry + D1
+      └── unchanged
+```
+
+### Freshness semantics
+
+The requested Discovery window maps directly to Brave Search freshness:
+
+```text
+24h → pd
+7d  → pw
+30d → pm
+```
+
+When Brave returns a reliable result date, candidates record `result-date:<timestamp>`. Undated results record only `brave-window:<window>`. Request time must never be fabricated as publication time.
+
+### Bounded provider contract
+
+```text
+Brave/page upstream timeout      6000 ms
+Browser request timeout          9000 ms
+Maximum Brave searches           2
+Maximum relevant page scans      4
+Maximum total subrequests        8
+Maximum unique candidates        12
+Maximum inspected page body      1.2 MB
+```
+
+The provider filters private/local targets and selected high-noise social/video hosts before page fetching. Search discovery does not imply stream verification.
+
+### Trust and verification boundary
+
+Every Recent Web result enters Discovery as:
+
+```text
+matchConfidence     = MEDIUM
+verificationStatus  = UNVERIFIED
+verified            = false
+```
+
+Only the separate Source Verifier may change temporary verification state. A Brave result, visible media URL or recent result date is not sufficient for promotion or persistence.
+
+### Secret ownership and kill switch
+
+`BRAVE_API_KEY` is configured as a Cloudflare **Production Secret** on `webtv-source-discovery`.
+
+The browser never receives this key. The provider can be disabled independently with:
+
+```text
+browser provider flag:
+PROVIDER_FLAGS['recent-web-search']
+
+Worker runtime kill switch:
+DISABLE_RECENT_WEB_SEARCH=1
+```
+
+If the secret is absent, the Worker reports the provider disabled/unavailable and `/discover` returns a clear 503 instead of silently falling back through legacy Source Hunt.
+
+### Hard Provider #3 prohibitions
+
+Recent Web Search must not:
+
+- expose `BRAVE_API_KEY` to browser code
+- route requests through legacy Source Hunt
+- exceed the fixed search/page/subrequest limits
+- fetch private/local network targets
+- treat search results as verified streams
+- save candidates to D1
+- mutate SourceRegistry
+- call the normal player
+- write route health
+- run automatically or continuously in the background
+- persist Discovery candidates to localStorage/sessionStorage
+
+### Regression and live gate
+
+Provider #3 adds `tests/recent-web-search-provider.test.mjs` and expands client/router, isolation, browser-smoke and integration-audit coverage.
+
+The browser smoke now proves:
+
+```text
+Local → Curated → GitHub → Recent Web → Verify
+```
+
+while sidebar/player sentinels remain unchanged.
+
+The post-deploy Source Discovery live gate requires:
+
+```text
+GET / → version 1.2 and all three providers enabled
+curated provider → at least one real public feed HTTP 200
+GitHub provider → at least one real GitHub Repository Search HTTP 200
+Recent Web provider → at least one real Brave Search HTTP 200
+```
+
+Provider #3 is complete only when final-head PR CI, main-branch CI, Source Discovery v1.2 live verification and Pages deployment all succeed.
+EOF
+          fi
+          rm -f .github/workflows/phase43-manual-sync.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add WEBTV_OPERATIONS.md .github/workflows/phase43-manual-sync.yml
+          if git diff --cached --quiet; then
+            echo 'No manual sync changes needed.'
+            exit 0
+          fi
+          git commit -m 'Document Phase 4.3 recent web discovery'
+          git push origin HEAD:phase4-recent-web-discovery
