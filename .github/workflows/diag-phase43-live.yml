@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
 
+# Re-run after Brave header alignment deploy.
 jobs:
   diagnose:
     runs-on: ubuntu-latest
