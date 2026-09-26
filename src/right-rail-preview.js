@@ -1,11 +1,12 @@
 const PARAM = 'layout';
 const VALUE = 'rail';
 const DESKTOP = '(min-width: 1180px)';
-const BUILD_ID = '20260926-right-rail-preview-v5';
+const BUILD_ID = '20260926-right-rail-default-v6';
 
-const enabled = new URLSearchParams(location.search).get(PARAM) === VALUE;
+const layoutMode = new URLSearchParams(location.search).get(PARAM);
+const enabled = layoutMode !== 'classic';
 if (!enabled) {
-  console.info(`[WebTV] Right rail preview inactive · add ?${PARAM}=${VALUE}`);
+  console.info('[WebTV] Right rail layout disabled by ?layout=classic');
 } else {
   const mq = window.matchMedia(DESKTOP);
   const moved = new Map();
@@ -125,7 +126,7 @@ if (!enabled) {
       refreshExpandableDescription();
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    console.info(`[WebTV] Right rail preview active · build ${BUILD_ID}`);
+    console.info(`[WebTV] Right rail layout active · build ${BUILD_ID}`);
   }
 
   function deactivate() {
@@ -137,7 +138,7 @@ if (!enabled) {
     document.documentElement.classList.remove('rail-preview');
     const desc = document.getElementById('program-description');
     desc?.classList.remove('expanded', 'is-expandable');
-    console.info('[WebTV] Right rail preview disabled for narrow viewport');
+    console.info('[WebTV] Right rail layout disabled for narrow viewport');
   }
 
   function applyMode() {
