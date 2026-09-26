@@ -59,6 +59,8 @@ function mediaCandidate(channel,entry,observation,pageUrl,{provisional=false}={}
     trustClass:provisional?'OFFICIAL_OBSERVED':'OFFICIAL',
     saveEligible:!provisional,
     officialPageUrl:pageUrl,
+    browserResponseStatus:Number.isFinite(Number(observation?.responseStatus))?Number(observation.responseStatus):null,
+    browserResponseContentType:String(observation?.responseContentType||'').slice(0,120),
     verificationDetail:provisional
       ? 'Observed during playback from the official ERT page on a shared CDN; verification is mandatory before any promotion.'
       : 'Observed from an allowlisted official page after browser execution; verifier still required',
@@ -74,11 +76,7 @@ function safeDiagnostics(value={}){
     iframeHosts:Array.isArray(input?.iframeHosts)?input.iframeHosts.map(String).slice(0,8):[],
     buttonLabels:Array.isArray(input?.buttonLabels)?input.buttonLabels.map(v=>String(v).slice(0,80)).slice(0,12):[],
   });
-  return{
-    before:side(value?.before),
-    selection:{clicked:Boolean(value?.selection?.clicked),label:String(value?.selection?.label||'').slice(0,80)},
-    after:side(value?.after),
-  };
+  return{before:side(value?.before),selection:{clicked:Boolean(value?.selection?.clicked),label:String(value?.selection?.label||'').slice(0,80)},after:side(value?.after)};
 }
 function safeObservationSummary(observations=[]){
   return observations.slice(0,8).map(observation=>{
@@ -94,6 +92,8 @@ function safeObservationSummary(observations=[]){
       resourceType:String(observation?.resourceType||'').slice(0,40),
       headerNames:Object.keys(headers),
       requestHeaderNames,
+      responseStatus:Number.isFinite(Number(observation?.responseStatus))?Number(observation.responseStatus):null,
+      responseContentType:String(observation?.responseContentType||'').slice(0,120),
     };
   }).filter(item=>item.host&&item.sourceType);
 }
@@ -108,17 +108,8 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
   const timer=setTimeout(()=>controller.abort(new DOMException('browser resolver timeout','AbortError')),BROWSER_RESOLVER_TIMEOUT_MS);
   try{
     const headers={'content-type':'application/json','accept':'application/json','authorization':`Bearer ${token}`};
-    const init={
-      method:'POST',headers,signal:controller.signal,cache:'no-store',
-      body:JSON.stringify({
-        url:pageUrl,
-        channel:{id:String(channel.id||''),originalId:String(channel.originalId||''),name:String(channel.name||''),tvgId:String(channel.tvgId||'')},
-        capture:{extensions:['m3u8','mpd','mp4','webm'],includeRequestHeaders:true,timeoutMs:BROWSER_RESOLVER_TIMEOUT_MS},
-      }),
-    };
-    const response=binding?.fetch
-      ? await binding.fetch(new Request('https://browser-resolver.internal/resolve',init))
-      : await fetchImpl(endpoint.href,init);
+    const init={method:'POST',headers,signal:controller.signal,cache:'no-store',body:JSON.stringify({url:pageUrl,channel:{id:String(channel.id||''),originalId:String(channel.originalId||''),name:String(channel.name||''),tvgId:String(channel.tvgId||'')},capture:{extensions:['m3u8','mpd','mp4','webm'],includeRequestHeaders:true,timeoutMs:BROWSER_RESOLVER_TIMEOUT_MS}})};
+    const response=binding?.fetch?await binding.fetch(new Request('https://browser-resolver.internal/resolve',init)):await fetchImpl(endpoint.href,init);
     let payload={};try{payload=await response.json();}catch{}
     if(!response.ok)throw new Error(`${payload?.error||`Browser resolver HTTP ${response.status}`} @ ${endpointLabel}`);
     const observations=Array.isArray(payload?.observations)?payload.observations:[];
@@ -139,10 +130,7 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
 }
 
 export async function discoverBrowserResolvedOfficial({channel={},freshness='7d',env={},fetchImpl=fetch}={}){
-  if((!env.BROWSER_RESOLVER&&!env.BROWSER_RESOLVER_URL)||!env.BROWSER_RESOLVER_TOKEN)return{
-    provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:false,available:false,freshnessRequested:freshness,freshnessApplied:false,candidates:[],
-    reports:{pages:[],registryKey:'',owner:'',reason:'Browser resolver binding/URL or token is not configured'},
-  };
+  if((!env.BROWSER_RESOLVER&&!env.BROWSER_RESOLVER_URL)||!env.BROWSER_RESOLVER_TOKEN)return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:false,available:false,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{pages:[],registryKey:'',owner:'',reason:'Browser resolver binding/URL or token is not configured'}};
   const key=channelKey(channel);const entry=key?OFFICIAL_PROVIDER_REGISTRY[key]:null;
   if(!entry)return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:false,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{pages:[],registryKey:'',owner:'',reason:'channel not in official registry'}};
   const browserPages=/^ert(?:1|2|3|news)$/.test(key)?['https://live.ertflix.gr/live']:(entry.pages||[]);
@@ -153,12 +141,7 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
     for(const candidate of result.candidates){if(seen.has(candidate.sourceUrl))continue;seen.add(candidate.sourceUrl);candidates.push(candidate);if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;}
     if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;
   }
-  return{
-    provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,
-    freshnessNote:'Official pages are resolved live in a browser backend; discovery time is not publication time.',
-    limits:{timeoutMs:BROWSER_RESOLVER_TIMEOUT_MS,maxCandidates:BROWSER_RESOLVER_MAX_CANDIDATES},
-    candidates,reports:{pages:reports,registryKey:key,owner:entry.owner},
-  };
+  return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Official pages are resolved live in a browser backend; discovery time is not publication time.',limits:{timeoutMs:BROWSER_RESOLVER_TIMEOUT_MS,maxCandidates:BROWSER_RESOLVER_MAX_CANDIDATES},candidates,reports:{pages:reports,registryKey:key,owner:entry.owner}};
 }
 
 export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary, isErtProvisionalObservation };
