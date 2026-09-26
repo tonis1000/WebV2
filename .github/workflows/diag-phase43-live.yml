@@ -13,6 +13,7 @@ permissions:
 # Re-run after valid Brave Search API key replacement.
 # Manual retry requested after Cloudflare secret update.
 # Re-run after Brave key rotation.
+# Re-run after confirming both workers use the same Brave key.
 jobs:
   diagnose:
     runs-on: ubuntu-latest
