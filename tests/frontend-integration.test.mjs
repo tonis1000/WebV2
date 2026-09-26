@@ -95,16 +95,31 @@ assert.doesNotMatch(tvCacheWorkflow, /- 'tests\/header-aware-proxy\.test\.mjs'/,
 const frontendWorkflow = read('.github/workflows/validate-frontend.yml');
 assert.match(frontendWorkflow, /src\/\*\*\/\*\.js/, 'Frontend validation should cover all src/**/*.js changes');
 assert.match(frontendWorkflow, /tests\/\*\*\/\*\.mjs/, 'Frontend validation should cover all tests/**/*.mjs changes');
+assert.match(frontendWorkflow, /workers\/webtv-source-discovery\.js/, 'Frontend validation should cover Source Discovery Worker changes');
+assert.match(frontendWorkflow, /source-discovery-worker\.test\.mjs/, 'Frontend validation should run Source Discovery Worker regression');
+
+const discoveryClient=read('src/discovery/external-discovery-client.js');
+assert.match(discoveryClient,/webtv-source-discovery\.atonis\.workers\.dev/, 'Phase 4 client must use the dedicated Source Discovery Worker');
+assert.match(discoveryClient,/curated-remote-feeds/, 'Phase 4 client must expose the curated remote feed provider');
+assert.doesNotMatch(discoveryClient,/WebTVPlaybackAPI|WebTVMyPlaylistAPI|SourceRegistry/, 'External discovery client must not cross playback or persistence boundaries');
+
+const discoveryDeploy=read('.github/workflows/deploy-source-discovery.yml');
+assert.match(discoveryDeploy,/workers\/webtv-source-discovery\.js/, 'Source Discovery deploy must be scoped to its canonical Worker');
+assert.doesNotMatch(discoveryDeploy,/src\/main\.js|src\/core\/player\.js/, 'Frontend-only runtime changes must not trigger Source Discovery deploy');
 
 for (const rel of [
   'workers/webtv-registry.js',
   'workers/epg-proxy-gr.js',
   'workers/source-huntatonisworkersdev.js',
   'workers/tv-cache.js',
+  'workers/webtv-source-verifier.js',
+  'workers/webtv-source-discovery.js',
   '.github/workflows/deploy-webtv-registry.yml',
   '.github/workflows/deploy-epg-proxy-gr.yml',
   '.github/workflows/deploy-source-hunt.yml',
   '.github/workflows/deploy-tv-cache.yml',
+  '.github/workflows/deploy-source-verifier.yml',
+  '.github/workflows/deploy-source-discovery.yml',
 ]) {
   assert.ok(existsSync(path.join(ROOT, rel)), `Canonical runtime/deploy file missing: ${rel}`);
 }
