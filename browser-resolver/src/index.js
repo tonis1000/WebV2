@@ -11,7 +11,7 @@ const MEDIA_RE=/\.(?:m3u8|mpd|mp4|webm)(?:[?#]|$)/i;
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json;charset=utf-8','cache-control':'no-store'}});}
 function authorized(request,env){
   const expected=String(env.RESOLVER_SHARED_TOKEN||'');
-  if(!expected)return true;
+  if(!expected)return false;
   return request.headers.get('authorization')===`Bearer ${expected}`;
 }
 function safePageUrl(raw=''){
@@ -105,8 +105,9 @@ async function resolve(body,env){
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
-    if(request.method==='GET'&&url.pathname==='/')return json({service:'WebTV Browser Resolver',version:VERSION,ready:Boolean(env.BROWSER),allowedPageHosts:[...ALLOWED_PAGE_HOSTS]});
+    if(request.method==='GET'&&url.pathname==='/')return json({service:'WebTV Browser Resolver',version:VERSION,ready:Boolean(env.BROWSER&&env.RESOLVER_SHARED_TOKEN),browserReady:Boolean(env.BROWSER),authConfigured:Boolean(env.RESOLVER_SHARED_TOKEN),allowedPageHosts:[...ALLOWED_PAGE_HOSTS]});
     if(request.method!=='POST'||url.pathname!=='/resolve')return json({error:'Not found'},404);
+    if(!env.RESOLVER_SHARED_TOKEN)return json({error:'Resolver authentication is not configured'},503);
     if(!authorized(request,env))return json({error:'Unauthorized'},401);
     let body={};
     try{body=await request.json();}catch{return json({error:'Invalid JSON'},400);}
