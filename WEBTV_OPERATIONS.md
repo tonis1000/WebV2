@@ -1,7 +1,7 @@
 # WebTV V2 · Master Operations Manual
 
 > **Canonical technical guide for the WebTV project**  
-> Last architecture update: **2026-09-24**  
+> Last architecture update: **2026-09-26**  
 > Repository: `tonis1000/WebV2`
 
 Read this file before a structural WebTV change. It records what runs where, what is authoritative, how data moves, how deployment works, and which safety rules must remain true.
@@ -363,6 +363,15 @@ src/source-hunt-oneclick.js
   tests real stream candidates first
   falls back to a verified official route only after stream search/testing is exhausted
 
+src/discovery/candidate-model.js
+  normalized temporary discovery candidate contract
+
+src/discovery/discovery-state.js
+  in-memory Discovery UI state and freshness selection
+
+src/discovery/discovery-ui.js
+  isolated Phase 1 Discovery shell; read-only selected-channel snapshot, mock/local candidates only
+
 src/sidebar-now.js
   sidebar now-playing EPG + timeline
 ```
@@ -509,7 +518,7 @@ change canonical source
 
 For TV Cache/header-aware changes, `.github/workflows/deploy-tv-cache.yml` runs `tests/header-aware-proxy.test.mjs` before deployment.
 
-For frontend/source-discovery changes, `.github/workflows/validate-frontend.yml` performs JavaScript syntax checks and runs the shared playback/fallback regression suite without unnecessarily redeploying a Worker.
+For frontend/source-discovery changes, `.github/workflows/validate-frontend.yml` performs JavaScript syntax checks and runs the shared playback/fallback regression suite plus the Discovery candidate/isolation gates without unnecessarily redeploying a Worker.
 
 Registry deployment verification for v1.5 must confirm:
 
@@ -919,3 +928,106 @@ frontend repository integration audit         PASS
 ```
 
 Keep this checkpoint as the baseline for later Source Hunt, player, fallback, health or deployment changes.
+
+---
+
+## 19. Source Discovery V2 Phase 1 shell · 2026-09-26
+
+`SOURCE_DISCOVERY_ARCHITECTURE.md` defines the replacement architecture for future source discovery. Phase 1 deliberately introduces only an isolated frontend shell and candidate contract. The legacy Source Hunt remains operational during this migration and is not yet replaced.
+
+### Phase 1 runtime boundary
+
+```text
+player + sidebar + SourceRegistry
+        │
+        └── unchanged
+
+Discovery Phase 1
+        ├── read selected channel snapshot only
+        ├── in-memory state only
+        ├── mock/local candidates only
+        └── no save / playback / network / D1 mutation
+```
+
+Implemented ownership:
+
+```text
+src/discovery/candidate-model.js
+  unified temporary Candidate normalization contract
+  HLS / DASH / STRM / M3U / direct / Xtream type support
+  approved header metadata normalization
+  authorized Xtream account context fields with redacted display helper
+
+src/discovery/discovery-state.js
+  in-memory panel state
+  default freshness 7d
+  supported windows 24h / 7d / 30d
+  Phase 1 mock candidates only
+
+src/discovery/discovery-ui.js
+  standalone Discovery Beta panel
+  reads `WebTVPlaylistAPI.getSelectedChannel()` only when opened
+  does not import player, SourceRegistry or save policy
+```
+
+The shell is loaded by `src/registry-default.js` to avoid adding another large `index.html` edit. This bootstrap relationship does not give Discovery ownership of registry behavior or D1 state.
+
+### Hard Phase 1 prohibitions
+
+Until the next explicitly reviewed phase, Discovery must not:
+
+- call external search providers or the Source Hunt Worker
+- call `fetch()` at all
+- verify or start playback
+- call `WebTVPlaybackAPI` or `PlayerController`
+- call My Playlist / Saved Playlist mutation APIs
+- persist discovery candidates to D1, localStorage or sessionStorage
+- import `src/core/source-registry.js`
+- import `src/source-save-policy.js`
+- create DOM-wide `MutationObserver` behavior
+- reorder permanent sources or routes
+
+The existing `SourceRegistry` MANUAL/AUTO ordering contract remains unchanged. Discovery result ranking is a separate concern and cannot rewrite permanent source order.
+
+### Candidate and Xtream boundary
+
+Phase 1 can represent authorized Xtream account context in temporary Candidate state:
+
+```text
+server
+username
+password
+streamId
+accountRef
+```
+
+Sensitive Xtream passwords must never be rendered directly. `candidateForDisplay()` redacts the password. No real Xtream discovery/search is enabled by Phase 1.
+
+### Regression gate
+
+The frontend validation workflow now runs:
+
+```text
+tests/discovery-candidate.test.mjs
+tests/discovery-isolation.test.mjs
+```
+
+The isolation test rejects accidental references to player/save/D1 APIs, network fetches, browser persistence and global MutationObservers inside the Phase 1 Discovery modules.
+
+A Phase 1 commit or CI success is still not sufficient by itself. Before merge, verify the actual branch behavior:
+
+```text
+clean WebTV load
+→ same My Playlist count/order
+→ normal channel playback works
+→ open Discovery Beta
+→ selected channel unchanged
+→ sidebar unchanged
+→ playback continues
+→ change 24h / 7d / 30d
+→ only Discovery state changes
+→ close Discovery Beta
+→ playback/sidebar remain unchanged
+```
+
+Only after those invariants hold should Phase 2 connect safe local sources. External discovery and verification remain later phases.
