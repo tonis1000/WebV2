@@ -4,10 +4,12 @@ import {
   BROWSER_RESOLVER_TIMEOUT_MS,
   discoverBrowserResolvedOfficial,
   sanitizeHeaders,
+  safeResolverUrl,
 } from '../workers/source-discovery/browser-resolved-official.js';
 
 assert.equal(BROWSER_RESOLVED_OFFICIAL_PROVIDER,'browser-resolved-official');
 assert.equal(BROWSER_RESOLVER_TIMEOUT_MS,12000);
+assert.equal(safeResolverUrl('https://resolver.example.test/').href,'https://resolver.example.test/resolve');
 assert.deepEqual(sanitizeHeaders({
   'User-Agent':'UA',
   Referer:'https://live.ertflix.gr/',
@@ -43,7 +45,7 @@ const fetchImpl=async(input,options={})=>{
 const result=await discoverBrowserResolvedOfficial({
   channel:{name:'ERT1',id:'ert1'},
   freshness:'7d',
-  env:{BROWSER_RESOLVER_URL:'https://resolver.example.test/resolve',BROWSER_RESOLVER_TOKEN:'test-token'},
+  env:{BROWSER_RESOLVER_URL:'https://resolver.example.test/',BROWSER_RESOLVER_TOKEN:'test-token'},
   fetchImpl,
 });
 
@@ -61,9 +63,17 @@ assert.deepEqual(result.candidates[0].requiredHeaders,{'User-Agent':'Browser UA'
 assert.equal('Cookie' in result.candidates[0].requiredHeaders,false);
 assert.equal(calls.length,1);
 
+const missingToken=await discoverBrowserResolvedOfficial({
+  channel:{name:'ERT1'},
+  env:{BROWSER_RESOLVER_URL:'https://resolver.example.test/'},
+  fetchImpl:async()=>{throw new Error('must not fetch');},
+});
+assert.equal(missingToken.available,false);
+assert.equal(missingToken.candidates.length,0);
+
 const unknown=await discoverBrowserResolvedOfficial({
   channel:{name:'UNKNOWN'},
-  env:{BROWSER_RESOLVER_URL:'https://resolver.example.test/resolve'},
+  env:{BROWSER_RESOLVER_URL:'https://resolver.example.test/',BROWSER_RESOLVER_TOKEN:'test-token'},
   fetchImpl:async()=>{throw new Error('must not fetch');},
 });
 assert.equal(unknown.recognized,false);
