@@ -9,7 +9,6 @@ on:
 permissions:
   contents: read
 
-# Re-run after Brave header alignment deploy.
 jobs:
   diagnose:
     runs-on: ubuntu-latest
@@ -18,18 +17,15 @@ jobs:
       WORKER_URL: https://webtv-source-discovery.atonis.workers.dev
       LEGACY_WORKER_URL: https://source-huntatonisworkersdev.atonis.workers.dev
     steps:
-      - name: Probe production Source Discovery and legacy Source Hunt
+      - name: Compare production Brave freshness with legacy worker
         shell: bash
         run: |
           set -u -o pipefail
-          echo '=== NEW SOURCE DISCOVERY STATUS ==='
-          curl --silent --show-error "$WORKER_URL/" || true
-          echo
-          echo '=== NEW RECENT WEB ==='
+          echo '=== NEW RECENT WEB 30d / pm ==='
           curl --silent --show-error -X POST "$WORKER_URL/discover" \
             -H 'content-type: application/json' \
-            --data '{"provider":"recent-web-search","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true
+            --data '{"provider":"recent-web-search","freshness":"30d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true
           echo
-          echo '=== LEGACY SOURCE HUNT ==='
-          curl --silent --show-error "$LEGACY_WORKER_URL/hunt?channel=MEGA&days=7&debug=1" || true
+          echo '=== LEGACY SOURCE HUNT 30d / pm ==='
+          curl --silent --show-error "$LEGACY_WORKER_URL/hunt?channel=MEGA&days=30&debug=1" || true
           echo
