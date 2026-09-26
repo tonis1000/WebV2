@@ -1,0 +1,219 @@
+name: Apply Phase 4.5 Wiring
+
+on:
+  push:
+    branches: [phase45-official-provider]
+    paths:
+      - '.github/workflows/apply-phase45-wiring.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: phase45-official-provider
+      - name: Apply exact Phase 4.5 wiring patches
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def rep(path, old, new):
+              p=Path(path); text=p.read_text()
+              if old not in text:
+                  raise SystemExit(f'missing exact patch target in {path}: {old[:100]!r}')
+              p.write_text(text.replace(old,new,1))
+
+          # Candidate metadata for official trust lane.
+          rep('src/discovery/candidate-model.js',
+              "    matchConfidence,\n  });",
+              "    matchConfidence,\n    candidateKind:String(input.candidateKind||'media'),\n    trustClass:String(input.trustClass||''),\n    saveEligible:input.saveEligible!==false,\n    officialPageUrl:String(input.officialPageUrl||''),\n  });")
+
+          # External discovery client provider.
+          rep('src/discovery/external-discovery-client.js',
+              "export const STRM_SPECIFIC_DISCOVERY_PROVIDER='strm-specific-discovery';\n",
+              "export const STRM_SPECIFIC_DISCOVERY_PROVIDER='strm-specific-discovery';\nexport const OFFICIAL_PROVIDER_LANE='official-provider-lane';\n")
+          rep('src/discovery/external-discovery-client.js',
+              "  [STRM_SPECIFIC_DISCOVERY_PROVIDER]:true,\n",
+              "  [STRM_SPECIFIC_DISCOVERY_PROVIDER]:true,\n  [OFFICIAL_PROVIDER_LANE]:true,\n")
+          rep('src/discovery/external-discovery-client.js',
+              "export function discoverStrmSpecific(channel,options={}){return discoverProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER,channel,options);}\n",
+              "export function discoverStrmSpecific(channel,options={}){return discoverProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER,channel,options);}\nexport function discoverOfficialProvider(channel,options={}){return discoverProvider(OFFICIAL_PROVIDER_LANE,channel,options);}\n")
+
+          # Discovery state lane.
+          rep('src/discovery/discovery-state.js',
+              "const EMPTY_LANES=Object.freeze({myPlaylist:0,savedPlaylists:0,xtream:0,curatedRemoteFeeds:0,githubPublicPlaylists:0,recentWebSearch:0,strmSpecific:0,total:0});",
+              "const EMPTY_LANES=Object.freeze({myPlaylist:0,savedPlaylists:0,xtream:0,curatedRemoteFeeds:0,githubPublicPlaylists:0,recentWebSearch:0,strmSpecific:0,officialProvider:0,total:0});")
+
+          # Worker router v1.4.
+          rep('workers/webtv-source-discovery.js',
+              "import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source-discovery/strm-specific-discovery.js';\n\nconst VERSION='1.3';",
+              "import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source-discovery/strm-specific-discovery.js';\nimport { OFFICIAL_PROVIDER_LANE, discoverOfficialProvider } from './source-discovery/official-provider-lane.js';\n\nconst VERSION='1.4';")
+          rep('workers/webtv-source-discovery.js',
+              "  if(provider===STRM_SPECIFIC_DISCOVERY_PROVIDER){\n    if(String(env.DISABLE_STRM_SPECIFIC_DISCOVERY||'')==='1')return json({error:'Provider disabled',provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},503);\n    try{\n      const result=await discoverStrmSpecific({channel,freshness,parseM3u,feeds:FEEDS});\n      return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});\n    }catch(error){return json({error:error?.message||String(error),provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},502);}\n  }\n  return json({error:'Unsupported provider'},400);",
+              "  if(provider===STRM_SPECIFIC_DISCOVERY_PROVIDER){\n    if(String(env.DISABLE_STRM_SPECIFIC_DISCOVERY||'')==='1')return json({error:'Provider disabled',provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},503);\n    try{\n      const result=await discoverStrmSpecific({channel,freshness,parseM3u,feeds:FEEDS});\n      return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});\n    }catch(error){return json({error:error?.message||String(error),provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},502);}\n  }\n  if(provider===OFFICIAL_PROVIDER_LANE){\n    if(String(env.DISABLE_OFFICIAL_PROVIDER_LANE||'')==='1')return json({error:'Provider disabled',provider:OFFICIAL_PROVIDER_LANE},503);\n    try{\n      const result=await discoverOfficialProvider({channel,freshness});\n      return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});\n    }catch(error){return json({error:error?.message||String(error),provider:OFFICIAL_PROVIDER_LANE},502);}\n  }\n  return json({error:'Unsupported provider'},400);")
+          rep('workers/webtv-source-discovery.js',
+              "      [STRM_SPECIFIC_DISCOVERY_PROVIDER]:String(env?.DISABLE_STRM_SPECIFIC_DISCOVERY||'')!=='1',\n",
+              "      [STRM_SPECIFIC_DISCOVERY_PROVIDER]:String(env?.DISABLE_STRM_SPECIFIC_DISCOVERY||'')!=='1',\n      [OFFICIAL_PROVIDER_LANE]:String(env?.DISABLE_OFFICIAL_PROVIDER_LANE||'')!=='1',\n")
+          rep('workers/webtv-source-discovery.js',
+              "export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_CONCURRENCY, MAX_RESULTS, normalize, benignBase, candidateMatches, parseM3u };",
+              "export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, OFFICIAL_PROVIDER_LANE, FETCH_TIMEOUT_MS, MAX_CONCURRENCY, MAX_RESULTS, normalize, benignBase, candidateMatches, parseM3u };")
+
+          # UI wiring, explicit action and non-media fallback behavior.
+          rep('src/discovery/discovery-ui.js',
+              "import { discoverCuratedRemoteFeeds, discoverGithubPublicPlaylists, discoverRecentWebSearch, discoverStrmSpecific, CURATED_REMOTE_FEEDS_PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER } from './external-discovery-client.js';",
+              "import { discoverCuratedRemoteFeeds, discoverGithubPublicPlaylists, discoverRecentWebSearch, discoverStrmSpecific, discoverOfficialProvider, CURATED_REMOTE_FEEDS_PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, OFFICIAL_PROVIDER_LANE } from './external-discovery-client.js';")
+          rep('src/discovery/discovery-ui.js',
+              "const BUILD_ID='20260926-discovery-phase4-strm';",
+              "const BUILD_ID='20260926-discovery-phase45-official';")
+          rep('src/discovery/discovery-ui.js',
+              "STRM Discovery resolves matching public .strm references into final media candidates. Results stay temporary",
+              "STRM Discovery resolves matching public .strm references into final media candidates; Official Sources checks only an explicit broadcaster registry and keeps pages/embeds outside normal IPTV save behavior. Results stay temporary")
+          rep('src/discovery/discovery-ui.js',
+              "<button id=\"discovery-scan-strm\" class=\"button\" type=\"button\">Resolve STRM Sources</button><button id=\"discovery-cancel-external\"",
+              "<button id=\"discovery-scan-strm\" class=\"button\" type=\"button\">Resolve STRM Sources</button><button id=\"discovery-scan-official\" class=\"button\" type=\"button\">Find Official Sources</button><button id=\"discovery-cancel-external\"")
+          rep('src/discovery/discovery-ui.js',
+              "Curated and STRM feeds are live-checked but do not fabricate per-entry age.';",
+              "Curated, STRM and Official lanes are live-checked but do not fabricate per-entry age.';")
+          rep('src/discovery/discovery-ui.js',
+              "$('discovery-scan-strm')?.addEventListener('click',()=>scanExternalProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER));$('discovery-cancel-external')",
+              "$('discovery-scan-strm')?.addEventListener('click',()=>scanExternalProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER));$('discovery-scan-official')?.addEventListener('click',()=>scanExternalProvider(OFFICIAL_PROVIDER_LANE));$('discovery-cancel-external')")
+          rep('src/discovery/discovery-ui.js',
+              "['STRM resolved',snapshot.lanes.strmSpecific],['Unique',snapshot.lanes.total]",
+              "['STRM resolved',snapshot.lanes.strmSpecific],['Official',snapshot.lanes.officialProvider],['Unique',snapshot.lanes.total]")
+          rep('src/discovery/discovery-ui.js',
+              "['discovery-scan-local','discovery-scan-curated','discovery-scan-github','discovery-scan-web','discovery-scan-strm']",
+              "['discovery-scan-local','discovery-scan-curated','discovery-scan-github','discovery-scan-web','discovery-scan-strm','discovery-scan-official']")
+          rep('src/discovery/discovery-ui.js',
+              "'External: ready · Curated + GitHub + Recent Web + STRM'",
+              "'External: ready · Curated + GitHub + Recent Web + STRM + Official'")
+          rep('src/discovery/discovery-ui.js',
+              "origin.textContent=`Origin: ${item.sourceOrigin} · Provider: ${item.discoveryProvider} · Match: ${item.matchConfidence}`;",
+              "origin.textContent=`Origin: ${item.sourceOrigin} · Provider: ${item.discoveryProvider} · Match: ${item.matchConfidence}${item.trustClass?` · Trust: ${item.trustClass}`:''}`;")
+          rep('src/discovery/discovery-ui.js',
+              "verify.textContent='Verify';verify.disabled=verifyBusy||externalBusy||localBusy;verify.addEventListener('click',()=>verifyOne(item.candidateId));",
+              "const verifiable=!['official-page','official-embed'].includes(item.candidateKind);verify.textContent=verifiable?'Verify':'Official fallback';verify.disabled=verifyBusy||externalBusy||localBusy||!verifiable;verify.addEventListener('click',()=>verifyOne(item.candidateId));")
+          rep('src/discovery/discovery-ui.js',
+              "const meta=provider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER?{label:'GitHub Public Playlists',lane:'githubPublicPlaylists',run:discoverGithubPublicPlaylists}:provider===RECENT_WEB_SEARCH_PROVIDER?{label:'Recent Web Search',lane:'recentWebSearch',run:discoverRecentWebSearch}:provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?{label:'STRM Discovery',lane:'strmSpecific',run:discoverStrmSpecific}:{label:'Curated Remote Feeds',lane:'curatedRemoteFeeds',run:discoverCuratedRemoteFeeds};",
+              "const meta=provider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER?{label:'GitHub Public Playlists',lane:'githubPublicPlaylists',run:discoverGithubPublicPlaylists}:provider===RECENT_WEB_SEARCH_PROVIDER?{label:'Recent Web Search',lane:'recentWebSearch',run:discoverRecentWebSearch}:provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?{label:'STRM Discovery',lane:'strmSpecific',run:discoverStrmSpecific}:provider===OFFICIAL_PROVIDER_LANE?{label:'Official Sources',lane:'officialProvider',run:discoverOfficialProvider}:{label:'Curated Remote Feeds',lane:'curatedRemoteFeeds',run:discoverCuratedRemoteFeeds};")
+          rep('src/discovery/discovery-ui.js',
+              "const note=result.freshnessApplied?`freshness applied · ${result.freshnessRequested}`:provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?'live STRM resolution; publication age unavailable':'live feed check; per-entry age unavailable';",
+              "const note=result.freshnessApplied?`freshness applied · ${result.freshnessRequested}`:provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?'live STRM resolution; publication age unavailable':provider===OFFICIAL_PROVIDER_LANE?'live official registry check; publication age unavailable':'live feed check; per-entry age unavailable';")
+          rep('src/discovery/discovery-ui.js',
+              "async function scanStrmSources(){return scanExternalProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER);}\n",
+              "async function scanStrmSources(){return scanExternalProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER);}\nasync function scanOfficialSources(){return scanExternalProvider(OFFICIAL_PROVIDER_LANE);}\n")
+          rep('src/discovery/discovery-ui.js',
+              "async function verifyOne(candidateId){cancelVerification();const candidate=state.snapshot().candidates.find(item=>item.candidateId===candidateId);if(!candidate)return;",
+              "async function verifyOne(candidateId){cancelVerification();const candidate=state.snapshot().candidates.find(item=>item.candidateId===candidateId);if(!candidate||['official-page','official-embed'].includes(candidate.candidateKind))return;")
+          rep('src/discovery/discovery-ui.js',
+              "async function verifyAll(){cancelVerification();const candidates=state.snapshot().candidates;if(!candidates.length)return;",
+              "async function verifyAll(){cancelVerification();const candidates=state.snapshot().candidates.filter(item=>!['official-page','official-embed'].includes(item.candidateKind));if(!candidates.length){state.setVerificationMessage('No media candidates require verification','done');render();return;}")
+          rep('src/discovery/discovery-ui.js',
+              "scanRecentWeb:scanRecentWebSources,scanStrm:scanStrmSources,verifyOne",
+              "scanRecentWeb:scanRecentWebSources,scanStrm:scanStrmSources,scanOfficial:scanOfficialSources,verifyOne")
+          rep('src/discovery/discovery-ui.js',
+              "curated + GitHub + recent web + STRM + separate verifier",
+              "curated + GitHub + recent web + STRM + official + separate verifier")
+
+          # Router regression contract.
+          rep('tests/source-discovery-worker.test.mjs',
+              "import discovery, { candidateMatches, parseM3u, MAX_CONCURRENCY, STRM_SPECIFIC_DISCOVERY_PROVIDER } from '../workers/webtv-source-discovery.js';",
+              "import discovery, { candidateMatches, parseM3u, MAX_CONCURRENCY, STRM_SPECIFIC_DISCOVERY_PROVIDER, OFFICIAL_PROVIDER_LANE } from '../workers/webtv-source-discovery.js';")
+          rep('tests/source-discovery-worker.test.mjs',
+              "assert.equal(STRM_SPECIFIC_DISCOVERY_PROVIDER,'strm-specific-discovery');",
+              "assert.equal(STRM_SPECIFIC_DISCOVERY_PROVIDER,'strm-specific-discovery');\nassert.equal(OFFICIAL_PROVIDER_LANE,'official-provider-lane');")
+          rep('tests/source-discovery-worker.test.mjs',"assert.equal(status.version,'1.3');","assert.equal(status.version,'1.4');")
+          rep('tests/source-discovery-worker.test.mjs',
+              "assert.equal(status.providers['strm-specific-discovery'],true);",
+              "assert.equal(status.providers['strm-specific-discovery'],true);\nassert.equal(status.providers['official-provider-lane'],true);")
+          rep('tests/source-discovery-worker.test.mjs',
+              "assert.equal(noKeyStatus.providers['strm-specific-discovery'],true);",
+              "assert.equal(noKeyStatus.providers['strm-specific-discovery'],true);\nassert.equal(noKeyStatus.providers['official-provider-lane'],true);")
+          rep('tests/source-discovery-worker.test.mjs',
+              "  const wrongProvider=await discovery.fetch(",
+              "  const officialDisabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'official-provider-lane',channel:{name:'ERT1'}})}),{DISABLE_OFFICIAL_PROVIDER_LANE:'1'});assert.equal(officialDisabled.status,503);assert.equal((await officialDisabled.json()).error,'Provider disabled');\n  const wrongProvider=await discovery.fetch(")
+
+          # External client regression.
+          rep('tests/discovery-external.test.mjs',
+              "  discoverStrmSpecific,\n",
+              "  discoverStrmSpecific,\n  discoverOfficialProvider,\n")
+          rep('tests/discovery-external.test.mjs',
+              "  STRM_SPECIFIC_DISCOVERY_PROVIDER,\n",
+              "  STRM_SPECIFIC_DISCOVERY_PROVIDER,\n  OFFICIAL_PROVIDER_LANE,\n")
+          rep('tests/discovery-external.test.mjs',
+              "assert.equal(STRM_SPECIFIC_DISCOVERY_PROVIDER,'strm-specific-discovery');",
+              "assert.equal(STRM_SPECIFIC_DISCOVERY_PROVIDER,'strm-specific-discovery');\nassert.equal(OFFICIAL_PROVIDER_LANE,'official-provider-lane');")
+          rep('tests/discovery-external.test.mjs',
+              "const suffix=body.provider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER?'github':body.provider===RECENT_WEB_SEARCH_PROVIDER?'web':body.provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?'strm':'curated';",
+              "const suffix=body.provider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER?'github':body.provider===RECENT_WEB_SEARCH_PROVIDER?'web':body.provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?'strm':body.provider===OFFICIAL_PROVIDER_LANE?'official':'curated';")
+          rep('tests/discovery-external.test.mjs',
+              "const strm=await discoverStrmSpecific(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'7d'});",
+              "const strm=await discoverStrmSpecific(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'7d'});\nconst official=await discoverOfficialProvider(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'7d'});")
+          rep('tests/discovery-external.test.mjs',
+              "assert.deepEqual(seenBodies[3],{provider:'strm-specific-discovery',freshness:'7d',channel});\nfor(const result of [curated,github,web,strm])",
+              "assert.deepEqual(seenBodies[3],{provider:'strm-specific-discovery',freshness:'7d',channel});\nassert.deepEqual(seenBodies[4],{provider:'official-provider-lane',freshness:'7d',channel});\nfor(const result of [curated,github,web,strm,official])")
+          rep('tests/discovery-external.test.mjs',
+              "assert.equal(strm.candidates[0].discoveryProvider,STRM_SPECIFIC_DISCOVERY_PROVIDER);",
+              "assert.equal(strm.candidates[0].discoveryProvider,STRM_SPECIFIC_DISCOVERY_PROVIDER);\nassert.equal(official.candidates[0].discoveryProvider,OFFICIAL_PROVIDER_LANE);")
+
+          # Validate workflow runs official test.
+          rep('.github/workflows/validate-frontend.yml',
+              "      - name: Run STRM-specific discovery provider regression test\n        run: node tests/strm-specific-discovery-provider.test.mjs\n",
+              "      - name: Run STRM-specific discovery provider regression test\n        run: node tests/strm-specific-discovery-provider.test.mjs\n      - name: Run official provider lane regression test\n        run: node tests/official-provider-lane.test.mjs\n")
+
+          # Source Discovery deployment regressions + live gate.
+          rep('.github/workflows/deploy-source-discovery.yml',
+              "          node tests/strm-specific-discovery-provider.test.mjs\n",
+              "          node tests/strm-specific-discovery-provider.test.mjs\n          node tests/official-provider-lane.test.mjs\n")
+          rep('.github/workflows/deploy-source-discovery.yml',
+              "            STRM=$(curl --fail --silent --show-error -X POST \"$WORKER_URL/discover\" -H 'content-type: application/json' --data '{\"provider\":\"strm-specific-discovery\",\"freshness\":\"7d\",\"channel\":{\"name\":\"ERT1\",\"id\":\"ert1\",\"originalId\":\"ERT1\"}}' || true)\n",
+              "            STRM=$(curl --fail --silent --show-error -X POST \"$WORKER_URL/discover\" -H 'content-type: application/json' --data '{\"provider\":\"strm-specific-discovery\",\"freshness\":\"7d\",\"channel\":{\"name\":\"ERT1\",\"id\":\"ert1\",\"originalId\":\"ERT1\"}}' || true)\n            OFFICIAL=$(curl --fail --silent --show-error -X POST \"$WORKER_URL/discover\" -H 'content-type: application/json' --data '{\"provider\":\"official-provider-lane\",\"freshness\":\"7d\",\"channel\":{\"name\":\"ERT1\",\"id\":\"ert1\",\"originalId\":\"ERT1\"}}' || true)\n")
+          old="if node -e \"try{const s=JSON.parse(process.argv[1]),c=JSON.parse(process.argv[2]),g=JSON.parse(process.argv[3]),w=JSON.parse(process.argv[4]),r=JSON.parse(process.argv[5]);const githubOk=Array.isArray(g.reports?.searches)&&g.reports.searches.some(x=>x.status===200);const webOk=Array.isArray(w.reports?.searches)&&w.reports.searches.some(x=>x.status===200);const strmFeedOk=Array.isArray(r.reports?.feeds)&&r.reports.feeds.some(x=>x.status===200);const strmResolved=Array.isArray(r.reports?.resolutions)&&r.reports.resolutions.some(x=>x.resolved===true);const ok=s.service==='WebTV Source Discovery'&&s.version==='1.3'&&s.providers?.['curated-remote-feeds']===true&&s.providers?.['github-public-playlists']===true&&s.providers?.['recent-web-search']===true&&s.providers?.['strm-specific-discovery']===true&&c.provider==='curated-remote-feeds'&&Array.isArray(c.reports)&&c.reports.some(x=>x.status===200)&&g.provider==='github-public-playlists'&&g.freshnessApplied===true&&githubOk&&w.provider==='recent-web-search'&&w.freshnessApplied===true&&webOk&&r.provider==='strm-specific-discovery'&&r.freshnessApplied===false&&strmFeedOk&&strmResolved&&Array.isArray(r.candidates)&&r.candidates.length>0;if(!ok)process.exit(1);console.log(JSON.stringify({status:s,curated:{candidateCount:c.candidates?.length||0},github:{candidateCount:g.candidates?.length||0,reports:g.reports},web:{candidateCount:w.candidates?.length||0,reports:w.reports},strm:{candidateCount:r.candidates?.length||0,reports:r.reports,candidate:r.candidates?.[0]||null}},null,2));}catch{process.exit(1)}\" \"$STATUS\" \"$CURATED\" \"$GITHUB\" \"$WEB\" \"$STRM\"; then"
+          new="if node -e \"try{const s=JSON.parse(process.argv[1]),c=JSON.parse(process.argv[2]),g=JSON.parse(process.argv[3]),w=JSON.parse(process.argv[4]),r=JSON.parse(process.argv[5]),o=JSON.parse(process.argv[6]);const githubOk=Array.isArray(g.reports?.searches)&&g.reports.searches.some(x=>x.status===200);const webOk=Array.isArray(w.reports?.searches)&&w.reports.searches.some(x=>x.status===200);const strmFeedOk=Array.isArray(r.reports?.feeds)&&r.reports.feeds.some(x=>x.status===200);const strmResolved=Array.isArray(r.reports?.resolutions)&&r.reports.resolutions.some(x=>x.resolved===true);const officialPageOk=Array.isArray(o.reports?.pages)&&o.reports.pages.some(x=>x.status===200);const officialSafe=Array.isArray(o.candidates)&&o.candidates.some(x=>x.candidateKind==='official-page'&&x.trustClass==='OFFICIAL'&&x.saveEligible===false);const ok=s.service==='WebTV Source Discovery'&&s.version==='1.4'&&s.providers?.['curated-remote-feeds']===true&&s.providers?.['github-public-playlists']===true&&s.providers?.['recent-web-search']===true&&s.providers?.['strm-specific-discovery']===true&&s.providers?.['official-provider-lane']===true&&c.provider==='curated-remote-feeds'&&Array.isArray(c.reports)&&c.reports.some(x=>x.status===200)&&g.provider==='github-public-playlists'&&g.freshnessApplied===true&&githubOk&&w.provider==='recent-web-search'&&w.freshnessApplied===true&&webOk&&r.provider==='strm-specific-discovery'&&r.freshnessApplied===false&&strmFeedOk&&strmResolved&&Array.isArray(r.candidates)&&r.candidates.length>0&&o.provider==='official-provider-lane'&&o.recognized===true&&officialPageOk&&officialSafe;if(!ok)process.exit(1);console.log(JSON.stringify({status:s,curated:{candidateCount:c.candidates?.length||0},github:{candidateCount:g.candidates?.length||0,reports:g.reports},web:{candidateCount:w.candidates?.length||0,reports:w.reports},strm:{candidateCount:r.candidates?.length||0,reports:r.reports,candidate:r.candidates?.[0]||null},official:{candidateCount:o.candidates?.length||0,reports:o.reports,candidates:o.candidates||[]}},null,2));}catch{process.exit(1)}\" \"$STATUS\" \"$CURATED\" \"$GITHUB\" \"$WEB\" \"$STRM\" \"$OFFICIAL\"; then"
+          rep('.github/workflows/deploy-source-discovery.yml',old,new)
+          rep('.github/workflows/deploy-source-discovery.yml',
+              "              echo \"Source Discovery v1.3 is live; curated, GitHub, recent web, and STRM resolution all reached their public upstreams.\"",
+              "              echo \"Source Discovery v1.4 is live; curated, GitHub, recent web, STRM, and official provider lanes reached their public upstreams.\"")
+          rep('.github/workflows/deploy-source-discovery.yml',
+              "          echo \"::error::Source Discovery v1.3 live verification failed. Check provider upstreams and BRAVE_API_KEY.\"",
+              "          echo \"::error::Source Discovery v1.4 live verification failed. Check provider upstreams, official pages, and BRAVE_API_KEY.\"")
+
+          # Browser smoke: mock + explicit Official step + fallback excluded from Verify All.
+          rep('tests/discovery-browser-smoke.html',
+              "const github=body.provider==='github-public-playlists';const web=body.provider==='recent-web-search';const strm=body.provider==='strm-specific-discovery';",
+              "const github=body.provider==='github-public-playlists';const web=body.provider==='recent-web-search';const strm=body.provider==='strm-specific-discovery';const official=body.provider==='official-provider-lane';")
+          rep('tests/discovery-browser-smoke.html',
+              "const sourceUrl=github?'https://github-external.test/mega.m3u8':web?'https://web-external.test/mega.m3u8':strm?'https://strm-resolved.test/mega.m3u8':'https://external.test/mega.m3u8';",
+              "const sourceUrl=github?'https://github-external.test/mega.m3u8':web?'https://web-external.test/mega.m3u8':strm?'https://strm-resolved.test/mega.m3u8':official?'https://official.test/mega/live':'https://external.test/mega.m3u8';")
+          rep('tests/discovery-browser-smoke.html',
+              "const sourceOrigin=github?'github:fixture/recent/playlist.m3u':web?'web:fixture.test':strm?'strm:fixture-feed':'fixture-feed';",
+              "const sourceOrigin=github?'github:fixture/recent/playlist.m3u':web?'web:fixture.test':strm?'strm:fixture-feed':official?'official:fixture':'fixture-feed';")
+          rep('tests/discovery-browser-smoke.html',
+              "return new Response(JSON.stringify({service:'WebTV Source Discovery',version:'1.3',provider:body.provider,freshnessRequested:body.freshness||'7d',freshnessApplied:github||web,candidates:[{channelName:'MEGA',sourceType:'hls',sourceUrl,sourceOrigin,discoveryProvider:body.provider,freshness,matchConfidence:web?'MEDIUM':'HIGH'}],reports:[]}),",
+              "return new Response(JSON.stringify({service:'WebTV Source Discovery',version:'1.4',provider:body.provider,freshnessRequested:body.freshness||'7d',freshnessApplied:github||web,candidates:[{channelName:'MEGA',sourceType:official?'direct':'hls',sourceUrl,sourceOrigin,discoveryProvider:body.provider,freshness:official?'live-official-check':freshness,matchConfidence:web?'MEDIUM':'HIGH',candidateKind:official?'official-page':'media',trustClass:official?'OFFICIAL':'',saveEligible:!official}],reports:[]}),")
+          rep('tests/discovery-browser-smoke.html',
+              "await api.scanStrm();const strm=api.snapshot();const cardCount=",
+              "await api.scanStrm();const strm=api.snapshot();await api.scanOfficial();const official=api.snapshot();const cardCount=")
+          rep('tests/discovery-browser-smoke.html',
+              "const curatedCandidate=strm.candidates.find(x=>x.discoveryProvider==='curated-remote-feeds');const githubCandidate=strm.candidates.find(x=>x.discoveryProvider==='github-public-playlists');const webCandidate=strm.candidates.find(x=>x.discoveryProvider==='recent-web-search');const strmCandidate=strm.candidates.find(x=>x.discoveryProvider==='strm-specific-discovery');",
+              "const curatedCandidate=official.candidates.find(x=>x.discoveryProvider==='curated-remote-feeds');const githubCandidate=official.candidates.find(x=>x.discoveryProvider==='github-public-playlists');const webCandidate=official.candidates.find(x=>x.discoveryProvider==='recent-web-search');const strmCandidate=official.candidates.find(x=>x.discoveryProvider==='strm-specific-discovery');const officialCandidate=official.candidates.find(x=>x.discoveryProvider==='official-provider-lane');")
+          rep('tests/discovery-browser-smoke.html',
+              "&&strm.externalStatus==='done'&&strm.lanes.strmSpecific===1&&strm.lanes.total===7&&strm.candidates.length===7&&curatedCandidate?.verificationStatus==='UNVERIFIED'&&githubCandidate?.verificationStatus==='UNVERIFIED'&&webCandidate?.verificationStatus==='UNVERIFIED'&&strmCandidate?.verificationStatus==='UNVERIFIED'&&webCandidate?.matchConfidence==='MEDIUM'&&cardCount===7&&verified.verifyStatus==='done'&&verifiedCount===6&&failedCount===1",
+              "&&strm.externalStatus==='done'&&strm.lanes.strmSpecific===1&&strm.lanes.total===7&&official.externalStatus==='done'&&official.lanes.officialProvider===1&&official.lanes.total===8&&official.candidates.length===8&&curatedCandidate?.verificationStatus==='UNVERIFIED'&&githubCandidate?.verificationStatus==='UNVERIFIED'&&webCandidate?.verificationStatus==='UNVERIFIED'&&strmCandidate?.verificationStatus==='UNVERIFIED'&&officialCandidate?.candidateKind==='official-page'&&officialCandidate?.trustClass==='OFFICIAL'&&officialCandidate?.saveEligible===false&&webCandidate?.matchConfidence==='MEDIUM'&&cardCount===8&&verified.verifyStatus==='done'&&verifiedCount===6&&failedCount===1&&officialCandidate?.verificationStatus==='UNVERIFIED'")
+          rep('tests/discovery-browser-smoke.html',
+              "curated,github,web,strm,verified,changed,closed",
+              "curated,github,web,strm,official,verified,changed,closed")
+
+          Path('.github/workflows/apply-phase45-wiring.yml').unlink()
+          PY
+          git diff --check
+          git status --short
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Wire Phase 4.5 official provider lane'
+          git push origin HEAD:phase45-official-provider
