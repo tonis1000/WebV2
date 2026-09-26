@@ -5,6 +5,10 @@ on:
   workflow_run:
     workflows: ["Deploy Browser Resolver"]
     types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/configure-browser-resolver-link.yml'
 
 permissions:
   contents: read
@@ -16,7 +20,7 @@ env:
 
 jobs:
   configure:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
