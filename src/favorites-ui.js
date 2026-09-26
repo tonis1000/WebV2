@@ -1,3 +1,5 @@
+import './right-rail-preview.js?v=20260926-rail1';
+
 const BUILD_ID = '20260924-2030';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
 const FILTER_KEY = 'webtv_v2_favorites_filter_v1';
