@@ -40,6 +40,11 @@ function searchesFor(channel={}){
   const name=String(channel.name||'').trim();
   return [`"${name}" m3u8 IPTV Greece`,`"${name}" live stream playlist m3u8`].slice(0,WEB_MAX_SEARCHES);
 }
+function braveError(body={}){
+  const error=body?.error;
+  if(error&&typeof error==='object')return [error.code,error.detail,error.status].filter(Boolean).join(' · ')||JSON.stringify(error);
+  return String(body?.message||error||'');
+}
 class Budget{constructor(limit=WEB_MAX_SUBREQUESTS){this.limit=limit;this.used=0;}take(){if(this.used>=this.limit)throw new Error('Recent web provider subrequest budget exhausted');this.used++;}remaining(){return Math.max(0,this.limit-this.used);}}
 async function timedFetch(url,options={}){const c=new AbortController(),timer=setTimeout(()=>c.abort(new DOMException('timeout','AbortError')),WEB_SEARCH_TIMEOUT_MS);try{return await fetch(url,{...options,signal:c.signal,redirect:'follow'});}finally{clearTimeout(timer);}}
 async function braveSearch(env,query,freshness,budget){
@@ -50,7 +55,7 @@ async function braveSearch(env,query,freshness,budget){
   try{
     const response=await timedFetch(url,{headers:{Accept:'application/json','X-Subscription-Token':env.BRAVE_API_KEY,'user-agent':'WebTV-Discovery/1.2'}});
     const body=await response.json().catch(()=>({}));
-    return {ok:response.ok,status:response.status,elapsedMs:Date.now()-started,results:response.ok?(body?.web?.results||[]):[],error:response.ok?'':String(body?.message||body?.error||'')};
+    return {ok:response.ok,status:response.status,elapsedMs:Date.now()-started,results:response.ok?(body?.web?.results||[]):[],error:response.ok?'':braveError(body)};
   }catch(error){return {ok:false,status:error?.name==='AbortError'?408:0,elapsedMs:Date.now()-started,results:[],error:error?.message||String(error)};}
 }
 async function fetchPage(raw,budget){
