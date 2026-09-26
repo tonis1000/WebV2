@@ -38,6 +38,9 @@ function sanitizeHeaders(headers={}){
   }
   return out;
 }
+function safeHeaderNames(headers={}){
+  return [...new Set(Object.keys(headers||{}).map(key=>String(key||'').trim().toLowerCase()).filter(Boolean))].sort().slice(0,32);
+}
 function timeoutFrom(body={}){
   const requested=Number(body?.capture?.timeoutMs)||DEFAULT_TIMEOUT_MS;
   return Math.max(2500,Math.min(MAX_TIMEOUT_MS,requested));
@@ -125,12 +128,14 @@ async function resolve(body,env){
       try{
         const url=request.url();
         if(!MEDIA_RE.test(url)||seen.has(url))return;
+        const requestHeaders=request.headers();
         seen.add(url);
         observations.push({
           url,
           method:request.method(),
           resourceType:request.resourceType(),
-          headers:sanitizeHeaders(request.headers()),
+          headers:sanitizeHeaders(requestHeaders),
+          requestHeaderNames:safeHeaderNames(requestHeaders),
         });
       }catch{}
     });
@@ -173,4 +178,4 @@ export default {
   }
 };
 
-export { ALLOWED_PAGE_HOSTS, APPROVED_HEADER_NAMES, MEDIA_RE, ERT_CHANNEL_LABELS, sanitizeHeaders, safePageUrl, timeoutFrom, pageDiagnostics, normalizedChannelKey };
+export { ALLOWED_PAGE_HOSTS, APPROVED_HEADER_NAMES, MEDIA_RE, ERT_CHANNEL_LABELS, sanitizeHeaders, safeHeaderNames, safePageUrl, timeoutFrom, pageDiagnostics, normalizedChannelKey };
