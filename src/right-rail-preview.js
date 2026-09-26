@@ -1,7 +1,7 @@
 const PARAM = 'layout';
 const VALUE = 'rail';
 const DESKTOP = '(min-width: 1180px)';
-const BUILD_ID = '20260926-right-rail-preview-v4';
+const BUILD_ID = '20260926-right-rail-preview-v5';
 
 const enabled = new URLSearchParams(location.search).get(PARAM) === VALUE;
 if (!enabled) {
@@ -63,18 +63,19 @@ if (!enabled) {
     const discovery = findDiscoveryButton();
     const diagnostics = document.getElementById('diagnostics-toggle');
 
-    [brand, clock, favorite, playlists, catalog, hunt, discovery, diagnostics]
+    [brand, clock, playlists, catalog, hunt, discovery, diagnostics, favorite]
       .filter(Boolean)
       .forEach(node => rememberAndMove(node, target));
 
     if (brand) brand.classList.add('rail-brand');
     if (clock) clock.classList.add('rail-clock');
-    [favorite, playlists, catalog, hunt, discovery, diagnostics].forEach(node => node?.classList.add('rail-control'));
+    [playlists, catalog, hunt, discovery, diagnostics, favorite].forEach(node => node?.classList.add('rail-control'));
+    if (favorite) favorite.classList.add('rail-favorite');
   }
 
   function restoreAll() {
     [...moved.keys()].forEach(node => {
-      node.classList?.remove('rail-brand', 'rail-clock', 'rail-control');
+      node.classList?.remove('rail-brand', 'rail-clock', 'rail-control', 'rail-favorite');
       restoreNode(node);
     });
     rail?.remove();
@@ -157,13 +158,14 @@ if (!enabled) {
     html.rail-preview .desktop-rail-stack{display:flex;flex-direction:column;align-items:stretch;gap:10px}
     html.rail-preview .rail-brand{padding:2px 4px 8px;border-bottom:1px solid rgba(99,179,255,.14)}
     html.rail-preview .rail-brand .eyebrow{margin:0;color:var(--accent);font-size:.78rem;letter-spacing:.15em}
-    html.rail-preview .rail-clock{display:block;padding:2px 4px 12px;margin-bottom:24px;color:#d7e8f6;font-size:.9rem;border-bottom:1px solid rgba(99,179,255,.12)}
+    html.rail-preview .rail-clock{display:block;padding:2px 4px 12px;margin-bottom:30px;color:#d7e8f6;font-size:.9rem;border-bottom:1px solid rgba(99,179,255,.12)}
     html.rail-preview .rail-control{width:100%;min-height:40px;justify-content:center;text-align:center;margin:0!important}
     html.rail-preview #favorite-channel.rail-control{background:#33270d;border-color:#886817;color:#ffe39b}
     html.rail-preview #playlist-manager-toggle.rail-control{background:#123f59;border-color:#2e83ad;color:#d9f3ff}
-    html.rail-preview #current-catalog-badge.rail-control{display:flex;max-width:none;padding:9px 10px;background:#0d1d29;border-color:#315d7a;color:#bfe0ff;border-radius:10px;white-space:normal;line-height:1.2}
+    html.rail-preview #current-catalog-badge.rail-control{display:flex!important;max-width:none;padding:9px 10px;background:#0d1d29;border-color:#315d7a;color:#bfe0ff;border-radius:10px;white-space:normal;line-height:1.2}
     html.rail-preview #source-hunt-toggle.rail-control{background:#33250e;border-color:#86651f;color:#ffe0a0}
     html.rail-preview #diagnostics-toggle.rail-control{background:#091116;border-color:#33414c;color:#f4f7fa}
+    html.rail-preview .rail-favorite{margin-top:12px!important}
     html.rail-preview .channel-actions #favorite-channel{display:none!important}
     html.rail-preview .now-playing{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;padding-top:10px}
     html.rail-preview #program-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;max-height:2.8em;line-height:1.4;transition:max-height .18s ease;color:var(--muted)}
