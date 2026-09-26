@@ -87,3 +87,5 @@ jobs:
           done
           echo "::error::Source Discovery v1.5 live verification failed."
           exit 1
+
+# retrigger after ERT /live regression fixture update
