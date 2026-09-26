@@ -2,10 +2,10 @@ import { candidateForDisplay, withVerification } from './candidate-model.js';
 import { DiscoveryState, FRESHNESS_OPTIONS } from './discovery-state.js';
 import { readLocalSourceContext } from './local-data-reader.js';
 import { collectLocalCandidates } from './local-candidates.js';
-import { discoverCuratedRemoteFeeds } from './external-discovery-client.js';
+import { discoverCuratedRemoteFeeds, discoverGithubPublicPlaylists, CURATED_REMOTE_FEEDS_PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER } from './external-discovery-client.js';
 import { verifyCandidates, verifyWithConcurrency } from './verifier-client.js';
 
-const BUILD_ID='20260926-discovery-phase4-curated-feeds';
+const BUILD_ID='20260926-discovery-phase4-github-public-playlists';
 const state=new DiscoveryState();
 const $=id=>document.getElementById(id);
 let verificationController=null;
@@ -46,20 +46,21 @@ function ensureUi(){
   let panel=$('discovery-shell');
   if (!panel) {
     panel=document.createElement('section');panel.id='discovery-shell';panel.className='discovery-shell';panel.hidden=true;panel.setAttribute('aria-label','Source Discovery Phase 4');
-    panel.innerHTML=`<div class="discovery-shell-head"><div><div class="discovery-phase">DISCOVERY · PHASE 4 · CURATED REMOTE FEEDS</div><h2 id="discovery-channel">No channel selected</h2></div><button id="discovery-close" class="button ghost" type="button">Close</button></div><div class="discovery-note">Local discovery remains read-only. External discovery is explicit and currently uses only the Curated Remote Feeds provider. Results stay temporary. Verification remains separate and nothing is saved automatically.</div><div class="discovery-controls" id="discovery-freshness" aria-label="Freshness window"></div><div class="discovery-actions"><button id="discovery-scan-local" class="button" type="button">Find Local Sources</button><button id="discovery-scan-external" class="button" type="button">Find External Sources</button><button id="discovery-cancel-external" class="button ghost" type="button" hidden>Cancel Search</button><button id="discovery-verify-all" class="button ghost" type="button">Verify All</button><button id="discovery-cancel-verify" class="button ghost" type="button" hidden>Cancel Verify</button></div><div id="discovery-scan-status" class="discovery-scan-status">Ready · no scan yet</div><div id="discovery-external-status" class="discovery-scan-status"></div><div id="discovery-verify-status" class="discovery-scan-status"></div><div id="discovery-lanes" class="discovery-lanes"></div><div id="discovery-results" class="discovery-results"></div>`;
+    panel.innerHTML=`<div class="discovery-shell-head"><div><div class="discovery-phase">DISCOVERY · PHASE 4 · EXTERNAL PROVIDERS</div><h2 id="discovery-channel">No channel selected</h2></div><button id="discovery-close" class="button ghost" type="button">Close</button></div><div class="discovery-note">External providers are explicit and isolated. Curated Feeds checks known public playlists; GitHub Search looks for recently pushed public playlist repositories. Results stay temporary and UNVERIFIED until the separate verifier runs. Nothing is saved automatically.</div><div class="discovery-controls" id="discovery-freshness" aria-label="Freshness window"></div><div class="discovery-actions"><button id="discovery-scan-local" class="button" type="button">Find Local Sources</button><button id="discovery-scan-curated" class="button" type="button">Find Curated Feeds</button><button id="discovery-scan-github" class="button" type="button">Search GitHub Playlists</button><button id="discovery-cancel-external" class="button ghost" type="button" hidden>Cancel Search</button><button id="discovery-verify-all" class="button ghost" type="button">Verify All</button><button id="discovery-cancel-verify" class="button ghost" type="button" hidden>Cancel Verify</button></div><div id="discovery-scan-status" class="discovery-scan-status">Ready · no scan yet</div><div id="discovery-external-status" class="discovery-scan-status"></div><div id="discovery-verify-status" class="discovery-scan-status"></div><div id="discovery-lanes" class="discovery-lanes"></div><div id="discovery-results" class="discovery-results"></div>`;
     document.body.appendChild(panel);
   }
   const controls=$('discovery-freshness');
   if (controls && !controls.children.length) {
     const label=document.createElement('span');label.textContent='Recent window:';label.className='muted small';controls.appendChild(label);
     for (const option of FRESHNESS_OPTIONS) {const control=document.createElement('button');control.type='button';control.className='button ghost';control.dataset.freshness=option.id;control.textContent=option.label;control.addEventListener('click',()=>{state.setFreshness(option.id);render();});controls.appendChild(control);}
-    const hint=document.createElement('span');hint.className='muted small';hint.textContent='Sent to external providers. Curated feed entries are checked live and may not expose reliable publication age.';controls.appendChild(hint);
+    const hint=document.createElement('span');hint.className='muted small';hint.textContent='GitHub applies this to repository pushed_at. Curated feeds are checked live and may not expose per-entry age.';controls.appendChild(hint);
   }
   if (button.dataset.bound!=='1') {
     button.dataset.bound='1';button.addEventListener('click',openPanel);
     $('discovery-close')?.addEventListener('click',closePanel);
     $('discovery-scan-local')?.addEventListener('click',scanLocalSources);
-    $('discovery-scan-external')?.addEventListener('click',scanExternalSources);
+    $('discovery-scan-curated')?.addEventListener('click',()=>scanExternalProvider(CURATED_REMOTE_FEEDS_PROVIDER));
+    $('discovery-scan-github')?.addEventListener('click',()=>scanExternalProvider(GITHUB_PUBLIC_PLAYLISTS_PROVIDER));
     $('discovery-cancel-external')?.addEventListener('click',cancelExternalDiscovery);
     $('discovery-verify-all')?.addEventListener('click',verifyAll);
     $('discovery-cancel-verify')?.addEventListener('click',cancelVerification);
@@ -69,7 +70,7 @@ function ensureUi(){
 
 function renderLanes(snapshot){
   const lanes=$('discovery-lanes');if (!lanes) return;lanes.replaceChildren();
-  const rows=[['My Playlist',snapshot.lanes.myPlaylist],['Saved Playlists',snapshot.lanes.savedPlaylists],['Xtream loaded',snapshot.lanes.xtream],['Curated feeds',snapshot.lanes.curatedRemoteFeeds],['Unique',snapshot.lanes.total]];
+  const rows=[['My Playlist',snapshot.lanes.myPlaylist],['Saved Playlists',snapshot.lanes.savedPlaylists],['Xtream loaded',snapshot.lanes.xtream],['Curated feeds',snapshot.lanes.curatedRemoteFeeds],['GitHub recent',snapshot.lanes.githubPublicPlaylists],['Unique',snapshot.lanes.total]];
   for (const [label,count] of rows) {const chip=document.createElement('span');chip.textContent=`${label}: ${count}`;lanes.appendChild(chip);}
 }
 function verificationSummary(snapshot){
@@ -83,18 +84,20 @@ function render(){
   $('discovery-channel').textContent=snapshot.channel?.name || 'No channel selected';
   document.querySelectorAll('#discovery-freshness [data-freshness]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.freshness===snapshot.freshness)));
   const verifyBusy=snapshot.verifyStatus==='loading';const externalBusy=snapshot.externalStatus==='loading';const localBusy=snapshot.scanStatus==='loading';
-  const scan=$('discovery-scan-local');if(scan)scan.disabled=localBusy||externalBusy||verifyBusy||!snapshot.channel;
-  const external=$('discovery-scan-external');if(external)external.disabled=localBusy||externalBusy||verifyBusy||!snapshot.channel;
+  const disabled=localBusy||externalBusy||verifyBusy||!snapshot.channel;
+  const scan=$('discovery-scan-local');if(scan)scan.disabled=disabled;
+  const curated=$('discovery-scan-curated');if(curated)curated.disabled=disabled;
+  const github=$('discovery-scan-github');if(github)github.disabled=disabled;
   const cancelExternal=$('discovery-cancel-external');if(cancelExternal)cancelExternal.hidden=!externalBusy;
   const verifyAllBtn=$('discovery-verify-all');if(verifyAllBtn)verifyAllBtn.disabled=verifyBusy||externalBusy||localBusy||!snapshot.candidates.length;
   const cancel=$('discovery-cancel-verify');if(cancel)cancel.hidden=!verifyBusy;
   const status=$('discovery-scan-status');if(status)status.textContent=snapshot.scanMessage || (snapshot.channel?'Local: ready':'Select a channel first');
-  const externalStatus=$('discovery-external-status');if(externalStatus)externalStatus.textContent=snapshot.externalMessage || (snapshot.channel?'External: ready · Curated Remote Feeds':'');
+  const externalStatus=$('discovery-external-status');if(externalStatus)externalStatus.textContent=snapshot.externalMessage || (snapshot.channel?'External: ready · Curated Feeds + GitHub recent repositories':'');
   const verifyStatus=$('discovery-verify-status');if(verifyStatus){const counts=verificationSummary(snapshot);verifyStatus.textContent=snapshot.verifyMessage || (snapshot.candidates.length?`Verified ${counts.VERIFIED} · failed ${counts.FAILED} · pending ${counts.OTHER}`:'');}
   renderLanes(snapshot);
   const results=$('discovery-results');results.replaceChildren();
   if (!snapshot.channel) {const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent='Select a channel first. Opening Discovery never changes the current selection.';results.appendChild(empty);return;}
-  if (!snapshot.candidates.length && (localBusy||externalBusy)) {const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent=externalBusy?'Searching curated remote feeds…':'Reading local source snapshots…';results.appendChild(empty);return;}
+  if (!snapshot.candidates.length && (localBusy||externalBusy)) {const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent=externalBusy?'Searching external provider…':'Reading local source snapshots…';results.appendChild(empty);return;}
   if (!snapshot.candidates.length && snapshot.scanStatus==='error' && snapshot.externalStatus!=='done') {const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent=snapshot.scanMessage||'Local scan failed';results.appendChild(empty);return;}
   if (!snapshot.candidates.length && snapshot.externalStatus==='error' && snapshot.scanStatus!=='done') {const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent=snapshot.externalMessage||'External discovery failed';results.appendChild(empty);return;}
   if (!snapshot.candidates.length && snapshot.scanStatus==='idle' && snapshot.externalStatus==='idle') {const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent='No scan yet. Local and external candidates remain temporary and are never saved automatically.';results.appendChild(empty);return;}
@@ -128,19 +131,26 @@ function cancelExternalDiscovery(){
   if(externalController&&!externalController.signal.aborted)externalController.abort(new DOMException('External discovery cancelled','AbortError'));
   externalController=null;
 }
-async function scanExternalSources(){
+async function scanExternalProvider(provider){
   cancelVerification();cancelExternalDiscovery();
   const selected=syncSelectedChannel();if(!selected){render();return;}
-  externalController=new AbortController();state.setExternalScanning(`Searching Curated Remote Feeds · requested window ${state.snapshot().freshness}…`);render();
+  const freshness=state.snapshot().freshness;
+  const github=provider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER;
+  const label=github?'GitHub Public Playlists':'Curated Remote Feeds';
+  externalController=new AbortController();state.setExternalScanning(`Searching ${label} · requested window ${freshness}…`);render();
   try{
-    const result=await discoverCuratedRemoteFeeds(selected,{freshness:state.snapshot().freshness,signal:externalController.signal});
-    const note=result.freshnessApplied?`freshness ${result.freshnessRequested}`:'live feed check; per-entry age unavailable';
-    state.mergeExternalResult({candidates:result.candidates,count:result.candidates.length,message:`External scan complete · ${result.candidates.length} curated candidate${result.candidates.length===1?'':'s'} · ${note}`});
+    const result=github
+      ? await discoverGithubPublicPlaylists(selected,{freshness,signal:externalController.signal})
+      : await discoverCuratedRemoteFeeds(selected,{freshness,signal:externalController.signal});
+    const note=result.freshnessApplied?`freshness applied · ${result.freshnessRequested}`:'live feed check; per-entry age unavailable';
+    state.mergeExternalResult({provider,lane:github?'githubPublicPlaylists':'curatedRemoteFeeds',candidates:result.candidates,count:result.candidates.length,message:`${label} complete · ${result.candidates.length} candidate${result.candidates.length===1?'':'s'} · ${note}`});
   }catch(error){
-    if(error?.name==='AbortError')state.setExternalIdle('External discovery cancelled');
-    else state.setExternalError(`External discovery failed · ${error?.message||error}`);
+    if(error?.name==='AbortError')state.setExternalIdle(`${label} cancelled`);
+    else state.setExternalError(`${label} failed · ${error?.message||error}`);
   }finally{externalController=null;render();}
 }
+async function scanExternalSources(){return scanExternalProvider(CURATED_REMOTE_FEEDS_PROVIDER);}
+async function scanGithubSources(){return scanExternalProvider(GITHUB_PUBLIC_PLAYLISTS_PROVIDER);}
 
 function cancelVerification(){if(verificationController&&!verificationController.signal.aborted)verificationController.abort(new DOMException('Verification cancelled','AbortError'));verificationController=null;}
 async function verifyOne(candidateId){
@@ -162,7 +172,7 @@ function openPanel(){ensureUi();state.setChannel(selectedChannelSnapshot());stat
 function closePanel(){cancelExternalDiscovery();cancelVerification();state.setOpen(false);state.setExternalIdle('');state.setVerificationMessage('','idle');render();}
 
 ensureUi();
-const api=Object.freeze({buildId:BUILD_ID,open:openPanel,close:closePanel,scanLocal:scanLocalSources,scanExternal:scanExternalSources,verifyOne,verifyAll,cancelExternalDiscovery,cancelVerification,snapshot:()=>state.snapshot()});
+const api=Object.freeze({buildId:BUILD_ID,open:openPanel,close:closePanel,scanLocal:scanLocalSources,scanExternal:scanExternalSources,scanGithub:scanGithubSources,verifyOne,verifyAll,cancelExternalDiscovery,cancelVerification,snapshot:()=>state.snapshot()});
 window.WebTVDiscovery=api;
 window.WebTVDiscoveryPhase1=api;
-console.info(`[WebTV] Discovery Phase 4 loaded · ${BUILD_ID} · curated remote feeds + separate verifier · no save`);
+console.info(`[WebTV] Discovery Phase 4 loaded · ${BUILD_ID} · curated + GitHub public playlists + separate verifier · no save`);
