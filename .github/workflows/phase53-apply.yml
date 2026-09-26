@@ -1,0 +1,41 @@
+name: Apply Phase 5.3 Lifecycle Integration
+
+on:
+  push:
+    branches: [phase53-xtream-source-lifecycle]
+    paths:
+      - '.github/workflows/phase53-apply.yml'
+      - 'tmp/phase53_apply.py'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: phase53-xtream-source-lifecycle
+      - name: Apply guarded Phase 5.3 patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tmp/phase53_apply.py
+          node --check src/xtream-client.js
+          node --check src/xtream-channel-lifecycle.js
+          node --check src/playlist-manager.js
+          node --check workers/xtream-preview-routes.js
+          node tests/xtream-channel-cleanup-route.test.mjs
+          node tests/xtream-channel-lifecycle.test.mjs
+          git diff --check
+      - name: Commit integrated lifecycle changes and remove patcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f tmp/phase53_apply.py .github/workflows/phase53-apply.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Integrate Phase 5.3 Xtream source lifecycle'
+          git push origin HEAD:phase53-xtream-source-lifecycle
