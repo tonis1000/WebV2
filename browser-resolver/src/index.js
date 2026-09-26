@@ -95,18 +95,8 @@ async function nudgePlayback(page){
       for(const video of videos){
         try{video.muted=true;await video.play();}catch{}
       }
-      const selectors=[
-        'button.vjs-play-control',
-        '.brid-overlay-play-button',
-        '[aria-label="Play"]',
-        '[aria-label*="play" i]',
-        '.play-button',
-        '.player-play',
-      ];
-      for(const selector of selectors){
-        const el=document.querySelector(selector);
-        if(el){try{el.click();}catch{}}
-      }
+      const selectors=['button.vjs-play-control','.brid-overlay-play-button','[aria-label="Play"]','[aria-label*="play" i]','.play-button','.player-play'];
+      for(const selector of selectors){const el=document.querySelector(selector);if(el){try{el.click();}catch{}}}
     });
   }catch{}
 }
@@ -116,7 +106,7 @@ async function resolve(body,env){
   const pageUrl=safePageUrl(body?.url);
   const timeoutMs=timeoutFrom(body);
   const observations=[];
-  const seen=new Set();
+  const byUrl=new Map();
   let browser;
   const started=Date.now();
   try{
@@ -127,16 +117,20 @@ async function resolve(body,env){
     page.on('request',request=>{
       try{
         const url=request.url();
-        if(!MEDIA_RE.test(url)||seen.has(url))return;
+        if(!MEDIA_RE.test(url)||byUrl.has(url))return;
         const requestHeaders=request.headers();
-        seen.add(url);
-        observations.push({
-          url,
-          method:request.method(),
-          resourceType:request.resourceType(),
-          headers:sanitizeHeaders(requestHeaders),
-          requestHeaderNames:safeHeaderNames(requestHeaders),
-        });
+        const item={url,method:request.method(),resourceType:request.resourceType(),headers:sanitizeHeaders(requestHeaders),requestHeaderNames:safeHeaderNames(requestHeaders),responseStatus:null,responseContentType:''};
+        byUrl.set(url,item);observations.push(item);
+      }catch{}
+    });
+    page.on('response',response=>{
+      try{
+        const url=response.url();
+        if(!MEDIA_RE.test(url))return;
+        const item=byUrl.get(url);
+        if(!item)return;
+        item.responseStatus=response.status();
+        item.responseContentType=String(response.headers()?.['content-type']||'').split(';')[0].slice(0,120);
       }catch{}
     });
     await page.goto(pageUrl.href,{waitUntil:'domcontentloaded',timeout:timeoutMs});
@@ -148,16 +142,8 @@ async function resolve(body,env){
     const remaining=Math.max(0,Math.min(5000,timeoutMs-(Date.now()-started)));
     if(remaining)await sleep(remaining);
     const after=await pageDiagnostics(page);
-    return{
-      service:'WebTV Browser Resolver',version:VERSION,url:pageUrl.href,
-      elapsedMs:Date.now()-started,
-      observations:observations.slice(0,MAX_OBSERVATIONS),
-      diagnostics:{before,selection,after},
-      limits:{timeoutMs,maxObservations:MAX_OBSERVATIONS},
-    };
-  }finally{
-    if(browser){try{await browser.close();}catch{}}
-  }
+    return{service:'WebTV Browser Resolver',version:VERSION,url:pageUrl.href,elapsedMs:Date.now()-started,observations:observations.slice(0,MAX_OBSERVATIONS),diagnostics:{before,selection,after},limits:{timeoutMs,maxObservations:MAX_OBSERVATIONS}};
+  }finally{if(browser){try{await browser.close();}catch{}}}
 }
 
 export default {
@@ -167,14 +153,9 @@ export default {
     if(request.method!=='POST'||url.pathname!=='/resolve')return json({error:'Not found'},404);
     if(!env.RESOLVER_SHARED_TOKEN)return json({error:'Resolver authentication is not configured'},503);
     if(!authorized(request,env))return json({error:'Unauthorized'},401);
-    let body={};
-    try{body=await request.json();}catch{return json({error:'Invalid JSON'},400);}
+    let body={};try{body=await request.json();}catch{return json({error:'Invalid JSON'},400);}
     try{return json(await resolve(body,env));}
-    catch(error){
-      const message=error?.message||String(error);
-      const status=/allowlisted|HTTPS/.test(message)?400:/timeout/i.test(message)?408:502;
-      return json({error:message,service:'WebTV Browser Resolver',version:VERSION},status);
-    }
+    catch(error){const message=error?.message||String(error);const status=/allowlisted|HTTPS/.test(message)?400:/timeout/i.test(message)?408:502;return json({error:message,service:'WebTV Browser Resolver',version:VERSION},status);}
   }
 };
 
