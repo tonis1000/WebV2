@@ -1,5 +1,7 @@
-const VERSION='1.0';
-const PROVIDER='curated-remote-feeds';
+import { GITHUB_PUBLIC_PLAYLISTS_PROVIDER, discoverGithubPublicPlaylists } from './source-discovery/github-public-playlists.js';
+
+const VERSION='1.1';
+const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=6000;
 const MAX_FETCH_BYTES=1200000;
 const MAX_CONCURRENCY=2;
@@ -75,9 +77,9 @@ function parseM3u(text='',channel={},feed={}){
       sourceType:typeOf(sourceUrl),
       sourceUrl,
       sourceOrigin:feed.name,
-      discoveryProvider:PROVIDER,
+      discoveryProvider:String(feed.provider||CURATED_REMOTE_FEEDS_PROVIDER),
       discoveredAt:new Date().toISOString(),
-      freshness:'live-feed-check',
+      freshness:feed.freshness||'live-feed-check',
       matchConfidence:'HIGH',
     });
   }
@@ -94,7 +96,7 @@ async function scanFeed(feed,channel){
     const response=await timedFetch(feed.url);
     if(!response.ok)return {feed:feed.name,status:response.status,candidates:[],elapsedMs:Date.now()-started};
     const text=(await response.text()).slice(0,MAX_FETCH_BYTES);
-    return {feed:feed.name,status:response.status,candidates:parseM3u(text,channel,feed),elapsedMs:Date.now()-started};
+    return {feed:feed.name,status:response.status,candidates:parseM3u(text,channel,{...feed,provider:CURATED_REMOTE_FEEDS_PROVIDER}),elapsedMs:Date.now()-started};
   }catch(error){return {feed:feed.name,status:error?.name==='AbortError'?408:0,candidates:[],elapsedMs:Date.now()-started,error:error?.message||String(error)};}
 }
 async function mapBounded(items,limit,task){
@@ -107,31 +109,45 @@ function dedupe(candidates=[]){
   for(const item of candidates){const key=String(item.sourceUrl||'').trim();if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=MAX_RESULTS)break;}
   return out;
 }
-async function discover(request,env={}){
-  if(String(env.DISABLE_CURATED_REMOTE_FEEDS||'')==='1')return json({error:'Provider disabled',provider:PROVIDER},503);
-  let body;try{body=await request.json();}catch{return json({error:'Invalid JSON'},400);}
-  if(body?.provider!==PROVIDER)return json({error:'Unsupported provider'},400);
-  const freshness=ALLOWED_FRESHNESS.has(body?.freshness)?body.freshness:'7d';
-  const channel=body?.channel&&typeof body.channel==='object'?body.channel:{};
-  if(!String(channel.name||'').trim())return json({error:'channel.name is required'},400);
+async function discoverCurated(channel,freshness,env={}){
+  if(String(env.DISABLE_CURATED_REMOTE_FEEDS||'')==='1')return json({error:'Provider disabled',provider:CURATED_REMOTE_FEEDS_PROVIDER},503);
   const reports=await mapBounded(FEEDS,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
   const candidates=dedupe(reports.flatMap(report=>report.candidates||[]));
   return json({
-    service:'WebTV Source Discovery',version:VERSION,provider:PROVIDER,enabled:true,
+    service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
     freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Curated feeds are checked live; individual entries do not expose reliable publication timestamps.',
     limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.length},
     candidates,reports:reports.map(({feed,status,elapsedMs,candidates,error})=>({feed,status,elapsedMs,count:candidates?.length||0,error:error||''})),
   });
+}
+async function discover(request,env={}){
+  let body;try{body=await request.json();}catch{return json({error:'Invalid JSON'},400);}
+  const provider=String(body?.provider||'');
+  const freshness=ALLOWED_FRESHNESS.has(body?.freshness)?body.freshness:'7d';
+  const channel=body?.channel&&typeof body.channel==='object'?body.channel:{};
+  if(!String(channel.name||'').trim())return json({error:'channel.name is required'},400);
+  if(provider===CURATED_REMOTE_FEEDS_PROVIDER)return discoverCurated(channel,freshness,env);
+  if(provider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER){
+    if(String(env.DISABLE_GITHUB_PUBLIC_PLAYLISTS||'')==='1')return json({error:'Provider disabled',provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER},503);
+    try{
+      const result=await discoverGithubPublicPlaylists({channel,freshness,parseM3u});
+      return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});
+    }catch(error){return json({error:error?.message||String(error),provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER},502);}
+  }
+  return json({error:'Unsupported provider'},400);
 }
 
 export default {
   async fetch(request,env){
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors()});
     const url=new URL(request.url);
-    if(request.method==='GET'&&url.pathname==='/')return json({service:'WebTV Source Discovery',version:VERSION,providers:{[PROVIDER]:String(env?.DISABLE_CURATED_REMOTE_FEEDS||'')!=='1'},limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.length}});
+    if(request.method==='GET'&&url.pathname==='/')return json({service:'WebTV Source Discovery',version:VERSION,providers:{
+      [CURATED_REMOTE_FEEDS_PROVIDER]:String(env?.DISABLE_CURATED_REMOTE_FEEDS||'')!=='1',
+      [GITHUB_PUBLIC_PLAYLISTS_PROVIDER]:String(env?.DISABLE_GITHUB_PUBLIC_PLAYLISTS||'')!=='1',
+    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.length}});
     if(request.method==='POST'&&url.pathname==='/discover')return discover(request,env);
     return json({error:'Not found'},404);
   }
 };
 
-export { FEEDS, PROVIDER, FETCH_TIMEOUT_MS, MAX_CONCURRENCY, MAX_RESULTS, normalize, benignBase, candidateMatches, parseM3u };
+export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, FETCH_TIMEOUT_MS, MAX_CONCURRENCY, MAX_RESULTS, normalize, benignBase, candidateMatches, parseM3u };
