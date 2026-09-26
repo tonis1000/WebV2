@@ -85,7 +85,5 @@ jobs:
             echo "Waiting for Worker/provider availability ($attempt/12)…"
             sleep 5
           done
-          echo "::error::Source Discovery v1.5 live verification failed."
+          echo "::error::Source Discovery v1.5 live verification failed. Check provider upstreams, official pages, BRAVE_API_KEY, and Browser Resolver capability reporting."
           exit 1
-
-# retrigger after ERT /live regression fixture update
