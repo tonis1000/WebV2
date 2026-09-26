@@ -60,7 +60,11 @@ function safeDiagnostics(value={}){
     iframeHosts:Array.isArray(input?.iframeHosts)?input.iframeHosts.map(String).slice(0,8):[],
     buttonLabels:Array.isArray(input?.buttonLabels)?input.buttonLabels.map(v=>String(v).slice(0,80)).slice(0,12):[],
   });
-  return{before:side(value?.before),after:side(value?.after)};
+  return{
+    before:side(value?.before),
+    selection:{clicked:Boolean(value?.selection?.clicked),label:String(value?.selection?.label||'').slice(0,80)},
+    after:side(value?.after),
+  };
 }
 
 async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
