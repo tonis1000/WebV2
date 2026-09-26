@@ -15,6 +15,11 @@
         {id:'skai',originalId:'SKAI',name:'SKAI',group:'General',directUrls:['https://current.test/skai.m3u8']},
       ],
     };
+    window.WebTVSavedPlaylistsReadAPI={
+      getAllCached:async()=>[
+        {id:'saved-1',name:'Greek backup',type:'saved',text:'#EXTM3U\n#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA",MEGA\nhttps://backup.test/mega.mpd\n',updatedAt:Date.now()},
+      ],
+    };
     window.WebTVXtream={
       getLoaded:()=>({
         account:{id:'xt-1',name:'Provider A',server:'https://provider.test'},
@@ -23,26 +28,10 @@
     };
   </script>
   <script type="module">
-    function seedSavedPlaylist(){
-      return new Promise((resolve,reject)=>{
-        const request=indexedDB.open('webtv-v2-playlists',1);
-        request.onupgradeneeded=()=>request.result.createObjectStore('playlists',{keyPath:'id'});
-        request.onerror=()=>reject(request.error);
-        request.onsuccess=()=>{
-          const db=request.result;
-          const tx=db.transaction('playlists','readwrite');
-          tx.objectStore('playlists').put({id:'saved-1',name:'Greek backup',type:'saved',text:'#EXTM3U\n#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA",MEGA\nhttps://backup.test/mega.mpd\n',updatedAt:Date.now()});
-          tx.oncomplete=()=>{db.close();resolve();};
-          tx.onerror=()=>reject(tx.error);
-        };
-      });
-    }
-
     const sidebar=document.getElementById('sidebar-sentinel');
     const player=document.getElementById('player-sentinel');
     const before={sidebar:sidebar.textContent,player:player.textContent};
     try{
-      await seedSavedPlaylist();
       await import('../src/discovery/discovery-ui.js');
       const api=window.WebTVDiscovery;
       api.open();
