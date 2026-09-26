@@ -92,6 +92,7 @@ export function candidateForDisplay(candidate={}) {
   const { xtreamContext, ...rest } = candidate;
   return {
     ...rest,
+    sourceUrl:xtreamContext ? '[redacted Xtream source]' : rest.sourceUrl,
     xtreamContext:xtreamContext ? {
       server:xtreamContext.server,
       username:xtreamContext.username,
