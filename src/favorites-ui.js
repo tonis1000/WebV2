@@ -1,4 +1,4 @@
-import './right-rail-preview.js?v=20260926-rail5';
+import './right-rail-preview.js?v=20260926-rail7';
 
 const BUILD_ID = '20260924-2030';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
