@@ -1,6 +1,6 @@
 const SOURCE_TYPES = new Set(['hls','dash','strm','m3u','direct','xtream','header-aware','unknown']);
 const MATCH_CONFIDENCE = new Set(['HIGH','MEDIUM','LOW','UNKNOWN']);
-const VERIFICATION_STATES = new Set(['UNVERIFIED','VERIFIED','FAILED','TIMEOUT','HTTP 403','HTTP 404','DRM','WRONG CHANNEL','UNRESOLVED']);
+const VERIFICATION_STATES = new Set(['UNVERIFIED','VERIFYING','VERIFIED','FAILED','TIMEOUT','HTTP 403','HTTP 404','DRM','WRONG CHANNEL','UNRESOLVED']);
 
 export function normalizeChannelName(value='') {
   return String(value)
@@ -82,9 +82,24 @@ export function createCandidate(input={}) {
     lastHttpStatus:Number.isFinite(Number(input.lastHttpStatus)) ? Number(input.lastHttpStatus) : null,
     mediaType:String(input.mediaType||''),
     drmDetected:Boolean(input.drmDetected),
+    verificationDetail:String(input.verificationDetail||''),
     healthScore:Number.isFinite(Number(input.healthScore)) ? Number(input.healthScore) : null,
     duplicateOf:input.duplicateOf || null,
     matchConfidence,
+  });
+}
+
+export function withVerification(candidate={},result={}) {
+  const status=VERIFICATION_STATES.has(result.status) ? result.status : 'FAILED';
+  return createCandidate({
+    ...candidate,
+    verificationStatus:status,
+    verified:status==='VERIFIED' && result.verified!==false,
+    startupMs:result.startupMs,
+    lastHttpStatus:result.lastHttpStatus,
+    mediaType:result.mediaType||candidate.mediaType,
+    drmDetected:Boolean(result.drmDetected),
+    verificationDetail:result.detail||'',
   });
 }
 
