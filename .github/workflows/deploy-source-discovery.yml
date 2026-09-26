@@ -40,6 +40,7 @@ jobs:
           node tests/source-discovery-worker.test.mjs
           node tests/github-public-playlists-provider.test.mjs
           node tests/recent-web-search-provider.test.mjs
+          node tests/strm-specific-discovery-provider.test.mjs
 
       - name: Build Wrangler config
         shell: bash
@@ -69,12 +70,13 @@ jobs:
             CURATED=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true)
             GITHUB=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"github-public-playlists","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true)
             WEB=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"recent-web-search","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true)
-            if node -e "try{const s=JSON.parse(process.argv[1]),c=JSON.parse(process.argv[2]),g=JSON.parse(process.argv[3]),w=JSON.parse(process.argv[4]);const githubOk=Array.isArray(g.reports?.searches)&&g.reports.searches.some(x=>x.status===200);const webOk=Array.isArray(w.reports?.searches)&&w.reports.searches.some(x=>x.status===200);const ok=s.service==='WebTV Source Discovery'&&s.version==='1.2'&&s.providers?.['curated-remote-feeds']===true&&s.providers?.['github-public-playlists']===true&&s.providers?.['recent-web-search']===true&&c.provider==='curated-remote-feeds'&&Array.isArray(c.reports)&&c.reports.some(x=>x.status===200)&&g.provider==='github-public-playlists'&&g.freshnessApplied===true&&githubOk&&w.provider==='recent-web-search'&&w.freshnessApplied===true&&webOk&&Array.isArray(w.candidates);if(!ok)process.exit(1);console.log(JSON.stringify({status:s,curated:{candidateCount:c.candidates?.length||0},github:{candidateCount:g.candidates?.length||0,reports:g.reports},web:{candidateCount:w.candidates?.length||0,reports:w.reports}},null,2));}catch{process.exit(1)}" "$STATUS" "$CURATED" "$GITHUB" "$WEB"; then
-              echo "Source Discovery v1.2 is live; curated, GitHub, and recent web search all reached their public upstreams."
+            STRM=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"strm-specific-discovery","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}' || true)
+            if node -e "try{const s=JSON.parse(process.argv[1]),c=JSON.parse(process.argv[2]),g=JSON.parse(process.argv[3]),w=JSON.parse(process.argv[4]),r=JSON.parse(process.argv[5]);const githubOk=Array.isArray(g.reports?.searches)&&g.reports.searches.some(x=>x.status===200);const webOk=Array.isArray(w.reports?.searches)&&w.reports.searches.some(x=>x.status===200);const strmFeedOk=Array.isArray(r.reports?.feeds)&&r.reports.feeds.some(x=>x.status===200);const strmResolved=Array.isArray(r.reports?.resolutions)&&r.reports.resolutions.some(x=>x.resolved===true);const ok=s.service==='WebTV Source Discovery'&&s.version==='1.3'&&s.providers?.['curated-remote-feeds']===true&&s.providers?.['github-public-playlists']===true&&s.providers?.['recent-web-search']===true&&s.providers?.['strm-specific-discovery']===true&&c.provider==='curated-remote-feeds'&&Array.isArray(c.reports)&&c.reports.some(x=>x.status===200)&&g.provider==='github-public-playlists'&&g.freshnessApplied===true&&githubOk&&w.provider==='recent-web-search'&&w.freshnessApplied===true&&webOk&&r.provider==='strm-specific-discovery'&&r.freshnessApplied===false&&strmFeedOk&&strmResolved&&Array.isArray(r.candidates)&&r.candidates.length>0;if(!ok)process.exit(1);console.log(JSON.stringify({status:s,curated:{candidateCount:c.candidates?.length||0},github:{candidateCount:g.candidates?.length||0,reports:g.reports},web:{candidateCount:w.candidates?.length||0,reports:w.reports},strm:{candidateCount:r.candidates?.length||0,reports:r.reports,candidate:r.candidates?.[0]||null}},null,2));}catch{process.exit(1)}" "$STATUS" "$CURATED" "$GITHUB" "$WEB" "$STRM"; then
+              echo "Source Discovery v1.3 is live; curated, GitHub, recent web, and STRM resolution all reached their public upstreams."
               exit 0
             fi
             echo "Waiting for Worker/provider availability ($attempt/12)…"
             sleep 5
           done
-          echo "::error::Source Discovery v1.2 live verification failed. Confirm BRAVE_API_KEY is configured on webtv-source-discovery."
+          echo "::error::Source Discovery v1.3 live verification failed. Check provider upstreams and BRAVE_API_KEY."
           exit 1

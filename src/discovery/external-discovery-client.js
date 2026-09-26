@@ -4,11 +4,13 @@ export const DISCOVERY_ENDPOINT='https://webtv-source-discovery.atonis.workers.d
 export const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 export const GITHUB_PUBLIC_PLAYLISTS_PROVIDER='github-public-playlists';
 export const RECENT_WEB_SEARCH_PROVIDER='recent-web-search';
+export const STRM_SPECIFIC_DISCOVERY_PROVIDER='strm-specific-discovery';
 export const EXTERNAL_DISCOVERY_TIMEOUT_MS=9000;
 export const PROVIDER_FLAGS=Object.freeze({
   [CURATED_REMOTE_FEEDS_PROVIDER]:true,
   [GITHUB_PUBLIC_PLAYLISTS_PROVIDER]:true,
   [RECENT_WEB_SEARCH_PROVIDER]:true,
+  [STRM_SPECIFIC_DISCOVERY_PROVIDER]:true,
 });
 
 function timeoutSignal(parentSignal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS){
@@ -42,3 +44,4 @@ async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOV
 export function discoverCuratedRemoteFeeds(channel,options={}){return discoverProvider(CURATED_REMOTE_FEEDS_PROVIDER,channel,options);}
 export function discoverGithubPublicPlaylists(channel,options={}){return discoverProvider(GITHUB_PUBLIC_PLAYLISTS_PROVIDER,channel,options);}
 export function discoverRecentWebSearch(channel,options={}){return discoverProvider(RECENT_WEB_SEARCH_PROVIDER,channel,options);}
+export function discoverStrmSpecific(channel,options={}){return discoverProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER,channel,options);}

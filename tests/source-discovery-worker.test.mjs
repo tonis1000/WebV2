@@ -1,19 +1,22 @@
 import assert from 'node:assert/strict';
-import discovery, { candidateMatches, parseM3u, MAX_CONCURRENCY } from '../workers/webtv-source-discovery.js';
+import discovery, { candidateMatches, parseM3u, MAX_CONCURRENCY, STRM_SPECIFIC_DISCOVERY_PROVIDER } from '../workers/webtv-source-discovery.js';
 
 assert.equal(MAX_CONCURRENCY,2);
+assert.equal(STRM_SPECIFIC_DISCOVERY_PROVIDER,'strm-specific-discovery');
 assert.equal(candidateMatches('#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA HD",MEGA HD',{name:'MEGA',id:'mega'}),true);
 assert.equal(candidateMatches('#EXTINF:-1 tvg-id="MEGA-NEWS" tvg-name="MEGA News",MEGA News',{name:'MEGA',id:'mega'}),false);
 
 const statusResponse=await discovery.fetch(new Request('https://discovery.test/'),{BRAVE_API_KEY:'fixture-key'});
 assert.equal(statusResponse.status,200);
 const status=await statusResponse.json();
-assert.equal(status.version,'1.2');
+assert.equal(status.version,'1.3');
 assert.equal(status.providers['curated-remote-feeds'],true);
 assert.equal(status.providers['github-public-playlists'],true);
 assert.equal(status.providers['recent-web-search'],true);
+assert.equal(status.providers['strm-specific-discovery'],true);
 const noKeyStatus=await (await discovery.fetch(new Request('https://discovery.test/'),{})).json();
 assert.equal(noKeyStatus.providers['recent-web-search'],false);
+assert.equal(noKeyStatus.providers['strm-specific-discovery'],true);
 
 const sample=`#EXTM3U
 #EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA HD",MEGA HD
@@ -36,6 +39,7 @@ try{
   const disabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'curated-remote-feeds',channel:{name:'MEGA'}})}),{DISABLE_CURATED_REMOTE_FEEDS:'1'});assert.equal(disabled.status,503);assert.equal((await disabled.json()).error,'Provider disabled');
   const webMissingKey=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'recent-web-search',channel:{name:'MEGA'}})}),{});assert.equal(webMissingKey.status,503);assert.match((await webMissingKey.json()).error,/BRAVE_API_KEY/);
   const webDisabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'recent-web-search',channel:{name:'MEGA'}})}),{BRAVE_API_KEY:'fixture-key',DISABLE_RECENT_WEB_SEARCH:'1'});assert.equal(webDisabled.status,503);assert.equal((await webDisabled.json()).error,'Provider disabled');
+  const strmDisabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'strm-specific-discovery',channel:{name:'ERT1'}})}),{DISABLE_STRM_SPECIFIC_DISCOVERY:'1'});assert.equal(strmDisabled.status,503);assert.equal((await strmDisabled.json()).error,'Provider disabled');
   const wrongProvider=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'unknown-provider',channel:{name:'MEGA'}})}),{});assert.equal(wrongProvider.status,400);
 
   console.log('source discovery Worker tests PASS');
