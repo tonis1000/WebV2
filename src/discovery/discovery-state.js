@@ -5,7 +5,17 @@ export const FRESHNESS_OPTIONS = Object.freeze([
 ]);
 export const DEFAULT_FRESHNESS = '7d';
 
-const EMPTY_LANES=Object.freeze({myPlaylist:0,savedPlaylists:0,xtream:0,total:0});
+const EMPTY_LANES=Object.freeze({myPlaylist:0,savedPlaylists:0,xtream:0,curatedRemoteFeeds:0,total:0});
+
+function uniqueCandidates(items=[]){
+  const seen=new Set();const out=[];
+  for(const item of items||[]){
+    const key=String(item?.sourceUrl||item?.candidateId||'').trim();
+    if(!key||seen.has(key))continue;
+    seen.add(key);out.push(item);
+  }
+  return out;
+}
 
 export class DiscoveryState {
   constructor() {
@@ -17,6 +27,8 @@ export class DiscoveryState {
     this.scanStatus='idle';
     this.scanMessage='';
     this.lastScanAt=null;
+    this.externalStatus='idle';
+    this.externalMessage='';
     this.verifyStatus='idle';
     this.verifyMessage='';
   }
@@ -27,6 +39,7 @@ export class DiscoveryState {
       originalId:String(channel.originalId||''),
       name:String(channel.name||''),
       group:String(channel.group||''),
+      tvgId:String(channel.tvgId||''),
     } : null;
     this.clearResults();
     return this.channel;
@@ -41,8 +54,10 @@ export class DiscoveryState {
     this.scanMessage=String(message||'');
   }
   setScanResult({candidates=[],lanes=EMPTY_LANES,message=''}={}){
-    this.candidates=[...(candidates||[])];
-    this.lanes=Object.freeze({...EMPTY_LANES,...(lanes||{})});
+    const external=this.candidates.filter(item=>item?.discoveryProvider==='curated-remote-feeds');
+    this.candidates=uniqueCandidates([...(candidates||[]),...external]);
+    const externalCount=this.lanes.curatedRemoteFeeds||external.length;
+    this.lanes=Object.freeze({...EMPTY_LANES,...(lanes||{}),curatedRemoteFeeds:externalCount,total:this.candidates.length});
     this.scanStatus='done';
     this.scanMessage=String(message||'');
     this.lastScanAt=new Date().toISOString();
@@ -52,6 +67,30 @@ export class DiscoveryState {
   setScanError(message='Local scan failed'){
     this.scanStatus='error';
     this.scanMessage=String(message||'Local scan failed');
+  }
+  setExternalScanning(message='Searching curated remote feeds…'){
+    this.externalStatus='loading';
+    this.externalMessage=String(message||'');
+  }
+  mergeExternalResult({candidates=[],count=null,message=''}={}){
+    const local=this.candidates.filter(item=>item?.discoveryProvider!=='curated-remote-feeds');
+    this.candidates=uniqueCandidates([...local,...(candidates||[])]);
+    const externalCount=count===null?(candidates||[]).length:Number(count)||0;
+    this.lanes=Object.freeze({...EMPTY_LANES,...this.lanes,curatedRemoteFeeds:externalCount,total:this.candidates.length});
+    if(this.scanStatus==='idle')this.scanStatus='done';
+    this.externalStatus='done';
+    this.externalMessage=String(message||'');
+    this.lastScanAt=new Date().toISOString();
+    this.verifyStatus='idle';
+    this.verifyMessage='';
+  }
+  setExternalError(message='External discovery failed'){
+    this.externalStatus='error';
+    this.externalMessage=String(message||'External discovery failed');
+  }
+  setExternalIdle(message=''){
+    this.externalStatus='idle';
+    this.externalMessage=String(message||'');
   }
   setVerificationRunning(message='Verifying candidates…'){
     this.verifyStatus='loading';
@@ -75,6 +114,8 @@ export class DiscoveryState {
     this.scanStatus='idle';
     this.scanMessage='';
     this.lastScanAt=null;
+    this.externalStatus='idle';
+    this.externalMessage='';
     this.verifyStatus='idle';
     this.verifyMessage='';
   }
@@ -88,6 +129,8 @@ export class DiscoveryState {
       scanStatus:this.scanStatus,
       scanMessage:this.scanMessage,
       lastScanAt:this.lastScanAt,
+      externalStatus:this.externalStatus,
+      externalMessage:this.externalMessage,
       verifyStatus:this.verifyStatus,
       verifyMessage:this.verifyMessage,
     });

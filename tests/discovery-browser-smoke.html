@@ -1,6 +1,6 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Discovery Phase 3 Browser Smoke</title><style>:root{--text:#fff;--muted:#999;--accent-2:#63b3ff;--line:#333}.button{padding:4px}.ghost{opacity:.9}</style></head>
+<head><meta charset="utf-8"><title>Discovery Phase 4 Browser Smoke</title><style>:root{--text:#fff;--muted:#999;--accent-2:#63b3ff;--line:#333}.button{padding:4px}.ghost{opacity:.9}</style></head>
 <body>
   <div class="topbar-actions"><button id="source-hunt-toggle" class="button">Source Hunt</button></div>
   <aside id="sidebar-sentinel">SIDEBAR-STABLE</aside>
@@ -8,7 +8,7 @@
   <pre id="result"></pre>
   <script>
     window.WebTVPlaylistAPI={
-      getSelectedChannel:()=>({id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']}),
+      getSelectedChannel:()=>({id:'mega',originalId:'MEGA',tvgId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']}),
       getCatalogMode:()=> 'cloud',
       getChannels:()=>[
         {id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']},
@@ -26,7 +26,17 @@
         channels:[{id:'xtream:xt-1:42',streamId:'42',tvgId:'MEGA',name:'MEGA',group:'General',playbackUrl:'https://webtv-xtream.test/stream/xt-1/42.m3u8?s=signed'}],
       }),
     };
-    window.fetch=async(_url,options={})=>{
+    window.fetch=async(url,options={})=>{
+      if(String(url).includes('webtv-source-discovery')){
+        const body=JSON.parse(options.body||'{}');
+        return new Response(JSON.stringify({
+          service:'WebTV Source Discovery',version:'1.0',provider:'curated-remote-feeds',
+          freshnessRequested:body.freshness||'7d',freshnessApplied:false,
+          freshnessNote:'Curated feeds are checked live',
+          candidates:[{channelName:'MEGA',sourceType:'hls',sourceUrl:'https://external.test/mega.m3u8',sourceOrigin:'fixture-feed',discoveryProvider:'curated-remote-feeds',freshness:'live-feed-check',matchConfidence:'HIGH'}],
+          reports:[{feed:'fixture-feed',status:200,count:1}]
+        }),{status:200,headers:{'content-type':'application/json'}});
+      }
       const body=JSON.parse(options.body||'{}');
       const candidate=body.candidates?.[0]||{};
       const dead=String(candidate.sourceUrl||'').includes('backup.test');
@@ -52,7 +62,9 @@
       api.open();
       const opened=api.snapshot();
       await api.scanLocal();
-      const scanned=api.snapshot();
+      const local=api.snapshot();
+      await api.scanExternal();
+      const external=api.snapshot();
       const cardCount=document.querySelectorAll('#discovery-results .discovery-card').length;
       await api.verifyAll();
       const verified=api.snapshot();
@@ -62,20 +74,26 @@
       const closed=api.snapshot();
       const verifiedCount=verified.candidates.filter(x=>x.verificationStatus==='VERIFIED').length;
       const failedCount=verified.candidates.filter(x=>x.verificationStatus==='HTTP 404').length;
+      const externalCandidate=external.candidates.find(x=>x.discoveryProvider==='curated-remote-feeds');
       const pass=Boolean(
         api &&
         opened.open===true &&
         opened.channel?.name==='MEGA' &&
         opened.freshness==='7d' &&
         opened.candidates.length===0 &&
-        scanned.scanStatus==='done' &&
-        scanned.lanes.myPlaylist===1 &&
-        scanned.lanes.savedPlaylists===1 &&
-        scanned.lanes.xtream===1 &&
-        scanned.lanes.total===3 &&
-        cardCount===3 &&
+        local.scanStatus==='done' &&
+        local.lanes.myPlaylist===1 &&
+        local.lanes.savedPlaylists===1 &&
+        local.lanes.xtream===1 &&
+        local.lanes.total===3 &&
+        external.externalStatus==='done' &&
+        external.lanes.curatedRemoteFeeds===1 &&
+        external.lanes.total===4 &&
+        external.candidates.length===4 &&
+        externalCandidate?.verificationStatus==='UNVERIFIED' &&
+        cardCount===4 &&
         verified.verifyStatus==='done' &&
-        verifiedCount===2 &&
+        verifiedCount===3 &&
         failedCount===1 &&
         changed.freshness==='24h' &&
         closed.open===false &&
@@ -83,10 +101,10 @@
         sidebar.textContent===before.sidebar &&
         player.textContent===before.player
       );
-      document.documentElement.dataset.phase3Result=pass?'PASS':'FAIL';
-      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,verifiedCount,failedCount,opened,scanned,verified,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
+      document.documentElement.dataset.phase4Result=pass?'PASS':'FAIL';
+      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,verifiedCount,failedCount,opened,local,external,verified,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
     }catch(error){
-      document.documentElement.dataset.phase3Result='ERROR';
+      document.documentElement.dataset.phase4Result='ERROR';
       document.getElementById('result').textContent=String(error?.stack||error);
     }
   </script>
