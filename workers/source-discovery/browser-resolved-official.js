@@ -5,6 +5,7 @@ export const BROWSER_RESOLVER_TIMEOUT_MS=12000;
 export const BROWSER_RESOLVER_MAX_CANDIDATES=8;
 
 const APPROVED_HEADER_NAMES=new Set(['user-agent','referer','origin']);
+const ERT_PROVISIONAL_SUFFIX='.msvdn.net';
 
 function typeOf(url=''){
   if(/\.m3u8(?:[?#]|$)/i.test(url))return'hls';
@@ -31,7 +32,18 @@ function sanitizeHeaders(headers={}){
   }
   return out;
 }
-function mediaCandidate(channel,entry,observation,pageUrl){
+function refererIsOfficialErt(headers={}){
+  const clean=sanitizeHeaders(headers);
+  try{return new URL(clean.Referer||'').hostname.toLowerCase()==='live.ertflix.gr';}catch{return false;}
+}
+function isErtProvisionalObservation(entry,observation){
+  if(entry?.owner!=='ERT'||!refererIsOfficialErt(observation?.headers))return false;
+  try{
+    const url=new URL(String(observation?.url||''));
+    return url.protocol==='https:'&&url.hostname.toLowerCase().endsWith(ERT_PROVISIONAL_SUFFIX)&&Boolean(typeOf(url.href));
+  }catch{return false;}
+}
+function mediaCandidate(channel,entry,observation,pageUrl,{provisional=false}={}){
   const sourceUrl=String(observation?.url||'').trim();
   return{
     channelName:String(channel.name||''),
@@ -42,12 +54,14 @@ function mediaCandidate(channel,entry,observation,pageUrl){
     discoveryProvider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,
     discoveredAt:new Date().toISOString(),
     freshness:'live-browser-resolution',
-    matchConfidence:'HIGH',
+    matchConfidence:provisional?'MEDIUM':'HIGH',
     candidateKind:'media',
-    trustClass:'OFFICIAL',
-    saveEligible:true,
+    trustClass:provisional?'OFFICIAL_OBSERVED':'OFFICIAL',
+    saveEligible:!provisional,
     officialPageUrl:pageUrl,
-    verificationDetail:'Observed from an allowlisted official page after browser execution; verifier still required',
+    verificationDetail:provisional
+      ? 'Observed during playback from the official ERT page on a shared CDN; verification is mandatory before any promotion.'
+      : 'Observed from an allowlisted official page after browser execution; verifier still required',
   };
 }
 function safeDiagnostics(value={}){
@@ -102,8 +116,11 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
     const candidates=[];const seen=new Set();
     for(const observation of observations){
       const url=String(observation?.url||'').trim();
-      if(!typeOf(url)||!hostAllowed(url,entry.mediaHosts||[])||seen.has(url))continue;
-      seen.add(url);candidates.push(mediaCandidate(channel,entry,observation,pageUrl));
+      if(!typeOf(url)||seen.has(url))continue;
+      const strict=hostAllowed(url,entry.mediaHosts||[]);
+      const provisional=!strict&&isErtProvisionalObservation(entry,observation);
+      if(!strict&&!provisional)continue;
+      seen.add(url);candidates.push(mediaCandidate(channel,entry,observation,pageUrl,{provisional}));
       if(candidates.length>=BROWSER_RESOLVER_MAX_CANDIDATES)break;
     }
     return{status:response.status,candidates,observationCount:observations.length,observedMedia:safeObservationSummary(observations),error:'',endpoint:endpointLabel,diagnostics:safeDiagnostics(payload?.diagnostics)};
@@ -135,4 +152,4 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   };
 }
 
-export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary };
+export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary, isErtProvisionalObservation };
