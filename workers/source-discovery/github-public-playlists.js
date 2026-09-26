@@ -57,7 +57,7 @@ export async function discoverGithubPublicPlaylists({channel,freshness='7d',pars
   if(typeof parseM3u!=='function')throw new Error('parseM3u dependency is required');
   const budget=new Budget();const pushedSince=sinceDate(freshness);const searchReports=[];const repoPool=[];
   for(const term of SEARCH_TERMS){
-    const q=`${term} pushed:>=${pushedSince} fork:false`;
+    const q=`${term} pushed:>=${pushedSince}`;
     const url=`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=5`;
     const result=await fetchJson(url,budget);
     searchReports.push({query:term,status:result.status,elapsedMs:result.elapsedMs,rateRemaining:result.remaining,error:result.error||''});
