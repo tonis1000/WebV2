@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - 'workers/webtv-xtream.js'
+      - 'workers/webtv-xtream-router.js'
+      - 'workers/xtream-preview-routes.js'
       - '.github/workflows/deploy-webtv-xtream.yml'
 
 permissions:
@@ -33,7 +35,10 @@ jobs:
 
       - name: Validate Worker syntax
         shell: bash
-        run: node --input-type=module --check < workers/webtv-xtream.js
+        run: |
+          node --input-type=module --check < workers/webtv-xtream.js
+          node --check workers/xtream-preview-routes.js
+          node --check workers/webtv-xtream-router.js
 
       - name: Validate deployment secrets
         shell: bash
@@ -90,7 +95,7 @@ jobs:
           set -euo pipefail
           cat > wrangler.xtream.ci.toml <<EOF
           name = "$XTREAM_WORKER_NAME"
-          main = "workers/webtv-xtream.js"
+          main = "workers/webtv-xtream-router.js"
           compatibility_date = "2026-09-25"
           compatibility_flags = ["global_fetch_strictly_public"]
           workers_dev = true
@@ -131,17 +136,24 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 30); do
+            status_ok=0
+            preview_options=0
+            preview_auth=0
             if curl --fail --silent --show-error \
               -H 'Cache-Control: no-cache' \
               "$XTREAM_URL/api/status?verify=${GITHUB_SHA}-${attempt}" \
               -o /tmp/webtv-xtream-status.json; then
               cat /tmp/webtv-xtream-status.json
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-xtream-status.json','utf8'));process.exit(j.version==='1.7'&&j.service==='WebTV Xtream Bridge'&&j.registryBinding===true&&j.hlsProxy===true?0:1)"; then
-                exit 0
-              fi
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-xtream-status.json','utf8'));process.exit(j.version==='1.7'&&j.service==='WebTV Xtream Bridge'&&j.registryBinding===true&&j.hlsProxy===true?0:1)"; then status_ok=1; fi
             fi
-            echo "Waiting for Cloudflare propagation · attempt $attempt/30"
+            preview_options=$(curl --silent --output /dev/null --write-out '%{http_code}' -X OPTIONS "$XTREAM_URL/api/preview?verify=${GITHUB_SHA}-${attempt}" || true)
+            preview_auth=$(curl --silent --output /tmp/webtv-xtream-preview-auth.json --write-out '%{http_code}' -H 'content-type: application/json' -d '{}' "$XTREAM_URL/api/preview?verify=${GITHUB_SHA}-${attempt}" || true)
+            cat /tmp/webtv-xtream-preview-auth.json 2>/dev/null || true
+            if [ "$status_ok" = 1 ] && [ "$preview_options" = 204 ] && [ "$preview_auth" = 401 ]; then
+              exit 0
+            fi
+            echo "Waiting for Cloudflare propagation · attempt $attempt/30 · status=$status_ok options=$preview_options auth=$preview_auth"
             sleep 3
           done
-          echo '::error::Xtream Worker did not expose v1.7 with Registry binding + HLS proxy after 90 seconds'
+          echo '::error::Xtream Worker did not expose legacy bridge + Phase 5.2 preview auth boundary after 90 seconds'
           exit 1

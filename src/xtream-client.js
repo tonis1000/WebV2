@@ -87,6 +87,38 @@ export async function saveXtreamAccount({ id = '', name = '', server = '', usern
   return result.account;
 }
 
+export async function previewXtreamAccount({ name = '', server = '', username = '', password = '' } = {}) {
+  if (!server || !username || !password) throw new Error('Server, username and password are required');
+  const result = await bridgeFetch('/api/preview', {
+    method: 'POST',
+    body: JSON.stringify({ name, server, username, password }),
+  }, { timeoutMs: 30000, json: true });
+  return {
+    previewToken: String(result.previewToken || ''),
+    expiresAt: String(result.expiresAt || ''),
+    account: result.account || null,
+    channels: Array.isArray(result.channels) ? result.channels : [],
+  };
+}
+
+export async function saveXtreamAccountFromPreview(previewToken, { name = '' } = {}) {
+  if (!previewToken) throw new Error('Xtream preview token is required');
+  const result = await bridgeFetch('/api/accounts/from-preview', {
+    method: 'POST',
+    body: JSON.stringify({ previewToken, name }),
+  }, { timeoutMs: 25000, json: true });
+  return result.account;
+}
+
+export async function saveXtreamChannelFromPreview(previewToken, streamId, { name = '' } = {}) {
+  if (!previewToken || !streamId) throw new Error('Xtream preview token and stream ID are required');
+  const result = await bridgeFetch('/api/channel-sources', {
+    method: 'POST',
+    body: JSON.stringify({ previewToken, streamId, name }),
+  }, { timeoutMs: 25000, json: true });
+  return result.source;
+}
+
 export async function deleteXtreamAccount(id) {
   if (!id) return;
   await bridgeFetch(`/api/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });

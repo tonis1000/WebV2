@@ -1,4 +1,4 @@
-const SOURCE_TYPES = new Set(['hls','dash','strm','m3u','direct','xtream','header-aware','unknown']);
+const SOURCE_TYPES = new Set(['hls','dash','strm','m3u','direct','xtream','xtream-preview','header-aware','unknown']);
 const MATCH_CONFIDENCE = new Set(['HIGH','MEDIUM','LOW','UNKNOWN']);
 const VERIFICATION_STATES = new Set(['UNVERIFIED','VERIFYING','VERIFIED','FAILED','TIMEOUT','HTTP 403','HTTP 404','DRM','WRONG CHANNEL','UNRESOLVED']);
 
@@ -61,9 +61,12 @@ export function createCandidate(input={}) {
     streamId:String(input.xtreamContext.streamId||input.xtreamStreamId||'').trim(),
     accountRef:String(input.xtreamContext.accountRef||input.xtreamAccountRef||'').trim(),
   } : null;
+  const xtreamPreviewToken=String(input.xtreamPreviewToken||'').trim();
+  const xtreamPreviewServer=String(input.xtreamPreviewServer||'').trim();
+  const xtreamPreviewExpiresAt=String(input.xtreamPreviewExpiresAt||'').trim();
   const discoveredAt=input.discoveredAt || new Date().toISOString();
   return Object.freeze({
-    candidateId:String(input.candidateId||stableId([channelName,sourceType,sourceUrl,input.sourceOrigin||'',xtreamContext?.accountRef||'',xtreamContext?.streamId||''])),
+    candidateId:String(input.candidateId||stableId([channelName,sourceType,sourceUrl,input.sourceOrigin||'',xtreamContext?.accountRef||'',xtreamContext?.streamId||input.xtreamStreamId||''])),
     channelName,
     normalizedChannelName:normalizeChannelName(input.normalizedChannelName||channelName),
     sourceType,
@@ -76,6 +79,9 @@ export function createCandidate(input={}) {
     xtreamAccountRef:xtreamContext?.accountRef || String(input.xtreamAccountRef||''),
     xtreamStreamId:xtreamContext?.streamId || String(input.xtreamStreamId||''),
     xtreamContext:xtreamContext ? Object.freeze(xtreamContext) : null,
+    xtreamPreviewToken,
+    xtreamPreviewServer,
+    xtreamPreviewExpiresAt,
     verified,
     verificationStatus,
     startupMs:Number.isFinite(Number(input.startupMs)) ? Number(input.startupMs) : null,
@@ -108,10 +114,12 @@ export function withVerification(candidate={},result={}) {
 }
 
 export function candidateForDisplay(candidate={}) {
-  const { xtreamContext, ...rest } = candidate;
+  const { xtreamContext, xtreamPreviewToken, ...rest } = candidate;
+  const isPreview=String(rest.sourceType||'')==='xtream-preview';
   return {
     ...rest,
-    sourceUrl:xtreamContext ? '[redacted Xtream source]' : rest.sourceUrl,
+    sourceUrl:xtreamContext ? '[redacted Xtream source]' : isPreview ? '[temporary Xtream preview]' : rest.sourceUrl,
+    xtreamPreviewToken:xtreamPreviewToken ? '[opaque preview token]' : '',
     xtreamContext:xtreamContext ? {
       server:xtreamContext.server,
       username:xtreamContext.username,
