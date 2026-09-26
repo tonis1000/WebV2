@@ -2,6 +2,11 @@ name: Deploy Browser Resolver
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'browser-resolver/**'
+      - '.github/workflows/deploy-browser-resolver.yml'
 
 permissions:
   contents: read
