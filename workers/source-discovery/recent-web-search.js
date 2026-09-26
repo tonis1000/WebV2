@@ -53,7 +53,7 @@ async function braveSearch(env,query,freshness,budget){
   const url=new URL('https://api.search.brave.com/res/v1/web/search');
   url.searchParams.set('q',query);url.searchParams.set('count','8');url.searchParams.set('freshness',BRAVE_FRESHNESS[freshness]||'pw');url.searchParams.set('text_decorations','false');url.searchParams.set('search_lang','en');
   try{
-    const response=await timedFetch(url,{headers:{Accept:'application/json','X-Subscription-Token':env.BRAVE_API_KEY,'user-agent':'WebTV-Discovery/1.2'}});
+    const response=await timedFetch(url,{headers:{Accept:'application/json','X-Subscription-Token':env.BRAVE_API_KEY}});
     const body=await response.json().catch(()=>({}));
     return {ok:response.ok,status:response.status,elapsedMs:Date.now()-started,results:response.ok?(body?.web?.results||[]):[],error:response.ok?'':braveError(body)};
   }catch(error){return {ok:false,status:error?.name==='AbortError'?408:0,elapsedMs:Date.now()-started,results:[],error:error?.message||String(error)};}
