@@ -11,6 +11,7 @@ permissions:
   contents: read
 
 env:
+  BROWSER_URL: https://webtv-browser-resolver.atonis.workers.dev/resolve
   DISCOVERY_URL: https://webtv-source-discovery.atonis.workers.dev/discover
 
 jobs:
@@ -18,7 +19,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Resolve ERT1 through browser lane
+      - name: Resolve ERT1 directly through Browser Resolver
+        shell: bash
+        env:
+          RESOLVER_TOKEN: ${{ secrets.BROWSER_RESOLVER_SHARED_TOKEN }}
+        run: |
+          set -euo pipefail
+          BODY='{"url":"https://live.ertflix.gr/","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1","tvgId":"ERT1"},"capture":{"extensions":["m3u8","mpd","mp4","webm"],"includeRequestHeaders":true,"timeoutMs":12000}}'
+          HTTP=$(curl --silent --show-error -o direct.json -w '%{http_code}' -X POST "$BROWSER_URL" \
+            -H 'content-type: application/json' \
+            -H "authorization: Bearer $RESOLVER_TOKEN" \
+            --data "$BODY")
+          echo "Direct resolver HTTP $HTTP"
+          node - <<'NODE'
+          const fs=require('fs');
+          let body={}; try{body=JSON.parse(fs.readFileSync('direct.json','utf8'))}catch{}
+          const safe={service:body.service,version:body.version,error:body.error||'',observations:(body.observations||[]).map(o=>({type:o.resourceType,host:(()=>{try{return new URL(o.url).hostname}catch{return''}})(),headerNames:Object.keys(o.headers||{})}))};
+          console.log(JSON.stringify(safe,null,2));
+          NODE
+          test "$HTTP" = "200"
+
+      - name: Resolve ERT1 through Source Discovery lane
         shell: bash
         run: |
           set -euo pipefail
