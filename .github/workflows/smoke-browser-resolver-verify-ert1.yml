@@ -1,0 +1,78 @@
+name: Smoke Browser Resolver Verify ERT1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/smoke-browser-resolver-verify-ert1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Discover and verify ERT1 safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const DISCOVERY='https://webtv-source-discovery.atonis.workers.dev/discover';
+          const VERIFIER='https://webtv-source-verifier.atonis.workers.dev/verify';
+
+          const discoveryResponse=await fetch(DISCOVERY,{
+            method:'POST',
+            headers:{'content-type':'application/json'},
+            body:JSON.stringify({
+              provider:'browser-resolved-official',
+              freshness:'7d',
+              channel:{name:'ERT1',id:'ert1',originalId:'ERT1',tvgId:'ERT1'}
+            })
+          });
+          if(!discoveryResponse.ok)throw new Error(`Discovery HTTP ${discoveryResponse.status}`);
+          const discovery=await discoveryResponse.json();
+          const candidates=Array.isArray(discovery.candidates)?discovery.candidates:[];
+          const candidate=candidates.find(c=>c.sourceType==='dash'&&c.trustClass==='OFFICIAL'&&c.saveEligible===true);
+          if(!candidate)throw new Error('No official DASH candidate from browser discovery');
+
+          const verifierResponse=await fetch(VERIFIER,{
+            method:'POST',
+            headers:{'content-type':'application/json'},
+            body:JSON.stringify({candidates:[{
+              candidateId:'ert1-browser-smoke',
+              sourceType:candidate.sourceType,
+              sourceUrl:candidate.sourceUrl,
+              requiredHeaders:candidate.requiredHeaders||{}
+            }]})
+          });
+          if(!verifierResponse.ok)throw new Error(`Verifier HTTP ${verifierResponse.status}`);
+          const verifier=await verifierResponse.json();
+          const result=Array.isArray(verifier.results)?verifier.results[0]:null;
+          const host=(()=>{try{return new URL(candidate.sourceUrl).hostname}catch{return''}})();
+          const safe={
+            discovery:{
+              candidateCount:candidates.length,
+              selectedHost:host,
+              sourceType:candidate.sourceType,
+              headerNames:Object.keys(candidate.requiredHeaders||{}),
+              trustClass:candidate.trustClass,
+              saveEligible:candidate.saveEligible
+            },
+            verification:result?{
+              status:result.status,
+              verified:result.verified,
+              startupMs:result.startupMs,
+              lastHttpStatus:result.lastHttpStatus,
+              mediaType:result.mediaType,
+              drmDetected:result.drmDetected,
+              detail:result.detail
+            }:null
+          };
+          console.log(JSON.stringify(safe,null,2));
+          if(!result)process.exit(2);
+          if(result.status==='DRM')process.exit(3);
+          if(result.verified!==true||result.status!=='VERIFIED'||result.mediaType!=='dash')process.exit(4);
+          NODE
