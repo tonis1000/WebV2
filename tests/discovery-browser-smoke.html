@@ -1,13 +1,31 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Discovery Phase 1 Browser Smoke</title><style>:root{--text:#fff;--muted:#999;--accent-2:#63b3ff;--line:#333}.button{padding:4px}.ghost{opacity:.9}</style></head>
+<head><meta charset="utf-8"><title>Discovery Phase 2 Browser Smoke</title><style>:root{--text:#fff;--muted:#999;--accent-2:#63b3ff;--line:#333}.button{padding:4px}.ghost{opacity:.9}</style></head>
 <body>
   <div class="topbar-actions"><button id="source-hunt-toggle" class="button">Source Hunt</button></div>
   <aside id="sidebar-sentinel">SIDEBAR-STABLE</aside>
   <section id="player-sentinel">PLAYER-STABLE</section>
   <pre id="result"></pre>
   <script>
-    window.WebTVPlaylistAPI={getSelectedChannel:()=>({id:'mega',originalId:'MEGA.gr',name:'MEGA',group:'General',directUrls:['https://stable.invalid/live.m3u8']})};
+    window.WebTVPlaylistAPI={
+      getSelectedChannel:()=>({id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']}),
+      getCatalogMode:()=> 'cloud',
+      getChannels:()=>[
+        {id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']},
+        {id:'skai',originalId:'SKAI',name:'SKAI',group:'General',directUrls:['https://current.test/skai.m3u8']},
+      ],
+    };
+    window.WebTVSavedPlaylistsReadAPI={
+      getAllCached:async()=>[
+        {id:'saved-1',name:'Greek backup',type:'saved',text:'#EXTM3U\n#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA",MEGA\nhttps://backup.test/mega.mpd\n',updatedAt:Date.now()},
+      ],
+    };
+    window.WebTVXtream={
+      getLoaded:()=>({
+        account:{id:'xt-1',name:'Provider A',server:'https://provider.test'},
+        channels:[{id:'xtream:xt-1:42',streamId:'42',tvgId:'MEGA',name:'MEGA',group:'General',playbackUrl:'https://webtv-xtream.test/stream/xt-1/42.m3u8?s=signed'}],
+      }),
+    };
   </script>
   <script type="module">
     const sidebar=document.getElementById('sidebar-sentinel');
@@ -15,9 +33,11 @@
     const before={sidebar:sidebar.textContent,player:player.textContent};
     try{
       await import('../src/discovery/discovery-ui.js');
-      const api=window.WebTVDiscoveryPhase1;
+      const api=window.WebTVDiscovery;
       api.open();
       const opened=api.snapshot();
+      await api.scanLocal();
+      const scanned=api.snapshot();
       const cardCount=document.querySelectorAll('#discovery-results .discovery-card').length;
       document.querySelector('[data-freshness="24h"]')?.click();
       const changed=api.snapshot();
@@ -28,6 +48,12 @@
         opened.open===true &&
         opened.channel?.name==='MEGA' &&
         opened.freshness==='7d' &&
+        opened.candidates.length===0 &&
+        scanned.scanStatus==='done' &&
+        scanned.lanes.myPlaylist===1 &&
+        scanned.lanes.savedPlaylists===1 &&
+        scanned.lanes.xtream===1 &&
+        scanned.lanes.total===3 &&
         cardCount===3 &&
         changed.freshness==='24h' &&
         closed.open===false &&
@@ -35,10 +61,10 @@
         sidebar.textContent===before.sidebar &&
         player.textContent===before.player
       );
-      document.documentElement.dataset.phase1Result=pass?'PASS':'FAIL';
-      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,opened,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
+      document.documentElement.dataset.phase2Result=pass?'PASS':'FAIL';
+      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,opened,scanned,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
     }catch(error){
-      document.documentElement.dataset.phase1Result='ERROR';
+      document.documentElement.dataset.phase2Result='ERROR';
       document.getElementById('result').textContent=String(error?.stack||error);
     }
   </script>

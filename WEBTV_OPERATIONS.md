@@ -1010,9 +1010,10 @@ The frontend validation workflow now runs:
 ```text
 tests/discovery-candidate.test.mjs
 tests/discovery-isolation.test.mjs
+tests/discovery-browser-smoke.mjs
 ```
 
-The isolation test rejects accidental references to player/save/D1 APIs, network fetches, browser persistence and global MutationObservers inside the Phase 1 Discovery modules.
+The isolation test rejects accidental references to player/save/D1 APIs, network fetches, browser persistence and global MutationObservers inside the Phase 1 Discovery modules. The browser smoke test opens and closes the panel in headless Chrome and verifies that sidebar/player sentinels remain unchanged.
 
 A Phase 1 commit or CI success is still not sufficient by itself. Before merge, verify the actual branch behavior:
 
@@ -1031,3 +1032,142 @@ clean WebTV load
 ```
 
 Only after those invariants hold should Phase 2 connect safe local sources. External discovery and verification remain later phases.
+
+---
+
+## 20. Source Discovery V2 Phase 2 local sources · 2026-09-26
+
+Phase 2 replaces the Phase 1 mock candidates with **real read-only local candidate lanes**. It still does not perform external discovery, verification, playback testing or persistence.
+
+### Phase 2 local lanes
+
+```text
+selected channel
+  │
+  ├── loaded My Playlist snapshot
+  ├── cached Saved Playlists
+  └── already loaded authorized Xtream catalog
+        │
+        ▼
+normalize candidates
+        │
+        ▼
+TEMPORARY UNVERIFIED RESULTS ONLY
+```
+
+The local lanes are intentionally conservative:
+
+1. **My Playlist**
+   - Read from the already loaded `WebTVPlaylistAPI` catalog only when `catalogMode === "cloud"`.
+   - Discovery does not trigger a new D1 read just because the panel opens or a local scan runs.
+   - If a temporary Saved Playlist/Xtream catalog is currently loaded, the My Playlist lane is skipped rather than forcing a sidebar/cloud reload.
+
+2. **Saved Playlists**
+   - `src/cloud-read-sync.js` remains the owner of the IndexedDB cache.
+   - It exposes `window.WebTVSavedPlaylistsReadAPI.getAllCached()` as a read-only cache view.
+   - Discovery itself does not open IndexedDB, create stores, write records or trigger cloud synchronization.
+
+3. **Xtream**
+   - Phase 2 reads only `window.WebTVXtream.getLoaded()`.
+   - This means the user must already have loaded an authorized account through Playlist Manager.
+   - Discovery does not list accounts, prompt for trusted-device authentication or call the Xtream Worker.
+   - Temporary candidate context keeps `accountRef`, `server` and `streamId`.
+   - The encrypted provider password remains server-side. Discovery must not reconstruct credentials from playback URLs.
+   - Xtream source URLs remain redacted in result cards.
+
+### Matching boundary
+
+Phase 2 deliberately uses conservative exact normalized identity matching across channel `id`, `originalId`, `tvgId` and `name`.
+
+```text
+MEGA ↔ MEGA          allowed
+MEGA ↔ MEGA News     not merged
+```
+
+Fuzzy alias/channel-identity matching belongs to the later dedicated matcher phase. Phase 2 must prefer false negatives over silently attaching a source to the wrong channel.
+
+### Candidate state
+
+All Phase 2 local results remain:
+
+```text
+verificationStatus = UNVERIFIED
+verified            = false
+```
+
+No candidate receives a Save/Add action yet. No candidate is inserted into D1, My Playlist, Saved Playlists, SourceRegistry or route health.
+
+The `24h / 7d / 30d` control remains visible because it is part of the final Discovery contract, but Phase 2 local lanes do not age-filter already-owned local data. The freshness window becomes operative when recent public providers are added later.
+
+### Phase 2 ownership
+
+```text
+src/discovery/local-data-reader.js
+  read-only snapshots from existing browser-owned APIs
+  no fetch
+  no D1 endpoint access
+  no direct IndexedDB ownership
+
+src/discovery/local-candidates.js
+  exact channel matching
+  My Playlist candidate normalization
+  Saved Playlist M3U candidate normalization
+  loaded Xtream candidate normalization
+  local deduplication
+
+src/discovery/discovery-state.js
+  scan lifecycle + temporary lane counts/results
+
+src/discovery/discovery-ui.js
+  explicit Find Local Sources action
+  result rendering only
+  no verification or save controls
+
+src/cloud-read-sync.js
+  remains Saved Playlist cache owner
+  adds a read-only cached-playlist accessor for Discovery
+```
+
+### Hard Phase 2 prohibitions
+
+Discovery Phase 2 must not:
+
+- call `fetch()`
+- call Registry, Source Hunt or Xtream endpoints
+- start playback or call `WebTVPlaybackAPI`
+- import or mutate `SourceRegistry`
+- call source-save policy or My Playlist mutation APIs
+- write to D1
+- directly read/write IndexedDB from `src/discovery/*`
+- use `localStorage` or `sessionStorage` for candidate persistence
+- attach `MutationObserver`
+- scan automatically in the background
+- change MANUAL/AUTO source ordering
+
+### Verification gate
+
+`.github/workflows/validate-frontend.yml` runs the existing regressions plus:
+
+```text
+tests/discovery-candidate.test.mjs
+tests/discovery-local-sources.test.mjs
+tests/discovery-isolation.test.mjs
+tests/discovery-browser-smoke.mjs
+```
+
+The Phase 2 browser smoke supplies one matching source from each local lane, runs the explicit local scan, confirms three temporary candidates, changes the freshness control, closes the panel and verifies that sidebar/player sentinels remain unchanged.
+
+Acceptance requires all of the following:
+
+```text
+existing playback/header regression     PASS
+source-ranking regression               PASS
+Xtream regression                       PASS
+Discovery candidate/state               PASS
+Discovery local-source normalization    PASS
+Discovery isolation                     PASS
+Discovery browser smoke                 PASS
+frontend integration audit              PASS
+```
+
+Only after these invariants remain green on `main` should the next phase add a verifier. General public discovery providers remain later work.

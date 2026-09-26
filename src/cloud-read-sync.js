@@ -1,4 +1,4 @@
-const BUILD_ID = '20260924-0635';
+const BUILD_ID = '20260926-discovery-read-api';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const URL_KEY = 'webtv_v2_registry_url';
@@ -33,6 +33,18 @@ async function getSaved(id){
   return new Promise((resolve, reject) => {
     const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(id);
     req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function allSavedCached(){
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE, 'readonly').objectStore(STORE).getAll();
+    req.onsuccess = () => resolve((req.result || [])
+      .filter(item => item?.id !== '__my_playlist__')
+      .map(item => ({ ...item }))
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
     req.onerror = () => reject(req.error);
   });
 }
@@ -135,6 +147,10 @@ async function runSync(reason='manual', { force=false }={}){
   return syncing;
 }
 
+window.WebTVSavedPlaylistsReadAPI=Object.freeze({
+  getAllCached: async () => (await allSavedCached()).map(item => ({ ...item })),
+});
+
 runSync('startup', { force:true });
 setInterval(() => runSync('timer', { force:true }), SYNC_INTERVAL_MS);
 document.addEventListener('visibilitychange', () => {
@@ -144,4 +160,4 @@ document.getElementById('playlist-manager-toggle')?.addEventListener('click', ()
   runSync('open-playlists');
 }, { capture: true });
 
-console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · 15m background sync; 5m open/visible throttle`);
+console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · 15m background sync; 5m open/visible throttle · read-only cache API ready`);
