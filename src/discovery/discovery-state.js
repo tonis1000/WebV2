@@ -17,6 +17,8 @@ export class DiscoveryState {
     this.scanStatus='idle';
     this.scanMessage='';
     this.lastScanAt=null;
+    this.verifyStatus='idle';
+    this.verifyMessage='';
   }
   setOpen(value){this.open=Boolean(value);return this.open;}
   setChannel(channel){
@@ -44,10 +46,28 @@ export class DiscoveryState {
     this.scanStatus='done';
     this.scanMessage=String(message||'');
     this.lastScanAt=new Date().toISOString();
+    this.verifyStatus='idle';
+    this.verifyMessage='';
   }
   setScanError(message='Local scan failed'){
     this.scanStatus='error';
     this.scanMessage=String(message||'Local scan failed');
+  }
+  setVerificationRunning(message='Verifying candidates…'){
+    this.verifyStatus='loading';
+    this.verifyMessage=String(message||'');
+  }
+  setVerificationMessage(message='',status='done'){
+    this.verifyStatus=status;
+    this.verifyMessage=String(message||'');
+  }
+  replaceCandidate(candidate){
+    const id=String(candidate?.candidateId||'');
+    if(!id)return false;
+    const index=this.candidates.findIndex(item=>String(item?.candidateId||'')===id);
+    if(index<0)return false;
+    this.candidates=[...this.candidates.slice(0,index),candidate,...this.candidates.slice(index+1)];
+    return true;
   }
   clearResults(){
     this.candidates=[];
@@ -55,6 +75,8 @@ export class DiscoveryState {
     this.scanStatus='idle';
     this.scanMessage='';
     this.lastScanAt=null;
+    this.verifyStatus='idle';
+    this.verifyMessage='';
   }
   snapshot(){
     return Object.freeze({
@@ -66,6 +88,8 @@ export class DiscoveryState {
       scanStatus:this.scanStatus,
       scanMessage:this.scanMessage,
       lastScanAt:this.lastScanAt,
+      verifyStatus:this.verifyStatus,
+      verifyMessage:this.verifyMessage,
     });
   }
 }

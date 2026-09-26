@@ -1171,3 +1171,177 @@ frontend integration audit              PASS
 ```
 
 Only after these invariants remain green on `main` should the next phase add a verifier. General public discovery providers remain later work.
+
+---
+
+## 21. Source Discovery V2 Phase 3 separate verifier · 2026-09-26
+
+Phase 3 adds **explicit verification** without connecting general public discovery and without allowing any verified candidate to become permanent automatically.
+
+### Runtime boundary
+
+```text
+Discovery candidates
+      │
+      │ user presses Verify / Verify All
+      ▼
+src/discovery/verifier-client.js
+      │
+      │ POST /verify
+      ▼
+webtv-source-verifier Worker
+      │
+      ├── bounded HTTP/media probe
+      ├── HLS/DASH recognition
+      ├── DRM marker detection
+      └── temporary result only
+      │
+      ▼
+Discovery candidate state
+
+normal player + sidebar + SourceRegistry
+      └── unchanged
+```
+
+The verifier does **not** call the normal WebTV player and does not write route health. Verification is Discovery metadata only.
+
+### Service ownership
+
+```text
+Worker: webtv-source-verifier
+URL: https://webtv-source-verifier.atonis.workers.dev
+Source: workers/webtv-source-verifier.js
+Workflow: .github/workflows/deploy-source-verifier.yml
+Version: 1.0
+```
+
+The Worker exposes:
+
+```text
+GET  /
+POST /verify
+GET  /fixture/working.m3u8   # deployment self-test only
+GET  /fixture/dead           # deployment self-test only
+```
+
+### Bounded verification contract
+
+The initial Phase 3 limits are intentionally small:
+
+```text
+Worker upstream timeout      6000 ms
+Browser request timeout      7000 ms
+Maximum candidates/request   4
+Maximum concurrency          2
+Maximum inspected body       512000 bytes
+```
+
+The browser supports cancellation through `AbortController`. Closing the Discovery panel cancels an active verification job. Verification does not continue as a hidden background task.
+
+### Security boundary
+
+The verifier:
+
+- accepts only HTTP/HTTPS source targets
+- blocks localhost, `.local`, link-local and private IPv4 targets
+- follows only the existing approved request-header classes: `User-Agent`, `Referer`, `Origin`
+- does not forward `Cookie`, `Authorization`, arbitrary playlist headers or browser session tokens
+- receives only `candidateId`, `sourceType`, `sourceUrl` and approved `requiredHeaders`
+- does not receive Xtream password/context fields from the browser client
+- does not read or write D1
+- does not call Registry mutation endpoints
+
+The existing Xtream playback URL may be verified as a temporary source URL, but encrypted provider credentials remain owned by the Xtream Worker and are not reconstructed by Discovery.
+
+### Verification semantics
+
+Phase 3 classifies results into the Candidate verification states already defined by the architecture:
+
+```text
+VERIFIED
+FAILED
+TIMEOUT
+HTTP 403
+HTTP 404
+DRM
+UNRESOLVED
+```
+
+For HLS, a successful HTTP response must also resemble an HLS manifest. For DASH, the body must contain an MPD. DRM markers such as `ContentProtection`, Widevine or PlayReady produce `DRM`, not `VERIFIED`.
+
+This is a bounded manifest/media probe, not a replacement for the normal player. A `VERIFIED` result means the verifier could reach and recognize the candidate; it does not silently promote the candidate into player routing or D1.
+
+### Phase 3 UI
+
+Discovery now exposes:
+
+```text
+[Verify]        per candidate
+[Verify All]    bounded at 2 concurrent requests
+[Cancel Verify]
+```
+
+Verification metadata can show:
+
+```text
+status
+startupMs
+lastHttpStatus
+mediaType
+drmDetected
+verificationDetail
+```
+
+There is still no Save/Add/Promote button in Discovery Phase 3.
+
+### Hard Phase 3 prohibitions
+
+Until Phase 5, Phase 3 must not:
+
+- save a verified candidate into D1
+- call `WebTVMyPlaylistAPI`
+- call source-save policy
+- mutate `SourceRegistry`
+- use `WebTVPlaybackAPI` / `PlayerController`
+- alter permanent MANUAL/AUTO source order
+- perform external discovery/search
+- verify automatically in the background
+- persist verification results to localStorage/sessionStorage
+- expose or transmit Xtream passwords
+
+### Regression and deployment gate
+
+Frontend validation runs:
+
+```text
+tests/discovery-candidate.test.mjs
+tests/discovery-local-sources.test.mjs
+tests/discovery-verifier.test.mjs
+tests/source-verifier-worker.test.mjs
+tests/discovery-isolation.test.mjs
+tests/discovery-browser-smoke.mjs
+tests/frontend-integration.test.mjs
+```
+
+The verifier tests cover:
+
+- one controlled working HLS source → `VERIFIED`
+- one controlled dead source → `HTTP 404`
+- DASH DRM marker → `DRM`
+- private target rejection
+- batch cap
+- browser cancellation
+- max browser concurrency of 2
+- no Xtream secret/context leakage in the verifier payload
+
+The headless Chrome smoke performs local discovery, verifies all three temporary local candidates through a stubbed verifier response, confirms both success and failure states, then closes the panel and verifies that player/sidebar sentinels remain unchanged.
+
+The deployment workflow performs a second live gate after Wrangler deploy:
+
+```text
+GET / → version/limits check
+controlled working fixture → VERIFIED
+controlled dead fixture    → HTTP 404
+```
+
+Only after PR CI, main-branch CI, Worker live verification and Pages deployment are green is Phase 3 complete. Phase 4 may then add external discovery providers one at a time, each with its own kill switch and regression test.

@@ -1,6 +1,6 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Discovery Phase 2 Browser Smoke</title><style>:root{--text:#fff;--muted:#999;--accent-2:#63b3ff;--line:#333}.button{padding:4px}.ghost{opacity:.9}</style></head>
+<head><meta charset="utf-8"><title>Discovery Phase 3 Browser Smoke</title><style>:root{--text:#fff;--muted:#999;--accent-2:#63b3ff;--line:#333}.button{padding:4px}.ghost{opacity:.9}</style></head>
 <body>
   <div class="topbar-actions"><button id="source-hunt-toggle" class="button">Source Hunt</button></div>
   <aside id="sidebar-sentinel">SIDEBAR-STABLE</aside>
@@ -26,6 +26,21 @@
         channels:[{id:'xtream:xt-1:42',streamId:'42',tvgId:'MEGA',name:'MEGA',group:'General',playbackUrl:'https://webtv-xtream.test/stream/xt-1/42.m3u8?s=signed'}],
       }),
     };
+    window.fetch=async(_url,options={})=>{
+      const body=JSON.parse(options.body||'{}');
+      const candidate=body.candidates?.[0]||{};
+      const dead=String(candidate.sourceUrl||'').includes('backup.test');
+      return new Response(JSON.stringify({results:[{
+        candidateId:candidate.candidateId,
+        status:dead?'HTTP 404':'VERIFIED',
+        verified:!dead,
+        startupMs:dead?31:18,
+        lastHttpStatus:dead?404:200,
+        mediaType:dead?'':'hls',
+        drmDetected:false,
+        detail:dead?'Upstream HTTP 404':'Manifest/media probe succeeded'
+      }]}),{status:200,headers:{'content-type':'application/json'}});
+    };
   </script>
   <script type="module">
     const sidebar=document.getElementById('sidebar-sentinel');
@@ -39,10 +54,14 @@
       await api.scanLocal();
       const scanned=api.snapshot();
       const cardCount=document.querySelectorAll('#discovery-results .discovery-card').length;
+      await api.verifyAll();
+      const verified=api.snapshot();
       document.querySelector('[data-freshness="24h"]')?.click();
       const changed=api.snapshot();
       api.close();
       const closed=api.snapshot();
+      const verifiedCount=verified.candidates.filter(x=>x.verificationStatus==='VERIFIED').length;
+      const failedCount=verified.candidates.filter(x=>x.verificationStatus==='HTTP 404').length;
       const pass=Boolean(
         api &&
         opened.open===true &&
@@ -55,16 +74,19 @@
         scanned.lanes.xtream===1 &&
         scanned.lanes.total===3 &&
         cardCount===3 &&
+        verified.verifyStatus==='done' &&
+        verifiedCount===2 &&
+        failedCount===1 &&
         changed.freshness==='24h' &&
         closed.open===false &&
         document.getElementById('discovery-shell')?.hidden===true &&
         sidebar.textContent===before.sidebar &&
         player.textContent===before.player
       );
-      document.documentElement.dataset.phase2Result=pass?'PASS':'FAIL';
-      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,opened,scanned,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
+      document.documentElement.dataset.phase3Result=pass?'PASS':'FAIL';
+      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,verifiedCount,failedCount,opened,scanned,verified,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
     }catch(error){
-      document.documentElement.dataset.phase2Result='ERROR';
+      document.documentElement.dataset.phase3Result='ERROR';
       document.getElementById('result').textContent=String(error?.stack||error);
     }
   </script>
