@@ -1,6 +1,6 @@
 import puppeteer from '@cloudflare/puppeteer';
 
-const VERSION='1.0';
+const VERSION='1.1';
 const DEFAULT_TIMEOUT_MS=10000;
 const MAX_TIMEOUT_MS=12000;
 const MAX_OBSERVATIONS=24;
@@ -37,6 +37,25 @@ function timeoutFrom(body={}){
   return Math.max(2500,Math.min(MAX_TIMEOUT_MS,requested));
 }
 function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+function cleanLabel(value=''){return String(value||'').replace(/\s+/g,' ').trim().slice(0,80);}
+
+async function pageDiagnostics(page){
+  try{
+    return await page.evaluate(()=>{
+      const safeHost=value=>{try{return new URL(value,location.href).hostname}catch{return''}};
+      const label=el=>String(el.getAttribute('aria-label')||el.textContent||el.title||'').replace(/\s+/g,' ').trim().slice(0,80);
+      return{
+        title:String(document.title||'').slice(0,120),
+        pathname:location.pathname,
+        videoCount:document.querySelectorAll('video').length,
+        iframeCount:document.querySelectorAll('iframe').length,
+        buttonCount:document.querySelectorAll('button').length,
+        iframeHosts:[...new Set([...document.querySelectorAll('iframe[src]')].map(el=>safeHost(el.src)).filter(Boolean))].slice(0,8),
+        buttonLabels:[...new Set([...document.querySelectorAll('button,[role="button"]')].map(label).filter(Boolean))].slice(0,12),
+      };
+    });
+  }catch{return{title:'',pathname:'',videoCount:0,iframeCount:0,buttonCount:0,iframeHosts:[],buttonLabels:[]};}
+}
 
 async function nudgePlayback(page){
   try{
@@ -88,13 +107,17 @@ async function resolve(body,env){
       }catch{}
     });
     await page.goto(pageUrl.href,{waitUntil:'domcontentloaded',timeout:timeoutMs});
+    await sleep(700);
+    const before=await pageDiagnostics(page);
     await nudgePlayback(page);
     const remaining=Math.max(0,Math.min(5000,timeoutMs-(Date.now()-started)));
     if(remaining)await sleep(remaining);
+    const after=await pageDiagnostics(page);
     return{
       service:'WebTV Browser Resolver',version:VERSION,url:pageUrl.href,
       elapsedMs:Date.now()-started,
       observations:observations.slice(0,MAX_OBSERVATIONS),
+      diagnostics:{before,after},
       limits:{timeoutMs,maxObservations:MAX_OBSERVATIONS},
     };
   }finally{
@@ -120,4 +143,4 @@ export default {
   }
 };
 
-export { ALLOWED_PAGE_HOSTS, APPROVED_HEADER_NAMES, MEDIA_RE, sanitizeHeaders, safePageUrl, timeoutFrom };
+export { ALLOWED_PAGE_HOSTS, APPROVED_HEADER_NAMES, MEDIA_RE, sanitizeHeaders, safePageUrl, timeoutFrom, pageDiagnostics };
