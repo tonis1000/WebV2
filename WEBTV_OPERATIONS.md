@@ -95,10 +95,12 @@ Additional services:
 
 ```text
 WebTV frontend
-   ├── Registry Worker ──► D1
-   ├── EPG Proxy ────────► ext.greektv.app XMLTV
-   ├── Source Hunt ──────► GitHub / Brave / web / forums
-   └── TV Cache ─────────► KV TV_CACHE
+   ├── Registry Worker ────────► D1
+   ├── EPG Proxy ──────────────► ext.greektv.app XMLTV
+   ├── Source Hunt ────────────► GitHub / Brave / web / forums
+   ├── Source Discovery ───────► bounded external discovery providers
+   ├── Source Verifier ────────► bounded candidate verification
+   └── TV Cache ───────────────► KV TV_CACHE
 ```
 
 ### Permanent state
@@ -357,20 +359,33 @@ src/saved-sources-ui.js
 
 src/source-hunt-engine.js
 src/source-hunt-web.js
-  stream discovery + separate official fallback discovery lane
+  legacy stream discovery + separate official fallback discovery lane
 
 src/source-hunt-oneclick.js
-  tests real stream candidates first
-  falls back to a verified official route only after stream search/testing is exhausted
+  legacy one-click testing/saving path
+  remains operational during Source Discovery V2 migration
 
 src/discovery/candidate-model.js
   normalized temporary discovery candidate contract
 
 src/discovery/discovery-state.js
-  in-memory Discovery UI state and freshness selection
+  in-memory local/external candidate state
+  no permanent persistence
+
+src/discovery/local-data-reader.js
+src/discovery/local-candidates.js
+  read-only local Discovery lanes
+
+src/discovery/external-discovery-client.js
+  dedicated browser client for Phase 4 external provider requests
+
+src/discovery/verifier-client.js
+  dedicated browser client for separate candidate verification
 
 src/discovery/discovery-ui.js
-  isolated Phase 1 Discovery shell; read-only selected-channel snapshot, mock/local candidates only
+  Phase 4 panel orchestration
+  explicit Local / External / Verify actions only
+  no Save/Add/Promote action
 
 src/sidebar-now.js
   sidebar now-playing EPG + timeline
@@ -491,6 +506,9 @@ workers/webtv-registry.js
 workers/epg-proxy-gr.js
 workers/source-huntatonisworkersdev.js
 workers/tv-cache.js
+workers/webtv-xtream.js
+workers/webtv-source-verifier.js
+workers/webtv-source-discovery.js
 ```
 
 Corresponding workflows:
@@ -500,6 +518,9 @@ Corresponding workflows:
 .github/workflows/deploy-epg-proxy-gr.yml
 .github/workflows/deploy-source-hunt.yml
 .github/workflows/deploy-tv-cache.yml
+.github/workflows/deploy-webtv-xtream.yml
+.github/workflows/deploy-source-verifier.yml
+.github/workflows/deploy-source-discovery.yml
 .github/workflows/validate-frontend.yml
 ```
 
@@ -518,7 +539,7 @@ change canonical source
 
 For TV Cache/header-aware changes, `.github/workflows/deploy-tv-cache.yml` runs `tests/header-aware-proxy.test.mjs` before deployment.
 
-For frontend/source-discovery changes, `.github/workflows/validate-frontend.yml` performs JavaScript syntax checks and runs the shared playback/fallback regression suite plus the Discovery candidate/isolation gates without unnecessarily redeploying a Worker.
+For frontend/source-discovery changes, `.github/workflows/validate-frontend.yml` performs JavaScript syntax checks and runs the shared playback/fallback regression suite plus the Discovery candidate/isolation gates without unnecessarily redeploying unrelated Workers.
 
 Registry deployment verification for v1.5 must confirm:
 
@@ -1220,8 +1241,8 @@ The Worker exposes:
 ```text
 GET  /
 POST /verify
-GET  /fixture/working.m3u8   # deployment self-test only
-GET  /fixture/dead           # deployment self-test only
+GET  /fixture/working.m3u8   # controlled Worker fixture
+GET  /fixture/dead           # controlled Worker fixture
 ```
 
 ### Bounded verification contract
@@ -1273,7 +1294,7 @@ This is a bounded manifest/media probe, not a replacement for the normal player.
 
 ### Phase 3 UI
 
-Discovery now exposes:
+Discovery exposes:
 
 ```text
 [Verify]        per candidate
@@ -1296,7 +1317,7 @@ There is still no Save/Add/Promote button in Discovery Phase 3.
 
 ### Hard Phase 3 prohibitions
 
-Until Phase 5, Phase 3 must not:
+Until Phase 5, Discovery must not:
 
 - save a verified candidate into D1
 - call `WebTVMyPlaylistAPI`
@@ -1304,7 +1325,6 @@ Until Phase 5, Phase 3 must not:
 - mutate `SourceRegistry`
 - use `WebTVPlaybackAPI` / `PlayerController`
 - alter permanent MANUAL/AUTO source order
-- perform external discovery/search
 - verify automatically in the background
 - persist verification results to localStorage/sessionStorage
 - expose or transmit Xtream passwords
@@ -1334,14 +1354,284 @@ The verifier tests cover:
 - max browser concurrency of 2
 - no Xtream secret/context leakage in the verifier payload
 
-The headless Chrome smoke performs local discovery, verifies all three temporary local candidates through a stubbed verifier response, confirms both success and failure states, then closes the panel and verifies that player/sidebar sentinels remain unchanged.
-
-The deployment workflow performs a second live gate after Wrangler deploy:
+The deployment workflow performs a live external gate after Wrangler deploy using exact-commit GitHub fixtures:
 
 ```text
 GET / → version/limits check
-controlled working fixture → VERIFIED
-controlled dead fixture    → HTTP 404
+external controlled working HLS → VERIFIED
+external deliberately missing URL → HTTP 404
 ```
 
-Only after PR CI, main-branch CI, Worker live verification and Pages deployment are green is Phase 3 complete. Phase 4 may then add external discovery providers one at a time, each with its own kill switch and regression test.
+Phase 3 is complete only when PR CI, main-branch CI, Worker live verification and Pages deployment are green.
+
+---
+
+## 22. Source Discovery V2 Phase 4 provider #1 · Curated Remote Feeds · 2026-09-26
+
+Phase 4 introduces external discovery **one provider at a time**. The first provider is deliberately narrow: curated public remote playlists. Legacy Source Hunt remains operational and is not used as the backend for this new lane.
+
+### Runtime boundary
+
+```text
+selected channel
+      │
+      │ explicit Find External Sources
+      ▼
+src/discovery/external-discovery-client.js
+      │
+      │ POST /discover
+      ▼
+webtv-source-discovery Worker
+      │
+      └── provider: curated-remote-feeds
+              │
+              ├── bounded fetch of curated public playlists
+              ├── conservative channel matching
+              ├── source normalization
+              └── temporary UNVERIFIED candidates only
+      │
+      ▼
+Discovery in-memory state
+      │
+      ├── merge/dedupe with Local candidates
+      └── explicit Verify remains separate
+
+normal player + sidebar + SourceRegistry + D1
+      └── unchanged
+```
+
+### Service ownership
+
+```text
+Worker: webtv-source-discovery
+URL: https://webtv-source-discovery.atonis.workers.dev
+Source: workers/webtv-source-discovery.js
+Workflow: .github/workflows/deploy-source-discovery.yml
+Version: 1.0
+
+Browser client:
+src/discovery/external-discovery-client.js
+```
+
+Endpoints:
+
+```text
+GET  /
+POST /discover
+```
+
+The only enabled Phase 4 provider in this checkpoint is:
+
+```text
+curated-remote-feeds
+```
+
+Do not silently add another provider to the same release. GitHub/public search, recent web results, STRM-specific discovery, official discovery and authorized Xtream expansion remain separate later provider slices.
+
+### Curated feed registry
+
+The initial provider checks four public remote playlists:
+
+```text
+hitnickgr/iptv
+jimgate07/grtv
+Michatec/Greek-IPTV
+Don24crk
+```
+
+These feeds are **candidate sources**, not playlist authorities. Their contents never replace My Playlist or Saved Playlists.
+
+### Bounded provider contract
+
+```text
+Worker upstream timeout      6000 ms
+Browser request timeout      9000 ms
+Maximum feed concurrency     2
+Maximum unique results       12
+Curated feeds/request        4
+```
+
+The browser external scan is cancellable with `AbortController`. Closing the Discovery panel cancels an active external request. No hidden/background scan continues after close.
+
+### Kill switches
+
+Provider #1 has two explicit controls:
+
+```text
+browser provider flag:
+PROVIDER_FLAGS['curated-remote-feeds']
+
+Worker runtime kill switch:
+DISABLE_CURATED_REMOTE_FEEDS=1
+```
+
+The Worker kill switch returns `503 Provider disabled` only for this provider. It does not disable the verifier, player, Source Hunt, Registry, Xtream or TV Cache services.
+
+### Matching boundary
+
+Provider #1 intentionally avoids fuzzy alias guessing.
+
+It compares normalized selected-channel identity against:
+
+```text
+EXTINF title
+tvg-name
+tvg-id
+```
+
+Benign trailing labels may be stripped conservatively:
+
+```text
+HD
+TV
+Channel
+Greece
+Greek
+GR
+```
+
+Examples:
+
+```text
+MEGA ↔ MEGA HD       HIGH / accepted
+MEGA ↔ MEGA TV       HIGH / accepted
+MEGA ↔ MEGA News     rejected
+```
+
+This prefers false negatives over wrong-channel attachment. A dedicated richer channel matcher can be added later behind its own tests; Provider #1 must not silently become fuzzy.
+
+### Freshness semantics
+
+The UI continues to send the selected `24h / 7d / 30d` value as part of the external provider contract.
+
+Curated M3U entries generally do **not** expose reliable per-entry publication timestamps. Therefore Provider #1 explicitly reports:
+
+```text
+freshnessRequested = 24h / 7d / 30d
+freshnessApplied   = false
+candidate.freshness = "live-feed-check"
+```
+
+This means the remote feed itself was fetched during the current scan. It does **not** claim that the channel entry or stream URL was published within the selected age window.
+
+Do not fabricate freshness timestamps from request time. Providers that have reliable dated search results may enforce the requested freshness window later.
+
+### Temporary merge semantics
+
+Local and external Discovery results coexist only in temporary state.
+
+```text
+Local scan
+→ local candidates
+
+External scan
+→ curated candidates
+
+state
+→ merge by source URL
+→ update lane counts
+→ keep all candidates UNVERIFIED until verifier runs
+```
+
+Running Local after External or External after Local must not erase the other lane. Candidate state is reset only when the selected channel actually changes or Discovery state is explicitly cleared.
+
+### UI contract
+
+Phase 4 exposes:
+
+```text
+[Find Local Sources]
+[Find External Sources]
+[Cancel Search]      while external scan is active
+[Verify]             per candidate
+[Verify All]
+[Cancel Verify]
+```
+
+Result cards show the provider/origin and keep external candidates `UNVERIFIED` until the separate Source Verifier returns a result.
+
+There is still no Save/Add/Promote control.
+
+### Hard Phase 4 prohibitions
+
+Provider #1 must not:
+
+- save candidates to D1
+- call `WebTVMyPlaylistAPI`
+- call source-save policy
+- mutate `SourceRegistry`
+- call the normal player
+- write route health
+- run automatically on page load
+- run continuously in the background
+- persist candidates to localStorage/sessionStorage
+- use legacy Source Hunt as an implicit backend
+- search Brave/web/GitHub code beyond the fixed curated feed registry
+- attach uncertain `LOW`/fuzzy channel matches
+- convert discovery success into verification success
+
+Discovery and verification remain separate services and separate user actions.
+
+### Regression gate
+
+Phase 4 adds:
+
+```text
+tests/discovery-external.test.mjs
+tests/source-discovery-worker.test.mjs
+```
+
+and upgrades:
+
+```text
+tests/discovery-isolation.test.mjs
+tests/discovery-browser-smoke.html
+tests/discovery-browser-smoke.mjs
+tests/frontend-integration.test.mjs
+```
+
+The Worker regression proves at minimum:
+
+- `MEGA HD` can match `MEGA`
+- `MEGA News` does not match `MEGA`
+- duplicate URLs across curated feeds collapse
+- feed concurrency never exceeds 2
+- provider kill switch returns 503
+- unsupported providers are rejected
+
+The client regression proves:
+
+- only selected channel identity + requested freshness/provider fields are sent
+- returned external candidates are normalized back to `UNVERIFIED`
+- cancellation propagates through AbortController
+
+The headless Chrome smoke performs:
+
+```text
+open Discovery
+→ Local scan: 3 temporary candidates
+→ External scan: +1 curated temporary candidate
+→ total: 4
+→ external candidate still UNVERIFIED
+→ Verify All
+→ expected verified/failed states
+→ close panel
+→ player sentinel unchanged
+→ sidebar sentinel unchanged
+```
+
+### Deployment live gate
+
+`.github/workflows/deploy-source-discovery.yml` performs syntax/regression checks before Wrangler deploy and then checks the live Worker:
+
+```text
+GET / → service/version/provider enabled
+POST /discover for MEGA
+→ exactly four feed reports are returned
+→ at least one real external curated feed must return HTTP 200
+→ candidates response must be structurally valid
+```
+
+The live deployment gate intentionally does **not** require a particular stream URL to exist forever. Curated upstream content changes. Unit tests own deterministic matching semantics; the live gate owns real outbound connectivity/provider execution.
+
+Only after PR CI, main CI, Source Discovery live verification and Pages deployment are green is Provider #1 considered complete. The next Phase 4 slice may then add Provider #2 separately, with its own kill switch and regression gate.
