@@ -45,66 +45,45 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-
       - name: Validate all frontend JavaScript syntax
         shell: bash
         run: |
           set -euo pipefail
-          while IFS= read -r file; do
-            echo "Checking $file"
-            node --check "$file"
-          done < <(find src -type f -name '*.js' | sort)
-
+          while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find src -type f -name '*.js' | sort)
       - name: Validate Xtream Worker syntax
         run: node --input-type=module --check < workers/webtv-xtream.js
-
       - name: Validate Source Verifier Worker syntax
         run: node --input-type=module --check < workers/webtv-source-verifier.js
-
       - name: Validate Source Discovery Worker syntax
         shell: bash
         run: |
           node --input-type=module --check < workers/webtv-source-discovery.js
-          while IFS= read -r file; do
-            echo "Checking $file"
-            node --check "$file"
-          done < <(find workers/source-discovery -type f -name '*.js' | sort)
-
+          while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find workers/source-discovery -type f -name '*.js' | sort)
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
-
       - name: Run source ranking regression test
         run: node tests/source-ranking.test.mjs
-
       - name: Run Xtream source regression test
         run: node tests/xtream-client.test.mjs
-
       - name: Run Discovery candidate/state regression test
         run: node tests/discovery-candidate.test.mjs
-
       - name: Run Discovery local-source regression test
         run: node tests/discovery-local-sources.test.mjs
-
       - name: Run Discovery verifier client regression test
         run: node tests/discovery-verifier.test.mjs
-
       - name: Run Source Verifier Worker regression test
         run: node tests/source-verifier-worker.test.mjs
-
       - name: Run external discovery client regression test
         run: node tests/discovery-external.test.mjs
-
       - name: Run Source Discovery Worker regression test
         run: node tests/source-discovery-worker.test.mjs
-
       - name: Run GitHub public playlist provider regression test
         run: node tests/github-public-playlists-provider.test.mjs
-
+      - name: Run recent web search provider regression test
+        run: node tests/recent-web-search-provider.test.mjs
       - name: Run Discovery Phase 4 isolation regression test
         run: node tests/discovery-isolation.test.mjs
-
       - name: Run Discovery Phase 4 browser smoke test
         run: node tests/discovery-browser-smoke.mjs
-
       - name: Run frontend integration audit
         run: node tests/frontend-integration.test.mjs
