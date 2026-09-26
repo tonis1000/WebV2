@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+globalThis.window={};
+globalThis.localStorage={getItem:()=>'',setItem(){},removeItem(){}};
+
 const { promotionBlockReason, promoteCandidate, keepXtreamAccount, canPromoteCandidate } = await import('../src/discovery/promotion.js');
 
 const expectedChannel={id:'mega',originalId:'MEGA',tvgId:'mega.gr',name:'MEGA'};
