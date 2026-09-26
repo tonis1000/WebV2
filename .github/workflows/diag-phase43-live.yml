@@ -9,29 +9,26 @@ on:
 permissions:
   contents: read
 
-# Re-run after Brave error-detail hotfix deployment.
-# Re-run after valid Brave Search API key replacement.
-# Manual retry requested after Cloudflare secret update.
-# Re-run after Brave key rotation.
-# Re-run after confirming both workers use the same Brave key.
 jobs:
   diagnose:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       WORKER_URL: https://webtv-source-discovery.atonis.workers.dev
+      LEGACY_WORKER_URL: https://source-huntatonisworkersdev.atonis.workers.dev
     steps:
-      - name: Probe production Source Discovery
+      - name: Probe production Source Discovery and legacy Source Hunt
         shell: bash
         run: |
           set -u -o pipefail
-          echo '=== STATUS ==='
+          echo '=== NEW SOURCE DISCOVERY STATUS ==='
           curl --silent --show-error "$WORKER_URL/" || true
           echo
-          for provider in curated-remote-feeds github-public-playlists recent-web-search; do
-            echo "=== $provider ==="
-            curl --silent --show-error -X POST "$WORKER_URL/discover" \
-              -H 'content-type: application/json' \
-              --data "{\"provider\":\"$provider\",\"freshness\":\"7d\",\"channel\":{\"name\":\"MEGA\",\"id\":\"mega\",\"originalId\":\"MEGA\"}}" || true
-            echo
-          done
+          echo '=== NEW RECENT WEB ==='
+          curl --silent --show-error -X POST "$WORKER_URL/discover" \
+            -H 'content-type: application/json' \
+            --data '{"provider":"recent-web-search","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true
+          echo
+          echo '=== LEGACY SOURCE HUNT ==='
+          curl --silent --show-error "$LEGACY_WORKER_URL/hunt?channel=MEGA&days=7&debug=1" || true
+          echo
