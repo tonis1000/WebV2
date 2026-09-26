@@ -1,0 +1,34 @@
+name: Apply Phase 4.6 Authorized Xtream
+
+on:
+  push:
+    branches: [phase46-authorized-xtream]
+    paths:
+      - '.github/workflows/phase46-apply.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: phase46-authorized-xtream
+      - name: Apply runtime and regression patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tmp/phase46-patch.mjs
+          git diff --check
+          node --input-type=module --check < workers/webtv-xtream.js
+          node --check src/xtream-client.js
+          node --check src/discovery/discovery-state.js
+          node --check src/discovery/discovery-ui.js
+          node tests/authorized-xtream-discovery.test.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workers/webtv-xtream.js src/xtream-client.js src/discovery/discovery-state.js src/discovery/discovery-ui.js tests/authorized-xtream-discovery.test.mjs
+          git commit -m 'Add authorized Xtream discovery expansion'
+          git push origin HEAD:phase46-authorized-xtream
