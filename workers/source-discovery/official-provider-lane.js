@@ -7,6 +7,7 @@ export const OFFICIAL_MAX_CANDIDATES=8;
 const ERT_MEDIA_HOSTS=Object.freeze([
   'live.ertflix.gr','ertflix.gr','www.ertflix.gr',
   'ert-ucdn.broadpeak-aas.com','ert-live.siliconweb.com',
+  '702e2e484b144c71ba38bca0d41f37cd.msvdn.net',
 ]);
 
 const REGISTRY=Object.freeze({
