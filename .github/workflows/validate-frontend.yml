@@ -9,18 +9,22 @@ on:
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'workers/webtv-xtream.js'
+      - 'workers/webtv-source-verifier.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
+      - '.github/workflows/deploy-source-verifier.yml'
   pull_request:
     paths:
       - 'index.html'
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'workers/webtv-xtream.js'
+      - 'workers/webtv-source-verifier.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
+      - '.github/workflows/deploy-source-verifier.yml'
 
 permissions:
   contents: read
@@ -48,6 +52,9 @@ jobs:
       - name: Validate Xtream Worker syntax
         run: node --input-type=module --check < workers/webtv-xtream.js
 
+      - name: Validate Source Verifier Worker syntax
+        run: node --input-type=module --check < workers/webtv-source-verifier.js
+
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
 
@@ -60,13 +67,19 @@ jobs:
       - name: Run Discovery candidate/state regression test
         run: node tests/discovery-candidate.test.mjs
 
-      - name: Run Discovery Phase 2 local-source regression test
+      - name: Run Discovery local-source regression test
         run: node tests/discovery-local-sources.test.mjs
 
-      - name: Run Discovery Phase 2 isolation regression test
+      - name: Run Discovery verifier client regression test
+        run: node tests/discovery-verifier.test.mjs
+
+      - name: Run Source Verifier Worker regression test
+        run: node tests/source-verifier-worker.test.mjs
+
+      - name: Run Discovery Phase 3 isolation regression test
         run: node tests/discovery-isolation.test.mjs
 
-      - name: Run Discovery Phase 2 browser smoke test
+      - name: Run Discovery Phase 3 browser smoke test
         run: node tests/discovery-browser-smoke.mjs
 
       - name: Run frontend integration audit
