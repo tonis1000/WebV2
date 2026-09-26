@@ -1,0 +1,32 @@
+name: Diagnose Phase 4.3 Live Providers
+
+on:
+  push:
+    branches: [diag-phase43-live]
+    paths:
+      - '.github/workflows/diag-phase43-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      WORKER_URL: https://webtv-source-discovery.atonis.workers.dev
+    steps:
+      - name: Probe production Source Discovery
+        shell: bash
+        run: |
+          set -u -o pipefail
+          echo '=== STATUS ==='
+          curl --silent --show-error "$WORKER_URL/" || true
+          echo
+          for provider in curated-remote-feeds github-public-playlists recent-web-search; do
+            echo "=== $provider ==="
+            curl --silent --show-error -X POST "$WORKER_URL/discover" \
+              -H 'content-type: application/json' \
+              --data "{\"provider\":\"$provider\",\"freshness\":\"7d\",\"channel\":{\"name\":\"MEGA\",\"id\":\"mega\",\"originalId\":\"MEGA\"}}" || true
+            echo
+          done
