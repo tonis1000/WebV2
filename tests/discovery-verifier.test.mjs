@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
 import { verifyCandidates, verifyWithConcurrency, VERIFIER_MAX_BATCH, VERIFIER_MAX_CONCURRENCY } from '../src/discovery/verifier-client.js';
 
 assert.equal(VERIFIER_MAX_BATCH,4);
@@ -43,5 +42,11 @@ assert.match(workerSource,/Private\/local targets are not allowed/);
 assert.match(workerSource,/\['user-agent','User-Agent'\]/);
 assert.equal(workerSource.includes('Cookie'),false);
 assert.equal(workerSource.includes('Authorization'),false);
+
+const deployWorkflow=fs.readFileSync(new URL('../.github/workflows/deploy-source-verifier.yml',import.meta.url),'utf8');
+assert.match(deployWorkflow,/raw\.githubusercontent\.com\/tonis1000\/WebV2\/\$GITHUB_SHA\/tests\/fixtures\/source-verifier-working\.m3u8/);
+assert.match(deployWorkflow,/source-verifier-dead-does-not-exist\.m3u8/);
+assert.equal(deployWorkflow.includes('$WORKER_URL/fixture/working.m3u8'),false,'live deployment gate must not make the Worker verify its own workers.dev fixture');
+assert.equal(deployWorkflow.includes('$WORKER_URL/fixture/dead'),false,'live deployment gate must use an external dead target');
 
 console.log('discovery verifier tests PASS');
