@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   discoverStrmSpecific,
   STRM_SPECIFIC_DISCOVERY_PROVIDER,
@@ -12,6 +13,15 @@ assert.equal(STRM_SPECIFIC_DISCOVERY_PROVIDER,'strm-specific-discovery');
 assert.equal(STRM_MAX_REFERENCES,6);
 assert.equal(STRM_MAX_DEPTH,3);
 assert.equal(STRM_MAX_SUBREQUESTS,12);
+
+const router=fs.readFileSync(new URL('../workers/webtv-source-discovery.js',import.meta.url),'utf8');
+const client=fs.readFileSync(new URL('../src/discovery/external-discovery-client.js',import.meta.url),'utf8');
+const deploy=fs.readFileSync(new URL('../.github/workflows/deploy-source-discovery.yml',import.meta.url),'utf8');
+assert.match(router,/strm-specific-discovery\.js/,'Source Discovery router must import the STRM provider module');
+assert.match(router,/DISABLE_STRM_SPECIFIC_DISCOVERY/,'STRM provider must retain an independent Worker kill switch');
+assert.match(client,/strm-specific-discovery/,'Browser client must expose the STRM provider explicitly');
+assert.match(deploy,/strm-specific-discovery/,'Source Discovery live gate must exercise the STRM provider');
+assert.match(deploy,/"name":"ERT1"/,'STRM live gate must use the real public ERT1 resolution path');
 
 const feedText=`#EXTM3U
 #EXTINF:-1 tvg-id="ERT1" tvg-name="ERT1 HD",ERT1 HD
