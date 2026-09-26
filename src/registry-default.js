@@ -4,13 +4,14 @@ try{
   if(!localStorage.getItem(KEY)) localStorage.setItem(KEY,DEFAULT_REGISTRY_URL);
 }catch{}
 
-// Xtream source UI is loaded here so index.html does not need another entry point.
-// It injects its card into Playlist Manager and reuses WebTVPlaylistAPI at click time.
+// Xtream/source management UIs are loaded here so index.html does not need another entry point.
+// Discovery Phase 1 is intentionally isolated: local shell only, no player/D1/network coupling.
 import './xtream-ui.js?v=20260925-xtream6';
 import './xtream-preview-actions.js?v=20260925-xtream-click1';
 import './xtream-enhancements.js?v=20260925-xtream-enh2';
 import './source-order-controls.js?v=20260926-order2';
 import './route-tooltip.js?v=20260926-routes1';
+import './discovery/discovery-ui.js?v=20260926-discovery-phase1';
 
 // Defensive recovery for the D1 sidebar. The source-order feature must never leave
 // the app in an empty startup state if the first cloud read races another module.

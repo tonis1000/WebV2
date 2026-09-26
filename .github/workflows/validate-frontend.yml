@@ -57,5 +57,14 @@ jobs:
       - name: Run Xtream source regression test
         run: node tests/xtream-client.test.mjs
 
+      - name: Run Discovery Phase 1 candidate/state regression test
+        run: node tests/discovery-candidate.test.mjs
+
+      - name: Run Discovery Phase 1 isolation regression test
+        run: node tests/discovery-isolation.test.mjs
+
+      - name: Run Discovery Phase 1 browser smoke test
+        run: node tests/discovery-browser-smoke.mjs
+
       - name: Run frontend integration audit
         run: node tests/frontend-integration.test.mjs

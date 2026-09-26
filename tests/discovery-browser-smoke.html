@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Discovery Phase 1 Browser Smoke</title><style>:root{--text:#fff;--muted:#999;--accent-2:#63b3ff;--line:#333}.button{padding:4px}.ghost{opacity:.9}</style></head>
+<body>
+  <div class="topbar-actions"><button id="source-hunt-toggle" class="button">Source Hunt</button></div>
+  <aside id="sidebar-sentinel">SIDEBAR-STABLE</aside>
+  <section id="player-sentinel">PLAYER-STABLE</section>
+  <pre id="result"></pre>
+  <script>
+    window.WebTVPlaylistAPI={getSelectedChannel:()=>({id:'mega',originalId:'MEGA.gr',name:'MEGA',group:'General',directUrls:['https://stable.invalid/live.m3u8']})};
+  </script>
+  <script type="module">
+    const sidebar=document.getElementById('sidebar-sentinel');
+    const player=document.getElementById('player-sentinel');
+    const before={sidebar:sidebar.textContent,player:player.textContent};
+    try{
+      await import('../src/discovery/discovery-ui.js');
+      const api=window.WebTVDiscoveryPhase1;
+      api.open();
+      const opened=api.snapshot();
+      const cardCount=document.querySelectorAll('#discovery-results .discovery-card').length;
+      document.querySelector('[data-freshness="24h"]')?.click();
+      const changed=api.snapshot();
+      api.close();
+      const closed=api.snapshot();
+      const pass=Boolean(
+        api &&
+        opened.open===true &&
+        opened.channel?.name==='MEGA' &&
+        opened.freshness==='7d' &&
+        cardCount===3 &&
+        changed.freshness==='24h' &&
+        closed.open===false &&
+        document.getElementById('discovery-shell')?.hidden===true &&
+        sidebar.textContent===before.sidebar &&
+        player.textContent===before.player
+      );
+      document.documentElement.dataset.phase1Result=pass?'PASS':'FAIL';
+      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,opened,changed,closed,sidebar:sidebar.textContent,player:player.textContent});
+    }catch(error){
+      document.documentElement.dataset.phase1Result='ERROR';
+      document.getElementById('result').textContent=String(error?.stack||error);
+    }
+  </script>
+</body>
+</html>
