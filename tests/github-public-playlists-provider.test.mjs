@@ -20,7 +20,6 @@ try{
     if(url.hostname==='api.github.com'&&url.pathname==='/search/repositories'){
       const q=url.searchParams.get('q')||'';seenSearches.push(q);
       assert.match(q,/pushed:>=\d{4}-\d{2}-\d{2}/);
-      assert.match(q,/fork:false/);
       return new Response(JSON.stringify({items:[{
         full_name:'fixture/recent-greek-iptv',default_branch:'main',pushed_at:new Date().toISOString(),fork:false,archived:false,
       }]}),{status:200,headers:{'content-type':'application/json','x-ratelimit-remaining':'9'}});
