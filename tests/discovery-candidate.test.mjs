@@ -18,7 +18,11 @@ const xtream=createCandidate({channelName:'MEGA',sourceType:'xtream',sourceUrl:'
 assert.equal(xtream.sourceType,'xtream');
 assert.equal(xtream.xtreamStreamId,'42');
 assert.equal(xtream.xtreamContext.password,'secret');
-assert.equal(candidateForDisplay(xtream).xtreamContext.password,'••••••••');
+const displayXtream=candidateForDisplay(xtream);
+assert.equal(displayXtream.xtreamContext.password,'••••••••');
+assert.equal(displayXtream.sourceUrl,'[redacted Xtream source]');
+assert.equal(displayXtream.sourceUrl.includes('secret'),false);
+assert.equal(displayXtream.sourceUrl.includes('/user/pass/'),false);
 
 const state=new DiscoveryState();
 assert.equal(state.snapshot().freshness,DEFAULT_FRESHNESS);
