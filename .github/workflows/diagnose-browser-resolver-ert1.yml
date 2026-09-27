@@ -1,0 +1,65 @@
+name: Diagnose Browser Resolver ERT1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-browser-resolver-ert1.yml'
+
+permissions:
+  contents: read
+
+env:
+  BROWSER_URL: https://webtv-browser-resolver.atonis.workers.dev/resolve
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trace safe ERT1 browser API activity
+        shell: bash
+        env:
+          RESOLVER_TOKEN: ${{ secrets.BROWSER_RESOLVER_SHARED_TOKEN }}
+        run: |
+          set -euo pipefail
+          BODY='{"url":"https://live.ertflix.gr/live","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1","tvgId":"ERT1"},"capture":{"extensions":["m3u8","mpd","mp4","webm"],"includeRequestHeaders":true,"timeoutMs":12000}}'
+          HTTP=$(curl --silent --show-error -o resolver.json -w '%{http_code}' -X POST "$BROWSER_URL" \
+            -H 'content-type: application/json' \
+            -H "authorization: Bearer $RESOLVER_TOKEN" \
+            --data "$BODY")
+          echo "Browser Resolver HTTP $HTTP"
+          node - <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync('resolver.json','utf8'));
+          const safe={
+            service:body.service,
+            version:body.version,
+            error:body.error||'',
+            diagnostics:body.diagnostics||{},
+            apiObservations:(body.apiObservations||[]).map(x=>({
+              phase:x.phase,
+              resourceType:x.resourceType,
+              method:x.method,
+              host:x.host,
+              pathname:x.pathname,
+              status:x.status,
+              contentType:x.contentType
+            })),
+            mediaObservations:(body.observations||[]).map(x=>({
+              resourceType:x.resourceType,
+              host:(()=>{try{return new URL(x.url).hostname}catch{return''}})(),
+              status:x.responseStatus,
+              contentType:x.responseContentType,
+              finalHost:(()=>{try{return new URL(x.finalUrl).hostname}catch{return''}})(),
+              finalStatus:x.finalStatus,
+              finalKind:x.finalKind,
+              headerNames:Object.keys(x.headers||{})
+            }))
+          };
+          console.log(JSON.stringify(safe,null,2));
+          if(body.service!=='WebTV Browser Resolver')process.exit(1);
+          if(body.version!=='1.5')process.exit(2);
+          NODE
+          test "$HTTP" = "200"
