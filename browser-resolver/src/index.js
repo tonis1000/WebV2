@@ -1,6 +1,6 @@
 import puppeteer from '@cloudflare/puppeteer';
 
-const VERSION='1.5';
+const VERSION='1.6';
 const DEFAULT_TIMEOUT_MS=10000;
 const MAX_TIMEOUT_MS=12000;
 const MAX_OBSERVATIONS=24;
@@ -21,6 +21,21 @@ function normalizedChannelKey(channel={}){const value=String(channel.id||channel
 function isHttpsRemote(raw=''){try{const u=new URL(String(raw||''));return u.protocol==='https:'&&u.hostname&&!u.hostname.endsWith('.local')&&u.hostname!=='localhost';}catch{return false;}}
 function responseKind(contentType='',url=''){const type=String(contentType||'').toLowerCase();if(type.includes('dash+xml')||/\.mpd(?:[?#]|$)/i.test(url))return'dash';if(type.includes('mpegurl')||type.includes('x-mpegurl')||/\.m3u8(?:[?#]|$)/i.test(url))return'hls';if(type.startsWith('video/')||/\.(?:mp4|webm)(?:[?#]|$)/i.test(url))return'video';return'';}
 function safeApiLocation(raw=''){try{const u=new URL(String(raw||''));return{host:u.hostname.toLowerCase().slice(0,253),pathname:u.pathname.slice(0,300)};}catch{return{host:'',pathname:''};}}
+function safeJsonShape(value,depth=0){
+  if(value===null)return{type:'null'};
+  if(depth>=4)return{type:Array.isArray(value)?'array':typeof value};
+  if(Array.isArray(value))return{type:'array',length:value.length,sample:value.slice(0,3).map(item=>safeJsonShape(item,depth+1))};
+  if(typeof value==='object'){
+    const fields={};
+    for(const [key,item] of Object.entries(value).slice(0,40))fields[String(key).slice(0,80)]=safeJsonShape(item,depth+1);
+    return{type:'object',fields};
+  }
+  if(typeof value==='string'){
+    if(/^https?:\/\//i.test(value)){const loc=safeApiLocation(value);return{type:'url',host:loc.host,pathname:loc.pathname,length:value.length};}
+    return{type:'string',length:value.length};
+  }
+  return{type:typeof value};
+}
 
 async function pageDiagnostics(page){try{return await page.evaluate(()=>{const safeHost=value=>{try{return new URL(value,location.href).hostname}catch{return''}};const label=el=>String(el.getAttribute('aria-label')||el.textContent||el.title||'').replace(/\s+/g,' ').trim().slice(0,80);const video=document.querySelector('video');return{title:String(document.title||'').slice(0,120),pathname:location.pathname,videoCount:document.querySelectorAll('video').length,iframeCount:document.querySelectorAll('iframe').length,buttonCount:document.querySelectorAll('button').length,iframeHosts:[...new Set([...document.querySelectorAll('iframe[src]')].map(el=>safeHost(el.src)).filter(Boolean))].slice(0,8),buttonLabels:[...new Set([...document.querySelectorAll('button,[role="button"]')].map(label).filter(Boolean))].slice(0,12),video:video?{paused:Boolean(video.paused),ended:Boolean(video.ended),readyState:Number(video.readyState)||0,networkState:Number(video.networkState)||0,currentTime:Number.isFinite(video.currentTime)?Math.round(video.currentTime*10)/10:0,currentSrcHost:safeHost(video.currentSrc||video.src||''),errorCode:video.error?.code||0}:null};});}catch{return{title:'',pathname:'',videoCount:0,iframeCount:0,buttonCount:0,iframeHosts:[],buttonLabels:[],video:null};}}
 async function clickSelectedChannel(page,channel={}){const key=normalizedChannelKey(channel);const targets=ERT_CHANNEL_LABELS[key]||[];if(!targets.length)return{clicked:false,label:''};try{return await page.evaluate(targetsIn=>{const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,'');const targets=new Set(targetsIn.map(normalize));for(const node of document.querySelectorAll('button,[role="button"],a')){const raw=String(node.getAttribute('aria-label')||node.textContent||node.title||'').replace(/\s+/g,' ').trim();if(!raw||!targets.has(normalize(raw)))continue;try{node.click();return{clicked:true,label:raw.slice(0,80)};}catch{}}return{clicked:false,label:''};},targets);}catch{return{clicked:false,label:''};}}
@@ -30,20 +45,24 @@ function makeObservation(request,url){const requestHeaders=request.headers();ret
 
 async function resolve(body,env){
   if(!env.BROWSER)throw new Error('Browser binding is not configured');
-  const pageUrl=safePageUrl(body?.url);const timeoutMs=timeoutFrom(body);const observations=[];const byUrl=new Map();const mediaSeeds=new Set();const apiObservations=[];const apiSeen=new Set();let phase='page-load';let browser;const started=Date.now();
+  const pageUrl=safePageUrl(body?.url);const timeoutMs=timeoutFrom(body);const observations=[];const byUrl=new Map();const mediaSeeds=new Set();const apiObservations=[];const apiSeen=new Set();const apiResponseShapes=[];const pendingResponseTasks=new Set();let phase='page-load';let browser;const started=Date.now();
   try{
     browser=await puppeteer.launch(env.BROWSER);const page=await browser.newPage();page.setDefaultNavigationTimeout(timeoutMs);page.setDefaultTimeout(timeoutMs);
     page.on('request',request=>{try{const url=request.url();const chain=typeof request.redirectChain==='function'?request.redirectChain():[];const inherited=chain.some(parent=>mediaSeeds.has(parent.url()));const isSeed=MEDIA_RE.test(url);if(!isSeed&&!inherited)return;if(byUrl.has(url))return;if(isSeed)mediaSeeds.add(url);const item=makeObservation(request,url);item.redirectedFrom=chain.length?chain[chain.length-1].url():'';byUrl.set(url,item);observations.push(item);}catch{}});
-    page.on('response',response=>{try{
-      const url=response.url();const request=response.request();const status=response.status();const contentType=String(response.headers()?.['content-type']||'').split(';')[0].slice(0,120);const resourceType=String(request.resourceType()||'');
-      if((resourceType==='xhr'||resourceType==='fetch')&&apiObservations.length<MAX_API_OBSERVATIONS){const loc=safeApiLocation(url);const key=`${resourceType}|${request.method()}|${loc.host}|${loc.pathname}|${status}|${phase}`;if(loc.host&&!apiSeen.has(key)){apiSeen.add(key);apiObservations.push({phase,resourceType,method:request.method(),host:loc.host,pathname:loc.pathname,status,contentType});}}
-      const kind=responseKind(contentType,url);const chain=typeof request.redirectChain==='function'?request.redirectChain():[];const inherited=chain.some(parent=>mediaSeeds.has(parent.url()));const relevant=MEDIA_RE.test(url)||inherited||Boolean(kind);if(!relevant)return;let item=byUrl.get(url);if(!item){item=makeObservation(request,url);item.redirectedFrom=chain.length?chain[chain.length-1].url():'';byUrl.set(url,item);observations.push(item);}item.responseStatus=status;item.responseContentType=contentType;if(status>=200&&status<300&&isHttpsRemote(url)&&kind){item.finalUrl=url;item.finalStatus=status;item.finalContentType=contentType;item.finalKind=kind;}
-    }catch{}});
-    await page.goto(pageUrl.href,{waitUntil:'domcontentloaded',timeout:timeoutMs});await sleep(700);const before=await pageDiagnostics(page);phase='channel-select';const selection=await clickSelectedChannel(page,body?.channel||{});if(selection.clicked)await sleep(900);phase='playback';await nudgePlayback(page);const remaining=Math.max(0,Math.min(5000,timeoutMs-(Date.now()-started)));if(remaining)await sleep(remaining);const after=await pageDiagnostics(page);
-    return{service:'WebTV Browser Resolver',version:VERSION,url:pageUrl.href,elapsedMs:Date.now()-started,observations:observations.slice(0,MAX_OBSERVATIONS),apiObservations:apiObservations.slice(0,MAX_API_OBSERVATIONS),diagnostics:{before,selection,after},limits:{timeoutMs,maxObservations:MAX_OBSERVATIONS,maxApiObservations:MAX_API_OBSERVATIONS}};
+    page.on('response',response=>{
+      const task=(async()=>{try{
+        const url=response.url();const request=response.request();const status=response.status();const contentType=String(response.headers()?.['content-type']||'').split(';')[0].slice(0,120);const resourceType=String(request.resourceType()||'');const loc=safeApiLocation(url);
+        if((resourceType==='xhr'||resourceType==='fetch')&&apiObservations.length<MAX_API_OBSERVATIONS){const key=`${resourceType}|${request.method()}|${loc.host}|${loc.pathname}|${status}|${phase}`;if(loc.host&&!apiSeen.has(key)){apiSeen.add(key);apiObservations.push({phase,resourceType,method:request.method(),host:loc.host,pathname:loc.pathname,status,contentType});}}
+        if(loc.host==='live.ertflix.gr'&&loc.pathname==='/api/stream'&&status>=200&&status<300&&contentType.includes('application/json')&&apiResponseShapes.length<2){try{const text=await response.text();const parsed=JSON.parse(text);apiResponseShapes.push({host:loc.host,pathname:loc.pathname,status,contentType,shape:safeJsonShape(parsed)});}catch{apiResponseShapes.push({host:loc.host,pathname:loc.pathname,status,contentType,shape:{type:'unavailable'}});}}
+        const kind=responseKind(contentType,url);const chain=typeof request.redirectChain==='function'?request.redirectChain():[];const inherited=chain.some(parent=>mediaSeeds.has(parent.url()));const relevant=MEDIA_RE.test(url)||inherited||Boolean(kind);if(!relevant)return;let item=byUrl.get(url);if(!item){item=makeObservation(request,url);item.redirectedFrom=chain.length?chain[chain.length-1].url():'';byUrl.set(url,item);observations.push(item);}item.responseStatus=status;item.responseContentType=contentType;if(status>=200&&status<300&&isHttpsRemote(url)&&kind){item.finalUrl=url;item.finalStatus=status;item.finalContentType=contentType;item.finalKind=kind;}
+      }catch{}})();
+      pendingResponseTasks.add(task);task.finally(()=>pendingResponseTasks.delete(task));
+    });
+    await page.goto(pageUrl.href,{waitUntil:'domcontentloaded',timeout:timeoutMs});await sleep(700);const before=await pageDiagnostics(page);phase='channel-select';const selection=await clickSelectedChannel(page,body?.channel||{});if(selection.clicked)await sleep(900);phase='playback';await nudgePlayback(page);const remaining=Math.max(0,Math.min(5000,timeoutMs-(Date.now()-started)));if(remaining)await sleep(remaining);if(pendingResponseTasks.size)await Promise.allSettled([...pendingResponseTasks]);const after=await pageDiagnostics(page);
+    return{service:'WebTV Browser Resolver',version:VERSION,url:pageUrl.href,elapsedMs:Date.now()-started,observations:observations.slice(0,MAX_OBSERVATIONS),apiObservations:apiObservations.slice(0,MAX_API_OBSERVATIONS),apiResponseShapes:apiResponseShapes.slice(0,2),diagnostics:{before,selection,after},limits:{timeoutMs,maxObservations:MAX_OBSERVATIONS,maxApiObservations:MAX_API_OBSERVATIONS}};
   }finally{if(browser){try{await browser.close();}catch{}}}
 }
 
 export default {async fetch(request,env){const url=new URL(request.url);if(request.method==='GET'&&url.pathname==='/')return json({service:'WebTV Browser Resolver',version:VERSION,ready:Boolean(env.BROWSER&&env.RESOLVER_SHARED_TOKEN),browserReady:Boolean(env.BROWSER),authConfigured:Boolean(env.RESOLVER_SHARED_TOKEN),allowedPageHosts:[...ALLOWED_PAGE_HOSTS]});if(request.method!=='POST'||url.pathname!=='/resolve')return json({error:'Not found'},404);if(!env.RESOLVER_SHARED_TOKEN)return json({error:'Resolver authentication is not configured'},503);if(!authorized(request,env))return json({error:'Unauthorized'},401);let body={};try{body=await request.json();}catch{return json({error:'Invalid JSON'},400);}try{return json(await resolve(body,env));}catch(error){const message=error?.message||String(error);const status=/allowlisted|HTTPS/.test(message)?400:/timeout/i.test(message)?408:502;return json({error:message,service:'WebTV Browser Resolver',version:VERSION},status);}}};
 
-export { ALLOWED_PAGE_HOSTS, APPROVED_HEADER_NAMES, MEDIA_RE, ERT_CHANNEL_LABELS, sanitizeHeaders, safeHeaderNames, safePageUrl, timeoutFrom, pageDiagnostics, normalizedChannelKey, responseKind, safeApiLocation };
+export { ALLOWED_PAGE_HOSTS, APPROVED_HEADER_NAMES, MEDIA_RE, ERT_CHANNEL_LABELS, sanitizeHeaders, safeHeaderNames, safePageUrl, timeoutFrom, pageDiagnostics, normalizedChannelKey, responseKind, safeApiLocation, safeJsonShape };
