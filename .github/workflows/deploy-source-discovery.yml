@@ -87,3 +87,5 @@ jobs:
           done
           echo "::error::Source Discovery v1.5 live verification failed. Check provider upstreams, official pages, BRAVE_API_KEY, and Browser Resolver capability reporting."
           exit 1
+
+# retrigger after successful-media response gating tests
