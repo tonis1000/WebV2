@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - 'workers/webtv-source-verifier.js'
+      - 'tests/discovery-verifier.test.mjs'
+      - 'tests/source-verifier-worker.test.mjs'
       - 'tests/fixtures/source-verifier-working.m3u8'
       - '.github/workflows/deploy-source-verifier.yml'
 
