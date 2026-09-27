@@ -658,3 +658,433 @@ AUTO Health remains advisory for playback ordering
 ```
 
 That separation is the architectural contract for Source Discovery.
+
+---
+
+## 16. Continuation checkpoint · 2026-09-27
+
+This section is the current handoff state for continuing WebV2 work in a fresh conversation. Read this section before making new Source Discovery / Browser Resolver changes.
+
+### 16.1 What is now implemented
+
+The original Source Discovery design above has progressed well beyond documentation. The following runtime pieces are now live and tested:
+
+```text
+Discovery frontend
+  ↓
+webtv-source-discovery
+  ├── curated-remote-feeds
+  ├── github-public-playlists
+  ├── recent-web-search
+  ├── strm-specific-discovery
+  ├── official-provider-lane
+  ├── official-api-resolver
+  └── browser-resolved-official
+        ↓
+webtv-source-verifier
+        ↓
+VERIFIED Candidate or safe failure classification
+```
+
+Cloudflare Workers currently involved in the official-resolution path:
+
+```text
+Browser Resolver
+https://webtv-browser-resolver.atonis.workers.dev
+
+Source Discovery
+https://webtv-source-discovery.atonis.workers.dev
+
+Source Verifier
+https://webtv-source-verifier.atonis.workers.dev
+```
+
+The Source Discovery Worker uses Cloudflare Service Bindings for both Browser Resolver and Source Verifier. Do not replace these with public same-zone Worker-to-Worker fetches unless there is a proven reason, because the service-binding change fixed earlier same-zone 404 behavior.
+
+Relevant bindings:
+
+```text
+env.BROWSER_RESOLVER → webtv-browser-resolver
+env.SOURCE_VERIFIER  → webtv-source-verifier
+```
+
+### 16.2 Current official resolution orchestration
+
+The frontend `discoverOfficialProvider()` flow is staged:
+
+```text
+1. official-api-resolver
+2. browser-resolved-official only when still useful
+3. official-provider-lane page fallback
+```
+
+A trusted `VERIFIED` state from the server is preserved only for `official-api-resolver` when all of the following hold:
+
+```text
+trustClass === OFFICIAL
+saveEligible === true
+verificationStatus === VERIFIED
+```
+
+Other external providers cannot claim trusted verification merely by returning `verificationStatus: VERIFIED`.
+
+### 16.3 ERT official API discovery
+
+The official ERT live site exposes a public stream descriptor endpoint:
+
+```text
+GET https://live.ertflix.gr/api/stream?channel=<channel-key>
+```
+
+The relevant query key is exactly:
+
+```text
+channel
+```
+
+Supported resolver keys currently include:
+
+```text
+ert1
+ert2
+ert3
+ertnews
+```
+
+The official API returns an official media descriptor that includes fields such as:
+
+```text
+url
+primaryUrl
+fallbackUrl
+type
+source
+updatedAt
+```
+
+The ERT official API resolver chooses the media URL, checks it against the strict broadcaster media-host allowlist, and sends it to the separate Source Verifier before promotion.
+
+### 16.4 ERT1 investigation: root cause established
+
+ERT1 repeatedly produced this pattern from server-side environments:
+
+```text
+Official API
+→ HTTP 200
+→ ert-ucdn.broadpeak-aas.com
+   /bpk-tv/ERT1/default/index.mpd
+→ HTTP 307
+→ ERT CDN target
+→ HTTP 401 or occasional 404
+→ 0 candidates
+```
+
+Safe diagnostics proved all of the following:
+
+```text
+Chrome-compatible User-Agent present
+Referer present
+Origin present
+redirect context preserved
+no Cookie challenge detected
+no WWW-Authenticate challenge detected
+no signed query parameters present
+queryCount = 0 before redirect
+queryCount = 0 after redirect
+same MPD pathname preserved
+```
+
+The Source Verifier was upgraded to record only safe redirect metadata:
+
+```text
+status
+from.host
+from.pathname
+to.host
+to.pathname
+queryCount
+queryKeys
+response header NAMES only
+hasSetCookie boolean
+hasWwwAuthenticate boolean
+```
+
+Never expand these diagnostics to print Cookie values, Authorization values, token values or complete signed URLs.
+
+The same ERT1 behavior was reproduced from:
+
+```text
+Cloudflare Source Verifier
+Cloudflare headless Browser Resolver
+GitHub Actions runner
+```
+
+Therefore the failure is not a Cloudflare-specific verifier bug.
+
+### 16.5 Control experiment: ERT News proves the pipeline works
+
+ERT News was tested at the same time using the same official API and browser-like request context.
+
+Result:
+
+```text
+ERT1
+API 200
+→ CDN 401
+→ no Candidate
+
+ERT News
+API 200
+→ DASH redirect
+→ final HTTP 200
+→ DASH recognized
+→ VERIFIED
+→ candidateCount 1
+```
+
+The production `official-api-resolver + SOURCE_VERIFIER service binding` path returned for ERT News:
+
+```text
+serviceStatus = 200
+status = VERIFIED
+verified = true
+lastHttpStatus = 200
+mediaType = dash
+drmDetected = false
+candidateCount = 1
+```
+
+This proves the resolver/verifier architecture is operational. ERT1 must not be treated as a generic resolver failure merely because its server-side verification is denied.
+
+### 16.6 Region-aware classification
+
+The official-resolution backend now classifies the ERT1/ERT2/ERT3 server-side denial as:
+
+```text
+SERVER_REGION_RESTRICTED
+```
+
+This classification describes the cloud/server verification environment, not the user's own location.
+
+The frontend behavior is intentionally:
+
+```text
+Official API
+→ SERVER_REGION_RESTRICTED
+→ skip cloud Browser Resolver
+→ keep Official Page fallback
+```
+
+Reason: the cloud Browser Resolver is in the same general server-side context and already reproduced the same denial, so running Chromium again wastes time/resources. The Official Page fallback must remain available because a real user in an allowed region may still be able to play the broadcaster page.
+
+Discovery UI messaging was updated to explain this path instead of showing a mysterious generic failure:
+
+```text
+server verification region-restricted
+cloud browser skipped
+official page fallback kept
+```
+
+Do not change this into a claim that ERT1 is unavailable everywhere.
+
+### 16.7 Browser Resolver improvements completed during the investigation
+
+The Browser Resolver now includes:
+
+- safe request/response diagnostics only
+- ERT media observation support for DASH/HLS/direct requests
+- strict browser-response success gating to avoid false-positive media candidates
+- channel-click retry logic to avoid an ERT page-load race where channel links appear after the first click attempt
+- safe final host/path/status diagnostics
+
+The Browser Resolver is a fallback/specialized tool, not the preferred resolver when a clean broadcaster-owned API exists.
+
+Preferred strategy:
+
+```text
+Official API first
+→ verifier
+→ Browser Resolver only when API path does not settle the case
+→ official page fallback
+```
+
+### 16.8 CI/deployment status at handoff
+
+At the end of this checkpoint:
+
+```text
+Source Verifier regression tests              PASS
+Source Discovery regression tests             PASS
+External Discovery client tests               PASS
+Official API resolver tests                   PASS
+Browser Resolver tests                        PASS
+Browser smoke                                 PASS
+Frontend integration audit                    PASS
+GitHub Pages build/deploy                     PASS
+```
+
+The frontend validation workflow watches both:
+
+```text
+tests/**/*.mjs
+tests/**/*.html
+```
+
+This was fixed after discovering that browser-smoke fixture HTML changes previously did not trigger validation.
+
+Latest relevant UI checkpoint commit from this session:
+
+```text
+2f08339ab8ed0f906c18ec26bcea3398f14bcfdd
+Show region-restricted official discovery status
+```
+
+### 16.9 What the GRTV Android APK investigation established
+
+The uploaded Android APK used for architectural study was inspected statically. Use it only to understand architecture and public/official resolution patterns. Do not copy or expose secret keys, cookies, session tokens, DRM secrets, credentials or unauthorized stream URLs.
+
+Important findings:
+
+1. The app has special handling for ERTFLIX inside a WebView.
+2. It observes media requests such as:
+
+```text
+.mpd
+.m3u8
+.mp4
+.mpg
+```
+
+3. It preserves browser request context such as User-Agent, Referer and other request metadata before handing media to ExoPlayer.
+4. Its player architecture knows DRM-related metadata fields including concepts corresponding to:
+
+```text
+widevine
+license_type
+license_key
+key_headers
+```
+
+These findings do not authorize copying DRM/license material. They show only that the app's resolution path is richer than a plain static media URL.
+
+5. The APK includes a local HTTP proxy on `127.0.0.1:8080` with routes conceptually including:
+
+```text
+/proxy_stream.m3u8
+/proxy_stream.mpd
+/proxy_manifest.mpd
+/proxy_dash_wrapper.m3u8
+/proxy_dash_segment
+/live_updates.m3u8
+```
+
+Static analysis indicates this local proxy is mainly for CAST/DLNA, manifest rewriting and local playback adaptation. It is not currently evidence of a remote Greek relay used to bypass ERT geography.
+
+6. The app's custom playlist/config language includes constructs such as:
+
+```text
+SERIES$$
+|webvod
+|webvodphp
+|webepg
+|webepgphp
+|webdeskepg
+hub://
+|webwivedig
+$$stream=
+$$sec=
+sec:
+```
+
+The encrypted remote configuration is known to exist, but secret cryptographic material must never be printed or committed. A previously inspected safe ERT sample resolved to an official ERTFLIX website entry, not a hidden direct ERT1 stream URL.
+
+### 16.10 Current hypothesis to investigate next
+
+The fact that the Android app can play channels that the cloud verifier cannot does NOT yet prove it uses a remote geo-bypass proxy.
+
+The strongest unresolved architectural lead is the app's secondary resolution mechanism around:
+
+```text
+sec:
+$$sec=
+|webwivedig
+$$stream=
+```
+
+Possible explanations still to distinguish with static analysis:
+
+```text
+A. sec: is merely an internal indirection/reference system
+B. sec: selects a second public/official source
+C. sec: selects an alternate fallback source
+D. sec: participates in WebView-to-ExoPlayer handoff
+E. another app-owned resolver layer exists before final media selection
+```
+
+Do not assume any of these until code evidence supports it.
+
+### 16.11 Immediate next work in the next conversation
+
+Continue with the GRTV APK static analysis first, before changing production WebV2 again.
+
+Exact next sequence:
+
+```text
+1. Locate every parser/consumer of `sec:` and `$$sec=`.
+2. Trace `|webwivedig` end-to-end.
+3. Identify where `$$stream=` and `$$sec=` are turned into runtime objects/URLs.
+4. Follow the ERTFLIX-specific WebView branch into the media handoff method.
+5. Determine whether the final source comes from:
+   - official webpage request interception,
+   - another public/official endpoint,
+   - a config-selected fallback,
+   - local proxy rewriting,
+   - or another resolver layer.
+6. Record only safe metadata: class/method relationships, host/path families, source type, branching rules.
+7. Never expose or persist credentials, cookies, Authorization values, DRM keys/licenses, crypto keys, or hidden unauthorized stream URLs.
+8. If a clean public/official alternate ERT path is proven, design a narrow WebV2 provider for it with tests before deployment.
+9. Otherwise keep ERT1 as SERVER_REGION_RESTRICTED on server-side verification and move on to other official providers.
+```
+
+### 16.12 Broader provider expansion after the GRTV question is settled
+
+Once the GRTV `sec:` / ERTFLIX path is understood, continue official provider expansion one broadcaster at a time:
+
+```text
+ANT1
+Alpha
+Star
+SKAI
+Open
+MEGA
+other explicitly registered broadcaster-owned sources
+```
+
+For each provider prefer:
+
+```text
+official broadcaster API
+→ strict official media-host allowlist
+→ Source Verifier
+→ VERIFIED Candidate
+```
+
+Only use Browser Resolver when no clean API exists or the page itself is required for public runtime discovery.
+
+### 16.13 Preserve these invariants
+
+Do not regress any of the following:
+
+```text
+D1 My Playlist remains authoritative
+Discovery candidates remain temporary until explicit user save
+server-side VERIFIED claims are trusted only through the narrow official API trust boundary
+Browser Resolver remains fallback, not default
+Service Bindings remain the Worker-to-Worker transport
+no secret/token/cookie/DRM leakage in diagnostics
+no geo/access-control bypass behavior
+no automatic saving of official-page fallbacks as IPTV sources
+user remains in control of promotion/persistence
+```
+
+This checkpoint is the continuation point for the next WebV2 session.
