@@ -5,6 +5,7 @@ import {
   chooseMediaUrl,
   inferredType,
   safeMediaSummary,
+  safeVerifierUrl,
 } from '../workers/source-discovery/official-api-resolver.js';
 
 assert.equal(OFFICIAL_API_RESOLVER_PROVIDER,'official-api-resolver');
@@ -12,6 +13,10 @@ assert.equal(inferredType('https://example.test/live.mpd'),'dash');
 assert.equal(inferredType('https://example.test/live.m3u8'),'hls');
 assert.equal(chooseMediaUrl({primaryUrl:'https://a.test/a.mpd',url:'https://b.test/b.mpd'}),'https://a.test/a.mpd');
 assert.deepEqual(safeMediaSummary('https://ert-ucdn.broadpeak-aas.com/bpk-tv/ERT1/default/index.mpd?secret=drop'),{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd'});
+assert.equal(safeVerifierUrl('https://verifier.example.test/').href,'https://verifier.example.test/verify');
+assert.equal(safeVerifierUrl('https://verifier.example.test/verify').href,'https://verifier.example.test/verify');
+assert.equal(safeVerifierUrl('https://verifier.example.test/verify/?x=1#frag').href,'https://verifier.example.test/verify');
+assert.throws(()=>safeVerifierUrl('https://verifier.example.test/not-verify'),/\/verify/);
 
 const sourceUrl='https://ert-ucdn.broadpeak-aas.com/bpk-tv/ERT1/default/index.mpd';
 const apiFetch=async(input,options={})=>{
@@ -31,7 +36,7 @@ const verifiedFetch=async(input,options={})=>{
   return new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'VERIFIED',verified:true,lastHttpStatus:200,mediaType:'dash',drmDetected:false,detail:'Manifest/media probe succeeded'}]}),{status:200,headers:{'content-type':'application/json'}});
 };
 
-const verified=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:verifiedFetch,verifierUrl:'https://verifier.example.test/verify'});
+const verified=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:verifiedFetch,verifierUrl:'https://verifier.example.test/'});
 assert.equal(verified.provider,OFFICIAL_API_RESOLVER_PROVIDER);
 assert.equal(verified.recognized,true);
 assert.equal(verified.candidates.length,1);
@@ -43,8 +48,9 @@ assert.equal(verified.reports.api.mediaPath,'/bpk-tv/ERT1/default/index.mpd');
 assert.equal(verified.reports.verification.status,'VERIFIED');
 
 const failedFetch=async()=>new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'FAILED',verified:false,lastHttpStatus:401,mediaType:'',drmDetected:false,detail:'Upstream HTTP 401'}]}),{status:200,headers:{'content-type':'application/json'}});
-const failed=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:failedFetch,verifierUrl:'https://verifier.example.test/verify'});
+const failed=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:failedFetch,verifierUrl:'https://verifier.example.test'});
 assert.equal(failed.candidates.length,0);
+assert.equal(failed.reports.verification.serviceStatus,200);
 assert.equal(failed.reports.verification.verified,false);
 assert.equal(failed.reports.verification.lastHttpStatus,401);
 assert.match(failed.reports.reason,/not promoted/i);
