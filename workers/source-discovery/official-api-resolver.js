@@ -17,6 +17,9 @@ function safeVerifierUrl(raw=''){
   const u=new URL(String(raw||DEFAULT_SOURCE_VERIFIER_URL).trim());
   if(u.protocol!=='https:')throw new Error('Verifier must use HTTPS');
   if(!u.hostname||u.hostname==='localhost'||u.hostname.endsWith('.local'))throw new Error('Verifier target rejected');
+  if(!u.pathname||u.pathname==='/'||u.pathname==='/verify/')u.pathname='/verify';
+  if(u.pathname!=='/verify')throw new Error('Verifier endpoint path must be /verify');
+  u.search='';u.hash='';
   return u;
 }
 function safeMediaSummary(raw=''){
