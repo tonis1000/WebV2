@@ -33,6 +33,7 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const body=JSON.parse(fs.readFileSync('resolver.json','utf8'));
+          const safeUrl=value=>{try{const u=new URL(String(value||''));return{host:u.hostname,pathname:u.pathname}}catch{return{host:'',pathname:''}}};
           const safe={
             service:body.service,
             version:body.version,
@@ -49,16 +50,21 @@ jobs:
               contentType:x.contentType
             })),
             apiResponseShapes:body.apiResponseShapes||[],
-            mediaObservations:(body.observations||[]).map(x=>({
-              resourceType:x.resourceType,
-              host:(()=>{try{return new URL(x.url).hostname}catch{return''}})(),
-              status:x.responseStatus,
-              contentType:x.responseContentType,
-              finalHost:(()=>{try{return new URL(x.finalUrl).hostname}catch{return''}})(),
-              finalStatus:x.finalStatus,
-              finalKind:x.finalKind,
-              headerNames:Object.keys(x.headers||{})
-            }))
+            mediaObservations:(body.observations||[]).map(x=>{
+              const source=safeUrl(x.url),final=safeUrl(x.finalUrl);
+              return{
+                resourceType:x.resourceType,
+                host:source.host,
+                pathname:source.pathname,
+                status:x.responseStatus,
+                contentType:x.responseContentType,
+                finalHost:final.host,
+                finalPath:final.pathname,
+                finalStatus:x.finalStatus,
+                finalKind:x.finalKind,
+                headerNames:Object.keys(x.headers||{})
+              };
+            })
           };
           console.log(JSON.stringify(safe,null,2));
           if(body.service!=='WebTV Browser Resolver')process.exit(1);
