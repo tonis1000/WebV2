@@ -41,6 +41,11 @@ function safeUrlSummary(value){
   const queryKeys=[...new Set([...u.searchParams.keys()].map(k=>String(k).slice(0,100)).filter(Boolean))].sort().slice(0,20);
   return{host:u.hostname.toLowerCase(),pathname:u.pathname||'/',queryCount:[...u.searchParams.keys()].length,queryKeys};
 }
+function safeResponseHeaderSummary(headers){
+  if(!headers||typeof headers.keys!=='function')return{headerNames:[],hasSetCookie:false,hasWwwAuthenticate:false};
+  const headerNames=[...new Set([...headers.keys()].map(name=>String(name||'').trim().toLowerCase()).filter(Boolean))].sort().slice(0,40);
+  return{headerNames,hasSetCookie:headerNames.includes('set-cookie'),hasWwwAuthenticate:headerNames.includes('www-authenticate')};
+}
 function inferredType(url='',explicit=''){
   const type=String(explicit||'').toLowerCase();
   if(['hls','dash','direct','xtream','header-aware'].includes(type))return type;
@@ -84,12 +89,13 @@ async function fetchWithRedirectDiagnostics(target,headers,signal){
   const redirects=[];
   for(let hop=0;hop<=MAX_REDIRECTS;hop++){
     const response=await fetch(current.toString(),{method:'GET',redirect:'manual',cache:'no-store',headers,signal});
-    if(!isRedirectStatus(response.status))return{response,redirects,finalTarget:safeUrlSummary(current)};
+    const responseHeaders=safeResponseHeaderSummary(response.headers);
+    if(!isRedirectStatus(response.status))return{response,redirects,finalTarget:safeUrlSummary(current),finalResponseHeaders:responseHeaders};
     const location=response.headers.get('location');
-    if(!location)return{response,redirects,finalTarget:safeUrlSummary(current)};
+    if(!location)return{response,redirects,finalTarget:safeUrlSummary(current),finalResponseHeaders:responseHeaders};
     if(hop>=MAX_REDIRECTS)throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
     const next=safeHttpUrl(new URL(location,current).toString());
-    redirects.push({status:response.status,from:safeUrlSummary(current),to:safeUrlSummary(next),hostChanged:current.hostname.toLowerCase()!==next.hostname.toLowerCase()});
+    redirects.push({status:response.status,from:safeUrlSummary(current),to:safeUrlSummary(next),hostChanged:current.hostname.toLowerCase()!==next.hostname.toLowerCase(),responseHeaders});
     try{await response.body?.cancel?.();}catch{}
     current=next;
   }
@@ -100,31 +106,31 @@ async function verifyOne(input={}){
   const candidateId=String(input.candidateId||'');
   const sourceUrl=String(input.sourceUrl||'').trim();
   const type=inferredType(sourceUrl,input.sourceType);
-  if(type==='strm'||type==='m3u')return{candidateId,status:'UNRESOLVED',verified:false,startupMs:0,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:'Resolve container/reference before verification',redirects:[],finalTarget:null};
+  if(type==='strm'||type==='m3u')return{candidateId,status:'UNRESOLVED',verified:false,startupMs:0,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:'Resolve container/reference before verification',redirects:[],finalTarget:null,finalResponseHeaders:null};
   let target;
-  try{target=safeHttpUrl(sourceUrl);}catch(error){return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error.message,redirects:[],finalTarget:null};}
+  try{target=safeHttpUrl(sourceUrl);}catch(error){return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error.message,redirects:[],finalTarget:null,finalResponseHeaders:null};}
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),UPSTREAM_TIMEOUT_MS);
-  let redirects=[];let finalTarget=safeUrlSummary(target);
+  let redirects=[];let finalTarget=safeUrlSummary(target);let finalResponseHeaders=null;
   try{
     const headers=new Headers(cleanHeaders(input.requiredHeaders));
     if(!headers.has('user-agent'))headers.set('user-agent',`Mozilla/5.0 WebTV-SourceVerifier/${VERSION}`);
     headers.set('accept','application/vnd.apple.mpegurl,application/x-mpegURL,application/dash+xml,video/*,audio/*,*/*;q=0.5');
     const fetched=await fetchWithRedirectDiagnostics(target,headers,controller.signal);
-    const response=fetched.response;redirects=fetched.redirects;finalTarget=fetched.finalTarget;
+    const response=fetched.response;redirects=fetched.redirects;finalTarget=fetched.finalTarget;finalResponseHeaders=fetched.finalResponseHeaders;
     const status=response.status;
     if(!response.ok&&status!==206){
       const mapped=status===403?'HTTP 403':status===404?'HTTP 404':'FAILED';
-      return{candidateId,status:mapped,verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:'',drmDetected:false,detail:`Upstream HTTP ${status}`,redirects,finalTarget};
+      return{candidateId,status:mapped,verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:'',drmDetected:false,detail:`Upstream HTTP ${status}`,redirects,finalTarget,finalResponseHeaders};
     }
     const text=await readLimited(response);
     const classified=classifyBody(type,text,response.headers.get('content-type')||'');
-    if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:true,detail:'DRM markers detected',redirects,finalTarget};
-    if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:classified.reason,redirects,finalTarget};
-    return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget};
+    if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:true,detail:'DRM markers detected',redirects,finalTarget,finalResponseHeaders};
+    if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:classified.reason,redirects,finalTarget,finalResponseHeaders};
+    return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget,finalResponseHeaders};
   }catch(error){
     const timeout=error?.name==='AbortError';
-    return{candidateId,status:timeout?'TIMEOUT':'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:timeout?`Upstream timeout after ${UPSTREAM_TIMEOUT_MS} ms`:error?.message||String(error),redirects,finalTarget};
+    return{candidateId,status:timeout?'TIMEOUT':'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:timeout?`Upstream timeout after ${UPSTREAM_TIMEOUT_MS} ms`:error?.message||String(error),redirects,finalTarget,finalResponseHeaders};
   }finally{clearTimeout(timer);}
 }
 async function mapBounded(items,limit,fn){
