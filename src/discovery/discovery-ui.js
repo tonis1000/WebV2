@@ -8,7 +8,7 @@ import { discoverCuratedRemoteFeeds, discoverGithubPublicPlaylists, discoverRece
 import { verifyCandidates, verifyWithConcurrency } from './verifier-client.js';
 import { promoteCandidate, keepXtreamAccount, promotePreviewXtreamChannel, saveFullXtreamAccountFromCandidate } from './promotion.js';
 
-const BUILD_ID='20260926-discovery-phase52-new-xtream-choice';
+const BUILD_ID='20260927-discovery-region-aware-official';
 const state=new DiscoveryState();
 const $=id=>document.getElementById(id);
 let verificationController=null;
@@ -124,7 +124,7 @@ async function scanExternalProvider(provider){
   cancelVerification();cancelExternalDiscovery();const selected=syncSelectedChannel();if(!selected){render();return;}const freshness=state.snapshot().freshness;
   const meta=provider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER?{label:'GitHub Public Playlists',lane:'githubPublicPlaylists',run:discoverGithubPublicPlaylists}:provider===RECENT_WEB_SEARCH_PROVIDER?{label:'Recent Web Search',lane:'recentWebSearch',run:discoverRecentWebSearch}:provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?{label:'STRM Discovery',lane:'strmSpecific',run:discoverStrmSpecific}:provider===OFFICIAL_PROVIDER_LANE?{label:'Official Sources',lane:'officialProvider',run:discoverOfficialProvider}:{label:'Curated Remote Feeds',lane:'curatedRemoteFeeds',run:discoverCuratedRemoteFeeds};
   externalController=new AbortController();state.setExternalScanning(`Searching ${meta.label} · requested window ${freshness}…`);render();
-  try{const result=await meta.run(selected,{freshness,signal:externalController.signal});const note=result.freshnessApplied?`freshness applied · ${result.freshnessRequested}`:provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?'live STRM resolution; publication age unavailable':provider===OFFICIAL_PROVIDER_LANE?'live official registry check; publication age unavailable':'live feed check; per-entry age unavailable';state.mergeExternalResult({provider,lane:meta.lane,candidates:result.candidates,count:result.candidates.length,message:`${meta.label} complete · ${result.candidates.length} candidate${result.candidates.length===1?'':'s'} · ${note}`});}
+  try{const result=await meta.run(selected,{freshness,signal:externalController.signal});const regionRestricted=provider===OFFICIAL_PROVIDER_LANE&&result.reports?.stages?.some(stage=>stage?.skipReason==='SERVER_REGION_RESTRICTED');const note=regionRestricted?'server verification region-restricted · cloud browser skipped · official page fallback kept':result.freshnessApplied?`freshness applied · ${result.freshnessRequested}`:provider===STRM_SPECIFIC_DISCOVERY_PROVIDER?'live STRM resolution; publication age unavailable':provider===OFFICIAL_PROVIDER_LANE?'live official registry check; publication age unavailable':'live feed check; per-entry age unavailable';state.mergeExternalResult({provider,lane:meta.lane,candidates:result.candidates,count:result.candidates.length,message:`${meta.label} complete · ${result.candidates.length} candidate${result.candidates.length===1?'':'s'} · ${note}`});}
   catch(error){if(error?.name==='AbortError')state.setExternalIdle(`${meta.label} cancelled`);else state.setExternalError(`${meta.label} failed · ${error?.message||error}`);}finally{externalController=null;render();}
 }
 async function scanExternalSources(){return scanExternalProvider(CURATED_REMOTE_FEEDS_PROVIDER);}
