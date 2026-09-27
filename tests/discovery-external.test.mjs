@@ -73,7 +73,7 @@ assert.equal(github.freshnessApplied,true);assert.equal(web.freshnessApplied,tru
 const fallbackOrder=[];
 const fallbackFetch=async(_url,options)=>{
   const body=JSON.parse(options.body);fallbackOrder.push(body.provider);
-  if(body.provider===OFFICIAL_API_RESOLVER_PROVIDER)return new Response(JSON.stringify({provider:body.provider,recognized:true,available:true,candidates:[],reports:{reason:'verification failed'}}),{status:200,headers:{'content-type':'application/json'}});
+  if(body.provider===OFFICIAL_API_RESOLVER_PROVIDER)return new Response(JSON.stringify({provider:body.provider,recognized:true,available:true,candidates:[],reports:{reason:'verification failed',restriction:null}}),{status:200,headers:{'content-type':'application/json'}});
   if(body.provider===BROWSER_RESOLVED_OFFICIAL_PROVIDER)return new Response(JSON.stringify({provider:body.provider,recognized:true,available:true,candidates:[],reports:{reason:'no promotable browser media'}}),{status:200,headers:{'content-type':'application/json'}});
   return new Response(JSON.stringify({provider:OFFICIAL_PROVIDER_LANE,recognized:true,available:true,candidates:[{channelName:'ERT1',sourceType:'direct',sourceUrl:'https://live.ertflix.gr/live/ert1',sourceOrigin:'official-registry:ERT',discoveryProvider:OFFICIAL_PROVIDER_LANE,candidateKind:'official-page',trustClass:'OFFICIAL',saveEligible:false,matchConfidence:'HIGH'}],reports:{pages:[]}}),{status:200,headers:{'content-type':'application/json'}});
 };
@@ -85,6 +85,22 @@ assert.equal(fallback.candidates.length,1);
 assert.equal(fallback.candidates[0].candidateKind,'official-page');
 assert.equal(fallback.candidates[0].saveEligible,false);
 assert.equal(fallback.candidates[0].verificationStatus,'UNVERIFIED');
+
+const restrictedOrder=[];
+const restrictedFetch=async(_url,options)=>{
+  const body=JSON.parse(options.body);restrictedOrder.push(body.provider);
+  if(body.provider===OFFICIAL_API_RESOLVER_PROVIDER)return new Response(JSON.stringify({provider:body.provider,recognized:true,available:true,candidates:[],reports:{restriction:{type:'SERVER_REGION_RESTRICTED',scope:'ERT_LIVE_GREECE',channelKey:'ert1',upstreamStatus:401},reason:'Official live source is region-restricted from the server-side verifier environment'}}),{status:200,headers:{'content-type':'application/json'}});
+  if(body.provider===BROWSER_RESOLVED_OFFICIAL_PROVIDER)throw new Error('browser resolver must be skipped for the same server-side region restriction');
+  return new Response(JSON.stringify({provider:OFFICIAL_PROVIDER_LANE,recognized:true,available:true,candidates:[{channelName:'ERT1',sourceType:'direct',sourceUrl:'https://live.ertflix.gr/live/ert1',sourceOrigin:'official-registry:ERT',discoveryProvider:OFFICIAL_PROVIDER_LANE,candidateKind:'official-page',trustClass:'OFFICIAL',saveEligible:false,matchConfidence:'HIGH'}],reports:{pages:[]}}),{status:200,headers:{'content-type':'application/json'}});
+};
+const restricted=await discoverOfficialProvider({id:'ert1',name:'ERT1'},{endpoint:'https://discovery.test',fetchImpl:restrictedFetch,freshness:'7d'});
+assert.deepEqual(restrictedOrder,[OFFICIAL_API_RESOLVER_PROVIDER,OFFICIAL_PROVIDER_LANE]);
+assert.deepEqual(restricted.officialResolutionPath,[OFFICIAL_API_RESOLVER_PROVIDER,BROWSER_RESOLVED_OFFICIAL_PROVIDER,OFFICIAL_PROVIDER_LANE]);
+assert.equal(restricted.reports.stages[1].provider,BROWSER_RESOLVED_OFFICIAL_PROVIDER);
+assert.equal(restricted.reports.stages[1].skipped,true);
+assert.equal(restricted.reports.stages[1].skipReason,'SERVER_REGION_RESTRICTED');
+assert.equal(restricted.selectedOfficialProvider,OFFICIAL_PROVIDER_LANE);
+assert.equal(restricted.candidates.length,1);
 
 const maliciousFetch=async(_url,options)=>{
   const body=JSON.parse(options.body);
