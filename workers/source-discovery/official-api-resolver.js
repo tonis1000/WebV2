@@ -32,7 +32,11 @@ function safeDiagnosticTarget(input){
   const pathname=String(input.pathname||'').trim();
   if(!host||!pathname||host.length>253||pathname.length>2048)return null;
   if(/[?#\r\n\0]/.test(host)||/[?#\r\n\0]/.test(pathname))return null;
-  return{host,pathname};
+  const rawKeys=Array.isArray(input.queryKeys)?input.queryKeys:[];
+  const queryKeys=[...new Set(rawKeys.map(k=>String(k||'').trim()).filter(k=>k&&k.length<=100&&!/[=&?#\r\n\0]/.test(k)))].sort().slice(0,20);
+  const rawCount=Number(input.queryCount);
+  const queryCount=Number.isInteger(rawCount)&&rawCount>=0&&rawCount<=100?rawCount:queryKeys.length;
+  return{host,pathname,queryCount,queryKeys};
 }
 function safeRedirectDiagnostics(input){
   if(!Array.isArray(input))return[];
