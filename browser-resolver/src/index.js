@@ -1,6 +1,6 @@
 import puppeteer from '@cloudflare/puppeteer';
 
-const VERSION='1.6';
+const VERSION='1.7';
 const DEFAULT_TIMEOUT_MS=10000;
 const MAX_TIMEOUT_MS=12000;
 const MAX_OBSERVATIONS=24;
@@ -20,7 +20,7 @@ function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 function normalizedChannelKey(channel={}){const value=String(channel.id||channel.originalId||channel.tvgId||channel.name||'');return value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,'');}
 function isHttpsRemote(raw=''){try{const u=new URL(String(raw||''));return u.protocol==='https:'&&u.hostname&&!u.hostname.endsWith('.local')&&u.hostname!=='localhost';}catch{return false;}}
 function responseKind(contentType='',url=''){const type=String(contentType||'').toLowerCase();if(type.includes('dash+xml')||/\.mpd(?:[?#]|$)/i.test(url))return'dash';if(type.includes('mpegurl')||type.includes('x-mpegurl')||/\.m3u8(?:[?#]|$)/i.test(url))return'hls';if(type.startsWith('video/')||/\.(?:mp4|webm)(?:[?#]|$)/i.test(url))return'video';return'';}
-function safeApiLocation(raw=''){try{const u=new URL(String(raw||''));return{host:u.hostname.toLowerCase().slice(0,253),pathname:u.pathname.slice(0,300)};}catch{return{host:'',pathname:''};}}
+function safeApiLocation(raw=''){try{const u=new URL(String(raw||''));return{host:u.hostname.toLowerCase().slice(0,253),pathname:u.pathname.slice(0,300),queryNames:[...new Set([...u.searchParams.keys()].map(v=>String(v).slice(0,80)))].sort().slice(0,20)};}catch{return{host:'',pathname:'',queryNames:[]};}}
 function safeJsonShape(value,depth=0){
   if(value===null)return{type:'null'};
   if(depth>=4)return{type:Array.isArray(value)?'array':typeof value};
@@ -52,8 +52,8 @@ async function resolve(body,env){
     page.on('response',response=>{
       const task=(async()=>{try{
         const url=response.url();const request=response.request();const status=response.status();const contentType=String(response.headers()?.['content-type']||'').split(';')[0].slice(0,120);const resourceType=String(request.resourceType()||'');const loc=safeApiLocation(url);
-        if((resourceType==='xhr'||resourceType==='fetch')&&apiObservations.length<MAX_API_OBSERVATIONS){const key=`${resourceType}|${request.method()}|${loc.host}|${loc.pathname}|${status}|${phase}`;if(loc.host&&!apiSeen.has(key)){apiSeen.add(key);apiObservations.push({phase,resourceType,method:request.method(),host:loc.host,pathname:loc.pathname,status,contentType});}}
-        if(loc.host==='live.ertflix.gr'&&loc.pathname==='/api/stream'&&status>=200&&status<300&&contentType.includes('application/json')&&apiResponseShapes.length<2){try{const text=await response.text();const parsed=JSON.parse(text);apiResponseShapes.push({host:loc.host,pathname:loc.pathname,status,contentType,shape:safeJsonShape(parsed)});}catch{apiResponseShapes.push({host:loc.host,pathname:loc.pathname,status,contentType,shape:{type:'unavailable'}});}}
+        if((resourceType==='xhr'||resourceType==='fetch')&&apiObservations.length<MAX_API_OBSERVATIONS){const key=`${resourceType}|${request.method()}|${loc.host}|${loc.pathname}|${status}|${phase}|${loc.queryNames.join(',')}`;if(loc.host&&!apiSeen.has(key)){apiSeen.add(key);apiObservations.push({phase,resourceType,method:request.method(),host:loc.host,pathname:loc.pathname,queryNames:loc.queryNames,status,contentType});}}
+        if(loc.host==='live.ertflix.gr'&&loc.pathname==='/api/stream'&&status>=200&&status<300&&contentType.includes('application/json')&&apiResponseShapes.length<2){try{const text=await response.text();const parsed=JSON.parse(text);apiResponseShapes.push({host:loc.host,pathname:loc.pathname,queryNames:loc.queryNames,status,contentType,shape:safeJsonShape(parsed)});}catch{apiResponseShapes.push({host:loc.host,pathname:loc.pathname,queryNames:loc.queryNames,status,contentType,shape:{type:'unavailable'}});}}
         const kind=responseKind(contentType,url);const chain=typeof request.redirectChain==='function'?request.redirectChain():[];const inherited=chain.some(parent=>mediaSeeds.has(parent.url()));const relevant=MEDIA_RE.test(url)||inherited||Boolean(kind);if(!relevant)return;let item=byUrl.get(url);if(!item){item=makeObservation(request,url);item.redirectedFrom=chain.length?chain[chain.length-1].url():'';byUrl.set(url,item);observations.push(item);}item.responseStatus=status;item.responseContentType=contentType;if(status>=200&&status<300&&isHttpsRemote(url)&&kind){item.finalUrl=url;item.finalStatus=status;item.finalContentType=contentType;item.finalKind=kind;}
       }catch{}})();
       pendingResponseTasks.add(task);task.finally(()=>pendingResponseTasks.delete(task));
