@@ -89,3 +89,5 @@ jobs:
           done
           echo "::error::Source Discovery v1.6 live verification failed. Check provider upstreams, verifier availability, official pages, BRAVE_API_KEY, and Browser Resolver capability reporting."
           exit 1
+
+# retrigger after Source Discovery v1.6 regression update
