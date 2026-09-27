@@ -82,14 +82,28 @@ jobs:
           console.log(JSON.stringify(safe,null,2));if(apiHttp!==200||!media)process.exit(20);
           NODE
           MEDIA_URL=$(cat news-media-url.txt)
-          FINAL_HTTP=$(curl --silent --show-error -L --max-redirs 5 -D news-final-headers.txt -o news-body.bin -w '%{http_code}' \
-            -H 'referer: https://live.ertflix.gr/live/ertnews' \
-            -H 'origin: https://live.ertflix.gr' \
-            -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' \
-            "$MEDIA_URL" || true)
+          FINAL_HTTP=$(curl --silent --show-error -L --max-redirs 5 -D news-final-headers.txt -o news-body.bin -w '%{http_code}' -H 'referer: https://live.ertflix.gr/live/ertnews' -H 'origin: https://live.ertflix.gr' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' "$MEDIA_URL" || true)
           node - <<'NODE' "$FINAL_HTTP"
           const fs=require('fs');const status=Number(process.argv[2]);const raw=fs.readFileSync('news-final-headers.txt','utf8');const blocks=raw.split(/\r?\n\r?\n/).filter(Boolean);const last=blocks.at(-1)||'';const names=[...new Set(last.split(/\r?\n/).map(line=>{const i=line.indexOf(':');return i>0?line.slice(0,i).trim().toLowerCase():'';}).filter(Boolean))].sort();
           const body=fs.existsSync('news-body.bin')?fs.readFileSync('news-body.bin'):Buffer.alloc(0);const prefix=body.subarray(0,256).toString('utf8');const looksDash=/<MPD\b/i.test(prefix)||prefix.includes('<?xml');
           console.log(JSON.stringify({channel:'ertnews',finalStatus:status,responseHeaderNames:names,hasSetCookie:names.includes('set-cookie'),hasWwwAuthenticate:names.includes('www-authenticate'),bodyBytes:body.length,looksDash},null,2));
           NODE
           rm -f news.json news-media-url.txt news-final-headers.txt news-body.bin
+
+      - name: Verify ERT News via production official API resolver
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error -X POST "$DISCOVERY_URL" \
+            -H 'content-type: application/json' \
+            --data '{"provider":"official-api-resolver","freshness":"7d","channel":{"name":"ERT News","id":"ertnews","originalId":"ERTNEWS","tvgId":"ERTNEWS"}}' > news-resolver.json
+          node - <<'NODE'
+          const fs=require('fs');const body=JSON.parse(fs.readFileSync('news-resolver.json','utf8'));
+          const v=body.reports?.verification||{};const safe={provider:body.provider,recognized:body.recognized,candidateCount:Array.isArray(body.candidates)?body.candidates.length:0,apiStatus:body.reports?.api?.status,verification:{transport:v.transport,serviceStatus:v.serviceStatus,status:v.status,verified:v.verified,lastHttpStatus:v.lastHttpStatus,mediaType:v.mediaType,drmDetected:v.drmDetected,redirects:v.redirects,finalTarget:v.finalTarget,finalResponseHeaders:v.finalResponseHeaders}};
+          console.log(JSON.stringify(safe,null,2));
+          if(body.provider!=='official-api-resolver'||body.recognized!==true)process.exit(30);
+          if(body.reports?.api?.status!==200)process.exit(31);
+          if(v.serviceStatus!==200||v.status!=='VERIFIED'||v.verified!==true||v.lastHttpStatus!==200)process.exit(32);
+          if(!Array.isArray(body.candidates)||body.candidates.length<1)process.exit(33);
+          NODE
+          rm -f news-resolver.json
