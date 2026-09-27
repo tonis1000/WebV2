@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import resolver,{ALLOWED_PAGE_HOSTS,MEDIA_RE,sanitizeHeaders,safePageUrl,timeoutFrom} from './src/index.js';
+import resolver,{ALLOWED_PAGE_HOSTS,MEDIA_RE,sanitizeHeaders,safePageUrl,timeoutFrom,clickSelectedChannelWithRetry} from './src/index.js';
 
 assert.ok(ALLOWED_PAGE_HOSTS.has('live.ertflix.gr'));
 assert.ok(ALLOWED_PAGE_HOSTS.has('www.antenna.gr'));
@@ -14,6 +14,12 @@ assert.deepEqual(sanitizeHeaders({
 }),{'User-Agent':'UA',Referer:'https://live.ertflix.gr/',Origin:'https://live.ertflix.gr'});
 assert.equal(timeoutFrom({capture:{timeoutMs:1}}),2500);
 assert.equal(timeoutFrom({capture:{timeoutMs:99999}}),12000);
+
+let attempts=0;
+const delayedPage={evaluate:async()=>{attempts+=1;return attempts>=3?{clicked:true,label:'ERT 1'}:{clicked:false,label:''};}};
+const delayedSelection=await clickSelectedChannelWithRetry(delayedPage,{id:'ert1'},4,1);
+assert.deepEqual(delayedSelection,{clicked:true,label:'ERT 1'});
+assert.equal(attempts,3);
 
 const status=await resolver.fetch(new Request('https://resolver.test/'),{});
 assert.equal(status.status,200);
