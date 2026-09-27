@@ -52,15 +52,19 @@ function chooseMediaUrl(body={}){
   }
   return'';
 }
-async function verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierUrl=DEFAULT_SOURCE_VERIFIER_URL,fetchImpl=fetch}){
-  const endpoint=safeVerifierUrl(verifierUrl);
+async function verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding=null,verifierUrl=DEFAULT_SOURCE_VERIFIER_URL,fetchImpl=fetch}){
+  const endpoint=verifierBinding?.fetch?null:safeVerifierUrl(verifierUrl);
   const {controller,timer}=withTimeout(OFFICIAL_API_VERIFIER_TIMEOUT_MS);
   const started=Date.now();
   try{
-    const response=await fetchImpl(endpoint.href,{method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json','accept':'application/json'},body:JSON.stringify({candidate:{candidateId:'official-api',sourceType,sourceUrl,requiredHeaders}})});
+    const init={method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json','accept':'application/json'},body:JSON.stringify({candidate:{candidateId:'official-api',sourceType,sourceUrl,requiredHeaders}})};
+    const response=verifierBinding?.fetch
+      ? await verifierBinding.fetch(new Request('https://source-verifier.internal/verify',init))
+      : await fetchImpl(endpoint.href,init);
     let payload={};try{payload=await response.json();}catch{}
     const result=Array.isArray(payload?.results)?payload.results[0]:null;
     return{
+      transport:verifierBinding?.fetch?'service-binding':'https',
       serviceStatus:response.status,
       status:String(result?.status||''),
       verified:Boolean(result?.verified),
@@ -70,7 +74,7 @@ async function verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierUrl=DEF
       detail:String(result?.detail||'').slice(0,200),
       elapsedMs:Date.now()-started,
     };
-  }catch(error){return{serviceStatus:error?.name==='AbortError'?408:0,status:error?.name==='AbortError'?'TIMEOUT':'FAILED',verified:false,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error?.message||String(error),elapsedMs:Date.now()-started};}
+  }catch(error){return{transport:verifierBinding?.fetch?'service-binding':'https',serviceStatus:error?.name==='AbortError'?408:0,status:error?.name==='AbortError'?'TIMEOUT':'FAILED',verified:false,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error?.message||String(error),elapsedMs:Date.now()-started};}
   finally{clearTimeout(timer);}
 }
 function mediaCandidate(channel,entry,key,sourceUrl,verification){return{
@@ -94,7 +98,7 @@ function mediaCandidate(channel,entry,key,sourceUrl,verification){return{
   verificationDetail:'Resolved from broadcaster-owned API and independently verified before promotion',
 };}
 
-export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=fetch,verifierFetch=fetch,verifierUrl=DEFAULT_SOURCE_VERIFIER_URL}={}){
+export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=fetch,verifierFetch=fetch,verifierBinding=null,verifierUrl=DEFAULT_SOURCE_VERIFIER_URL}={}){
   const key=channelKey(channel);const entry=key?OFFICIAL_PROVIDER_REGISTRY[key]:null;
   if(!entry||entry.owner!=='ERT'||!ERT_KEYS.has(key))return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:false,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key||'',owner:entry?.owner||'',api:null,verification:null,reason:'No supported official API resolver for channel'}};
   const descriptor=await fetchDescriptor(key,fetchImpl);
@@ -105,8 +109,8 @@ export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=f
   const apiReport={endpoint:'live.ertflix.gr/api/stream',queryNames:['channel'],status:descriptor.status,elapsedMs:descriptor.elapsedMs,mediaHost:safeSource.host,mediaPath:safeSource.pathname,mediaType:sourceType,error:descriptor.error};
   if(descriptor.status!==200||!sourceUrl||!strict)return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:null,reason:descriptor.status!==200?'Official API did not return HTTP 200':!sourceUrl?'Official API returned no media URL':'Official API media host is not allowlisted'}};
   const requiredHeaders=officialHeaders(key);
-  const verification=await verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierUrl,fetchImpl:verifierFetch});
-  const verificationReport={serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail};
+  const verification=await verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding,verifierUrl,fetchImpl:verifierFetch});
+  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail};
   const candidates=verification.verified&&verification.status==='VERIFIED'?[mediaCandidate(channel,entry,key,sourceUrl,verification)]:[];
   return{
     provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,
