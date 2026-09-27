@@ -38,6 +38,12 @@ function safeDiagnosticTarget(input){
   const queryCount=Number.isInteger(rawCount)&&rawCount>=0&&rawCount<=100?rawCount:queryKeys.length;
   return{host,pathname,queryCount,queryKeys};
 }
+function safeHeaderDiagnostics(input){
+  if(!input||typeof input!=='object')return{headerNames:[],hasSetCookie:false,hasWwwAuthenticate:false};
+  const names=Array.isArray(input.headerNames)?input.headerNames:[];
+  const headerNames=[...new Set(names.map(name=>String(name||'').trim().toLowerCase()).filter(name=>name&&name.length<=100&&!/[\r\n\0:]/.test(name)))].sort().slice(0,40);
+  return{headerNames,hasSetCookie:Boolean(input.hasSetCookie)&&headerNames.includes('set-cookie'),hasWwwAuthenticate:Boolean(input.hasWwwAuthenticate)&&headerNames.includes('www-authenticate')};
+}
 function safeRedirectDiagnostics(input){
   if(!Array.isArray(input))return[];
   const out=[];
@@ -45,7 +51,7 @@ function safeRedirectDiagnostics(input){
     const from=safeDiagnosticTarget(item?.from);const to=safeDiagnosticTarget(item?.to);
     const status=Number(item?.status);
     if(!from||!to||![301,302,303,307,308].includes(status))continue;
-    out.push({status,from,to,hostChanged:Boolean(item?.hostChanged)});
+    out.push({status,from,to,hostChanged:Boolean(item?.hostChanged),responseHeaders:safeHeaderDiagnostics(item?.responseHeaders)});
   }
   return out;
 }
@@ -99,9 +105,10 @@ async function verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding
       detail:String(result?.detail||'').slice(0,200),
       redirects:safeRedirectDiagnostics(result?.redirects),
       finalTarget:safeDiagnosticTarget(result?.finalTarget),
+      finalResponseHeaders:safeHeaderDiagnostics(result?.finalResponseHeaders),
       elapsedMs:Date.now()-started,
     };
-  }catch(error){return{transport:verifierBinding?.fetch?'service-binding':'https',serviceStatus:error?.name==='AbortError'?408:0,status:error?.name==='AbortError'?'TIMEOUT':'FAILED',verified:false,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error?.message||String(error),redirects:[],finalTarget:null,elapsedMs:Date.now()-started};}
+  }catch(error){return{transport:verifierBinding?.fetch?'service-binding':'https',serviceStatus:error?.name==='AbortError'?408:0,status:error?.name==='AbortError'?'TIMEOUT':'FAILED',verified:false,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error?.message||String(error),redirects:[],finalTarget:null,finalResponseHeaders:safeHeaderDiagnostics(null),elapsedMs:Date.now()-started};}
   finally{clearTimeout(timer);}
 }
 function mediaCandidate(channel,entry,key,sourceUrl,verification){return{
@@ -137,7 +144,7 @@ export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=f
   if(descriptor.status!==200||!sourceUrl||!strict)return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:null,reason:descriptor.status!==200?'Official API did not return HTTP 200':!sourceUrl?'Official API returned no media URL':'Official API media host is not allowlisted'}};
   const requiredHeaders=officialHeaders(key);
   const verification=await verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding,verifierUrl,fetchImpl:verifierFetch});
-  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail,redirects:verification.redirects,finalTarget:verification.finalTarget,requestContext:{userAgentFamily:'Chrome',refererHost:'live.ertflix.gr',refererPath:`/live/${key}`,originHost:'live.ertflix.gr',redirectMode:'manual-preserve-context'}};
+  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail,redirects:verification.redirects,finalTarget:verification.finalTarget,finalResponseHeaders:verification.finalResponseHeaders,requestContext:{userAgentFamily:'Chrome',refererHost:'live.ertflix.gr',refererPath:`/live/${key}`,originHost:'live.ertflix.gr',redirectMode:'manual-preserve-context'}};
   const candidates=verification.verified&&verification.status==='VERIFIED'?[mediaCandidate(channel,entry,key,sourceUrl,verification)]:[];
   return{
     provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,
