@@ -26,6 +26,25 @@ function safeVerifierUrl(raw=''){
 function safeMediaSummary(raw=''){
   try{const u=new URL(String(raw||''));return{host:u.hostname.toLowerCase(),pathname:u.pathname};}catch{return{host:'',pathname:''};}
 }
+function safeDiagnosticTarget(input){
+  if(!input||typeof input!=='object')return null;
+  const host=String(input.host||'').trim().toLowerCase();
+  const pathname=String(input.pathname||'').trim();
+  if(!host||!pathname||host.length>253||pathname.length>2048)return null;
+  if(/[?#\r\n\0]/.test(host)||/[?#\r\n\0]/.test(pathname))return null;
+  return{host,pathname};
+}
+function safeRedirectDiagnostics(input){
+  if(!Array.isArray(input))return[];
+  const out=[];
+  for(const item of input.slice(0,5)){
+    const from=safeDiagnosticTarget(item?.from);const to=safeDiagnosticTarget(item?.to);
+    const status=Number(item?.status);
+    if(!from||!to||![301,302,303,307,308].includes(status))continue;
+    out.push({status,from,to,hostChanged:Boolean(item?.hostChanged)});
+  }
+  return out;
+}
 function inferredType(url=''){
   if(/\.mpd(?:[?#]|$)/i.test(url))return'dash';
   if(/\.m3u8(?:[?#]|$)/i.test(url))return'hls';
@@ -74,9 +93,11 @@ async function verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding
       mediaType:String(result?.mediaType||''),
       drmDetected:Boolean(result?.drmDetected),
       detail:String(result?.detail||'').slice(0,200),
+      redirects:safeRedirectDiagnostics(result?.redirects),
+      finalTarget:safeDiagnosticTarget(result?.finalTarget),
       elapsedMs:Date.now()-started,
     };
-  }catch(error){return{transport:verifierBinding?.fetch?'service-binding':'https',serviceStatus:error?.name==='AbortError'?408:0,status:error?.name==='AbortError'?'TIMEOUT':'FAILED',verified:false,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error?.message||String(error),elapsedMs:Date.now()-started};}
+  }catch(error){return{transport:verifierBinding?.fetch?'service-binding':'https',serviceStatus:error?.name==='AbortError'?408:0,status:error?.name==='AbortError'?'TIMEOUT':'FAILED',verified:false,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error?.message||String(error),redirects:[],finalTarget:null,elapsedMs:Date.now()-started};}
   finally{clearTimeout(timer);}
 }
 function mediaCandidate(channel,entry,key,sourceUrl,verification){return{
@@ -112,7 +133,7 @@ export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=f
   if(descriptor.status!==200||!sourceUrl||!strict)return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:null,reason:descriptor.status!==200?'Official API did not return HTTP 200':!sourceUrl?'Official API returned no media URL':'Official API media host is not allowlisted'}};
   const requiredHeaders=officialHeaders(key);
   const verification=await verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding,verifierUrl,fetchImpl:verifierFetch});
-  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail,requestContext:{userAgentFamily:'Chrome',refererHost:'live.ertflix.gr',refererPath:`/live/${key}`,originHost:'live.ertflix.gr',redirectMode:'follow'}};
+  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail,redirects:verification.redirects,finalTarget:verification.finalTarget,requestContext:{userAgentFamily:'Chrome',refererHost:'live.ertflix.gr',refererPath:`/live/${key}`,originHost:'live.ertflix.gr',redirectMode:'manual-preserve-context'}};
   const candidates=verification.verified&&verification.status==='VERIFIED'?[mediaCandidate(channel,entry,key,sourceUrl,verification)]:[];
   return{
     provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,
