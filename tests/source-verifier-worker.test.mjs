@@ -9,7 +9,7 @@ try{
     if(value.includes('good.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     if(value.includes('dead.test'))return new Response('gone',{status:404,headers:{'content-type':'text/plain'}});
     if(value.includes('drm.test'))return new Response('<?xml version="1.0"?><MPD><Period><ContentProtection schemeIdUri="urn:uuid:test"/></Period></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
-    if(value.includes('redirect.test/start.mpd'))return new Response(null,{status:307,headers:{location:'https://cdn.test/final.mpd?token=super-secret'}});
+    if(value.includes('redirect.test/start.mpd'))return new Response(null,{status:307,headers:{location:'https://cdn.test/final.mpd?token=super-secret&expires=999999'}});
     if(value.includes('cdn.test/final.mpd'))return new Response('denied',{status:401,headers:{'content-type':'text/plain'}});
     return new Response('nope',{status:500});
   };
@@ -40,9 +40,10 @@ try{
   assert.equal(redirected.status,'FAILED');
   assert.equal(redirected.lastHttpStatus,401);
   assert.equal(redirected.redirects.length,1);
-  assert.deepEqual(redirected.redirects[0],{status:307,from:{host:'redirect.test',pathname:'/start.mpd'},to:{host:'cdn.test',pathname:'/final.mpd'},hostChanged:true});
-  assert.deepEqual(redirected.finalTarget,{host:'cdn.test',pathname:'/final.mpd'});
+  assert.deepEqual(redirected.redirects[0],{status:307,from:{host:'redirect.test',pathname:'/start.mpd',queryCount:1,queryKeys:['initial']},to:{host:'cdn.test',pathname:'/final.mpd',queryCount:2,queryKeys:['expires','token']},hostChanged:true});
+  assert.deepEqual(redirected.finalTarget,{host:'cdn.test',pathname:'/final.mpd',queryCount:2,queryKeys:['expires','token']});
   assert.equal(JSON.stringify(redirected).includes('super-secret'),false);
+  assert.equal(JSON.stringify(redirected).includes('999999'),false);
   assert.equal(JSON.stringify(redirected).includes('initial=hidden'),false);
 
   const tooMany=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidates:Array.from({length:5},(_,i)=>({candidateId:String(i),sourceType:'hls',sourceUrl:`https://good.test/${i}.m3u8`}))})}),{});
