@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict';
+import {
+  OFFICIAL_API_RESOLVER_PROVIDER,
+  discoverOfficialApi,
+  chooseMediaUrl,
+  inferredType,
+  safeMediaSummary,
+} from '../workers/source-discovery/official-api-resolver.js';
+
+assert.equal(OFFICIAL_API_RESOLVER_PROVIDER,'official-api-resolver');
+assert.equal(inferredType('https://example.test/live.mpd'),'dash');
+assert.equal(inferredType('https://example.test/live.m3u8'),'hls');
+assert.equal(chooseMediaUrl({primaryUrl:'https://a.test/a.mpd',url:'https://b.test/b.mpd'}),'https://a.test/a.mpd');
+assert.deepEqual(safeMediaSummary('https://ert-ucdn.broadpeak-aas.com/bpk-tv/ERT1/default/index.mpd?secret=drop'),{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd'});
+
+const sourceUrl='https://ert-ucdn.broadpeak-aas.com/bpk-tv/ERT1/default/index.mpd';
+const apiFetch=async(input,options={})=>{
+  const url=new URL(String(input));
+  assert.equal(url.hostname,'live.ertflix.gr');
+  assert.equal(url.pathname,'/api/stream');
+  assert.equal(url.searchParams.get('channel'),'ert1');
+  assert.equal(options.headers.Referer,'https://live.ertflix.gr/live/ert1');
+  return new Response(JSON.stringify({url:sourceUrl,primaryUrl:sourceUrl,fallbackUrl:null,type:'tv',source:'official',updatedAt:'2026-09-27T00:00:00.000Z'}),{status:200,headers:{'content-type':'application/json'}});
+};
+const verifiedFetch=async(input,options={})=>{
+  assert.equal(new URL(String(input)).pathname,'/verify');
+  const body=JSON.parse(options.body);
+  assert.equal(body.candidate.sourceType,'dash');
+  assert.equal(body.candidate.sourceUrl,sourceUrl);
+  assert.deepEqual(Object.keys(body.candidate.requiredHeaders).sort(),['Referer','User-Agent']);
+  return new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'VERIFIED',verified:true,lastHttpStatus:200,mediaType:'dash',drmDetected:false,detail:'Manifest/media probe succeeded'}]}),{status:200,headers:{'content-type':'application/json'}});
+};
+
+const verified=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:verifiedFetch,verifierUrl:'https://verifier.example.test/verify'});
+assert.equal(verified.provider,OFFICIAL_API_RESOLVER_PROVIDER);
+assert.equal(verified.recognized,true);
+assert.equal(verified.candidates.length,1);
+assert.equal(verified.candidates[0].sourceType,'dash');
+assert.equal(verified.candidates[0].trustClass,'OFFICIAL');
+assert.equal(verified.candidates[0].saveEligible,true);
+assert.equal(verified.reports.api.mediaHost,'ert-ucdn.broadpeak-aas.com');
+assert.equal(verified.reports.api.mediaPath,'/bpk-tv/ERT1/default/index.mpd');
+assert.equal(verified.reports.verification.status,'VERIFIED');
+
+const failedFetch=async()=>new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'FAILED',verified:false,lastHttpStatus:401,mediaType:'',drmDetected:false,detail:'Upstream HTTP 401'}]}),{status:200,headers:{'content-type':'application/json'}});
+const failed=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:failedFetch,verifierUrl:'https://verifier.example.test/verify'});
+assert.equal(failed.candidates.length,0);
+assert.equal(failed.reports.verification.verified,false);
+assert.equal(failed.reports.verification.lastHttpStatus,401);
+assert.match(failed.reports.reason,/not promoted/i);
+
+const badHostFetch=async()=>new Response(JSON.stringify({primaryUrl:'https://evil.example/live.mpd'}),{status:200,headers:{'content-type':'application/json'}});
+const badHost=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:badHostFetch,verifierFetch:async()=>{throw new Error('must not verify');}});
+assert.equal(badHost.candidates.length,0);
+assert.match(badHost.reports.reason,/not allowlisted/i);
+
+const unknown=await discoverOfficialApi({channel:{name:'MEGA',id:'mega'},fetchImpl:async()=>{throw new Error('must not fetch');}});
+assert.equal(unknown.recognized,false);
+assert.equal(unknown.candidates.length,0);
+
+console.log('official API resolver provider tests PASS');
