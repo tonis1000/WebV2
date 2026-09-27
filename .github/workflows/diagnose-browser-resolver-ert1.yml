@@ -47,6 +47,7 @@ jobs:
               status:x.status,
               contentType:x.contentType
             })),
+            apiResponseShapes:body.apiResponseShapes||[],
             mediaObservations:(body.observations||[]).map(x=>({
               resourceType:x.resourceType,
               host:(()=>{try{return new URL(x.url).hostname}catch{return''}})(),
@@ -60,6 +61,6 @@ jobs:
           };
           console.log(JSON.stringify(safe,null,2));
           if(body.service!=='WebTV Browser Resolver')process.exit(1);
-          if(body.version!=='1.5')process.exit(2);
+          if(body.version!=='1.6')process.exit(2);
           NODE
           test "$HTTP" = "200"
