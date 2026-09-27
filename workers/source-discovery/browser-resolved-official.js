@@ -79,8 +79,30 @@ function mediaCandidate(channel,entry,observation,pageUrl,{provisional=false}={}
       : 'Observed from an allowlisted official page after browser execution; verifier still required',
   };
 }
+function safeVideo(input){
+  if(!input||typeof input!=='object')return null;
+  const host=String(input.currentSrcHost||'').trim().toLowerCase();
+  return{
+    paused:Boolean(input.paused),
+    ended:Boolean(input.ended),
+    readyState:Math.max(0,Math.min(4,Number(input.readyState)||0)),
+    networkState:Math.max(0,Math.min(3,Number(input.networkState)||0)),
+    currentTime:Math.max(0,Math.min(86400,Number(input.currentTime)||0)),
+    currentSrcHost:host.slice(0,253),
+    errorCode:Math.max(0,Math.min(9,Number(input.errorCode)||0)),
+  };
+}
 function safeDiagnostics(value={}){
-  const side=input=>({title:String(input?.title||'').slice(0,120),pathname:String(input?.pathname||'').slice(0,200),videoCount:Number(input?.videoCount)||0,iframeCount:Number(input?.iframeCount)||0,buttonCount:Number(input?.buttonCount)||0,iframeHosts:Array.isArray(input?.iframeHosts)?input.iframeHosts.map(String).slice(0,8):[],buttonLabels:Array.isArray(input?.buttonLabels)?input.buttonLabels.map(v=>String(v).slice(0,80)).slice(0,12):[]});
+  const side=input=>({
+    title:String(input?.title||'').slice(0,120),
+    pathname:String(input?.pathname||'').slice(0,200),
+    videoCount:Number(input?.videoCount)||0,
+    iframeCount:Number(input?.iframeCount)||0,
+    buttonCount:Number(input?.buttonCount)||0,
+    iframeHosts:Array.isArray(input?.iframeHosts)?input.iframeHosts.map(String).slice(0,8):[],
+    buttonLabels:Array.isArray(input?.buttonLabels)?input.buttonLabels.map(v=>String(v).slice(0,80)).slice(0,12):[],
+    video:safeVideo(input?.video),
+  });
   return{before:side(value?.before),selection:{clicked:Boolean(value?.selection?.clicked),label:String(value?.selection?.label||'').slice(0,80)},after:side(value?.after)};
 }
 function safeHost(raw=''){try{return new URL(String(raw||'')).hostname.toLowerCase();}catch{return'';}}
@@ -151,4 +173,4 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Official pages are resolved live in a browser backend; discovery time is not publication time.',limits:{timeoutMs:BROWSER_RESOLVER_TIMEOUT_MS,maxCandidates:BROWSER_RESOLVER_MAX_CANDIDATES},candidates,reports:{pages:reports,registryKey:key,owner:entry.owner}};
 }
 
-export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary, candidateUrl, candidateType, responseSucceeded };
+export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary, candidateUrl, candidateType, responseSucceeded, safeVideo };
