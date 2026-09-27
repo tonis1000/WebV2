@@ -65,3 +65,33 @@ jobs:
           if(body.version!=='1.7')process.exit(2);
           NODE
           test "$HTTP" = "200"
+
+      - name: Validate direct official ERT stream API
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTTP=$(curl --silent --show-error -o stream.json -w '%{http_code}' \
+            -H 'accept: application/json' \
+            -H 'referer: https://live.ertflix.gr/live/ert1' \
+            -H 'user-agent: Mozilla/5.0 WebTV-OfficialApiDiagnostic/1.0' \
+            'https://live.ertflix.gr/api/stream?channel=ert1')
+          node - <<'NODE' "$HTTP"
+          const fs=require('fs');
+          const http=Number(process.argv[2]);
+          let body={};
+          try{body=JSON.parse(fs.readFileSync('stream.json','utf8'));}catch{}
+          const safeUrl=value=>{try{const u=new URL(String(value||''));return{host:u.hostname,pathname:u.pathname}}catch{return{host:'',pathname:''}}};
+          const safe={
+            http,
+            fields:body&&typeof body==='object'&&!Array.isArray(body)?Object.keys(body).sort():[],
+            url:safeUrl(body?.url),
+            primaryUrl:safeUrl(body?.primaryUrl),
+            fallbackUrl:safeUrl(body?.fallbackUrl),
+            type:typeof body?.type,
+            source:typeof body?.source,
+            updatedAt:typeof body?.updatedAt
+          };
+          console.log(JSON.stringify(safe,null,2));
+          if(http!==200)process.exit(3);
+          if(!safe.primaryUrl.host&&!safe.url.host)process.exit(4);
+          NODE
