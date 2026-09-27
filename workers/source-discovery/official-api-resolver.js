@@ -7,6 +7,7 @@ export const DEFAULT_SOURCE_VERIFIER_URL='https://webtv-source-verifier.atonis.w
 
 const ERT_API_BASE='https://live.ertflix.gr/api/stream';
 const ERT_KEYS=new Set(['ert1','ert2','ert3','ertnews']);
+const ERT_GREECE_LIVE_KEYS=new Set(['ert1','ert2','ert3']);
 const ERT_BROWSER_UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36';
 
 function withTimeout(ms){
@@ -65,6 +66,11 @@ function officialHeaders(key){return{
   'Referer':`https://live.ertflix.gr/live/${key}`,
   'Origin':'https://live.ertflix.gr',
 };}
+function regionRestriction(key,verification){
+  const status=Number(verification?.lastHttpStatus);
+  if(!ERT_GREECE_LIVE_KEYS.has(key)||verification?.verified||![401,403,404].includes(status))return null;
+  return{type:'SERVER_REGION_RESTRICTED',scope:'ERT_LIVE_GREECE',channelKey:key,upstreamStatus:status,note:'Broadcaster policy restricts this live channel by geographic rights; server-side verification may run outside the permitted region.'};
+}
 async function fetchDescriptor(key,fetchImpl=fetch){
   const url=new URL(ERT_API_BASE);url.searchParams.set('channel',key);
   const {controller,timer}=withTimeout(OFFICIAL_API_TIMEOUT_MS);
@@ -134,24 +140,25 @@ function mediaCandidate(channel,entry,key,sourceUrl,verification){return{
 
 export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=fetch,verifierFetch=fetch,verifierBinding=null,verifierUrl=DEFAULT_SOURCE_VERIFIER_URL}={}){
   const key=channelKey(channel);const entry=key?OFFICIAL_PROVIDER_REGISTRY[key]:null;
-  if(!entry||entry.owner!=='ERT'||!ERT_KEYS.has(key))return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:false,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key||'',owner:entry?.owner||'',api:null,verification:null,reason:'No supported official API resolver for channel'}};
+  if(!entry||entry.owner!=='ERT'||!ERT_KEYS.has(key))return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:false,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key||'',owner:entry?.owner||'',api:null,verification:null,restriction:null,reason:'No supported official API resolver for channel'}};
   const descriptor=await fetchDescriptor(key,fetchImpl);
   const sourceUrl=chooseMediaUrl(descriptor.body);
   const sourceType=inferredType(sourceUrl);
   const safeSource=safeMediaSummary(sourceUrl);
   const strict=Boolean(sourceUrl)&&hostAllowed(sourceUrl,entry.mediaHosts||[]);
   const apiReport={endpoint:'live.ertflix.gr/api/stream',queryNames:['channel'],status:descriptor.status,elapsedMs:descriptor.elapsedMs,mediaHost:safeSource.host,mediaPath:safeSource.pathname,mediaType:sourceType,error:descriptor.error};
-  if(descriptor.status!==200||!sourceUrl||!strict)return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:null,reason:descriptor.status!==200?'Official API did not return HTTP 200':!sourceUrl?'Official API returned no media URL':'Official API media host is not allowlisted'}};
+  if(descriptor.status!==200||!sourceUrl||!strict)return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:null,restriction:null,reason:descriptor.status!==200?'Official API did not return HTTP 200':!sourceUrl?'Official API returned no media URL':'Official API media host is not allowlisted'}};
   const requiredHeaders=officialHeaders(key);
   const verification=await verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding,verifierUrl,fetchImpl:verifierFetch});
+  const restriction=regionRestriction(key,verification);
   const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail,redirects:verification.redirects,finalTarget:verification.finalTarget,finalResponseHeaders:verification.finalResponseHeaders,requestContext:{userAgentFamily:'Chrome',refererHost:'live.ertflix.gr',refererPath:`/live/${key}`,originHost:'live.ertflix.gr',redirectMode:'manual-preserve-context'}};
   const candidates=verification.verified&&verification.status==='VERIFIED'?[mediaCandidate(channel,entry,key,sourceUrl,verification)]:[];
   return{
     provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,
     freshnessNote:'Official API is queried live; media URLs are promoted only after independent verification.',
     limits:{apiTimeoutMs:OFFICIAL_API_TIMEOUT_MS,verifierTimeoutMs:OFFICIAL_API_VERIFIER_TIMEOUT_MS,maxCandidates:1},
-    candidates,reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:verificationReport,reason:candidates.length?'Verified official media source':'Official API source was not promoted because verification did not succeed'},
+    candidates,reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:verificationReport,restriction,reason:candidates.length?'Verified official media source':restriction?'Official live source is region-restricted from the server-side verifier environment':'Official API source was not promoted because verification did not succeed'},
   };
 }
 
-export { ERT_API_BASE, ERT_KEYS, ERT_BROWSER_UA, safeVerifierUrl, safeMediaSummary, inferredType, officialHeaders, chooseMediaUrl, fetchDescriptor, verifyMedia };
+export { ERT_API_BASE, ERT_KEYS, ERT_GREECE_LIVE_KEYS, ERT_BROWSER_UA, safeVerifierUrl, safeMediaSummary, inferredType, officialHeaders, chooseMediaUrl, fetchDescriptor, verifyMedia, regionRestriction };
