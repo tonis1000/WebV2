@@ -34,6 +34,7 @@ function inferredType(url=''){
 function officialHeaders(key){return{
   'User-Agent':ERT_BROWSER_UA,
   'Referer':`https://live.ertflix.gr/live/${key}`,
+  'Origin':'https://live.ertflix.gr',
 };}
 async function fetchDescriptor(key,fetchImpl=fetch){
   const url=new URL(ERT_API_BASE);url.searchParams.set('channel',key);
@@ -111,7 +112,7 @@ export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=f
   if(descriptor.status!==200||!sourceUrl||!strict)return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:null,reason:descriptor.status!==200?'Official API did not return HTTP 200':!sourceUrl?'Official API returned no media URL':'Official API media host is not allowlisted'}};
   const requiredHeaders=officialHeaders(key);
   const verification=await verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding,verifierUrl,fetchImpl:verifierFetch});
-  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail,requestContext:{userAgentFamily:'Chrome',refererHost:'live.ertflix.gr',refererPath:`/live/${key}`,originHost:'',redirectMode:'follow'}};
+  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail,requestContext:{userAgentFamily:'Chrome',refererHost:'live.ertflix.gr',refererPath:`/live/${key}`,originHost:'live.ertflix.gr',redirectMode:'follow'}};
   const candidates=verification.verified&&verification.status==='VERIFIED'?[mediaCandidate(channel,entry,key,sourceUrl,verification)]:[];
   return{
     provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,
