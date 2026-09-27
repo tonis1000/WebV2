@@ -1,0 +1,116 @@
+import { OFFICIAL_PROVIDER_REGISTRY, channelKey, hostAllowed } from './official-provider-lane.js';
+
+export const OFFICIAL_API_RESOLVER_PROVIDER='official-api-resolver';
+export const OFFICIAL_API_TIMEOUT_MS=6000;
+export const OFFICIAL_API_VERIFIER_TIMEOUT_MS=7000;
+export const DEFAULT_SOURCE_VERIFIER_URL='https://webtv-source-verifier.atonis.workers.dev/verify';
+
+const ERT_API_BASE='https://live.ertflix.gr/api/stream';
+const ERT_KEYS=new Set(['ert1','ert2','ert3','ertnews']);
+
+function withTimeout(ms){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(new DOMException('timeout','AbortError')),ms);
+  return{controller,timer};
+}
+function safeVerifierUrl(raw=''){
+  const u=new URL(String(raw||DEFAULT_SOURCE_VERIFIER_URL).trim());
+  if(u.protocol!=='https:')throw new Error('Verifier must use HTTPS');
+  if(!u.hostname||u.hostname==='localhost'||u.hostname.endsWith('.local'))throw new Error('Verifier target rejected');
+  return u;
+}
+function safeMediaSummary(raw=''){
+  try{const u=new URL(String(raw||''));return{host:u.hostname.toLowerCase(),pathname:u.pathname};}catch{return{host:'',pathname:''};}
+}
+function inferredType(url=''){
+  if(/\.mpd(?:[?#]|$)/i.test(url))return'dash';
+  if(/\.m3u8(?:[?#]|$)/i.test(url))return'hls';
+  return'direct';
+}
+function officialHeaders(key){return{
+  'User-Agent':'Mozilla/5.0 WebTV-OfficialApiResolver/1.0',
+  'Referer':`https://live.ertflix.gr/live/${key}`,
+};}
+async function fetchDescriptor(key,fetchImpl=fetch){
+  const url=new URL(ERT_API_BASE);url.searchParams.set('channel',key);
+  const {controller,timer}=withTimeout(OFFICIAL_API_TIMEOUT_MS);
+  const started=Date.now();
+  try{
+    const response=await fetchImpl(url.href,{method:'GET',redirect:'follow',cache:'no-store',signal:controller.signal,headers:{accept:'application/json',...officialHeaders(key)}});
+    let body={};try{body=await response.json();}catch{}
+    return{status:response.status,elapsedMs:Date.now()-started,body,error:''};
+  }catch(error){return{status:error?.name==='AbortError'?408:0,elapsedMs:Date.now()-started,body:{},error:error?.message||String(error)};}
+  finally{clearTimeout(timer);}
+}
+function chooseMediaUrl(body={}){
+  for(const value of [body?.primaryUrl,body?.url,body?.fallbackUrl]){
+    const text=String(value||'').trim();
+    if(text)return text;
+  }
+  return'';
+}
+async function verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierUrl=DEFAULT_SOURCE_VERIFIER_URL,fetchImpl=fetch}){
+  const endpoint=safeVerifierUrl(verifierUrl);
+  const {controller,timer}=withTimeout(OFFICIAL_API_VERIFIER_TIMEOUT_MS);
+  const started=Date.now();
+  try{
+    const response=await fetchImpl(endpoint.href,{method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json','accept':'application/json'},body:JSON.stringify({candidate:{candidateId:'official-api',sourceType,sourceUrl,requiredHeaders}})});
+    let payload={};try{payload=await response.json();}catch{}
+    const result=Array.isArray(payload?.results)?payload.results[0]:null;
+    return{
+      serviceStatus:response.status,
+      status:String(result?.status||''),
+      verified:Boolean(result?.verified),
+      lastHttpStatus:Number.isFinite(Number(result?.lastHttpStatus))?Number(result.lastHttpStatus):null,
+      mediaType:String(result?.mediaType||''),
+      drmDetected:Boolean(result?.drmDetected),
+      detail:String(result?.detail||'').slice(0,200),
+      elapsedMs:Date.now()-started,
+    };
+  }catch(error){return{serviceStatus:error?.name==='AbortError'?408:0,status:error?.name==='AbortError'?'TIMEOUT':'FAILED',verified:false,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error?.message||String(error),elapsedMs:Date.now()-started};}
+  finally{clearTimeout(timer);}
+}
+function mediaCandidate(channel,entry,key,sourceUrl,verification){return{
+  channelName:String(channel.name||''),
+  sourceType:inferredType(sourceUrl),
+  sourceUrl,
+  requiredHeaders:officialHeaders(key),
+  sourceOrigin:`official-api:${entry.owner}`,
+  discoveryProvider:OFFICIAL_API_RESOLVER_PROVIDER,
+  discoveredAt:new Date().toISOString(),
+  freshness:'live-official-api',
+  matchConfidence:'HIGH',
+  candidateKind:'media',
+  trustClass:'OFFICIAL',
+  saveEligible:true,
+  officialPageUrl:`https://live.ertflix.gr/live/${key}`,
+  browserResponseStatus:null,
+  verificationStatus:verification.status,
+  verificationHttpStatus:verification.lastHttpStatus,
+  verificationMediaType:verification.mediaType,
+  verificationDetail:'Resolved from broadcaster-owned API and independently verified before promotion',
+};}
+
+export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=fetch,verifierFetch=fetch,verifierUrl=DEFAULT_SOURCE_VERIFIER_URL}={}){
+  const key=channelKey(channel);const entry=key?OFFICIAL_PROVIDER_REGISTRY[key]:null;
+  if(!entry||entry.owner!=='ERT'||!ERT_KEYS.has(key))return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:false,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key||'',owner:entry?.owner||'',api:null,verification:null,reason:'No supported official API resolver for channel'}};
+  const descriptor=await fetchDescriptor(key,fetchImpl);
+  const sourceUrl=chooseMediaUrl(descriptor.body);
+  const sourceType=inferredType(sourceUrl);
+  const safeSource=safeMediaSummary(sourceUrl);
+  const strict=Boolean(sourceUrl)&&hostAllowed(sourceUrl,entry.mediaHosts||[]);
+  const apiReport={endpoint:'live.ertflix.gr/api/stream',queryNames:['channel'],status:descriptor.status,elapsedMs:descriptor.elapsedMs,mediaHost:safeSource.host,mediaPath:safeSource.pathname,mediaType:sourceType,error:descriptor.error};
+  if(descriptor.status!==200||!sourceUrl||!strict)return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:null,reason:descriptor.status!==200?'Official API did not return HTTP 200':!sourceUrl?'Official API returned no media URL':'Official API media host is not allowlisted'}};
+  const requiredHeaders=officialHeaders(key);
+  const verification=await verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierUrl,fetchImpl:verifierFetch});
+  const verificationReport={serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail};
+  const candidates=verification.verified&&verification.status==='VERIFIED'?[mediaCandidate(channel,entry,key,sourceUrl,verification)]:[];
+  return{
+    provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,
+    freshnessNote:'Official API is queried live; media URLs are promoted only after independent verification.',
+    limits:{apiTimeoutMs:OFFICIAL_API_TIMEOUT_MS,verifierTimeoutMs:OFFICIAL_API_VERIFIER_TIMEOUT_MS,maxCandidates:1},
+    candidates,reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:verificationReport,reason:candidates.length?'Verified official media source':'Official API source was not promoted because verification did not succeed'},
+  };
+}
+
+export { ERT_API_BASE, ERT_KEYS, safeVerifierUrl, safeMediaSummary, inferredType, officialHeaders, chooseMediaUrl, fetchDescriptor, verifyMedia };
