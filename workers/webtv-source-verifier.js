@@ -38,7 +38,8 @@ function safeHttpUrl(raw=''){
 }
 function safeUrlSummary(value){
   const u=value instanceof URL?value:safeHttpUrl(value);
-  return{host:u.hostname.toLowerCase(),pathname:u.pathname||'/'};
+  const queryKeys=[...new Set([...u.searchParams.keys()].map(k=>String(k).slice(0,100)).filter(Boolean))].sort().slice(0,20);
+  return{host:u.hostname.toLowerCase(),pathname:u.pathname||'/',queryCount:[...u.searchParams.keys()].length,queryKeys};
 }
 function inferredType(url='',explicit=''){
   const type=String(explicit||'').toLowerCase();
