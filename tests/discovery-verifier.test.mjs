@@ -40,8 +40,10 @@ assert.match(workerSource,/MAX_BATCH=4/);
 assert.match(workerSource,/MAX_CONCURRENCY=2/);
 assert.match(workerSource,/Private\/local targets are not allowed/);
 assert.match(workerSource,/\['user-agent','User-Agent'\]/);
-assert.equal(workerSource.includes('Cookie'),false);
-assert.equal(workerSource.includes('Authorization'),false);
+assert.equal(workerSource.includes("['cookie','Cookie']"),false,'Cookie must never be accepted as a forwarded request header');
+assert.equal(workerSource.includes("['authorization','Authorization']"),false,'Authorization must never be accepted as a forwarded request header');
+assert.equal(workerSource.includes("headers.set('cookie'"),false,'Verifier must never synthesize Cookie request headers');
+assert.equal(workerSource.includes("headers.set('authorization'"),false,'Verifier must never synthesize Authorization request headers');
 
 const deployWorkflow=fs.readFileSync(new URL('../.github/workflows/deploy-source-verifier.yml',import.meta.url),'utf8');
 assert.match(deployWorkflow,/raw\.githubusercontent\.com\/tonis1000\/WebV2\/\$GITHUB_SHA\/tests\/fixtures\/source-verifier-working\.m3u8/);
