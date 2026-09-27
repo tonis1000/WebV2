@@ -164,7 +164,7 @@ async function discover(request,env={}){
   if(provider===OFFICIAL_API_RESOLVER_PROVIDER){
     if(String(env.DISABLE_OFFICIAL_API_RESOLVER||'')==='1')return json({error:'Provider disabled',provider:OFFICIAL_API_RESOLVER_PROVIDER},503);
     try{
-      const result=await discoverOfficialApi({channel,freshness,verifierUrl:env.SOURCE_VERIFIER_URL});
+      const result=await discoverOfficialApi({channel,freshness,verifierBinding:env.SOURCE_VERIFIER,verifierUrl:env.SOURCE_VERIFIER_URL});
       return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});
     }catch(error){return json({error:error?.message||String(error),provider:OFFICIAL_API_RESOLVER_PROVIDER},502);}
   }
