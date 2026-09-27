@@ -12,21 +12,24 @@ permissions:
 
 env:
   DISCOVERY_URL: https://webtv-source-discovery.atonis.workers.dev/discover
+  VERIFIER_URL: https://webtv-source-verifier.atonis.workers.dev/verify
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Resolve ERT1 through Source Discovery browser lane
+      - name: Resolve and verify ERT1 browser candidates
         shell: bash
         run: |
           set -euo pipefail
-          RESPONSE=$(curl --fail --silent --show-error -X POST "$DISCOVERY_URL" \
+          curl --fail --silent --show-error -X POST "$DISCOVERY_URL" \
             -H 'content-type: application/json' \
-            --data '{"provider":"browser-resolved-official","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1","tvgId":"ERT1"}}')
-          node - <<'NODE' "$RESPONSE"
-          const body=JSON.parse(process.argv[2]);
+            --data '{"provider":"browser-resolved-official","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1","tvgId":"ERT1"}}' > discovery.json
+
+          node - <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync('discovery.json','utf8'));
           const safe={
             provider:body.provider,
             recognized:body.recognized,
@@ -47,4 +50,30 @@ jobs:
           if(!Array.isArray(body.reports?.pages) || body.reports.pages.length===0) process.exit(3);
           if(!Array.isArray(body.candidates) || body.candidates.length===0) process.exit(4);
           if(!body.candidates.some(c=>['hls','dash','video'].includes(c.sourceType))) process.exit(5);
+          const payload={candidates:body.candidates.slice(0,4).map((c,i)=>({candidateId:`ert1-browser-${i+1}`,sourceType:c.sourceType,sourceUrl:c.sourceUrl,requiredHeaders:c.requiredHeaders||{}}))};
+          fs.writeFileSync('verify-request.json',JSON.stringify(payload));
+          NODE
+
+          curl --fail --silent --show-error -X POST "$VERIFIER_URL" \
+            -H 'content-type: application/json' \
+            --data @verify-request.json > verify.json
+
+          node - <<'NODE'
+          const fs=require('fs');
+          const discovery=JSON.parse(fs.readFileSync('discovery.json','utf8'));
+          const verification=JSON.parse(fs.readFileSync('verify.json','utf8'));
+          const safe=(verification.results||[]).map((r,i)=>({
+            candidateId:r.candidateId,
+            host:(()=>{try{return new URL(discovery.candidates?.[i]?.sourceUrl||'').hostname}catch{return''}})(),
+            status:r.status,
+            verified:Boolean(r.verified),
+            httpStatus:r.lastHttpStatus,
+            mediaType:r.mediaType,
+            drmDetected:Boolean(r.drmDetected),
+            startupMs:r.startupMs,
+            detail:r.detail
+          }));
+          console.log(JSON.stringify({verifierVersion:verification.version,results:safe},null,2));
+          if(!Array.isArray(verification.results)||verification.results.length===0) process.exit(6);
+          if(!verification.results.some(r=>r.verified===true&&r.status==='VERIFIED')) process.exit(7);
           NODE
