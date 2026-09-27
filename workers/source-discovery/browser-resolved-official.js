@@ -40,6 +40,12 @@ function isErtProvisionalUrl(entry,url,headers={}){
   if(entry?.owner!=='ERT'||!refererIsOfficialErt(headers))return false;
   try{const parsed=new URL(String(url||''));return parsed.protocol==='https:'&&parsed.hostname.toLowerCase().endsWith(ERT_PROVISIONAL_SUFFIX);}catch{return false;}
 }
+function responseSucceeded(observation={}){
+  const finalStatus=Number(observation?.finalStatus);
+  if(finalStatus>=200&&finalStatus<300&&String(observation?.finalUrl||'').trim())return true;
+  const responseStatus=Number(observation?.responseStatus);
+  return responseStatus>=200&&responseStatus<300;
+}
 function candidateUrl(observation={}){
   const finalStatus=Number(observation.finalStatus);
   const finalUrl=String(observation.finalUrl||'').trim();
@@ -94,6 +100,7 @@ function safeObservationSummary(observations=[]){
       finalStatus:Number.isFinite(Number(observation?.finalStatus))?Number(observation.finalStatus):null,
       finalContentType:String(observation?.finalContentType||'').slice(0,120),
       finalKind:String(observation?.finalKind||'').slice(0,20),
+      promotable:responseSucceeded(observation),
     };
   }).filter(item=>item.host||item.finalHost);
 }
@@ -115,6 +122,7 @@ async function resolvePage({pageUrl,channel,entry,env={},fetchImpl=fetch}){
     const observations=Array.isArray(payload?.observations)?payload.observations:[];
     const candidates=[];const seen=new Set();
     for(const observation of observations){
+      if(!responseSucceeded(observation))continue;
       const url=candidateUrl(observation);const sourceType=candidateType(observation,url);
       if(!sourceType||!url||seen.has(url))continue;
       const strict=hostAllowed(url,entry.mediaHosts||[]);
@@ -143,4 +151,4 @@ export async function discoverBrowserResolvedOfficial({channel={},freshness='7d'
   return{provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Official pages are resolved live in a browser backend; discovery time is not publication time.',limits:{timeoutMs:BROWSER_RESOLVER_TIMEOUT_MS,maxCandidates:BROWSER_RESOLVER_MAX_CANDIDATES},candidates,reports:{pages:reports,registryKey:key,owner:entry.owner}};
 }
 
-export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary, candidateUrl, candidateType };
+export { sanitizeHeaders, safeResolverUrl, typeOf, safeDiagnostics, safeObservationSummary, candidateUrl, candidateType, responseSucceeded };
