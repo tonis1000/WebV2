@@ -16,7 +16,7 @@ env:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
       - name: Inspect safe official API resolver result
         shell: bash
@@ -28,24 +28,14 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const body=JSON.parse(fs.readFileSync('result.json','utf8'));
-          const safe={
-            service:body.service,
-            version:body.version,
-            provider:body.provider,
-            recognized:body.recognized,
-            available:body.available,
-            candidateCount:Array.isArray(body.candidates)?body.candidates.length:0,
-            api:body.reports?.api||null,
-            verification:body.reports?.verification||null,
-            reason:body.reports?.reason||''
-          };
+          const safe={service:body.service,version:body.version,provider:body.provider,recognized:body.recognized,available:body.available,candidateCount:Array.isArray(body.candidates)?body.candidates.length:0,api:body.reports?.api||null,verification:body.reports?.verification||null,reason:body.reports?.reason||''};
           console.log(JSON.stringify(safe,null,2));
           if(body.provider!=='official-api-resolver')process.exit(1);
           if(body.recognized!==true)process.exit(2);
           if(body.reports?.api?.status!==200)process.exit(3);
           NODE
 
-      - name: Compare GitHub runner CDN access safely
+      - name: Compare GitHub runner ERT1 CDN access safely
         shell: bash
         run: |
           set -euo pipefail
@@ -56,43 +46,50 @@ jobs:
             -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' \
             'https://live.ertflix.gr/api/stream?channel=ert1')
           node - <<'NODE' "$API_HTTP"
-          const fs=require('fs');
-          const apiHttp=Number(process.argv[2]);
-          let body={};try{body=JSON.parse(fs.readFileSync('stream.json','utf8'));}catch{}
-          const media=String(body?.primaryUrl||body?.url||'');
-          if(apiHttp!==200||!media)process.exit(10);
-          fs.writeFileSync('media-url.txt',media,{mode:0o600});
-          const u=new URL(media);
-          console.log(JSON.stringify({apiHttp,media:{host:u.hostname,pathname:u.pathname,queryCount:[...u.searchParams.keys()].length,queryKeys:[...new Set(u.searchParams.keys())].sort()}},null,2));
+          const fs=require('fs');const apiHttp=Number(process.argv[2]);let body={};try{body=JSON.parse(fs.readFileSync('stream.json','utf8'));}catch{}
+          const media=String(body?.primaryUrl||body?.url||'');if(apiHttp!==200||!media)process.exit(10);fs.writeFileSync('media-url.txt',media,{mode:0o600});const u=new URL(media);
+          console.log(JSON.stringify({channel:'ert1',apiHttp,media:{host:u.hostname,pathname:u.pathname,queryCount:[...u.searchParams.keys()].length,queryKeys:[...new Set(u.searchParams.keys())].sort()}},null,2));
           NODE
           MEDIA_URL=$(cat media-url.txt)
-          FIRST_HTTP=$(curl --silent --show-error --max-redirs 0 -D first-headers.txt -o /dev/null -w '%{http_code}' \
-            -H 'referer: https://live.ertflix.gr/live/ert1' \
+          FIRST_HTTP=$(curl --silent --show-error --max-redirs 0 -D first-headers.txt -o /dev/null -w '%{http_code}' -H 'referer: https://live.ertflix.gr/live/ert1' -H 'origin: https://live.ertflix.gr' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' "$MEDIA_URL" || true)
+          node - <<'NODE' "$FIRST_HTTP"
+          const fs=require('fs');const status=Number(process.argv[2]);const lines=fs.readFileSync('first-headers.txt','utf8').split(/\r?\n/);const headers={};for(const line of lines){const i=line.indexOf(':');if(i>0)headers[line.slice(0,i).trim().toLowerCase()]=line.slice(i+1).trim();}
+          const names=Object.keys(headers).sort();let redirect={host:'',pathname:'',queryCount:0,queryKeys:[]};if(headers.location){try{const u=new URL(headers.location);redirect={host:u.hostname,pathname:u.pathname,queryCount:[...u.searchParams.keys()].length,queryKeys:[...new Set(u.searchParams.keys())].sort()};fs.writeFileSync('redirect-url.txt',u.href,{mode:0o600});}catch{}}
+          console.log(JSON.stringify({channel:'ert1',firstStatus:status,responseHeaderNames:names,hasSetCookie:names.includes('set-cookie'),hasWwwAuthenticate:names.includes('www-authenticate'),redirect},null,2));if(!redirect.host)process.exit(11);
+          NODE
+          REDIRECT_URL=$(cat redirect-url.txt)
+          FINAL_HTTP=$(curl --silent --show-error --max-redirs 0 -D final-headers.txt -o /dev/null -w '%{http_code}' -H 'referer: https://live.ertflix.gr/live/ert1' -H 'origin: https://live.ertflix.gr' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' "$REDIRECT_URL" || true)
+          node - <<'NODE' "$FINAL_HTTP"
+          const fs=require('fs');const status=Number(process.argv[2]);const lines=fs.readFileSync('final-headers.txt','utf8').split(/\r?\n/);const names=[...new Set(lines.map(line=>{const i=line.indexOf(':');return i>0?line.slice(0,i).trim().toLowerCase():'';}).filter(Boolean))].sort();
+          console.log(JSON.stringify({channel:'ert1',finalStatus:status,responseHeaderNames:names,hasSetCookie:names.includes('set-cookie'),hasWwwAuthenticate:names.includes('www-authenticate')},null,2));
+          NODE
+          rm -f media-url.txt redirect-url.txt stream.json api-headers.txt first-headers.txt final-headers.txt
+
+      - name: Compare GitHub runner ERT News CDN access safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_HTTP=$(curl --silent --show-error -o news.json -w '%{http_code}' \
+            -H 'accept: application/json' \
+            -H 'referer: https://live.ertflix.gr/live/ertnews' \
+            -H 'origin: https://live.ertflix.gr' \
+            -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' \
+            'https://live.ertflix.gr/api/stream?channel=ertnews')
+          node - <<'NODE' "$API_HTTP"
+          const fs=require('fs');const apiHttp=Number(process.argv[2]);let body={};try{body=JSON.parse(fs.readFileSync('news.json','utf8'));}catch{}
+          const media=String(body?.primaryUrl||body?.url||'');const safe={channel:'ertnews',apiHttp,fields:body&&typeof body==='object'&&!Array.isArray(body)?Object.keys(body).sort():[],media:{host:'',pathname:'',queryCount:0,queryKeys:[]}};
+          if(media){const u=new URL(media);safe.media={host:u.hostname,pathname:u.pathname,queryCount:[...u.searchParams.keys()].length,queryKeys:[...new Set(u.searchParams.keys())].sort()};fs.writeFileSync('news-media-url.txt',media,{mode:0o600});}
+          console.log(JSON.stringify(safe,null,2));if(apiHttp!==200||!media)process.exit(20);
+          NODE
+          MEDIA_URL=$(cat news-media-url.txt)
+          FINAL_HTTP=$(curl --silent --show-error -L --max-redirs 5 -D news-final-headers.txt -o news-body.bin -w '%{http_code}' \
+            -H 'referer: https://live.ertflix.gr/live/ertnews' \
             -H 'origin: https://live.ertflix.gr' \
             -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' \
             "$MEDIA_URL" || true)
-          node - <<'NODE' "$FIRST_HTTP"
-          const fs=require('fs');
-          const status=Number(process.argv[2]);
-          const lines=fs.readFileSync('first-headers.txt','utf8').split(/\r?\n/);
-          const headers={};for(const line of lines){const i=line.indexOf(':');if(i>0){const k=line.slice(0,i).trim().toLowerCase();const v=line.slice(i+1).trim();headers[k]=v;}}
-          const names=Object.keys(headers).sort();
-          let redirect={host:'',pathname:'',queryCount:0,queryKeys:[]};
-          if(headers.location){try{const u=new URL(headers.location);redirect={host:u.hostname,pathname:u.pathname,queryCount:[...u.searchParams.keys()].length,queryKeys:[...new Set(u.searchParams.keys())].sort()};fs.writeFileSync('redirect-url.txt',u.href,{mode:0o600});}catch{}}
-          console.log(JSON.stringify({firstStatus:status,responseHeaderNames:names,hasSetCookie:names.includes('set-cookie'),hasWwwAuthenticate:names.includes('www-authenticate'),redirect},null,2));
-          if(!redirect.host)process.exit(11);
-          NODE
-          REDIRECT_URL=$(cat redirect-url.txt)
-          FINAL_HTTP=$(curl --silent --show-error --max-redirs 0 -D final-headers.txt -o /dev/null -w '%{http_code}' \
-            -H 'referer: https://live.ertflix.gr/live/ert1' \
-            -H 'origin: https://live.ertflix.gr' \
-            -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36' \
-            "$REDIRECT_URL" || true)
           node - <<'NODE' "$FINAL_HTTP"
-          const fs=require('fs');
-          const status=Number(process.argv[2]);
-          const lines=fs.readFileSync('final-headers.txt','utf8').split(/\r?\n/);
-          const names=[...new Set(lines.map(line=>{const i=line.indexOf(':');return i>0?line.slice(0,i).trim().toLowerCase():'';}).filter(Boolean))].sort();
-          console.log(JSON.stringify({finalStatus:status,responseHeaderNames:names,hasSetCookie:names.includes('set-cookie'),hasWwwAuthenticate:names.includes('www-authenticate')},null,2));
+          const fs=require('fs');const status=Number(process.argv[2]);const raw=fs.readFileSync('news-final-headers.txt','utf8');const blocks=raw.split(/\r?\n\r?\n/).filter(Boolean);const last=blocks.at(-1)||'';const names=[...new Set(last.split(/\r?\n/).map(line=>{const i=line.indexOf(':');return i>0?line.slice(0,i).trim().toLowerCase():'';}).filter(Boolean))].sort();
+          const body=fs.existsSync('news-body.bin')?fs.readFileSync('news-body.bin'):Buffer.alloc(0);const prefix=body.subarray(0,256).toString('utf8');const looksDash=/<MPD\b/i.test(prefix)||prefix.includes('<?xml');
+          console.log(JSON.stringify({channel:'ertnews',finalStatus:status,responseHeaderNames:names,hasSetCookie:names.includes('set-cookie'),hasWwwAuthenticate:names.includes('www-authenticate'),bodyBytes:body.length,looksDash},null,2));
           NODE
-          rm -f media-url.txt redirect-url.txt stream.json api-headers.txt first-headers.txt final-headers.txt
+          rm -f news.json news-media-url.txt news-final-headers.txt news-body.bin
