@@ -7,6 +7,7 @@ export const DEFAULT_SOURCE_VERIFIER_URL='https://webtv-source-verifier.atonis.w
 
 const ERT_API_BASE='https://live.ertflix.gr/api/stream';
 const ERT_KEYS=new Set(['ert1','ert2','ert3','ertnews']);
+const ERT_BROWSER_UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36';
 
 function withTimeout(ms){
   const controller=new AbortController();
@@ -31,7 +32,7 @@ function inferredType(url=''){
   return'direct';
 }
 function officialHeaders(key){return{
-  'User-Agent':'Mozilla/5.0 WebTV-OfficialApiResolver/1.0',
+  'User-Agent':ERT_BROWSER_UA,
   'Referer':`https://live.ertflix.gr/live/${key}`,
 };}
 async function fetchDescriptor(key,fetchImpl=fetch){
@@ -110,7 +111,7 @@ export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=f
   if(descriptor.status!==200||!sourceUrl||!strict)return{provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,candidates:[],reports:{registryKey:key,owner:entry.owner,api:apiReport,verification:null,reason:descriptor.status!==200?'Official API did not return HTTP 200':!sourceUrl?'Official API returned no media URL':'Official API media host is not allowlisted'}};
   const requiredHeaders=officialHeaders(key);
   const verification=await verifyMedia({sourceUrl,sourceType,requiredHeaders,verifierBinding,verifierUrl,fetchImpl:verifierFetch});
-  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail};
+  const verificationReport={transport:verification.transport,serviceStatus:verification.serviceStatus,status:verification.status,verified:verification.verified,lastHttpStatus:verification.lastHttpStatus,mediaType:verification.mediaType,drmDetected:verification.drmDetected,elapsedMs:verification.elapsedMs,detail:verification.detail,requestContext:{userAgentFamily:'Chrome',refererHost:'live.ertflix.gr',refererPath:`/live/${key}`,originHost:'',redirectMode:'follow'}};
   const candidates=verification.verified&&verification.status==='VERIFIED'?[mediaCandidate(channel,entry,key,sourceUrl,verification)]:[];
   return{
     provider:OFFICIAL_API_RESOLVER_PROVIDER,recognized:true,available:true,freshnessRequested:freshness,freshnessApplied:false,
@@ -120,4 +121,4 @@ export async function discoverOfficialApi({channel={},freshness='7d',fetchImpl=f
   };
 }
 
-export { ERT_API_BASE, ERT_KEYS, safeVerifierUrl, safeMediaSummary, inferredType, officialHeaders, chooseMediaUrl, fetchDescriptor, verifyMedia };
+export { ERT_API_BASE, ERT_KEYS, ERT_BROWSER_UA, safeVerifierUrl, safeMediaSummary, inferredType, officialHeaders, chooseMediaUrl, fetchDescriptor, verifyMedia };
