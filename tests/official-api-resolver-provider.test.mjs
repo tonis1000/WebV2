@@ -35,7 +35,7 @@ const verifiedFetch=async(input,options={})=>{
   assert.equal(body.candidate.sourceUrl,sourceUrl);
   assert.deepEqual(Object.keys(body.candidate.requiredHeaders).sort(),['Origin','Referer','User-Agent']);
   assert.equal(body.candidate.requiredHeaders.Origin,'https://live.ertflix.gr');
-  return new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'VERIFIED',verified:true,lastHttpStatus:200,mediaType:'dash',drmDetected:false,detail:'Manifest/media probe succeeded'}]}),{status:200,headers:{'content-type':'application/json'}});
+  return new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'VERIFIED',verified:true,lastHttpStatus:200,mediaType:'dash',drmDetected:false,detail:'Manifest/media probe succeeded',redirects:[],finalTarget:{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd'}}]}),{status:200,headers:{'content-type':'application/json'}});
 };
 
 const verified=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:verifiedFetch,verifierUrl:'https://verifier.example.test/'});
@@ -49,13 +49,19 @@ assert.equal(verified.reports.api.mediaHost,'ert-ucdn.broadpeak-aas.com');
 assert.equal(verified.reports.api.mediaPath,'/bpk-tv/ERT1/default/index.mpd');
 assert.equal(verified.reports.verification.status,'VERIFIED');
 assert.equal(verified.reports.verification.requestContext.originHost,'live.ertflix.gr');
+assert.deepEqual(verified.reports.verification.redirects,[]);
+assert.deepEqual(verified.reports.verification.finalTarget,{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd'});
 
-const failedFetch=async()=>new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'FAILED',verified:false,lastHttpStatus:401,mediaType:'',drmDetected:false,detail:'Upstream HTTP 401'}]}),{status:200,headers:{'content-type':'application/json'}});
+const failedFetch=async()=>new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'FAILED',verified:false,lastHttpStatus:401,mediaType:'',drmDetected:false,detail:'Upstream HTTP 401',redirects:[{status:307,from:{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd'},to:{host:'cdn.example.test',pathname:'/signed/manifest.mpd'},hostChanged:true}],finalTarget:{host:'cdn.example.test',pathname:'/signed/manifest.mpd'}}]}),{status:200,headers:{'content-type':'application/json'}});
 const failed=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:failedFetch,verifierUrl:'https://verifier.example.test'});
 assert.equal(failed.candidates.length,0);
 assert.equal(failed.reports.verification.serviceStatus,200);
 assert.equal(failed.reports.verification.verified,false);
 assert.equal(failed.reports.verification.lastHttpStatus,401);
+assert.equal(failed.reports.verification.redirects.length,1);
+assert.equal(failed.reports.verification.redirects[0].status,307);
+assert.equal(failed.reports.verification.redirects[0].hostChanged,true);
+assert.deepEqual(failed.reports.verification.finalTarget,{host:'cdn.example.test',pathname:'/signed/manifest.mpd'});
 assert.match(failed.reports.reason,/not promoted/i);
 
 const badHostFetch=async()=>new Response(JSON.stringify({primaryUrl:'https://evil.example/live.mpd'}),{status:200,headers:{'content-type':'application/json'}});
