@@ -25,6 +25,7 @@ const apiFetch=async(input,options={})=>{
   assert.equal(url.pathname,'/api/stream');
   assert.equal(url.searchParams.get('channel'),'ert1');
   assert.equal(options.headers.Referer,'https://live.ertflix.gr/live/ert1');
+  assert.equal(options.headers.Origin,'https://live.ertflix.gr');
   return new Response(JSON.stringify({url:sourceUrl,primaryUrl:sourceUrl,fallbackUrl:null,type:'tv',source:'official',updatedAt:'2026-09-27T00:00:00.000Z'}),{status:200,headers:{'content-type':'application/json'}});
 };
 const verifiedFetch=async(input,options={})=>{
@@ -32,7 +33,8 @@ const verifiedFetch=async(input,options={})=>{
   const body=JSON.parse(options.body);
   assert.equal(body.candidate.sourceType,'dash');
   assert.equal(body.candidate.sourceUrl,sourceUrl);
-  assert.deepEqual(Object.keys(body.candidate.requiredHeaders).sort(),['Referer','User-Agent']);
+  assert.deepEqual(Object.keys(body.candidate.requiredHeaders).sort(),['Origin','Referer','User-Agent']);
+  assert.equal(body.candidate.requiredHeaders.Origin,'https://live.ertflix.gr');
   return new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'VERIFIED',verified:true,lastHttpStatus:200,mediaType:'dash',drmDetected:false,detail:'Manifest/media probe succeeded'}]}),{status:200,headers:{'content-type':'application/json'}});
 };
 
@@ -46,6 +48,7 @@ assert.equal(verified.candidates[0].saveEligible,true);
 assert.equal(verified.reports.api.mediaHost,'ert-ucdn.broadpeak-aas.com');
 assert.equal(verified.reports.api.mediaPath,'/bpk-tv/ERT1/default/index.mpd');
 assert.equal(verified.reports.verification.status,'VERIFIED');
+assert.equal(verified.reports.verification.requestContext.originHost,'live.ertflix.gr');
 
 const failedFetch=async()=>new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'FAILED',verified:false,lastHttpStatus:401,mediaType:'',drmDetected:false,detail:'Upstream HTTP 401'}]}),{status:200,headers:{'content-type':'application/json'}});
 const failed=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:failedFetch,verifierUrl:'https://verifier.example.test'});
