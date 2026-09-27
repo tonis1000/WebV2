@@ -6,6 +6,7 @@ export const GITHUB_PUBLIC_PLAYLISTS_PROVIDER='github-public-playlists';
 export const RECENT_WEB_SEARCH_PROVIDER='recent-web-search';
 export const STRM_SPECIFIC_DISCOVERY_PROVIDER='strm-specific-discovery';
 export const OFFICIAL_PROVIDER_LANE='official-provider-lane';
+export const OFFICIAL_API_RESOLVER_PROVIDER='official-api-resolver';
 export const BROWSER_RESOLVED_OFFICIAL_PROVIDER='browser-resolved-official';
 export const EXTERNAL_DISCOVERY_TIMEOUT_MS=9000;
 export const PROVIDER_FLAGS=Object.freeze({
@@ -14,6 +15,7 @@ export const PROVIDER_FLAGS=Object.freeze({
   [RECENT_WEB_SEARCH_PROVIDER]:true,
   [STRM_SPECIFIC_DISCOVERY_PROVIDER]:true,
   [OFFICIAL_PROVIDER_LANE]:true,
+  [OFFICIAL_API_RESOLVER_PROVIDER]:true,
   [BROWSER_RESOLVED_OFFICIAL_PROVIDER]:true,
 });
 
@@ -28,6 +30,15 @@ function timeoutSignal(parentSignal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS){
   timer=setTimeout(()=>abort(new DOMException('External discovery timed out','TimeoutError')),timeoutMs);
   return {signal:controller.signal,clear:()=>clearTimeout(timer)};
 }
+function normalizeCandidate(provider,item,channel){
+  const trustedServerVerification=provider===OFFICIAL_API_RESOLVER_PROVIDER&&item?.trustClass==='OFFICIAL'&&item?.saveEligible===true&&item?.verificationStatus==='VERIFIED';
+  return createCandidate({
+    ...item,
+    channelName:item.channelName||channel.name,
+    verificationStatus:trustedServerVerification?'VERIFIED':'UNVERIFIED',
+    verified:trustedServerVerification,
+  });
+}
 
 async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOVERY_ENDPOINT,fetchImpl=fetch,signal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS}={}){
   if(!PROVIDER_FLAGS[provider])return {provider,disabled:true,candidates:[],reports:[]};
@@ -40,7 +51,7 @@ async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOV
     });
     const payload=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(payload?.error||`Discovery HTTP ${response.status}`);
-    const candidates=(payload?.candidates||[]).map(item=>createCandidate({...item,channelName:item.channelName||channel.name,verificationStatus:'UNVERIFIED',verified:false}));
+    const candidates=(payload?.candidates||[]).map(item=>normalizeCandidate(provider,item,channel));
     return {...payload,candidates};
   } finally {timed.clear();}
 }
@@ -50,4 +61,7 @@ export function discoverGithubPublicPlaylists(channel,options={}){return discove
 export function discoverRecentWebSearch(channel,options={}){return discoverProvider(RECENT_WEB_SEARCH_PROVIDER,channel,options);}
 export function discoverStrmSpecific(channel,options={}){return discoverProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER,channel,options);}
 export function discoverOfficialProvider(channel,options={}){return discoverProvider(OFFICIAL_PROVIDER_LANE,channel,options);}
+export function discoverOfficialApi(channel,options={}){return discoverProvider(OFFICIAL_API_RESOLVER_PROVIDER,channel,options);}
 export function discoverBrowserResolvedOfficial(channel,options={}){return discoverProvider(BROWSER_RESOLVED_OFFICIAL_PROVIDER,channel,{...options,timeoutMs:options.timeoutMs||15000});}
+
+export { normalizeCandidate };
