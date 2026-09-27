@@ -1,0 +1,46 @@
+name: Diagnose Official API Resolver ERT1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-official-api-resolver-ert1.yml'
+
+permissions:
+  contents: read
+
+env:
+  DISCOVERY_URL: https://webtv-source-discovery.atonis.workers.dev/discover
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect safe official API resolver result
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error -X POST "$DISCOVERY_URL" \
+            -H 'content-type: application/json' \
+            --data '{"provider":"official-api-resolver","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1","tvgId":"ERT1"}}' > result.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync('result.json','utf8'));
+          const safe={
+            service:body.service,
+            version:body.version,
+            provider:body.provider,
+            recognized:body.recognized,
+            available:body.available,
+            candidateCount:Array.isArray(body.candidates)?body.candidates.length:0,
+            api:body.reports?.api||null,
+            verification:body.reports?.verification||null,
+            reason:body.reports?.reason||''
+          };
+          console.log(JSON.stringify(safe,null,2));
+          if(body.provider!=='official-api-resolver')process.exit(1);
+          if(body.recognized!==true)process.exit(2);
+          if(body.reports?.api?.status!==200)process.exit(3);
+          NODE
