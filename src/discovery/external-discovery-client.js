@@ -39,6 +39,7 @@ function normalizeCandidate(provider,item,channel){
     verified:trustedServerVerification,
   });
 }
+function isAbort(error){return error?.name==='AbortError'||error?.name==='TimeoutError';}
 
 async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOVERY_ENDPOINT,fetchImpl=fetch,signal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS}={}){
   if(!PROVIDER_FLAGS[provider])return {provider,disabled:true,candidates:[],reports:[]};
@@ -55,13 +56,44 @@ async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOV
     return {...payload,candidates};
   } finally {timed.clear();}
 }
+async function officialStage(provider,channel,options,stages){
+  try{
+    const timeoutMs=provider===BROWSER_RESOLVED_OFFICIAL_PROVIDER?(options.timeoutMs||15000):options.timeoutMs;
+    const result=await discoverProvider(provider,channel,{...options,timeoutMs});
+    stages.push({provider,ok:true,recognized:result.recognized!==false,available:result.available!==false,candidateCount:result.candidates?.length||0});
+    return result;
+  }catch(error){
+    if(isAbort(error))throw error;
+    stages.push({provider,ok:false,recognized:false,available:false,candidateCount:0,error:String(error?.message||error).slice(0,160)});
+    return {provider,recognized:false,available:false,candidates:[],reports:[],error:error?.message||String(error)};
+  }
+}
+function aggregateOfficialResult(result,stages,channel){
+  const candidates=(result?.candidates||[]).map(item=>createCandidate({...item,channelName:item.channelName||channel.name,discoveryProvider:OFFICIAL_PROVIDER_LANE}));
+  return {
+    ...result,
+    provider:OFFICIAL_PROVIDER_LANE,
+    candidates,
+    officialResolutionPath:stages.map(stage=>stage.provider),
+    selectedOfficialProvider:String(result?.provider||''),
+    reports:{stages,selectedProvider:String(result?.provider||''),upstream:result?.reports??null},
+  };
+}
 
 export function discoverCuratedRemoteFeeds(channel,options={}){return discoverProvider(CURATED_REMOTE_FEEDS_PROVIDER,channel,options);}
 export function discoverGithubPublicPlaylists(channel,options={}){return discoverProvider(GITHUB_PUBLIC_PLAYLISTS_PROVIDER,channel,options);}
 export function discoverRecentWebSearch(channel,options={}){return discoverProvider(RECENT_WEB_SEARCH_PROVIDER,channel,options);}
 export function discoverStrmSpecific(channel,options={}){return discoverProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER,channel,options);}
-export function discoverOfficialProvider(channel,options={}){return discoverProvider(OFFICIAL_PROVIDER_LANE,channel,options);}
 export function discoverOfficialApi(channel,options={}){return discoverProvider(OFFICIAL_API_RESOLVER_PROVIDER,channel,options);}
 export function discoverBrowserResolvedOfficial(channel,options={}){return discoverProvider(BROWSER_RESOLVED_OFFICIAL_PROVIDER,channel,{...options,timeoutMs:options.timeoutMs||15000});}
+export async function discoverOfficialProvider(channel,options={}){
+  const stages=[];
+  const api=await officialStage(OFFICIAL_API_RESOLVER_PROVIDER,channel,options,stages);
+  if(api.candidates?.length)return aggregateOfficialResult(api,stages,channel);
+  const browser=await officialStage(BROWSER_RESOLVED_OFFICIAL_PROVIDER,channel,options,stages);
+  if(browser.candidates?.length)return aggregateOfficialResult(browser,stages,channel);
+  const page=await officialStage(OFFICIAL_PROVIDER_LANE,channel,options,stages);
+  return aggregateOfficialResult(page,stages,channel);
+}
 
-export { normalizeCandidate };
+export { normalizeCandidate, aggregateOfficialResult };
