@@ -35,7 +35,7 @@ const verifiedFetch=async(input,options={})=>{
   assert.equal(body.candidate.sourceUrl,sourceUrl);
   assert.deepEqual(Object.keys(body.candidate.requiredHeaders).sort(),['Origin','Referer','User-Agent']);
   assert.equal(body.candidate.requiredHeaders.Origin,'https://live.ertflix.gr');
-  return new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'VERIFIED',verified:true,lastHttpStatus:200,mediaType:'dash',drmDetected:false,detail:'Manifest/media probe succeeded',redirects:[],finalTarget:{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd',queryCount:0,queryKeys:[]}}]}),{status:200,headers:{'content-type':'application/json'}});
+  return new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'VERIFIED',verified:true,lastHttpStatus:200,mediaType:'dash',drmDetected:false,detail:'Manifest/media probe succeeded',redirects:[],finalTarget:{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd',queryCount:0,queryKeys:[]},finalResponseHeaders:{headerNames:['content-type'],hasSetCookie:false,hasWwwAuthenticate:false}}]}),{status:200,headers:{'content-type':'application/json'}});
 };
 
 const verified=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:verifiedFetch,verifierUrl:'https://verifier.example.test/'});
@@ -51,8 +51,9 @@ assert.equal(verified.reports.verification.status,'VERIFIED');
 assert.equal(verified.reports.verification.requestContext.originHost,'live.ertflix.gr');
 assert.deepEqual(verified.reports.verification.redirects,[]);
 assert.deepEqual(verified.reports.verification.finalTarget,{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd',queryCount:0,queryKeys:[]});
+assert.deepEqual(verified.reports.verification.finalResponseHeaders,{headerNames:['content-type'],hasSetCookie:false,hasWwwAuthenticate:false});
 
-const failedFetch=async()=>new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'FAILED',verified:false,lastHttpStatus:401,mediaType:'',drmDetected:false,detail:'Upstream HTTP 401',redirects:[{status:307,from:{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd',queryCount:0,queryKeys:[]},to:{host:'cdn.example.test',pathname:'/signed/manifest.mpd',queryCount:2,queryKeys:['expires','token']},hostChanged:true}],finalTarget:{host:'cdn.example.test',pathname:'/signed/manifest.mpd',queryCount:2,queryKeys:['expires','token']}}]}),{status:200,headers:{'content-type':'application/json'}});
+const failedFetch=async()=>new Response(JSON.stringify({ok:true,version:'1.0',results:[{candidateId:'official-api',status:'FAILED',verified:false,lastHttpStatus:401,mediaType:'',drmDetected:false,detail:'Upstream HTTP 401',redirects:[{status:307,from:{host:'ert-ucdn.broadpeak-aas.com',pathname:'/bpk-tv/ERT1/default/index.mpd',queryCount:0,queryKeys:[]},to:{host:'cdn.example.test',pathname:'/signed/manifest.mpd',queryCount:2,queryKeys:['expires','token']},hostChanged:true,responseHeaders:{headerNames:['cache-control','location','set-cookie'],hasSetCookie:true,hasWwwAuthenticate:false}}],finalTarget:{host:'cdn.example.test',pathname:'/signed/manifest.mpd',queryCount:2,queryKeys:['expires','token']},finalResponseHeaders:{headerNames:['content-type','www-authenticate'],hasSetCookie:false,hasWwwAuthenticate:true}}]}),{status:200,headers:{'content-type':'application/json'}});
 const failed=await discoverOfficialApi({channel:{name:'ERT1',id:'ert1'},fetchImpl:apiFetch,verifierFetch:failedFetch,verifierUrl:'https://verifier.example.test'});
 assert.equal(failed.candidates.length,0);
 assert.equal(failed.reports.verification.serviceStatus,200);
@@ -62,8 +63,12 @@ assert.equal(failed.reports.verification.redirects.length,1);
 assert.equal(failed.reports.verification.redirects[0].status,307);
 assert.equal(failed.reports.verification.redirects[0].hostChanged,true);
 assert.deepEqual(failed.reports.verification.redirects[0].to.queryKeys,['expires','token']);
+assert.deepEqual(failed.reports.verification.redirects[0].responseHeaders,{headerNames:['cache-control','location','set-cookie'],hasSetCookie:true,hasWwwAuthenticate:false});
 assert.deepEqual(failed.reports.verification.finalTarget,{host:'cdn.example.test',pathname:'/signed/manifest.mpd',queryCount:2,queryKeys:['expires','token']});
-assert.equal(JSON.stringify(failed.reports.verification).includes('super-secret'),false);
+assert.deepEqual(failed.reports.verification.finalResponseHeaders,{headerNames:['content-type','www-authenticate'],hasSetCookie:false,hasWwwAuthenticate:true});
+const serialized=JSON.stringify(failed.reports.verification);
+assert.equal(serialized.includes('super-secret'),false);
+assert.equal(serialized.includes('Bearer realm'),false);
 assert.match(failed.reports.reason,/not promoted/i);
 
 const badHostFetch=async()=>new Response(JSON.stringify({primaryUrl:'https://evil.example/live.mpd'}),{status:200,headers:{'content-type':'application/json'}});
