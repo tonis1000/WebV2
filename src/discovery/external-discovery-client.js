@@ -40,6 +40,7 @@ function normalizeCandidate(provider,item,channel){
   });
 }
 function isAbort(error){return error?.name==='AbortError'||error?.name==='TimeoutError';}
+function restrictionType(result){return String(result?.reports?.restriction?.type||'');}
 
 async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOVERY_ENDPOINT,fetchImpl=fetch,signal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS}={}){
   if(!PROVIDER_FLAGS[provider])return {provider,disabled:true,candidates:[],reports:[]};
@@ -60,7 +61,7 @@ async function officialStage(provider,channel,options,stages){
   try{
     const timeoutMs=provider===BROWSER_RESOLVED_OFFICIAL_PROVIDER?(options.timeoutMs||15000):options.timeoutMs;
     const result=await discoverProvider(provider,channel,{...options,timeoutMs});
-    stages.push({provider,ok:true,recognized:result.recognized!==false,available:result.available!==false,candidateCount:result.candidates?.length||0});
+    stages.push({provider,ok:true,recognized:result.recognized!==false,available:result.available!==false,candidateCount:result.candidates?.length||0,restrictionType:restrictionType(result)});
     return result;
   }catch(error){
     if(isAbort(error))throw error;
@@ -90,10 +91,15 @@ export async function discoverOfficialProvider(channel,options={}){
   const stages=[];
   const api=await officialStage(OFFICIAL_API_RESOLVER_PROVIDER,channel,options,stages);
   if(api.candidates?.length)return aggregateOfficialResult(api,stages,channel);
+  if(restrictionType(api)==='SERVER_REGION_RESTRICTED'){
+    stages.push({provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,ok:true,recognized:true,available:true,candidateCount:0,skipped:true,skipReason:'SERVER_REGION_RESTRICTED'});
+    const page=await officialStage(OFFICIAL_PROVIDER_LANE,channel,options,stages);
+    return aggregateOfficialResult(page,stages,channel);
+  }
   const browser=await officialStage(BROWSER_RESOLVED_OFFICIAL_PROVIDER,channel,options,stages);
   if(browser.candidates?.length)return aggregateOfficialResult(browser,stages,channel);
   const page=await officialStage(OFFICIAL_PROVIDER_LANE,channel,options,stages);
   return aggregateOfficialResult(page,stages,channel);
 }
 
-export { normalizeCandidate, aggregateOfficialResult };
+export { normalizeCandidate, aggregateOfficialResult, restrictionType };
