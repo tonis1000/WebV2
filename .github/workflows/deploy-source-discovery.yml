@@ -1,95 +1,115 @@
-name: Deploy Source Discovery Worker
+name: Validate WebTV Frontend
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
+      - 'index.html'
+      - 'src/**/*.js'
+      - 'tests/**/*.mjs'
+      - 'tests/**/*.html'
+      - 'workers/webtv-xtream.js'
+      - 'workers/webtv-xtream-router.js'
+      - 'workers/xtream-preview-routes.js'
+      - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
+      - 'WEBTV_OPERATIONS.md'
+      - '.github/workflows/validate-frontend.yml'
+      - '.github/workflows/deploy-webtv-xtream.yml'
+      - '.github/workflows/deploy-source-verifier.yml'
+      - '.github/workflows/deploy-source-discovery.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'src/**/*.js'
+      - 'tests/**/*.mjs'
+      - 'tests/**/*.html'
+      - 'workers/webtv-xtream.js'
+      - 'workers/webtv-xtream-router.js'
+      - 'workers/xtream-preview-routes.js'
+      - 'workers/webtv-source-verifier.js'
+      - 'workers/webtv-source-discovery.js'
+      - 'workers/source-discovery/**/*.js'
+      - 'WEBTV_OPERATIONS.md'
+      - '.github/workflows/validate-frontend.yml'
+      - '.github/workflows/deploy-webtv-xtream.yml'
+      - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-source-discovery
-  cancel-in-progress: false
-
-env:
-  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
-  WORKER_NAME: webtv-source-discovery
-  WORKER_URL: https://webtv-source-discovery.atonis.workers.dev
+  group: validate-webtv-frontend-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-
-      - name: Validate source
+      - name: Validate all frontend JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find src -type f -name '*.js' | sort)
+      - name: Validate Xtream Worker syntax
+        shell: bash
+        run: |
+          node --input-type=module --check < workers/webtv-xtream.js
+          node --check workers/xtream-preview-routes.js
+          node --check workers/webtv-xtream-router.js
+      - name: Validate Source Verifier Worker syntax
+        run: node --input-type=module --check < workers/webtv-source-verifier.js
+      - name: Validate Source Discovery Worker syntax
         shell: bash
         run: |
           node --input-type=module --check < workers/webtv-source-discovery.js
-          while IFS= read -r file; do node --check "$file"; done < <(find workers/source-discovery -type f -name '*.js' | sort)
-
-      - name: Run discovery regression tests
-        run: |
-          node tests/discovery-external.test.mjs
-          node tests/source-discovery-worker.test.mjs
-          node tests/github-public-playlists-provider.test.mjs
-          node tests/recent-web-search-provider.test.mjs
-          node tests/strm-specific-discovery-provider.test.mjs
-          node tests/official-provider-lane.test.mjs
-          node tests/official-api-resolver-provider.test.mjs
-          node tests/browser-resolved-official-provider.test.mjs
-
-      - name: Build Wrangler config
-        shell: bash
-        run: |
-          cat > wrangler.source-discovery.ci.toml <<'EOF'
-          name = "webtv-source-discovery"
-          main = "workers/webtv-source-discovery.js"
-          compatibility_date = "2026-09-20"
-          workers_dev = true
-          preview_urls = false
-          keep_vars = true
-
-          [[services]]
-          binding = "BROWSER_RESOLVER"
-          service = "webtv-browser-resolver"
-
-          [[services]]
-          binding = "SOURCE_VERIFIER"
-          service = "webtv-source-verifier"
-          EOF
-
-      - name: Deploy
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --config wrangler.source-discovery.ci.toml
-
-      - name: Verify live Worker and all external providers
-        shell: bash
-        run: |
-          set -u -o pipefail
-          for attempt in $(seq 1 12); do
-            STATUS=$(curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" || true)
-            CURATED=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true)
-            GITHUB=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"github-public-playlists","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true)
-            WEB=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"recent-web-search","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}' || true)
-            STRM=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"strm-specific-discovery","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}' || true)
-            OFFICIAL=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"official-provider-lane","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}' || true)
-            OFFICIAL_API=$(curl --fail --silent --show-error -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data '{"provider":"official-api-resolver","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}' || true)
-            if node -e "try{const s=JSON.parse(process.argv[1]),c=JSON.parse(process.argv[2]),g=JSON.parse(process.argv[3]),w=JSON.parse(process.argv[4]),r=JSON.parse(process.argv[5]),o=JSON.parse(process.argv[6]),a=JSON.parse(process.argv[7]);const githubOk=Array.isArray(g.reports?.searches)&&g.reports.searches.some(x=>x.status===200);const webOk=Array.isArray(w.reports?.searches)&&w.reports.searches.some(x=>x.status===200);const strmFeedOk=Array.isArray(r.reports?.feeds)&&r.reports.feeds.some(x=>x.status===200);const strmResolved=Array.isArray(r.reports?.resolutions)&&r.reports.resolutions.some(x=>x.resolved===true);const officialPageOk=Array.isArray(o.reports?.pages)&&o.reports.pages.some(x=>x.status===200);const officialSafe=Array.isArray(o.candidates)&&o.candidates.some(x=>x.candidateKind==='official-page'&&x.trustClass==='OFFICIAL'&&x.saveEligible===false);const browserFlag=typeof s.providers?.['browser-resolved-official']==='boolean';const apiFlag=s.providers?.['official-api-resolver']===true;const apiOk=a.provider==='official-api-resolver'&&a.recognized===true&&a.reports?.api?.status===200&&a.reports?.verification?.transport==='service-binding'&&a.reports?.verification?.serviceStatus===200&&typeof a.reports?.verification?.verified==='boolean'&&Array.isArray(a.candidates);const ok=s.service==='WebTV Source Discovery'&&s.version==='1.6'&&s.providers?.['curated-remote-feeds']===true&&s.providers?.['github-public-playlists']===true&&s.providers?.['recent-web-search']===true&&s.providers?.['strm-specific-discovery']===true&&s.providers?.['official-provider-lane']===true&&apiFlag&&browserFlag&&c.provider==='curated-remote-feeds'&&Array.isArray(c.reports)&&c.reports.some(x=>x.status===200)&&g.provider==='github-public-playlists'&&g.freshnessApplied===true&&githubOk&&w.provider==='recent-web-search'&&w.freshnessApplied===true&&webOk&&r.provider==='strm-specific-discovery'&&r.freshnessApplied===false&&strmFeedOk&&strmResolved&&Array.isArray(r.candidates)&&r.candidates.length>0&&o.provider==='official-provider-lane'&&o.recognized===true&&officialPageOk&&officialSafe&&apiOk;if(!ok)process.exit(1);console.log(JSON.stringify({status:s,curated:{candidateCount:c.candidates?.length||0},github:{candidateCount:g.candidates?.length||0},web:{candidateCount:w.candidates?.length||0},strm:{candidateCount:r.candidates?.length||0},official:{candidateCount:o.candidates?.length||0},officialApi:{candidateCount:a.candidates?.length||0,apiStatus:a.reports?.api?.status,verification:a.reports?.verification}},null,2));}catch{process.exit(1)}" "$STATUS" "$CURATED" "$GITHUB" "$WEB" "$STRM" "$OFFICIAL" "$OFFICIAL_API"; then
-              echo "Source Discovery v1.6 is live with official API resolution and Source Verifier service binding."
-              exit 0
-            fi
-            echo "Waiting for Worker/provider availability ($attempt/12)…"
-            sleep 5
-          done
-          echo "::error::Source Discovery v1.6 live verification failed. Check provider upstreams, verifier binding, official pages, BRAVE_API_KEY, and Browser Resolver capability reporting."
-          exit 1
+          while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find workers/source-discovery -type f -name '*.js' | sort)
+      - name: Run playback and fallback regression tests
+        run: node tests/header-aware-proxy.test.mjs
+      - name: Run source ranking regression test
+        run: node tests/source-ranking.test.mjs
+      - name: Run Xtream source regression test
+        run: node tests/xtream-client.test.mjs
+      - name: Run Xtream preview route encryption regression test
+        run: node tests/xtream-preview-routes.test.mjs
+      - name: Run Xtream channel cleanup route regression test
+        run: node tests/xtream-channel-cleanup-route.test.mjs
+      - name: Run Xtream channel lifecycle regression test
+        run: node tests/xtream-channel-lifecycle.test.mjs
+      - name: Run authorized Xtream discovery regression test
+        run: node tests/authorized-xtream-discovery.test.mjs
+      - name: Run new Xtream preview candidate regression test
+        run: node tests/new-xtream-preview.test.mjs
+      - name: Run explicit Discovery promotion regression test
+        run: node tests/discovery-promotion.test.mjs
+      - name: Run Discovery candidate/state regression test
+        run: node tests/discovery-candidate.test.mjs
+      - name: Run Discovery local-source regression test
+        run: node tests/discovery-local-sources.test.mjs
+      - name: Run Discovery verifier client regression test
+        run: node tests/discovery-verifier.test.mjs
+      - name: Run Source Verifier Worker regression test
+        run: node tests/source-verifier-worker.test.mjs
+      - name: Run external discovery client regression test
+        run: node tests/discovery-external.test.mjs
+      - name: Run Source Discovery Worker regression test
+        run: node tests/source-discovery-worker.test.mjs
+      - name: Run GitHub public playlist provider regression test
+        run: node tests/github-public-playlists-provider.test.mjs
+      - name: Run recent web search provider regression test
+        run: node tests/recent-web-search-provider.test.mjs
+      - name: Run STRM-specific discovery provider regression test
+        run: node tests/strm-specific-discovery-provider.test.mjs
+      - name: Run official provider lane regression test
+        run: node tests/official-provider-lane.test.mjs
+      - name: Run Discovery Phase 4 isolation regression test
+        run: node tests/discovery-isolation.test.mjs
+      - name: Run Discovery Phase 5 browser smoke test
+        run: node tests/discovery-browser-smoke.mjs
+      - name: Run frontend integration audit
+        run: node tests/frontend-integration.test.mjs
