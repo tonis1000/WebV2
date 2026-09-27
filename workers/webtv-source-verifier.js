@@ -4,6 +4,7 @@ const UPSTREAM_TIMEOUT_MS=6000;
 const MAX_BODY_BYTES=512000;
 const MAX_BATCH=4;
 const MAX_CONCURRENCY=2;
+const MAX_REDIRECTS=5;
 
 function cors(){return {'access-control-allow-origin':ALLOWED_ORIGIN,'access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'};}
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{...cors(),'content-type':'application/json;charset=utf-8','cache-control':'no-store'}});}
@@ -34,6 +35,10 @@ function safeHttpUrl(raw=''){
     if(a===10||a===127||a===0||(a===169&&b===254)||(a===192&&b===168)||(a===172&&b>=16&&b<=31))throw new Error('Private IP targets are not allowed');
   }
   return u;
+}
+function safeUrlSummary(value){
+  const u=value instanceof URL?value:safeHttpUrl(value);
+  return{host:u.hostname.toLowerCase(),pathname:u.pathname||'/'};
 }
 function inferredType(url='',explicit=''){
   const type=String(explicit||'').toLowerCase();
@@ -72,34 +77,53 @@ function classifyBody(type,text='',contentType=''){
   if(type==='direct'&&!(hls||dash||ct.startsWith('video/')||ct.startsWith('audio/')||ct.includes('octet-stream')))return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not recognized as playable media'};
   return{ok:true,mediaType:hls?'hls':dash?'dash':ct.split(';')[0]||type,drmDetected:drm,reason:''};
 }
+function isRedirectStatus(status){return[301,302,303,307,308].includes(status);}
+async function fetchWithRedirectDiagnostics(target,headers,signal){
+  let current=safeHttpUrl(target.toString());
+  const redirects=[];
+  for(let hop=0;hop<=MAX_REDIRECTS;hop++){
+    const response=await fetch(current.toString(),{method:'GET',redirect:'manual',cache:'no-store',headers,signal});
+    if(!isRedirectStatus(response.status))return{response,redirects,finalTarget:safeUrlSummary(current)};
+    const location=response.headers.get('location');
+    if(!location)return{response,redirects,finalTarget:safeUrlSummary(current)};
+    if(hop>=MAX_REDIRECTS)throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
+    const next=safeHttpUrl(new URL(location,current).toString());
+    redirects.push({status:response.status,from:safeUrlSummary(current),to:safeUrlSummary(next),hostChanged:current.hostname.toLowerCase()!==next.hostname.toLowerCase()});
+    try{await response.body?.cancel?.();}catch{}
+    current=next;
+  }
+  throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
+}
 async function verifyOne(input={}){
   const started=now();
   const candidateId=String(input.candidateId||'');
   const sourceUrl=String(input.sourceUrl||'').trim();
   const type=inferredType(sourceUrl,input.sourceType);
-  if(type==='strm'||type==='m3u')return{candidateId,status:'UNRESOLVED',verified:false,startupMs:0,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:'Resolve container/reference before verification'};
+  if(type==='strm'||type==='m3u')return{candidateId,status:'UNRESOLVED',verified:false,startupMs:0,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:'Resolve container/reference before verification',redirects:[],finalTarget:null};
   let target;
-  try{target=safeHttpUrl(sourceUrl);}catch(error){return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error.message};}
+  try{target=safeHttpUrl(sourceUrl);}catch(error){return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error.message,redirects:[],finalTarget:null};}
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),UPSTREAM_TIMEOUT_MS);
+  let redirects=[];let finalTarget=safeUrlSummary(target);
   try{
     const headers=new Headers(cleanHeaders(input.requiredHeaders));
     if(!headers.has('user-agent'))headers.set('user-agent',`Mozilla/5.0 WebTV-SourceVerifier/${VERSION}`);
     headers.set('accept','application/vnd.apple.mpegurl,application/x-mpegURL,application/dash+xml,video/*,audio/*,*/*;q=0.5');
-    const response=await fetch(target.toString(),{method:'GET',redirect:'follow',cache:'no-store',headers,signal:controller.signal});
+    const fetched=await fetchWithRedirectDiagnostics(target,headers,controller.signal);
+    const response=fetched.response;redirects=fetched.redirects;finalTarget=fetched.finalTarget;
     const status=response.status;
     if(!response.ok&&status!==206){
       const mapped=status===403?'HTTP 403':status===404?'HTTP 404':'FAILED';
-      return{candidateId,status:mapped,verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:'',drmDetected:false,detail:`Upstream HTTP ${status}`};
+      return{candidateId,status:mapped,verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:'',drmDetected:false,detail:`Upstream HTTP ${status}`,redirects,finalTarget};
     }
     const text=await readLimited(response);
     const classified=classifyBody(type,text,response.headers.get('content-type')||'');
-    if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:true,detail:'DRM markers detected'};
-    if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:classified.reason};
-    return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:'Manifest/media probe succeeded'};
+    if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:true,detail:'DRM markers detected',redirects,finalTarget};
+    if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:classified.reason,redirects,finalTarget};
+    return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget};
   }catch(error){
     const timeout=error?.name==='AbortError';
-    return{candidateId,status:timeout?'TIMEOUT':'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:timeout?`Upstream timeout after ${UPSTREAM_TIMEOUT_MS} ms`:error?.message||String(error)};
+    return{candidateId,status:timeout?'TIMEOUT':'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:timeout?`Upstream timeout after ${UPSTREAM_TIMEOUT_MS} ms`:error?.message||String(error),redirects,finalTarget};
   }finally{clearTimeout(timer);}
 }
 async function mapBounded(items,limit,fn){
@@ -113,7 +137,7 @@ export default{
   async fetch(request){
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors()});
     const url=new URL(request.url);
-    if(request.method==='GET'&&url.pathname==='/')return json({ok:true,service:'WebTV Source Verifier',version:VERSION,timeoutMs:UPSTREAM_TIMEOUT_MS,maxBatch:MAX_BATCH,maxConcurrency:MAX_CONCURRENCY});
+    if(request.method==='GET'&&url.pathname==='/')return json({ok:true,service:'WebTV Source Verifier',version:VERSION,timeoutMs:UPSTREAM_TIMEOUT_MS,maxBatch:MAX_BATCH,maxConcurrency:MAX_CONCURRENCY,maxRedirects:MAX_REDIRECTS});
     if(request.method==='GET'&&url.pathname==='/fixture/working.m3u8')return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:6,\nsegment1.ts\n',{status:200,headers:{...cors(),'content-type':'application/vnd.apple.mpegurl','cache-control':'no-store'}});
     if(request.method==='GET'&&url.pathname==='/fixture/dead')return new Response('gone',{status:404,headers:cors()});
     if(request.method==='POST'&&url.pathname==='/verify'){
