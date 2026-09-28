@@ -75,7 +75,8 @@ export async function discoverGithubPublicPlaylists({channel,freshness='7d',pars
       if(budget.remaining()<=0)break;
       const raw=await fetchText(file.download_url,budget);
       if(!raw.ok)continue;
-      const found=parseM3u(raw.text,channel,{name:`github:${repo.full_name}/${file.name}`,provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER,freshness:`repo-pushed:${repo.pushed_at||'unknown'}`});
+      const found=parseM3u(raw.text,channel,{name:`github:${repo.full_name}/${file.name}`,provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER,freshness:`repo-pushed:${repo.pushed_at||'unknown'}`})
+        .map(item=>({...item,discoveryProvider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER}));
       matches+=found.length;candidates.push(...found);
       if(candidates.length>=GITHUB_MAX_RESULTS)break;
     }
