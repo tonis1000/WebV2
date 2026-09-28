@@ -4,6 +4,26 @@ import { isHls, isDash, isVideoFile, normalizeId } from './utils.js';
 const HARD_HTTP_STATUSES = new Set([403, 404, 410]);
 const TERMINAL_SIBLING_STATUSES = new Set([404, 410]);
 const TRUSTED_EMBED_HOSTS = new Set(['www.youtube-nocookie.com']);
+const MEDIA_LIBRARIES = {
+  hls: {url:'https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js',ready:()=>Boolean(window.Hls?.isSupported)},
+  dash: {url:'https://cdn.dashjs.org/v4.7.4/dash.all.min.js',ready:()=>Boolean(window.dashjs?.MediaPlayer)},
+};
+const mediaLibraryLoads = new Map();
+function loadMediaLibrary(kind) {
+  const library=MEDIA_LIBRARIES[kind];
+  if(library.ready())return Promise.resolve();
+  if(mediaLibraryLoads.has(kind))return mediaLibraryLoads.get(kind);
+  const promise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src=library.url;script.async=true;
+    const timer=setTimeout(()=>{script.remove();reject(new Error(`${kind} player library timed out`));},12000);
+    script.onload=()=>{clearTimeout(timer);library.ready()?resolve():reject(new Error(`${kind} player library unavailable`));};
+    script.onerror=()=>{clearTimeout(timer);reject(new Error(`${kind} player library failed to load`));};
+    document.head.appendChild(script);
+  }).catch(error=>{mediaLibraryLoads.delete(kind);throw error;});
+  mediaLibraryLoads.set(kind,promise);
+  return promise;
+}
 
 function readHttpStatus(data = {}) {
   const candidates = [
@@ -231,6 +251,8 @@ export class PlayerController {
 
   async #playHls(url, token) {
     this.#showVideo();
+    if(!this.video.canPlayType('application/vnd.apple.mpegurl'))await loadMediaLibrary('hls');
+    if(token!==this.token)throw new Error('Superseded');
     if (window.Hls?.isSupported()) {
       this.hls = new window.Hls({
         enableWorker: false,
@@ -316,6 +338,8 @@ export class PlayerController {
   }
 
   async #playDash(url, token) {
+    await loadMediaLibrary('dash');
+    if(token!==this.token)throw new Error('Superseded');
     if (!window.dashjs?.MediaPlayer) throw new Error('dash.js unavailable');
     this.#showVideo();
     this.dash = window.dashjs.MediaPlayer().create();
