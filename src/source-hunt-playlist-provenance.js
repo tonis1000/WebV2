@@ -14,6 +14,9 @@ const KNOWN_PLAYLISTS = Object.freeze([
 ]);
 
 let scheduled = false;
+let observer = null;
+let observedHunt = null;
+const observerOptions={childList:true,subtree:true,characterData:true};
 
 function log(message){
   const box=$('diagnostic-log');
@@ -97,9 +100,14 @@ function augmentAdvanced(){
     const body=card.firstElementChild;body?.appendChild(box);
   }
 }
+function observeAgain(){if(observer&&observedHunt)observer.observe(observedHunt,observerOptions);}
 function scheduleAugment(){
   if(scheduled)return;scheduled=true;
-  requestAnimationFrame(()=>{scheduled=false;augmentAdvanced();});
+  requestAnimationFrame(()=>{
+    scheduled=false;
+    observer?.disconnect();
+    try{augmentAdvanced();}finally{observeAgain();}
+  });
 }
 function installStyles(){
   if($('source-hunt-playlist-provenance-styles'))return;
@@ -116,7 +124,9 @@ function installStyles(){
 export function installSourceHuntPlaylistProvenance(){
   installStyles();
   const hunt=$('source-hunt');if(!hunt)return;
-  const observer=new MutationObserver(scheduleAugment);observer.observe(hunt,{childList:true,subtree:true,characterData:true});
+  observedHunt=hunt;
+  observer=new MutationObserver(scheduleAugment);
+  observeAgain();
   scheduleAugment();
   console.info('[WebTV] Source Hunt playlist provenance loaded · Advanced results can open known source playlists');
 }
