@@ -1,7 +1,7 @@
 import { saveBestSourceToCurrent } from './source-save-policy.js';
 import { officialFallbackFor } from './core/official-fallbacks.js';
 
-const BUILD_ID = '20260924-stabilization';
+const BUILD_ID = '20260928-curated-oneclick';
 const $ = id => document.getElementById(id);
 
 const panel = $('source-hunt');
@@ -32,7 +32,7 @@ function ensureAdvancedUi(){
     summary.textContent='Advanced stream results';
     const hint=document.createElement('span');
     hint.className='muted small';
-    hint.textContent='Seeds, GitHub, Web, Forums and manual stream candidate lists';
+    hint.textContent='Curated feeds, Seeds, GitHub, Web, Forums and manual stream candidate lists';
     details.append(summary,hint);
     const tester=directCandidateTester();
     if(tester && tester.parentElement===panel) panel.insertBefore(details,tester);
@@ -65,7 +65,7 @@ function ensureUi(){
   return true;
 }
 function collectCandidateUrls(){
-  const selectors=['#hunt-results code','#hunt-seed-results code','#hunt-web-results code','#hunt-forum-results code'];
+  const selectors=['#hunt-results code','#hunt-curated-results code','#hunt-seed-results code','#hunt-web-results code','#hunt-forum-results code'];
   const seen=new Set(),urls=[];
   for(const selector of selectors){
     for(const node of document.querySelectorAll(selector)){
@@ -109,9 +109,9 @@ async function runOneClick(){
   if(!api?.testCandidate){status.textContent='Playback API unavailable';return;}
 
   button.disabled=true;window.WebTVSourceHuntBusy=true;
-  status.textContent=`Searching ${channelName}…`;log(`ONE-CLICK HUNT START ${channelName} · stream candidates first`);
+  status.textContent=`Searching ${channelName}…`;log(`ONE-CLICK HUNT START ${channelName} · curated + stream candidates first`);
   try{
-    document.querySelectorAll('#hunt-results,#hunt-seed-results,#hunt-web-results,#hunt-forum-results').forEach(el=>{el.innerHTML='';});
+    document.querySelectorAll('#hunt-results,#hunt-curated-results,#hunt-seed-results,#hunt-web-results,#hunt-forum-results').forEach(el=>{el.innerHTML='';});
     runHuntButton.click();
     const urls=await waitForDiscovery();
     if(!urls.length){
@@ -168,4 +168,4 @@ if(!ensureUi()){
   setTimeout(()=>{ensureUi();observer.disconnect();},5000);
 }
 window.addEventListener('webtv:ready',ensureUi);
-console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · direct playback API · stream-first · verified official fallback last`);
+console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · curated candidates included · direct playback API · stream-first · verified official fallback last`);
