@@ -1,6 +1,7 @@
 import { CONFIG } from './config.js?v=20260923-2215';
 import { cleanUrl, parseIptvUrl, isHls, isDash, workerUrl } from './core/utils.js?v=20260924-0900';
 import { StrmResolver } from './core/strm-resolver.js?v=20260924-1919';
+import { isRejectedChannelSource } from './core/source-rules.js?v=20260928-ant1-identity';
 
 const BUILD_ID = '20260924-2300';
 const strmResolver = new StrmResolver();
@@ -40,6 +41,7 @@ async function routeRows(channel){
       const resolved = info?.resolvedUrl || '';
       const resolvedParsed = parseIptvUrl(resolved);
       const resolvedUrl = resolvedParsed.url || '';
+      if(resolvedUrl && isRejectedChannelSource(channel,resolvedUrl)) continue;
       const mediaType = isHls(resolvedUrl) ? 'HLS' : isDash(resolvedUrl) ? 'DASH' : resolvedUrl ? 'MEDIA' : 'UNRESOLVED';
       const drm = Boolean(info?.drm);
       const unsupported = drm && mediaType === 'DASH';
@@ -58,6 +60,7 @@ async function routeRows(channel){
       continue;
     }
 
+    if(isRejectedChannelSource(channel,source)) continue;
     const candidates = [];
     if(/^https:\/\//i.test(source)) candidates.push({kind:'direct',playbackUrl:source});
     if(isHls(source) && CONFIG.workerForHls){
