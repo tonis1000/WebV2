@@ -74,6 +74,8 @@ function metaText(item){
 }
 function candidateCard(item,name,label){
   const card=document.createElement('div');card.className='hunt-result';
+  card.dataset.channelName=String(item.channelName||item.channel||item.name||name);
+  card.dataset.candidate='1';
   const meta=document.createElement('div'),strong=document.createElement('strong'),detail=document.createElement('span'),code=document.createElement('code');
   const testValue=candidateTestValue(item);
   strong.textContent=item.origin||item.sourceOrigin||label;detail.textContent=metaText(item);code.textContent=testValue||item.url||item.sourceUrl||'';meta.append(strong,detail,code);

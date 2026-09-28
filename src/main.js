@@ -6,12 +6,14 @@ import { EpgService } from './core/epg.js';
 import { PlayerController } from './core/player.js';
 import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/utils.js';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
+import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 
 const BUILD_ID = '20260924-stabilization';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const DEBUG_FLAGS = new Set((new URLSearchParams(location.search).get('debug') || '').split(',').map(v => v.trim()).filter(Boolean));
 const DEBUG_STORAGE = DEBUG_FLAGS.has('storage') || DEBUG_FLAGS.has('all');
+const candidateStrmResolver = new StrmResolver();
 const $ = id => document.getElementById(id);
 
 const els = {
@@ -332,6 +334,16 @@ function buildCandidateRoutes(raw){
 
 async function testCandidate(raw,{channel=selected}={}){
   if(!channel)throw new Error('Select a channel first');
+  const parsed=parseIptvUrl(raw);
+  if(isStrmReference(parsed.url)){
+    const resolved=await candidateStrmResolver.resolve(parsed.url);
+    const info=candidateStrmResolver.peekInfo(parsed.url);
+    if(info?.drm)throw new Error('STRM requires DRM license');
+    if(!resolved)throw new Error('STRM could not resolve to media URL');
+    log(`Candidate STRM resolved · ${sourceLabel(parsed.url)} → ${sourceLabel(resolved)}`);
+    const options=new URLSearchParams(parsed.headers);
+    raw=resolved+(options.size?`|${options}`:'');
+  }
   const {url,routes}=buildCandidateRoutes(raw);
   clearDiagnostics();
   log(`Candidate test for ${channel.name} · ${sourceLabel(url)} · ${routes.length} route(s)`);
