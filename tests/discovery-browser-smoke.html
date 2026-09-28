@@ -15,7 +15,11 @@
       getCatalogMode:()=> 'cloud',
       getChannels:()=>[{id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']},{id:'skai',originalId:'SKAI',name:'SKAI',group:'General',directUrls:['https://current.test/skai.m3u8']}],
     };
-    window.WebTVMyPlaylistAPI={getMyPlaylist:async()=>[],reload:async()=>{window.__promotionProbe.reloads++;}};
+    window.WebTVMyPlaylistAPI={
+      getMyPlaylist:async()=>[{id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']}],
+      replaceSourcesForCurrent:async directUrls=>{const channel={id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:[...(directUrls||[])]};window.__promotionProbe.d1Writes++;window.__promotionProbe.lastPayload=channel;window.__promotionProbe.reloads++;return channel;},
+      reload:async()=>{window.__promotionProbe.reloads++;}
+    };
     window.WebTVSavedPlaylistsReadAPI={getAllCached:async()=>[{id:'saved-1',name:'Greek backup',type:'saved',text:'#EXTM3U\n#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA",MEGA\nhttps://backup.test/mega.mpd\n',updatedAt:Date.now()}]};
     window.WebTVXtream={getLoaded:()=>({account:{id:'xt-1',name:'Provider A',server:'https://provider.test'},channels:[{id:'xtream:xt-1:42',streamId:'42',tvgId:'MEGA',name:'MEGA',group:'General',playbackUrl:'https://webtv-xtream.test/stream/xt-1/42.m3u8?s=signed'}]})};
     window.fetch=async(url,options={})=>{
