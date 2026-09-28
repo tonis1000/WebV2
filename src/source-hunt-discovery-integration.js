@@ -42,6 +42,7 @@ document.head.appendChild(style);
 
 async function integrateDiscoveryIntoSourceHunt(){
   await import('./discovery/discovery-ui.js?v=20260928-source-hunt-unified');
+  await import('./source-hunt-playlist-provenance.js?v=20260928-source-playlists');
 
   const sourceHunt = $('source-hunt');
   const toggle = $('source-hunt-toggle');
@@ -92,7 +93,7 @@ async function integrateDiscoveryIntoSourceHunt(){
   }
 
   if(!sourceHunt.hidden) sync();
-  console.info('[WebTV] Unified Discovery integrated into Source Hunt · manual lane buttons hidden · Xtream preview retained');
+  console.info('[WebTV] Unified Discovery integrated into Source Hunt · manual lane buttons hidden · Xtream preview retained · playlist provenance enabled');
 }
 
 integrateDiscoveryIntoSourceHunt().catch(error=>console.warn('[WebTV] Source Hunt discovery integration failed',error));
