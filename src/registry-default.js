@@ -9,7 +9,7 @@ try{
 import './xtream-ui.js?v=20260925-xtream6';
 import './xtream-preview-actions.js?v=20260925-xtream-click1';
 import './xtream-enhancements.js?v=20260925-xtream-enh2';
-import './source-order-controls.js?v=20260928-cloud-health';
+import './source-order-controls.js?v=20260928-cloud-health2';
 import './route-tooltip.js?v=20260926-routes1';
 import './discovery/discovery-ui.js?v=20260926-discovery-phase1';
 

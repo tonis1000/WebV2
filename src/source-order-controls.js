@@ -5,12 +5,13 @@ function norm(v=''){return String(v||'').toLowerCase().normalize('NFD').replace(
 function channelKey(c={}){return norm(c.id||c.originalId||c.name||'');}
 function readModes(){try{const v=JSON.parse(localStorage.getItem(MODE_KEY)||'{}');return v&&typeof v==='object'?v:{};}catch{return {};}}
 function getMode(c={}){return readModes()[channelKey(c)]==='manual'?'manual':'auto';}
-function setMode(c={},mode='auto'){
+async function setMode(c={},mode='auto'){
   const key=channelKey(c);if(!key)return;
+  if(!await window.WebTVRegistryAuth?.ensureSession({interactive:true}))throw new Error('D1 session required');
+  await window.WebTVHealthStore.saveMode(key,mode);
   const map=readModes();
   if(mode==='manual')map[key]='manual';else delete map[key];
   try{localStorage.setItem(MODE_KEY,JSON.stringify(map));}catch{}
-  window.WebTVHealthStore?.saveMode(key,mode).catch(error=>setStatus(`D1 source order save failed · ${error.message}`,'error'));
   window.dispatchEvent(new CustomEvent('webtv:source-order-mode',{detail:{channelId:key,mode:mode==='manual'?'manual':'auto'}}));
 }
 function setStatus(text,tone='ok'){
@@ -73,9 +74,9 @@ async function ensureEditorControls(){
   controls.innerHTML='<span id="source-order-mode-badge" class="freshness-badge"></span><button id="source-order-auto" class="button ghost mini" type="button">Use Health order</button><button id="source-order-manual" class="button ghost mini" type="button">Manual order</button><button id="source-order-reset-health" class="button danger mini" type="button">Reset Health for this channel</button>';
   area.parentNode.insertBefore(controls,area);
   updateEditorModeUi(channel);
-  $('source-order-auto').onclick=()=>{setMode(channel,'auto');updateEditorModeUi(channel);setStatus(`${channel.name}: AUTO Health order enabled`,'ok');};
-  $('source-order-manual').onclick=()=>{setMode(channel,'manual');updateEditorModeUi(channel);setStatus(`${channel.name}: MANUAL source order enabled`,'ok');};
-  $('source-order-reset-health').onclick=()=>{try{const n=resetHealthForChannel(channel);setStatus(`${channel.name}: health reset for ${n} route${n===1?'':'s'}`,'ok');refreshDiagnosticsMode();}catch(e){setStatus(e.message,'error');}};
+  $('source-order-auto').onclick=async()=>{try{await setMode(channel,'auto');updateEditorModeUi(channel);setStatus(`${channel.name}: AUTO Health order saved in D1`,'ok');}catch(e){setStatus(e.message,'error');}};
+  $('source-order-manual').onclick=async()=>{try{await setMode(channel,'manual');updateEditorModeUi(channel);setStatus(`${channel.name}: MANUAL source order saved in D1`,'ok');}catch(e){setStatus(e.message,'error');}};
+  $('source-order-reset-health').onclick=async()=>{try{if(!await window.WebTVRegistryAuth?.ensureSession({interactive:true}))return;const n=resetHealthForChannel(channel);await window.WebTVHealthStore.cloudQueue;setStatus(`${channel.name}: health reset in D1 for ${n} route${n===1?'':'s'}`,'ok');refreshDiagnosticsMode();}catch(e){setStatus(e.message,'error');}};
 }
 function diagnosticsOrderBox(){
   const section=$('diagnostics');if(!section)return null;
@@ -89,10 +90,10 @@ function diagnosticsOrderBox(){
   const head=section.querySelector('.section-heading');
   if(head&&!$('reset-selected-health')){
     const button=document.createElement('button');button.id='reset-selected-health';button.className='button danger';button.type='button';button.textContent='Reset selected channel health';
-    button.addEventListener('click',()=>{
+    button.addEventListener('click',async()=>{
       const c=window.WebTVPlaylistAPI?.getSelectedChannel?.();
       if(!c){setStatus('Choose a channel first','error');return;}
-      try{const n=resetHealthForChannel(c);const log=$('diagnostic-log');if(log)log.textContent=`[${new Date().toLocaleTimeString()}] Health reset for ${c.name} · ${n} route(s)\n${log.textContent}`;refreshDiagnosticsMode();}catch{}
+      try{if(!await window.WebTVRegistryAuth?.ensureSession({interactive:true}))return;const n=resetHealthForChannel(c);await window.WebTVHealthStore.cloudQueue;const log=$('diagnostic-log');if(log)log.textContent=`[${new Date().toLocaleTimeString()}] D1 health reset for ${c.name} · ${n} route(s)\n${log.textContent}`;refreshDiagnosticsMode();}catch(e){setStatus(e.message,'error');}
     });
     head.appendChild(button);
   }
@@ -113,8 +114,7 @@ document.addEventListener('click',e=>{
       const before=channel.directUrls||[];
       const after=urlsFromText($('source-editor-text')?.value||'');
       if(!sameOrder(before,after)){
-        setMode(channel,'manual');cache=[];cacheAt=0;
-        setStatus(`${channel.name}: changed source list saved as MANUAL order`,'ok');
+        setMode(channel,'manual').then(()=>{cache=[];cacheAt=0;setStatus(`${channel.name}: MANUAL order saved in D1`,'ok');}).catch(error=>setStatus(error.message,'error'));
       }
     });
     return;

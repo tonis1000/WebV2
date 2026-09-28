@@ -150,6 +150,8 @@ let currentCatalog = {
 };
 let catalogTrackingInstalled = false;
 let membershipTimer = null;
+let inspectorSelectedSource = '';
+let inspectorSelectedChannel = '';
 
 function injectInspectorStyles(){
   if($('current-playback-inspector-styles'))return;
@@ -385,7 +387,7 @@ function ensurePlaybackInspector(){
 
   $('playback-source-save-edit')?.addEventListener('click',async()=>{
     const edited=cleanUrl($('playback-source-full')?.value||'');
-    const original=cleanUrl(diagSource?.textContent||'');
+    const original=cleanUrl(inspectorSelectedSource||diagSource?.textContent||'');
     if(!/^https?:\/\//i.test(edited)){setInspectorStatus('Enter a valid http/https source first.','error');return;}
     try{
       setInspectorStatus('Saving edited source…','busy');
@@ -410,7 +412,7 @@ function ensurePlaybackInspector(){
   });
 
   $('playback-source-delete')?.addEventListener('click',async()=>{
-    const url=cleanUrl(diagSource?.textContent||$('playback-source-full')?.value||'');
+    const url=cleanUrl(inspectorSelectedSource||diagSource?.textContent||$('playback-source-full')?.value||'');
     if(!url)return;
     try{
       const {index,target}=await getMyPlaylistTarget();
@@ -437,6 +439,10 @@ function ensurePlaybackInspector(){
 function syncPlaybackInspector(){
   const area=$('playback-source-full');
   if(!area)return;
+  const channel=window.WebTVPlaylistAPI?.getSelectedChannel?.();
+  const channelKey=normalizeId(channel?.id||channel?.originalId||channel?.name||'');
+  if(inspectorSelectedChannel&&inspectorSelectedChannel!==channelKey){inspectorSelectedSource='';inspectorSelectedChannel='';}
+  if(inspectorSelectedSource){scheduleMembershipRefresh();return;}
   const source=diagSource?.textContent?.trim()||'';
   const route=diagRoute?.textContent?.trim()||'-';
   if(source&&source!=='-'&&document.activeElement!==area)area.value=source;
@@ -452,7 +458,7 @@ function scheduleMembershipRefresh(){
 async function refreshInspectorMembership(){
   const add=$('playback-source-add'),edit=$('playback-source-save-edit'),del=$('playback-source-delete');
   if(!add||!edit||!del)return;
-  const url=cleanUrl(diagSource?.textContent||'');
+  const url=cleanUrl(inspectorSelectedSource||diagSource?.textContent||'');
   const selected=window.WebTVPlaylistAPI?.getSelectedChannel?.();
   if(!selected||!url||url==='-'){
     add.disabled=true;edit.disabled=true;del.disabled=true;return;
@@ -474,6 +480,12 @@ async function refreshInspectorMembership(){
 
 function bootInspector(){
   ensurePlaybackInspector();
+  window.addEventListener('webtv:inspector-source-selected',event=>{
+    const channel=window.WebTVPlaylistAPI?.getSelectedChannel?.();
+    inspectorSelectedChannel=normalizeId(channel?.id||channel?.originalId||channel?.name||'');
+    inspectorSelectedSource=cleanUrl(event.detail?.source||'');
+    scheduleMembershipRefresh();
+  });
   if(!installCatalogTracking()){
     setTimeout(()=>{installCatalogTracking();renderCatalogIdentity();},500);
   }

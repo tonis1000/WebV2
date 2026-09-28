@@ -86,11 +86,21 @@ function ensureUi(){
   section.innerHTML = `
     <div class="source-health-head">
       <div><p class="eyebrow">SOURCE INTELLIGENCE</p><h3>Route health</h3></div>
+      <button id="health-cloud-connect" class="button ghost mini" type="button">Connect health to D1</button>
       <span id="source-health-summary" class="freshness-badge">No channel</span>
     </div>
     <div id="source-health-list" class="source-health-list"></div>`;
   const log = $('diagnostic-log');
   diagnostics.insertBefore(section, log || null);
+  $('health-cloud-connect').addEventListener('click',async()=>{
+    const button=$('health-cloud-connect');button.disabled=true;
+    try{
+      const ok=await window.WebTVRegistryAuth?.ensureSession({interactive:true});
+      if(ok&&!await window.WebTVHealthStore?.loadCloud())throw new Error('D1 health could not be loaded');
+      render();
+    }catch(error){button.textContent=`D1 error · ${error.message}`;}
+    finally{button.disabled=false;}
+  });
 }
 
 function emptyMessage(list,text){
@@ -113,6 +123,8 @@ async function render(){
   const list = $('source-health-list');
   if(!summary || !list) return;
   const channel = window.WebTVPlaylistAPI?.getSelectedChannel?.();
+  const cloud=window.WebTVHealthStore?.cloudReady===true;
+  const connect=$('health-cloud-connect');if(connect)connect.hidden=cloud;
   if(!channel){
     summary.textContent = 'No channel';
     emptyMessage(list,'Select a channel to inspect its curated D1 routes.');
@@ -128,7 +140,7 @@ async function render(){
   const cooling = routedRows.filter(r => Number(r.entry?.cooldownUntil || 0) > Date.now());
   const speeds = tested.map(r => Number(r.entry?.avgStartupMs || 0)).filter(Boolean);
   const avg = speeds.length ? Math.round(speeds.reduce((a,b)=>a+b,0)/speeds.length) : 0;
-  summary.textContent = `${tested.length}/${routedRows.length} tested${cooling.length?` · ${cooling.length} cooling`:''}${avg?` · ${avg} ms avg`:''}`;
+  summary.textContent = `${cloud?'D1':'LOCAL ONLY · D1 locked'} · ${tested.length}/${routedRows.length} tested${cooling.length?` · ${cooling.length} cooling`:''}${avg?` · ${avg} ms avg`:''}`;
   list.innerHTML = '';
 
   if(!rows.length){
@@ -153,6 +165,7 @@ async function render(){
         const area=$('playback-source-full');if(!area)return;
         area.value=row.source;
         area.dispatchEvent(new Event('input',{bubbles:true}));
+        window.dispatchEvent(new CustomEvent('webtv:inspector-source-selected',{detail:{source:row.source,route:row.kind}}));
         const route=$('playback-route-full');if(route)route.textContent=`${row.kind} · selected for single-source test`;
         const status=$('playback-inspector-status');if(status)status.textContent='Source selected. Click Test edited URL to test only this source; save requires a separate action.';
         area.focus({preventScroll:true});area.scrollIntoView({block:'center',behavior:'smooth'});

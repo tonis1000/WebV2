@@ -427,7 +427,7 @@ document.addEventListener('pointerdown',event=>{
   if(els.sourceHunt.contains(event.target)||els.sourceHuntToggle.contains(event.target))return;
   els.sourceHunt.hidden=true;
 });
-els.clearHealth.addEventListener('click',()=>{health.clear();log('Health data cleared');renderChannels();});
+els.clearHealth.addEventListener('click',async()=>{try{if(!await window.WebTVRegistryAuth?.ensureSession({interactive:true}))return;health.clear();await health.cloudQueue;log('Health data cleared in D1');renderChannels();}catch(error){log(`D1 health reset failed · ${error.message}`);}});
 els.testCandidate.addEventListener('click',testCandidateUrl);
 els.candidateUrl.addEventListener('keydown',event=>{if(event.key==='Enter')testCandidateUrl();});
 
