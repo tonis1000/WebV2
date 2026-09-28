@@ -2,15 +2,8 @@ import { CONFIG } from './config.js';
 import { cleanUrl, normalizeId, isHls, workerUrl } from './core/utils.js';
 import { scoreSourceUrl } from './core/health-scoring.js';
 
-const BUILD_ID = '20260924-stabilization';
-const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
-const REGISTRY_TOKEN_KEY = 'webtv_v2_registry_token';
-const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
+const BUILD_ID = '20260928-source-save-api';
 
-function registryUrl(){
-  return (localStorage.getItem(REGISTRY_URL_KEY) || DEFAULT_REGISTRY).trim().replace(/\/$/, '');
-}
-function registryToken(){return localStorage.getItem(REGISTRY_TOKEN_KEY) || '';}
 function loadHealth(){
   try{return JSON.parse(localStorage.getItem(CONFIG.healthStorageKey) || '{}');}
   catch{return{};}
@@ -67,67 +60,31 @@ function chooseBestSources(winner,existing,maxSources=3){
   }
   return {kept:chosen.map(row=>row.url),dropped:pool.filter(url=>!chosen.some(row=>row.url===url)),ranked};
 }
-async function ensureWriteSession(){
-  const auth = window.WebTVRegistryAuth;
-  if(auth?.ensureSession){
-    const ok = await auth.ensureSession({interactive:true});
-    if(!ok) throw new Error('D1 write cancelled');
-    return;
-  }
-  if(!registryToken()) throw new Error('Trusted-device session is required');
-}
-async function putChannel(channel,position){
-  await ensureWriteSession();
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(),12000);
-  try{
-    const response = await fetch(`${registryUrl()}/api/my-playlist/channel`,{
-      method:'PUT',cache:'no-store',signal:controller.signal,
-      headers:{'content-type':'application/json',authorization:`Bearer ${registryToken()}`},
-      body:JSON.stringify({
-        id:normalizeId(channel.id||channel.originalId||channel.name),
-        name:channel.name,
-        tvgId:channel.originalId||channel.id||channel.name,
-        logo:channel.logo||'',
-        groupName:channel.group||'Other',
-        directUrls:[...(channel.directUrls||[])],
-        sources:(channel.directUrls||[]).map((url,i)=>({url,origin:'verified',priority:100+i})),
-        position,
-        replaceSources:true
-      })
-    });
-    let json={};try{json=await response.json();}catch{}
-    if(!response.ok) throw new Error(json.error||`Registry HTTP ${response.status}`);
-    return json;
-  }finally{clearTimeout(timer);}
-}
 
 export async function saveBestSourceToCurrent(url,{maxSources=3}={}){
   const source = cleanUrl(url);
   if(!/^https?:\/\//i.test(source)) throw new Error('Valid source URL required');
   const selected = window.WebTVPlaylistAPI?.getSelectedChannel?.();
   if(!selected) throw new Error('No channel selected');
-  const list = await window.WebTVMyPlaylistAPI?.getMyPlaylist?.();
+
+  const playlistApi = window.WebTVMyPlaylistAPI;
+  if(!playlistApi?.getMyPlaylist || !playlistApi?.replaceSourcesForCurrent){
+    throw new Error('My Playlist source API unavailable');
+  }
+
+  const list = await playlistApi.getMyPlaylist();
   if(!Array.isArray(list)) throw new Error('My Playlist API unavailable');
 
   const key = normalizeId(selected.id||selected.originalId||selected.name);
-  let index = list.findIndex(item=>normalizeId(item.id||item.originalId||item.name)===key);
-  let target;
-  if(index<0){
-    index=list.length;
-    target={...selected,directUrls:[...(selected.directUrls||[])]};
-  }else{
-    target={...list[index],directUrls:[...(list[index].directUrls||[])]};
-  }
+  const current = list.find(item=>normalizeId(item.id||item.originalId||item.name)===key);
+  const existing = [...(current?.directUrls||selected.directUrls||[])];
+  const selection = chooseBestSources(source,existing,Math.max(1,Math.min(3,Number(maxSources)||3)));
 
-  const selection = chooseBestSources(source,target.directUrls,Math.max(1,Math.min(3,Number(maxSources)||3)));
-  target.directUrls=selection.kept;
-  await putChannel(target,index);
-  await window.WebTVMyPlaylistAPI?.reload?.();
+  const target = await playlistApi.replaceSourcesForCurrent(selection.kept,{reason:'source-hunt-winner'});
   window.dispatchEvent(new CustomEvent('webtv:source-policy-saved',{detail:{channelId:key,winner:source,...selection}}));
   return {channel:target,winner:source,...selection};
 }
 
 export { chooseBestSources };
 window.WebTVSourcePolicy={saveBestSourceToCurrent,chooseBestSources};
-console.info(`[WebTV] Source save policy loaded · build ${BUILD_ID} · shared health scoring · verified best 3 max`);
+console.info(`[WebTV] Source save policy loaded · build ${BUILD_ID} · My Playlist API write path · verified best 3 max`);
