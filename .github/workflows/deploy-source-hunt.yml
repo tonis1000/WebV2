@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'workers/source-huntatonisworkersdev.js'
+      - 'workers/source-hunt-smart.js'
       - '.github/workflows/deploy-source-hunt.yml'
 
 permissions:
@@ -28,14 +29,16 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Validate source
-        run: node --check workers/source-huntatonisworkersdev.js
+        run: |
+          node --check workers/source-huntatonisworkersdev.js
+          node --check workers/source-hunt-smart.js
 
       - name: Build Wrangler config
         shell: bash
         run: |
           cat > wrangler.source-hunt.ci.toml <<'EOF'
           name = "source-huntatonisworkersdev"
-          main = "workers/source-huntatonisworkersdev.js"
+          main = "workers/source-hunt-smart.js"
           compatibility_date = "2026-09-20"
           workers_dev = true
           preview_urls = false
@@ -58,14 +61,14 @@ jobs:
           set -euo pipefail
           for attempt in $(seq 1 12); do
             curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" -o /tmp/source-hunt-status.json || true
-            if node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/source-hunt-status.json','utf8'));process.exit(j.service==='WebTV Source Hunt Worker'&&j.version==='1.13'?0:1)}catch{process.exit(1)}"; then
+            if node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/source-hunt-status.json','utf8'));process.exit(j.service==='WebTV Source Hunt Worker'&&j.version==='1.14'&&Array.isArray(j.features)&&j.features.includes('GitHub issue labels/state intelligence')?0:1)}catch{process.exit(1)}"; then
               cat /tmp/source-hunt-status.json
-              echo "Source Hunt v1.13 is live."
+              echo "Source Hunt v1.14 is live."
               exit 0
             fi
             echo "Waiting for Cloudflare propagation ($attempt/12)…"
             sleep 5
           done
-          echo "::error::Source Hunt verification failed"
+          echo "::error::Source Hunt v1.14 verification failed"
           cat /tmp/source-hunt-status.json 2>/dev/null || true
           exit 1
