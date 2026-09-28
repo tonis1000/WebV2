@@ -24,11 +24,24 @@ style.textContent = `
   #source-hunt #discovery-shell.source-hunt-discovery-integrated .discovery-note{
     margin-top:0!important;
   }
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-freshness,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-scan-local,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-scan-curated,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-scan-github,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-scan-web,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-scan-strm,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-scan-official,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-scan-xtream,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-cancel-external,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-verify-all,
+  #source-hunt #discovery-shell.source-hunt-discovery-integrated #discovery-cancel-verify{
+    display:none!important;
+  }
 `;
 document.head.appendChild(style);
 
 async function integrateDiscoveryIntoSourceHunt(){
-  await import('./discovery/discovery-ui.js?v=20260927-source-hunt-integrated');
+  await import('./discovery/discovery-ui.js?v=20260928-source-hunt-unified');
 
   const sourceHunt = $('source-hunt');
   const toggle = $('source-hunt-toggle');
@@ -46,11 +59,11 @@ async function integrateDiscoveryIntoSourceHunt(){
   }
 
   shell.classList.add('source-hunt-discovery-integrated');
-  shell.setAttribute('aria-label','Source Hunt search sources and Xtream tools');
+  shell.setAttribute('aria-label','Source Hunt Xtream tools and unified discovery results');
 
   const note = shell.querySelector('.discovery-note');
   if(note){
-    note.textContent = 'Search sources and verification stay isolated from normal playback until you explicitly test or save a result. New Xtream logins use a short-lived encrypted preview; after VERIFIED you choose whether to add only that channel or save the full Xtream account.';
+    note.textContent = 'Find & Test Best searches Local, Curated, GitHub, Recent Web, STRM, Official and Authorized Xtream sources, merges duplicates, uses verifier results as diagnostics, then lets real browser playback choose the winner. Nothing is saved until a source actually plays. New Xtream login testing stays explicit and secure below.';
   }
   const hint = shell.querySelector('.discovery-new-xtream-hint');
   if(hint){
@@ -79,7 +92,7 @@ async function integrateDiscoveryIntoSourceHunt(){
   }
 
   if(!sourceHunt.hidden) sync();
-  console.info('[WebTV] Discovery tools integrated into Source Hunt · Beta UI hidden');
+  console.info('[WebTV] Unified Discovery integrated into Source Hunt · manual lane buttons hidden · Xtream preview retained');
 }
 
 integrateDiscoveryIntoSourceHunt().catch(error=>console.warn('[WebTV] Source Hunt discovery integration failed',error));
