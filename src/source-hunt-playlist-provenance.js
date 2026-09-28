@@ -63,6 +63,22 @@ function buildProvenanceMap(){
   }
   return map;
 }
+function discoverySourcesFor(candidateUrl=''){
+  const target=cleanUrl(candidateUrl);
+  if(!target)return[];
+  let snapshot=null;
+  try{snapshot=window.WebTVDiscovery?.snapshot?.()||null;}catch{}
+  if(!snapshot)return[];
+  const sources=[];
+  for(const item of snapshot.candidates||[]){
+    if(cleanUrl(item?.sourceUrl)!==target)continue;
+    for(const label of [item?.sourceOrigin,item?.origin,item?.discoveryProvider,item?.resolvedFrom]){
+      const source=inferredSource(label||'');
+      if(source)sources.push(source);
+    }
+  }
+  return uniqueSources(sources);
+}
 function openPlaylist(source){
   if(!source?.url)return;
   const manager=$('playlist-manager');
@@ -91,7 +107,7 @@ function augmentAdvanced(){
   for(const card of root.querySelectorAll('.hunt-all-card')){
     card.querySelector('.hunt-playlist-provenance')?.remove();
     const candidate=cleanUrl(card.querySelector('code')?.textContent||'');
-    const sources=[...(map.get(candidate)||[])];
+    const sources=[...(map.get(candidate)||[]),...discoverySourcesFor(candidate)];
     const inferred=inferredSource(card.textContent||'');if(inferred)sources.push(inferred);
     const unique=uniqueSources(sources).slice(0,4);
     if(!unique.length)continue;
@@ -128,7 +144,8 @@ export function installSourceHuntPlaylistProvenance(){
   observer=new MutationObserver(scheduleAugment);
   observeAgain();
   scheduleAugment();
-  console.info('[WebTV] Source Hunt playlist provenance loaded · Advanced results can open known source playlists');
+  window.addEventListener('webtv:ready',scheduleAugment);
+  console.info('[WebTV] Source Hunt playlist provenance loaded · Advanced results use DOM + Discovery state');
 }
 
 installSourceHuntPlaylistProvenance();
