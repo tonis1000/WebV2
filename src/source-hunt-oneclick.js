@@ -1,171 +1,70 @@
 import { saveBestSourceToCurrent } from './source-save-policy.js';
 import { officialFallbackFor } from './core/official-fallbacks.js';
+import { channelMatchScore, canonicalGreekChannelName, makeSyntheticChannel } from './channel-identity-gr.js';
+import { showSaveDestination } from './source-hunt-save-destination.js';
 
-const BUILD_ID = '20260928-curated-oneclick';
+const BUILD_ID = '20260928-free-search-save-destination';
 const $ = id => document.getElementById(id);
-
 const panel = $('source-hunt');
 const diagLog = $('diagnostic-log');
+let queryDirty=false;
 
-function log(message){
-  if(!diagLog) return;
-  const stamp = new Date().toLocaleTimeString();
-  diagLog.textContent = `[${stamp}] ${message}\n${diagLog.textContent}`.slice(0, 18000);
-}
-function clean(value=''){return String(value || '').split('#')[0].trim();}
-function selectedChannel(){return window.WebTVPlaylistAPI?.getSelectedChannel?.() || null;}
-function currentOfficialFallback(){const selected=selectedChannel();return selected ? officialFallbackFor(selected) : null;}
-function playbackApi(){return window.WebTVPlaybackAPI || null;}
+function log(message){if(!diagLog)return;const stamp=new Date().toLocaleTimeString();diagLog.textContent=`[${stamp}] ${message}\n${diagLog.textContent}`.slice(0,18000);}
+function clean(value=''){return String(value||'').split('#')[0].trim();}
+function selectedChannel(){return window.WebTVPlaylistAPI?.getSelectedChannel?.()||null;}
+function playbackApi(){return window.WebTVPlaybackAPI||null;}
+function huntQuery(){return clean($('hunt-query')?.value)||selectedChannel()?.name||'';}
+function huntMode(){return $('hunt-match-mode')?.value||'exact';}
+function selectedMatchesQuery(){const selected=selectedChannel();if(!selected)return false;return canonicalGreekChannelName(selected.name)===canonicalGreekChannelName(huntQuery());}
+function currentOfficialFallback(){const selected=selectedChannel();return selected&&selectedMatchesQuery()?officialFallbackFor(selected):null;}
+function directCandidateTester(){if(!panel)return null;return [...panel.children].find(node=>node.classList?.contains('candidate-tester'))||null;}
 
-function directCandidateTester(){
-  if(!panel) return null;
-  return [...panel.children].find(node=>node.classList?.contains('candidate-tester')) || null;
+function ensureSearchUi(){
+  if(!panel||$('hunt-search-box'))return;
+  const heading=panel.querySelector('.section-heading');if(!heading)return;
+  const wrap=document.createElement('div');wrap.id='hunt-search-box';wrap.className='hunt-oneclick-wrap';
+  wrap.innerHTML=`<input id="hunt-query" type="search" placeholder="Search channel / provider e.g. ANT1 Comedy, Nova" autocomplete="off"><select id="hunt-match-mode" aria-label="Search mode"><option value="exact">Exact channel</option><option value="broad">Broad / family</option></select>`;
+  heading.appendChild(wrap);
+  const input=$('hunt-query');
+  const selected=selectedChannel();if(selected)input.value=selected.name;
+  input.addEventListener('input',()=>{queryDirty=true;});
+  input.addEventListener('keydown',e=>{if(e.key==='Enter')$('hunt-oneclick')?.click();});
+  const name=$('channel-name');if(name)new MutationObserver(()=>{if(queryDirty)return;const selected=selectedChannel();if(selected&&input)input.value=selected.name;}).observe(name,{childList:true,characterData:true,subtree:true});
 }
 function ensureAdvancedUi(){
-  if(!panel) return;
-  let details=$('hunt-advanced');
-  if(!details){
-    details=document.createElement('details');
-    details.id='hunt-advanced';
-    details.className='hunt-advanced';
-    const summary=document.createElement('summary');
-    summary.textContent='Advanced stream results';
-    const hint=document.createElement('span');
-    hint.className='muted small';
-    hint.textContent='Curated feeds, Seeds, GitHub, Web, Forums and manual stream candidate lists';
-    details.append(summary,hint);
-    const tester=directCandidateTester();
-    if(tester && tester.parentElement===panel) panel.insertBefore(details,tester);
-    else panel.appendChild(details);
-  }
-  for(const id of ['hunt-auto','hunt-external']){
-    const node=$(id);
-    if(node && node!==details && node.parentElement!==details) details.appendChild(node);
-  }
-}
+  if(!panel)return;let details=$('hunt-advanced');if(!details){details=document.createElement('details');details.id='hunt-advanced';details.className='hunt-advanced';const summary=document.createElement('summary');summary.textContent='Advanced stream results';const hint=document.createElement('span');hint.className='muted small';hint.textContent='Curated feeds, Seeds, GitHub, Web, Forums and manual stream candidate lists';details.append(summary,hint);const tester=directCandidateTester();if(tester&&tester.parentElement===panel)panel.insertBefore(details,tester);else panel.appendChild(details);}for(const id of ['hunt-auto','hunt-external']){const node=$(id);if(node&&node!==details&&node.parentElement!==details)details.appendChild(node);}}
 function ensureUi(){
-  const runHuntButton = $('run-hunt');
-  if(!panel || !runHuntButton) return false;
-  if(!$('hunt-oneclick')){
-    const heading = panel.querySelector('.section-heading');
-    if(!heading) return false;
-    const wrap = document.createElement('div');
-    wrap.className = 'hunt-oneclick-wrap';
-    wrap.innerHTML = `
-      <button id="hunt-oneclick" class="button hunt-primary" type="button">Find & Test Best</button>
-      <span id="hunt-oneclick-status" class="hunt-oneclick-status">Ready · streams first · official fallback last</span>`;
-    heading.appendChild(wrap);
-  }
-  ensureAdvancedUi();
-  const button = $('hunt-oneclick');
-  if(button && button.dataset.oneclickBound !== '1'){
-    button.dataset.oneclickBound = '1';
-    button.addEventListener('click', runOneClick);
-  }
-  return true;
+  const runHuntButton=$('run-hunt');if(!panel||!runHuntButton)return false;ensureSearchUi();if(!$('hunt-oneclick')){const heading=panel.querySelector('.section-heading');if(!heading)return false;const wrap=document.createElement('div');wrap.className='hunt-oneclick-wrap';wrap.innerHTML=`<button id="hunt-oneclick" class="button hunt-primary" type="button">Find & Test Best</button><span id="hunt-oneclick-status" class="hunt-oneclick-status">Ready · exact identity check · streams first</span>`;heading.appendChild(wrap);}ensureAdvancedUi();const button=$('hunt-oneclick');if(button&&button.dataset.oneclickBound!=='1'){button.dataset.oneclickBound='1';button.addEventListener('click',runOneClick);}return true;
 }
+function candidateMatches(node,query,mode){if(!query)return true;return channelMatchScore(node?.closest?.('.hunt-result')?.textContent||node?.parentElement?.textContent||node?.textContent||'',query,mode)>0;}
 function collectCandidateUrls(){
-  const selectors=['#hunt-results code','#hunt-curated-results code','#hunt-seed-results code','#hunt-web-results code','#hunt-forum-results code'];
-  const seen=new Set(),urls=[];
-  for(const selector of selectors){
-    for(const node of document.querySelectorAll(selector)){
-      const url=clean(node.textContent);
-      if(!/^https?:\/\//i.test(url)||seen.has(url))continue;
-      seen.add(url);urls.push(url);
-    }
-  }
-  return urls;
+  const query=huntQuery(),mode=huntMode();const selectors=['#hunt-results code','#hunt-curated-results code','#hunt-seed-results code','#hunt-web-results code','#hunt-forum-results code'];const seen=new Set(),urls=[];
+  for(const selector of selectors)for(const node of document.querySelectorAll(selector)){const url=clean(node.textContent);if(!/^https?:\/\//i.test(url)||seen.has(url))continue;if(!candidateMatches(node,query,mode)){node.closest?.('.hunt-result')?.setAttribute('data-identity-rejected','1');continue;}seen.add(url);urls.push(url);}return urls;
 }
-function waitForDiscovery({maxMs=32000,quietMs=1800,minMs=4500}={}){
-  return new Promise(resolve=>{
-    const roots=[$('hunt-auto'),$('hunt-external')].filter(Boolean);
-    const startedAt=Date.now();let quietTimer=null,done=false;
-    const finish=()=>{if(done)return;done=true;clearTimeout(quietTimer);clearTimeout(maxTimer);observer.disconnect();resolve(collectCandidateUrls());};
-    const schedule=()=>{clearTimeout(quietTimer);quietTimer=setTimeout(()=>{const elapsed=Date.now()-startedAt,urls=collectCandidateUrls();if(urls.length&&elapsed>=minMs)finish();else if(urls.length)quietTimer=setTimeout(finish,Math.max(0,minMs-elapsed));},quietMs);};
-    const observer=new MutationObserver(schedule);roots.forEach(root=>observer.observe(root,{childList:true,subtree:true,characterData:true}));
-    const maxTimer=setTimeout(finish,maxMs);schedule();
-  });
-}
-async function restoreSelectedPlayback(){
-  const api=playbackApi();
-  if(api?.replaySelected) return api.replaySelected();
-  return null;
-}
-function useOfficialFallback(status,channelName,reason){
-  const fallback=currentOfficialFallback();
-  if(!fallback)return false;
-  status.textContent=`${reason} · ${fallback.label || 'Official fallback'}`;
-  log(`ONE-CLICK FALLBACK ${channelName} · ${reason} · ${fallback.route || 'official-fallback'} · not saved to D1`);
-  restoreSelectedPlayback().catch(error=>log(`ONE-CLICK FALLBACK restore failed · ${error.message}`));
-  return true;
-}
+function waitForDiscovery({maxMs=32000,quietMs=1800,minMs=4500}={}){return new Promise(resolve=>{const roots=[$('hunt-auto'),$('hunt-external')].filter(Boolean);const startedAt=Date.now();let quietTimer=null,done=false;const finish=()=>{if(done)return;done=true;clearTimeout(quietTimer);clearTimeout(maxTimer);observer.disconnect();resolve(collectCandidateUrls());};const schedule=()=>{clearTimeout(quietTimer);quietTimer=setTimeout(()=>{const elapsed=Date.now()-startedAt,urls=collectCandidateUrls();if(urls.length&&elapsed>=minMs)finish();else if(urls.length)quietTimer=setTimeout(finish,Math.max(0,minMs-elapsed));},quietMs);};const observer=new MutationObserver(schedule);roots.forEach(root=>observer.observe(root,{childList:true,subtree:true,characterData:true}));const maxTimer=setTimeout(finish,maxMs);schedule();});}
+async function restoreSelectedPlayback(){const api=playbackApi();if(api?.replaySelected)return api.replaySelected();return null;}
+function useOfficialFallback(status,channelName,reason){const fallback=currentOfficialFallback();if(!fallback)return false;status.textContent=`${reason} · ${fallback.label||'Official fallback'}`;log(`ONE-CLICK FALLBACK ${channelName} · ${reason} · ${fallback.route||'official-fallback'} · not saved to D1`);restoreSelectedPlayback().catch(error=>log(`ONE-CLICK FALLBACK restore failed · ${error.message}`));return true;}
+function fireUnderlyingHunt(query){const button=$('run-hunt');const header=$('channel-name');if(!button)return;const original=header?.textContent||'';const selected=selectedChannel();const free=!!query&&(!selected||canonicalGreekChannelName(query)!==canonicalGreekChannelName(selected.name));if(free&&header)header.textContent=query;button.click();if(free&&header)setTimeout(()=>{header.textContent=original;},120);}
+
 async function runOneClick(){
-  const runHuntButton=$('run-hunt'),button=$('hunt-oneclick'),status=$('hunt-oneclick-status');
-  const selected=selectedChannel();
-  const channelName=selected?.name || '';
-  const api=playbackApi();
-  if(!button||!status||!runHuntButton)return;
-  if(!selected){status.textContent='Select a channel first';return;}
-  if(!api?.testCandidate){status.textContent='Playback API unavailable';return;}
-
-  button.disabled=true;window.WebTVSourceHuntBusy=true;
-  status.textContent=`Searching ${channelName}…`;log(`ONE-CLICK HUNT START ${channelName} · curated + stream candidates first`);
+  const runHuntButton=$('run-hunt'),button=$('hunt-oneclick'),status=$('hunt-oneclick-status');const selected=selectedChannel();const query=huntQuery();const canonical=canonicalGreekChannelName(query);const freeSearch=!selectedMatchesQuery();const channel=freeSearch?makeSyntheticChannel(query):selected;const api=playbackApi();
+  if(!button||!status||!runHuntButton)return;if(!query){status.textContent='Type a channel or select one first';return;}if(!api?.testCandidate){status.textContent='Playback API unavailable';return;}
+  button.disabled=true;window.WebTVSourceHuntBusy=true;status.textContent=`Searching ${canonical}…`;log(`ONE-CLICK HUNT START ${canonical} · mode ${huntMode()} · ${freeSearch?'free search':'selected channel'}`);
   try{
-    document.querySelectorAll('#hunt-results,#hunt-curated-results,#hunt-seed-results,#hunt-web-results,#hunt-forum-results').forEach(el=>{el.innerHTML='';});
-    runHuntButton.click();
-    const urls=await waitForDiscovery();
-    if(!urls.length){
-      if(useOfficialFallback(status,channelName,'No fresh stream candidate'))return;
-      status.textContent='No fresh stream candidates · check Official Fallback Discovery';
-      log(`ONE-CLICK HUNT ${channelName} · no stream candidates · no verified official fallback`);
-      return;
-    }
-
-    status.textContent=`${urls.length} stream candidates · testing…`;
-    const limit=Math.min(urls.length,8);
+    document.getElementById('hunt-save-destination')?.remove();document.querySelectorAll('#hunt-results,#hunt-curated-results,#hunt-seed-results,#hunt-web-results,#hunt-forum-results').forEach(el=>{el.innerHTML='';});
+    fireUnderlyingHunt(query);const urls=await waitForDiscovery();
+    if(!urls.length){if(!freeSearch&&useOfficialFallback(status,canonical,'No fresh stream candidate'))return;status.textContent=`No identity-matched stream candidates for ${canonical}`;log(`ONE-CLICK HUNT ${canonical} · no identity-matched candidates`);return;}
+    status.textContent=`${urls.length} identity-matched candidates · testing…`;const limit=Math.min(urls.length,8);
     for(let i=0;i<limit;i++){
-      const url=urls[i];
-      status.textContent=`Testing stream ${i+1}/${limit}`;
-      log(`ONE-CLICK TEST ${channelName} · ${i+1}/${limit} · ${url}`);
-      let result=null;
-      try{
-        result=await api.testCandidate(url,{channel:selected});
-      }catch(error){
-        log(`ONE-CLICK TEST FAILED ${channelName} · ${url} · ${error.message}`);
-        continue;
-      }
-      if(!result?.ok || result?.fallback)continue;
-
+      const url=urls[i];status.textContent=`Testing stream ${i+1}/${limit}`;log(`ONE-CLICK TEST ${canonical} · ${i+1}/${limit} · ${url}`);let result=null;
+      try{result=await api.testCandidate(url,{channel});}catch(error){log(`ONE-CLICK TEST FAILED ${canonical} · ${url} · ${error.message}`);continue;}
+      if(!result?.ok||result?.fallback)continue;
+      if(freeSearch){status.textContent=`Working stream ✓ ${result.startupMs||0} ms · choose where to save`;await showSaveDestination({channel:{...channel,name:canonical},url});log(`ONE-CLICK FREE RESULT ${canonical} · winner ${url} · waiting for save destination`);return;}
       status.textContent=`Working stream ✓ ${result.startupMs||0} ms · saving best…`;
-      try{
-        const saved=await saveBestSourceToCurrent(url,{maxSources:3});
-        status.textContent=`Best stream saved ✓ · ${saved.kept.length}/3 kept`;
-        log(`ONE-CLICK SUCCESS ${channelName} · winner ${url} · ${result.startupMs||0} ms · kept ${saved.kept.length} · dropped ${saved.dropped.length}`);
-      }catch(error){
-        status.textContent=`Working stream ✓ ${result.startupMs||0} ms · save failed`;
-        log(`ONE-CLICK SAVE FAILED ${channelName} · ${url} · ${error.message}`);
-      }
-      return;
+      try{const saved=await saveBestSourceToCurrent(url,{maxSources:3});status.textContent=`Best stream saved ✓ · ${saved.kept.length}/3 kept`;log(`ONE-CLICK SUCCESS ${canonical} · winner ${url} · kept ${saved.kept.length}`);}catch(error){status.textContent=`Working stream ✓ ${result.startupMs||0} ms · save failed`;log(`ONE-CLICK SAVE FAILED ${canonical} · ${url} · ${error.message}`);}return;
     }
-
-    if(useOfficialFallback(status,channelName,`No working stream in first ${limit}`))return;
-    status.textContent=`No working stream in first ${limit} · restored`;
-    log(`ONE-CLICK DONE ${channelName} · no working stream candidate in ${limit} · no verified official fallback`);
-    await restoreSelectedPlayback();
-  }catch(error){
-    if(useOfficialFallback(status,channelName,`Stream hunt failed: ${error.message}`))return;
-    status.textContent=`Failed · ${error.message}`;
-    log(`ONE-CLICK ERROR ${channelName} · ${error.message}`);
-    await restoreSelectedPlayback().catch(()=>{});
-  }finally{
-    window.WebTVSourceHuntBusy=false;button.disabled=false;
-  }
+    if(!freeSearch&&useOfficialFallback(status,canonical,`No working stream in first ${limit}`))return;status.textContent=`No working identity-matched stream in first ${limit}`;if(!freeSearch)await restoreSelectedPlayback();
+  }catch(error){if(!freeSearch&&useOfficialFallback(status,canonical,`Stream hunt failed: ${error.message}`))return;status.textContent=`Failed · ${error.message}`;log(`ONE-CLICK ERROR ${canonical} · ${error.message}`);if(!freeSearch)await restoreSelectedPlayback().catch(()=>{});}finally{window.WebTVSourceHuntBusy=false;button.disabled=false;}
 }
 
-if(!ensureUi()){
-  const observer=new MutationObserver(()=>{if(ensureUi())observer.disconnect();});
-  observer.observe(document.body,{childList:true,subtree:true});
-  setTimeout(()=>{ensureUi();observer.disconnect();},5000);
-}
-window.addEventListener('webtv:ready',ensureUi);
-console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · curated candidates included · direct playback API · stream-first · verified official fallback last`);
+if(!ensureUi()){const observer=new MutationObserver(()=>{if(ensureUi())observer.disconnect();});observer.observe(document.body,{childList:true,subtree:true});setTimeout(()=>{ensureUi();observer.disconnect();},5000);}window.addEventListener('webtv:ready',ensureUi);window.WebTVSourceHuntQuery={get:huntQuery,getMode:huntMode,resetToSelected(){queryDirty=false;const s=selectedChannel();if($('hunt-query'))$('hunt-query').value=s?.name||'';}};console.info(`[WebTV] One-click Source Hunt loaded · build ${BUILD_ID} · free search + identity filter + save destinations`);
