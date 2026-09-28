@@ -391,6 +391,8 @@ function startClock(){const tick=()=>{els.clock.textContent=new Date().toLocaleS
 async function boot(){
   startClock();setPlaybackState('idle','Idle');clearDiagnostics();
   els.officialLive.hidden=true;els.sourceHuntToggle.hidden=true;els.sourceHunt.hidden=true;
+  const cloudHealth=await health.loadCloud();
+  log(cloudHealth?'Health loaded from D1':'Health cloud unavailable · unlock the D1 session to synchronize');
 
   const sourceTask=sources.refresh()
     .then(()=>log(`Source registry loaded · build ${SOURCE_REGISTRY_BUILD_ID||'dev'}`))
@@ -434,5 +436,6 @@ boot().catch(error=>{
   log(`BOOT ERROR: ${error.message}`);
   console.error(error);
 });
+window.addEventListener('webtv:registry-authenticated',()=>health.loadCloud().then(ok=>log(ok?'Health synchronized with D1':'Health D1 synchronization failed')));
 
 console.info(`[WebTV] Main loaded · build ${BUILD_ID} · clean playback API · fast channel switching · STRM resolution · shared health scoring · D1 My Playlist is primary`);

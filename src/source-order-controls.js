@@ -10,6 +10,7 @@ function setMode(c={},mode='auto'){
   const map=readModes();
   if(mode==='manual')map[key]='manual';else delete map[key];
   try{localStorage.setItem(MODE_KEY,JSON.stringify(map));}catch{}
+  window.WebTVHealthStore?.saveMode(key,mode).catch(error=>setStatus(`D1 source order save failed · ${error.message}`,'error'));
   window.dispatchEvent(new CustomEvent('webtv:source-order-mode',{detail:{channelId:key,mode:mode==='manual'?'manual':'auto'}}));
 }
 function setStatus(text,tone='ok'){

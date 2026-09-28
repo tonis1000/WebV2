@@ -33,6 +33,7 @@ async function login(pin){
   localStorage.setItem(TOKEN_KEY,j.token);
   localStorage.setItem(TRUST_KEY,'1');
   setState(`Trusted device ✓ · ${j.days||30}d`,'1');
+  window.dispatchEvent(new Event('webtv:registry-authenticated'));
   return j;
 }
 

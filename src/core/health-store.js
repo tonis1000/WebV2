@@ -8,6 +8,8 @@ export class HealthStore {
   constructor(storageKey = CONFIG.healthStorageKey) {
     this.storageKey = storageKey;
     this.map = this.#load();
+    this.cloudQueue = Promise.resolve();
+    this.cloudReady = false;
     this.#prune();
     try { window.WebTVHealthStore = this; } catch {}
   }
@@ -59,6 +61,41 @@ export class HealthStore {
     return this.map;
   }
   #key(value) { return cleanUrl(value); }
+  #cloud(path, options = {}) {
+    const base = (localStorage.getItem('webtv_v2_registry_url') || 'https://webtv-registry.atonis.workers.dev').replace(/\/$/, '');
+    const token = localStorage.getItem('webtv_v2_registry_token');
+    if (!token) throw new Error('Health cloud requires the D1 PIN session');
+    return fetch(`${base}${path}`, { cache:'no-store', ...options, headers:{'content-type':'application/json',authorization:`Bearer ${token}`,...options.headers} }).then(async r => {
+      if (!r.ok) throw new Error(`Health cloud HTTP ${r.status}`);
+      return r.json();
+    });
+  }
+  async loadCloud() {
+    try {
+      const state = await this.#cloud('/api/health');
+      if(!Object.keys(state.health||{}).length&&(Object.keys(this.map).length||Object.keys(JSON.parse(localStorage.getItem('webtv_v2_source_order_modes')||'{}')).length)){
+        const modes=JSON.parse(localStorage.getItem('webtv_v2_source_order_modes')||'{}');
+        await this.#cloud('/api/health/import',{method:'POST',body:JSON.stringify({health:this.map,modes})});
+        this.cloudReady=true;
+        return true;
+      }
+      this.map = state.health || {};
+      this.#prune();this.#save();
+      localStorage.setItem('webtv_v2_source_order_modes',JSON.stringify(state.modes || {}));
+      this.cloudReady = true;
+      return true;
+    } catch(error) { console.warn('[WebTV] Cloud health unavailable:',error.message);return false; }
+  }
+  #queueCloud(path, method, body) {
+    this.cloudQueue = this.cloudQueue.catch(()=>{}).then(()=>this.#cloud(path,{method,body:JSON.stringify(body)}))
+      .catch(error=>{this.cloudReady=false;console.warn('[WebTV] Health cloud write failed:',error.message);throw error;});
+    return this.cloudQueue;
+  }
+  #syncEntry(value) {
+    const key=this.#key(value);
+    if(this.cloudReady) this.#queueCloud('/api/health','PUT',{key,entry:{...this.map[key]}}).catch(()=>{});
+  }
+  saveMode(channelId,mode){return this.#queueCloud('/api/health/mode','PUT',{channelId,mode});}
   #entry(value) {
     const key = this.#key(value);
     if (!this.map[key]) this.map[key] = { success: 0, fail: 0, consecutiveFailures: 0, cooldownUntil: 0, lastSuccess: 0, lastFailure: 0, avgStartupMs: 0, player: '', route: '', lastFailureReason: '' };
@@ -75,6 +112,7 @@ export class HealthStore {
     entry.lastFailureReason = '';
     if (startupMs > 0) entry.avgStartupMs = entry.avgStartupMs ? Math.round((entry.avgStartupMs * .7) + (startupMs * .3)) : Math.round(startupMs);
     this.#save();
+    this.#syncEntry(value);
     return entry;
   }
   recordFailure(value, { hardCooldownMs = 0, reason = '' } = {}) {
@@ -91,6 +129,7 @@ export class HealthStore {
       entry.cooldownUntil = Date.now() + delay;
     }
     this.#save();
+    this.#syncEntry(value);
     return entry;
   }
   quarantine(value, { cooldownMs = CONFIG.failureCooldownMaxMs, reason = '' } = {}) {
@@ -98,6 +137,7 @@ export class HealthStore {
     entry.cooldownUntil = Math.max(entry.cooldownUntil || 0, Date.now() + Math.max(0, Number(cooldownMs) || 0));
     if (reason) entry.lastFailureReason = reason;
     this.#save();
+    this.#syncEntry(value);
     return entry;
   }
   get(value) { return this.map[this.#key(value)] || null; }
@@ -113,11 +153,12 @@ export class HealthStore {
         removed += 1;
       }
     }
-    if (removed) this.#save();
+    if (removed) { this.#save();this.#queueCloud('/api/health','DELETE',{keys:values.map(v=>this.#key(v))}).catch(()=>{}); }
     return removed;
   }
   clear() {
     this.map = {};
+    this.#queueCloud('/api/health','DELETE',{all:true}).catch(()=>{});
     try {
       localStorage.removeItem(this.storageKey);
       localStorage.removeItem(this.storageKey + HEALTH_BACKUP_KEY_SUFFIX);

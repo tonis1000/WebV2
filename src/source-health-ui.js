@@ -146,6 +146,20 @@ async function render(){
     const planRow = !row.reference ? planByRoute.get(`${cleanUrl(row.source)}|${row.kind}`) : null;
     const item = document.createElement('div');
     item.className = `source-health-row${coolingNow?' cooling':''}`;
+    if(!row.reference){
+      item.tabIndex=0;item.setAttribute('role','button');
+      item.setAttribute('aria-label',`Select ${row.kind} source ${row.source}`);
+      const select=()=>{
+        const area=$('playback-source-full');if(!area)return;
+        area.value=row.source;
+        area.dispatchEvent(new Event('input',{bubbles:true}));
+        const route=$('playback-route-full');if(route)route.textContent=`${row.kind} · selected for single-source test`;
+        const status=$('playback-inspector-status');if(status)status.textContent='Source selected. Click Test edited URL to test only this source; save requires a separate action.';
+        area.focus({preventScroll:true});area.scrollIntoView({block:'center',behavior:'smooth'});
+      };
+      item.addEventListener('click',select);
+      item.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select();}});
+    }
 
     const main=document.createElement('div');
     main.className='source-health-main';
