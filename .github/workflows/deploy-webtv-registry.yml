@@ -116,6 +116,48 @@ jobs:
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.registry.ci.toml --keep-vars
 
+      - name: Preserve project checkpoints in D1
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          names = ('SOURCE_DISCOVERY_ARCHITECTURE.md', 'WEBTV_OPERATIONS.md', 'WEBV2_SOURCE_HUNT_HANDOFF.md')
+          def quote(value):
+              return "'" + value.replace("'", "''") + "'"
+          sql = ['CREATE TABLE IF NOT EXISTS project_checkpoints (name TEXT PRIMARY KEY, content TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);']
+          for name in names:
+              path = Path(name)
+              if not path.exists():
+                  continue
+              data = path.read_bytes()
+              content = data.decode('utf-8')
+              sql.append(f'INSERT INTO project_checkpoints(name, content, byte_length, sha256) VALUES ({quote(name)}, {quote(content)}, {len(data)}, {quote(hashlib.sha256(data).hexdigest())}) ON CONFLICT(name) DO UPDATE SET content=excluded.content, byte_length=excluded.byte_length, sha256=excluded.sha256, updated_at=CURRENT_TIMESTAMP;')
+          Path('/tmp/webtv-checkpoints.sql').write_text('\n'.join(sql) + '\n')
+          Path('/tmp/webtv-checkpoint-count').write_text(str(sum(Path(name).exists() for name in names)))
+          PY
+          npx --yes wrangler@latest d1 execute "${{ steps.d1.outputs.database_name }}" --remote --file /tmp/webtv-checkpoints.sql --config wrangler.registry.ci.toml
+          npx --yes wrangler@latest d1 execute "${{ steps.d1.outputs.database_name }}" --remote --command 'SELECT name, byte_length, sha256 FROM project_checkpoints ORDER BY name' --json --config wrangler.registry.ci.toml > /tmp/webtv-checkpoints-verify.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          raw = json.loads(Path('/tmp/webtv-checkpoints-verify.json').read_text())
+          rows = raw[0]['results'] if isinstance(raw, list) else raw['results']
+          saved = {row['name']: row for row in rows}
+          for name in ('SOURCE_DISCOVERY_ARCHITECTURE.md', 'WEBTV_OPERATIONS.md', 'WEBV2_SOURCE_HUNT_HANDOFF.md'):
+              path = Path(name)
+              if path.exists():
+                  data = path.read_bytes()
+                  row = saved[name]
+                  assert row['byte_length'] == len(data) and row['sha256'] == hashlib.sha256(data).hexdigest(), name
+          print('D1 checkpoint hashes verified:', len(saved))
+          PY
+          echo "Preserved $(cat /tmp/webtv-checkpoint-count) checkpoint files in D1."
+
       - name: Verify live Registry and primary My Playlist
         shell: bash
         run: |

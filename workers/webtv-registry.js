@@ -128,6 +128,18 @@ export default{async fetch(request,env){
     if(path==='/api/login'&&request.method==='POST')return await pinLogin(request,env,origin);
     if(path==='/api/session'&&request.method==='GET'){const auth=request.headers.get('authorization')||'',token=auth.replace(/^Bearer\s+/i,'').trim();const ok=await verifySession(token,env);return json({ok},ok?200:401,origin);}
     if(path==='/api/session/validate'&&request.method==='POST'){const body=await readJson(request);const ok=await verifySession(clean(body.token),env);return json({ok},ok?200:401,origin);}
+    if(path==='/api/project-checkpoints'&&request.method==='GET'){
+      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
+      const rows=await env.DB.prepare('SELECT name, byte_length, sha256, updated_at FROM project_checkpoints ORDER BY name').all();
+      return json({checkpoints:rows.results||[]},200,origin);
+    }
+    if(path.startsWith('/api/project-checkpoints/')&&request.method==='GET'){
+      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
+      const name=decodeURIComponent(path.slice('/api/project-checkpoints/'.length));
+      if(!/^[A-Z0-9_]+\.md$/.test(name))return json({error:'Invalid checkpoint name'},400,origin);
+      const row=await env.DB.prepare('SELECT content FROM project_checkpoints WHERE name=?').bind(name).first();
+      return row?text(row.content,200,'text/markdown;charset=utf-8',origin):json({error:'Checkpoint not found'},404,origin);
+    }
     if(path==='/playlist.m3u'&&request.method==='GET')return text(toM3u(await myPlaylist(env)),200,'audio/x-mpegurl;charset=utf-8',origin);
     if(path==='/api/playlists'&&request.method==='GET')return json({playlists:await listPlaylists(env)},200,origin);
     if(path==='/api/playlists'&&request.method==='POST'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;return json({ok:true,playlist:await upsertSavedPlaylist(env,await readJson(request))},200,origin);}
