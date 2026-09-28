@@ -1,4 +1,4 @@
-import './source-hunt-discovery-integration.js?v=20260928-source-hunt-integrated';
+import './source-hunt-discovery-integration.js?v=20260928-source-hunt-unified';
 
 const DB_NAME='webtv-v2-playlists';
 const STORE='playlists';
