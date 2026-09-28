@@ -55,9 +55,9 @@ export class PlayerController {
     this.token = 0;
   }
 
-  async play(channel, routes) {
+  async play(channel, routes, { allowOfficialFallback = true } = {}) {
     const token = ++this.token;
-    const officialFallback = officialFallbackFor(channel);
+    const officialFallback = allowOfficialFallback ? officialFallbackFor(channel) : null;
     this.#resetMedia();
     this.onState('loading', 'Connecting');
 

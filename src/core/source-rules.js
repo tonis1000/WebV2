@@ -2,6 +2,7 @@ import { normalizeId } from './utils.js';
 
 const CHANNEL_SOURCE_REJECTORS = Object.freeze({
   mega: [
+    /\/omegatv\/omcy\//i,
     /s99841657/i,
     /mega%20news/i,
     /mega-news/i,

@@ -1,4 +1,4 @@
-import './right-rail-preview.js?v=20260926-rail8';
+import './right-rail-preview.js?v=20260928-player-size';
 
 const BUILD_ID = '20260924-2030';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';

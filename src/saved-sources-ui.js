@@ -41,10 +41,9 @@ if (candidateInput && testButton && channelName) {
   let pending = null;
   let verified = null;
   let saveQueue = Promise.resolve();
-  let restoreTimer = null;
 
   function log(message){if(!diagLog)return;const stamp=new Date().toLocaleTimeString();diagLog.textContent=`[${stamp}] ${message}\n${diagLog.textContent}`.slice(0,18000);}
-  function resetVerification(message=''){pending=null;verified=null;clearTimeout(restoreTimer);saveButton.hidden=true;saveButton.disabled=false;saveButton.textContent='Save Source';status.textContent=message;}
+  function resetVerification(message=''){pending=null;verified=null;saveButton.hidden=true;saveButton.disabled=false;saveButton.textContent='Save Source';status.textContent=message;}
   function beginCandidateTracking(){
     const parsed=parseIptvUrl(candidateInput.value.trim()),url=parsed.url,name=channelName.textContent.trim();
     if(!url||!/^https?:\/\//i.test(url)||!name||name==='Επίλεξε κανάλι'){resetVerification();return;}
@@ -56,17 +55,8 @@ if (candidateInput && testButton && channelName) {
       startedAt:Date.now(),
       oneClick:window.WebTVSourceHuntBusy===true
     };
-    verified=null;clearTimeout(restoreTimer);saveButton.hidden=true;
+    verified=null;saveButton.hidden=true;
     status.textContent=pending.oneClick?'Testing automatically…':'Testing… playback must start before Save Source is enabled.';
-  }
-  function restoreSelectedPlayback(){
-    const active=document.querySelector('.channel-item.active');
-    if(!active)return;
-    clearTimeout(restoreTimer);
-    restoreTimer=setTimeout(()=>{
-      active.click();
-      log('CANDIDATE FAILED · restored selected channel playback');
-    },250);
   }
 
   async function persistSnapshot(snapshot){
@@ -124,8 +114,7 @@ if (candidateInput && testButton && channelName) {
       const failed={...pending};
       pending=null;
       saveButton.hidden=true;
-      status.textContent=failed.oneClick?'Candidate failed · trying next…':'Candidate failed · restoring previous working playback…';
-      if(!failed.oneClick)restoreSelectedPlayback();
+      status.textContent=failed.oneClick?'Candidate failed · trying next…':'Candidate failed · only this source was tested.';
     }
   }
 

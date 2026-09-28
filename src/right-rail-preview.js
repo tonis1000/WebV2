@@ -167,6 +167,9 @@ if (!enabled) {
     html.rail-preview .layout{grid-template-columns:320px minmax(0,1fr) 220px;gap:14px;align-items:start}
     html.rail-preview .sidebar{top:8px;height:calc(100vh - 16px)}
     html.rail-preview .viewer{min-width:0}
+    html.rail-preview .player-card{width:min(100%,960px);justify-self:center}
+    html.rail-preview .player-stage{width:100%;max-height:min(540px,calc(100vh - 160px));overflow:hidden}
+    html.rail-preview .player-stage video,html.rail-preview .player-stage iframe{position:absolute;inset:0;width:100%;height:100%;max-width:100%;object-fit:contain}
     html.rail-preview .desktop-control-rail{position:sticky;top:8px;min-height:calc(100vh - 16px);padding:14px 12px;background:linear-gradient(180deg,rgba(11,24,26,.98),rgba(8,17,20,.98));border-color:#244b55;box-shadow:0 18px 50px rgba(0,0,0,.28)}
     html.rail-preview .desktop-rail-stack{display:flex;flex-direction:column;align-items:stretch;gap:10px}
     html.rail-preview .rail-brand{padding:2px 4px 8px;border-bottom:1px solid rgba(99,179,255,.14)}

@@ -348,7 +348,7 @@ async function testCandidate(raw,{channel=selected}={}){
   clearDiagnostics();
   log(`Candidate test for ${channel.name} · ${sourceLabel(url)} · ${routes.length} route(s)`);
   try{
-    const result=await player.play({...channel,name:`${channel.name} candidate`},routes);
+    const result=await player.play({...channel,name:`${channel.name} candidate`},routes,{allowOfficialFallback:false});
     if(!result || result.fallback)throw new Error('Candidate did not produce verified stream playback');
     return result;
   }catch(error){
