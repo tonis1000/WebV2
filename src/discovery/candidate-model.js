@@ -1,4 +1,4 @@
-const SOURCE_TYPES = new Set(['hls','dash','strm','m3u','direct','xtream','xtream-preview','header-aware','unknown']);
+const SOURCE_TYPES = new Set(['hls','dash','strm','m3u','direct','rtsp','rtmp','xtream','xtream-preview','header-aware','unknown']);
 const MATCH_CONFIDENCE = new Set(['HIGH','MEDIUM','LOW','UNKNOWN']);
 const VERIFICATION_STATES = new Set(['UNVERIFIED','VERIFYING','VERIFIED','FAILED','TIMEOUT','HTTP 403','HTTP 404','DRM','WRONG CHANNEL','UNRESOLVED']);
 
@@ -17,6 +17,8 @@ export function detectCandidateType(sourceUrl='', explicitType='') {
   if (SOURCE_TYPES.has(requested) && requested !== 'unknown') return requested;
   const url=String(sourceUrl||'').split('|')[0].trim().toLowerCase();
   if (!url) return 'unknown';
+  if (/^rtsps?:\/\//i.test(url)) return 'rtsp';
+  if (/^rtmps?:\/\//i.test(url)) return 'rtmp';
   if (/\.strm(?:[?#]|$)/i.test(url)) return 'strm';
   if (/\.mpd(?:[?#]|$)/i.test(url)) return 'dash';
   if (/\.m3u8(?:[?#]|$)/i.test(url)) return 'hls';
@@ -94,7 +96,7 @@ export function createCandidate(input={}) {
     matchConfidence,
     candidateKind:String(input.candidateKind||'media'),
     trustClass:String(input.trustClass||''),
-    saveEligible:input.saveEligible!==false,
+    saveEligible:input.saveEligible!==false && !['rtsp','rtmp'].includes(sourceType),
     officialPageUrl:String(input.officialPageUrl||''),
   });
 }
@@ -118,7 +120,7 @@ export function candidateForDisplay(candidate={}) {
   const isPreview=String(rest.sourceType||'')==='xtream-preview';
   return {
     ...rest,
-    sourceUrl:xtreamContext ? '[redacted Xtream source]' : isPreview ? '[temporary Xtream preview]' : rest.sourceUrl,
+    sourceUrl:xtreamContext ? '[redacted Xtream source]' : isPreview ? '[temporary Xtream preview]' : redactUrlCredentials(rest.sourceUrl),
     xtreamPreviewToken:xtreamPreviewToken ? '[opaque preview token]' : '',
     xtreamContext:xtreamContext ? {
       server:xtreamContext.server,
@@ -128,6 +130,14 @@ export function candidateForDisplay(candidate={}) {
       accountRef:xtreamContext.accountRef,
     } : null,
   };
+}
+
+function redactUrlCredentials(value='') {
+  try {
+    const url=new URL(value);
+    if(url.username||url.password){url.username='[redacted]';url.password='[redacted]';}
+    return url.href;
+  } catch { return String(value||''); }
 }
 
 export { SOURCE_TYPES, MATCH_CONFIDENCE, VERIFICATION_STATES };

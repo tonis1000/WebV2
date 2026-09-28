@@ -20,6 +20,7 @@ function previewExpired(candidate={}){
 
 export function promotionBlockReason(candidate={},expectedChannel=null,currentChannel=null){
   if(!candidate||typeof candidate!=='object')return 'Candidate is required';
+  if(['rtsp','rtmp'].includes(String(candidate.sourceType||''))||/^rt(?:sp|mp)s?:\/\//i.test(clean(candidate.sourceUrl)))return 'RTSP/RTMP requires a tested HLS gateway before playback or saving';
   if(candidate.verificationStatus!=='VERIFIED'||candidate.verified!==true)return 'Only VERIFIED candidates can be added';
   if(String(candidate.sourceType||'')==='xtream-preview')return 'Use an explicit Xtream preview choice instead of saving the temporary preview URL';
   if(candidate.saveEligible===false)return 'This candidate is not eligible for My Playlist';

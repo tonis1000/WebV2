@@ -17,6 +17,7 @@ assert.equal(promotionBlockReason({...verified,verificationStatus:'UNVERIFIED',v
 assert.equal(promotionBlockReason({...verified,saveEligible:false},expectedChannel,expectedChannel),'This candidate is not eligible for My Playlist');
 assert.equal(promotionBlockReason({...verified,candidateKind:'official-page'},expectedChannel,expectedChannel),'Official fallback pages cannot be saved as media sources');
 assert.equal(promotionBlockReason({...verified,requiredHeaders:{Referer:'https://example.invalid/'}},expectedChannel,expectedChannel),'Persistent request-header metadata is not supported yet');
+assert.match(promotionBlockReason({...verified,sourceType:'rtsp',sourceUrl:'rtsp://example.test/live'},expectedChannel,expectedChannel),/tested HLS gateway/);
 assert.match(promotionBlockReason(verified,expectedChannel,{id:'skai',name:'SKAI'}),/Selected channel changed/);
 
 let saveCalls=0;

@@ -63,6 +63,8 @@ function candidateMatches(extinf='',channel={}){
 }
 function typeOf(url=''){
   const clean=String(url).split('|')[0].trim();
+  if(/^rtsps?:\/\//i.test(clean))return 'rtsp';
+  if(/^rtmps?:\/\//i.test(clean))return 'rtmp';
   if(/\.strm(?:[?#]|$)/i.test(clean))return 'strm';
   if(/\.mpd(?:[?#]|$)/i.test(clean))return 'dash';
   if(/\.m3u8(?:[?#]|$)/i.test(clean))return 'hls';
@@ -70,7 +72,7 @@ function typeOf(url=''){
   return 'direct';
 }
 function validPublicUrl(value=''){
-  try{const url=new URL(String(value).split('|')[0].trim());return /^https?:$/.test(url.protocol);}catch{return false;}
+  try{const url=new URL(String(value).split('|')[0].trim());return /^(https?|rtsp|rtsps|rtmp|rtmps):$/.test(url.protocol);}catch{return false;}
 }
 function safeDecode(value=''){
   try{return decodeURIComponent(String(value));}catch{return String(value).replace(/%3a/ig,':').replace(/%2f/ig,'/').replace(/%7c/ig,'|').replace(/%20/ig,' ');}
@@ -85,6 +87,8 @@ function makeCandidate({channel,sourceUrl,sourceOrigin,freshness='live-feed-chec
     discoveredAt:new Date().toISOString(),
     freshness,
     matchConfidence:'HIGH',
+    saveEligible:!['rtsp','rtmp'].includes(typeOf(sourceUrl)),
+    verificationDetail:['rtsp','rtmp'].includes(typeOf(sourceUrl))?'Requires an authorized RTSP/RTMP to HLS gateway; browser playback has not been tested':'',
   };
 }
 function parseM3u(text='',channel={},feed={}){

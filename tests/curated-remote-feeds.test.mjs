@@ -20,6 +20,10 @@ assert.equal(m3uCandidates.length,1);
 assert.equal(m3uCandidates[0].sourceUrl,'https://cdn.example.test/skai/master.m3u8');
 assert.equal(m3uCandidates[0].sourceType,'hls');
 assert.equal(m3uCandidates[0].sourceOrigin,'fixture-m3u');
+const rtspM3u=`#EXTM3U\n#EXTINF:-1 tvg-name="SKAI",SKAI\nrtsp://camera.example.test/live\n#EXTINF:-1 tvg-name="SKAI",SKAI\nrtmp://media.example.test/live/skai\n`;
+const gatewayCandidates=parseM3u(rtspM3u,channel,{name:'fixture-protocols'});
+assert.deepEqual(gatewayCandidates.map(item=>item.sourceType),['rtsp','rtmp']);
+assert.ok(gatewayCandidates.every(item=>item.saveEligible===false));
 
 const enigma=`#NAME Stream Griekenland (GR)\n#SERVICE 4097:0:1:0:0:0:0:0:0:0:https%3a//cdn.example.test/skai/index.m3u8:SKAI\n#DESCRIPTION SKAI\n#SERVICE 1:0:19:2EF:2BC:13E:820000:0:0:0:\n#DESCRIPTION Satellite only\n`;
 const enigmaCandidates=parseEnigma2(enigma,channel,{name:'fixture-enigma',format:'enigma2'});

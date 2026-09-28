@@ -7,6 +7,11 @@ assert.equal(detectCandidateType('https://x.test/live.m3u8?token=1'),'hls');
 assert.equal(detectCandidateType('https://x.test/live.mpd'),'dash');
 assert.equal(detectCandidateType('https://x.test/a.strm'),'strm');
 assert.equal(detectCandidateType('https://x.test/list.m3u'),'m3u');
+assert.equal(detectCandidateType('rtsp://example.test/live'),'rtsp');
+assert.equal(detectCandidateType('rtmps://example.test/live'),'rtmp');
+const rtsp=createCandidate({channelName:'MEGA',sourceUrl:'rtsp://user:password@example.test/live'});
+assert.equal(rtsp.saveEligible,false);
+assert.equal(candidateForDisplay(rtsp).sourceUrl.includes('password'),false);
 
 const hls=createCandidate({channelName:'MEGA',sourceUrl:'https://x.test/live.m3u8',requiredHeaders:{'User-Agent':'UA','Cookie':'nope'},matchConfidence:'HIGH'});
 assert.equal(hls.sourceType,'hls');
