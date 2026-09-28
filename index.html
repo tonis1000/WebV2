@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="el">
+<html lang="el" class="admin-locked">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="./playlist-manager.css?v=20260924-stabilization">
   <link rel="stylesheet" href="./mobile.css?v=20260924-stabilization">
   <link rel="stylesheet" href="./quality-of-life.css?v=20260924-stabilization">
+  <link rel="stylesheet" href="./admin-gate.css?v=20260928-admin-gate">
   <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js"></script>
   <script defer src="https://cdn.dashjs.org/v4.7.4/dash.all.min.js"></script>
   <script type="importmap">
@@ -39,7 +40,7 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <div><p class="eyebrow">TONI'S WEBTV</p></div>
+      <div><button id="admin-unlock-trigger" class="admin-brand" type="button" aria-label="Unlock TONI'S WEBTV controls" aria-expanded="false">TONI'S WEBTV</button></div>
       <div class="topbar-actions"><span id="clock" class="clock" aria-live="polite"></span><button id="playlist-manager-toggle" class="button playlists" type="button">Playlists ☰</button><button id="source-hunt-toggle" class="button hunt" type="button" hidden>Source Hunt 🔎</button><button id="diagnostics-toggle" class="button ghost" type="button">Diagnostics</button></div>
     </header>
     <main class="layout">
@@ -127,12 +128,13 @@
   <script type="module" src="./src/registry-default.js?v=20260928-cloud-health2"></script>
   <script type="module" src="./src/cloud-read-sync.js?v=20260924-stabilization"></script>
   <script type="module" src="./src/pin-auth.js?v=20260928-cloud-health"></script>
+  <script type="module" src="./src/admin-gate.js?v=20260928-admin-gate"></script>
   <script type="module" src="./src/playlist-manager.js?v=20260924-stabilization"></script>
   <script type="module" src="./src/saved-sources-ui.js?v=20260928-cloud-health2"></script>
   <script type="module" src="./src/source-hunt-engine.js?v=20260924-stabilization"></script>
   <script type="module" src="./src/source-hunt-web.js?v=20260928-qa-strm"></script>
   <script type="module" src="./src/source-hunt-oneclick.js?v=20260928-qa-strm"></script>
   <script type="module" src="./src/source-health-ui.js?v=20260928-cloud-health2"></script>
-  <script type="module" src="./src/favorites-ui.js?v=20260928-player-size"></script>
+  <script type="module" src="./src/favorites-ui.js?v=20260928-admin-gate"></script>
 </body>
 </html>

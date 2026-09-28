@@ -58,6 +58,14 @@ if (!enabled) {
     return badge;
   }
 
+  function ensureHeaderDock(){
+    const header=document.querySelector('.player-card .channel-header');
+    if(!header)return null;
+    let dock=document.getElementById('player-header-admin');
+    if(!dock){dock=document.createElement('div');dock.id='player-header-admin';dock.className='player-header-admin';header.insertBefore(dock,header.querySelector('.channel-actions'));}
+    return dock;
+  }
+
   function findDiscoveryButton() {
     return [...document.querySelectorAll('button')].find(button => /discovery\s*beta/i.test(button.textContent || '')) || null;
   }
@@ -69,20 +77,24 @@ if (!enabled) {
 
     const brand = document.querySelector('.topbar > div:first-child');
     const clock = document.getElementById('clock');
+    const dock = ensureHeaderDock();
     const playlists = document.getElementById('playlist-manager-toggle');
     const catalog = ensureCatalogBadge();
     const hunt = document.getElementById('source-hunt-toggle');
     const discovery = findDiscoveryButton();
     const diagnostics = document.getElementById('diagnostics-toggle');
     const favorite = document.getElementById('favorite-channel');
+    const myAction = document.getElementById('my-playlist-channel-action');
 
-    [brand, clock, playlists, catalog, hunt, discovery, diagnostics, favorite]
+    [brand,clock].filter(Boolean).forEach(node=>rememberAndMove(node,dock));
+
+    [myAction, playlists, catalog, hunt, discovery, diagnostics, favorite]
       .filter(Boolean)
       .forEach(node => rememberAndMove(node, target));
 
     if (brand) brand.classList.add('rail-brand');
     if (clock) clock.classList.add('rail-clock');
-    [playlists, catalog, hunt, discovery, diagnostics, favorite].forEach(node => node?.classList.add('rail-control'));
+    [myAction,playlists, catalog, hunt, discovery, diagnostics, favorite].forEach(node => node?.classList.add('rail-control'));
     if (favorite) favorite.classList.add('rail-favorite');
   }
 
@@ -91,6 +103,7 @@ if (!enabled) {
       node.classList?.remove('rail-brand', 'rail-clock', 'rail-control', 'rail-favorite');
       restoreNode(node);
     });
+    document.getElementById('player-header-admin')?.remove();
     rail?.remove();
     rail = null;
   }
@@ -165,6 +178,9 @@ if (!enabled) {
     html.rail-preview .app-shell{width:min(1600px,calc(100% - 16px));margin:0 auto;padding:8px 0 14px}
     html.rail-preview .topbar{display:none!important}
     html.rail-preview .layout{grid-template-columns:320px minmax(0,1fr) 220px;gap:14px;align-items:start}
+    html.rail-preview.admin-locked .layout{grid-template-columns:320px minmax(0,1fr)}
+    html.rail-preview.admin-locked .desktop-control-rail{display:none!important}
+    html.rail-preview.admin-locked #my-playlist-channel-action,html.rail-preview.admin-locked #favorite-channel{display:none!important}
     html.rail-preview .sidebar{top:8px;height:calc(100vh - 16px)}
     html.rail-preview .viewer{min-width:0}
     html.rail-preview .player-card{width:min(100%,960px);justify-self:center}
@@ -172,9 +188,9 @@ if (!enabled) {
     html.rail-preview .player-stage video,html.rail-preview .player-stage iframe{position:absolute;inset:0;width:100%;height:100%;max-width:100%;object-fit:contain}
     html.rail-preview .desktop-control-rail{position:sticky;top:8px;min-height:calc(100vh - 16px);padding:14px 12px;background:linear-gradient(180deg,rgba(11,24,26,.98),rgba(8,17,20,.98));border-color:#244b55;box-shadow:0 18px 50px rgba(0,0,0,.28)}
     html.rail-preview .desktop-rail-stack{display:flex;flex-direction:column;align-items:stretch;gap:10px}
-    html.rail-preview .rail-brand{padding:2px 4px 8px;border-bottom:1px solid rgba(99,179,255,.14)}
-    html.rail-preview .rail-brand .eyebrow{margin:0;color:var(--accent);font-size:.78rem;letter-spacing:.15em}
-    html.rail-preview .rail-clock{display:block;padding:2px 4px 12px;margin-bottom:30px;color:#d7e8f6;font-size:.9rem;border-bottom:1px solid rgba(99,179,255,.12)}
+    html.rail-preview .player-header-admin{display:flex;align-items:center;justify-content:center;gap:12px;min-width:0;margin-left:auto}
+    html.rail-preview .player-header-admin .rail-brand{flex:none}
+    html.rail-preview .player-header-admin .rail-clock{font-size:.78rem;white-space:nowrap;color:#d7e8f6}
     html.rail-preview .rail-control{width:100%;min-height:40px;justify-content:center;text-align:center;margin:0!important}
     html.rail-preview #playlist-manager-toggle.rail-control{background:#123f59;border-color:#2e83ad;color:#d9f3ff}
     html.rail-preview #current-catalog-badge.rail-control{display:flex!important;max-width:none;padding:9px 10px;background:#0d1d29;border-color:#315d7a;color:#bfe0ff;border-radius:10px;white-space:normal;line-height:1.2}
