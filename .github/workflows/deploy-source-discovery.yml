@@ -61,10 +61,6 @@ jobs:
           keep_vars = true
 
           [[services]]
-          binding = "BROWSER_RESOLVER"
-          service = "webtv-browser-resolver"
-
-          [[services]]
           binding = "SOURCE_VERIFIER"
           service = "webtv-source-verifier"
           EOF
