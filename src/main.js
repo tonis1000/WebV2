@@ -366,19 +366,25 @@ function renderEpg(){
 function startClock(){const tick=()=>{els.clock.textContent=new Date().toLocaleString('de-DE');};tick();setInterval(tick,1000);}
 
 async function boot(){
+  const startedAt=performance.now();
   startClock();setPlaybackState('idle','Idle');clearDiagnostics();
   els.officialLive.hidden=true;els.sourceHuntToggle.hidden=true;els.sourceHunt.hidden=true;
-  const cloudHealth=await health.loadCloud();
-  log(cloudHealth?'Health loaded from D1':'Health cloud unavailable · unlock the D1 session to synchronize');
+  // D1 health is optional for the public landing view. A slow session check must
+  // never delay the primary playlist, EPG, or source catalog.
+  health.loadCloud().then(cloudHealth=>{
+    log(`${cloudHealth?'Health loaded from D1':'Health cloud unavailable · unlock the D1 session to synchronize'} · ${Math.round(performance.now()-startedAt)} ms`);
+    if(cloudHealth&&window.WebTVPlaylistAPI?.ready)renderChannels();
+  }).catch(error=>log(`Health cloud unavailable · ${error.message}`));
 
   const sourceTask=sources.refresh()
-    .then(()=>log(`Source registry loaded · build ${SOURCE_REGISTRY_BUILD_ID||'dev'}`))
+    .then(()=>log(`Source registry loaded · build ${SOURCE_REGISTRY_BUILD_ID||'dev'} · ${Math.round(performance.now()-startedAt)} ms`))
     .catch(error=>log(`Source registry unavailable: ${error.message}`));
   const epgTask=epg.refresh()
-    .then(()=>{log('EPG loaded');renderEpg();})
+    .then(()=>{log(`EPG loaded · ${Math.round(performance.now()-startedAt)} ms`);renderEpg();})
     .catch(error=>log(`EPG unavailable: ${error.message}`));
 
   await loadCloudMyPlaylist({reason:'startup',preserveSelection:false});
+  log(`Startup playlist ready · ${channels.length} channels · ${Math.round(performance.now()-startedAt)} ms`);
   if(DEBUG_STORAGE){
     const hd=health.diagnostics();
     log(`HEALTH STORE · memory=${hd.memoryEntries} · primary=${hd.primaryEntries} (${hd.primaryBytes}B) · backup=${hd.backupEntries} (${hd.backupBytes}B) · key ${hd.storageKey}`);
@@ -389,6 +395,7 @@ async function boot(){
   renderGroups();renderChannels();
 
   window.WebTVPlaylistAPI.ready=true;
+  log(`Startup interactive · ${Math.round(performance.now()-startedAt)} ms`);
   window.dispatchEvent(new CustomEvent('webtv:ready'));
   await epgTask;
   setInterval(renderEpg,30000);
