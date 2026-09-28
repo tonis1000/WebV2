@@ -1,3 +1,5 @@
+import './source-hunt-discovery-integration.js?v=20260928-source-hunt-integrated';
+
 const DB_NAME='webtv-v2-playlists';
 const STORE='playlists';
 const REGISTRY_URL_KEY='webtv_v2_registry_url';
