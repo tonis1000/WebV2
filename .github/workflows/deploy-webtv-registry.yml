@@ -136,7 +136,10 @@ jobs:
                   continue
               data = path.read_bytes()
               content = data.decode('utf-8')
-              sql.append(f'INSERT INTO project_checkpoints(name, content, byte_length, sha256) VALUES ({quote(name)}, {quote(content)}, {len(data)}, {quote(hashlib.sha256(data).hexdigest())}) ON CONFLICT(name) DO UPDATE SET content=excluded.content, byte_length=excluded.byte_length, sha256=excluded.sha256, updated_at=CURRENT_TIMESTAMP;')
+              sql.append(f'INSERT INTO project_checkpoints(name, content, byte_length, sha256) VALUES ({quote(name)}, {quote(" ")}, {len(data)}, {quote(hashlib.sha256(data).hexdigest())}) ON CONFLICT(name) DO UPDATE SET content=excluded.content, byte_length=excluded.byte_length, sha256=excluded.sha256, updated_at=CURRENT_TIMESTAMP;')
+              sql.append(f'UPDATE project_checkpoints SET content={quote("")} WHERE name={quote(name)};')
+              for offset in range(0, len(content), 2000):
+                  sql.append(f'UPDATE project_checkpoints SET content=content || {quote(content[offset:offset+2000])} WHERE name={quote(name)};')
           Path('/tmp/webtv-checkpoints.sql').write_text('\n'.join(sql) + '\n')
           Path('/tmp/webtv-checkpoint-count').write_text(str(sum(Path(name).exists() for name in names)))
           PY
