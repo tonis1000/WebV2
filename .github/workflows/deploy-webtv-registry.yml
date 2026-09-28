@@ -6,9 +6,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'workers/webtv-registry.js'
-      - '.github/workflows/deploy-webtv-registry.yml'
 
 permissions:
   contents: read
@@ -186,3 +183,26 @@ jobs:
           done
           echo '::error::Registry did not expose v1.5 / D1-primary My Playlist after 90 seconds'
           exit 1
+
+      - name: Record verified deployment status
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          def quote(value):
+              return "'" + value.replace("'", "''") + "'"
+          message = os.environ.get('COMMIT_MESSAGE', '').splitlines()[0][:250]
+          sha = os.environ['GITHUB_SHA']
+          Path('/tmp/webtv-deploy-status.sql').write_text(
+              'CREATE TABLE IF NOT EXISTS project_deploy_status (id INTEGER PRIMARY KEY CHECK(id=1), commit_sha TEXT NOT NULL, commit_message TEXT NOT NULL, deployed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);\n'
+              + f'INSERT INTO project_deploy_status(id, commit_sha, commit_message) VALUES (1, {quote(sha)}, {quote(message)}) ON CONFLICT(id) DO UPDATE SET commit_sha=excluded.commit_sha, commit_message=excluded.commit_message, deployed_at=CURRENT_TIMESTAMP;\n'
+          )
+          PY
+          npx --yes wrangler@latest d1 execute "${{ steps.d1.outputs.database_name }}" --remote --file /tmp/webtv-deploy-status.sql --config wrangler.registry.ci.toml
+          curl --fail --silent --show-error "$REGISTRY_URL/api/project-status" -o /tmp/webtv-deployed-status.json
+          node -e "const j=require('/tmp/webtv-deployed-status.json');if(j.commitSha!==process.env.GITHUB_SHA)process.exit(1);console.log('Verified public project status at commit '+j.commitSha)"

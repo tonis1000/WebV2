@@ -128,6 +128,10 @@ export default{async fetch(request,env){
     if(path==='/api/login'&&request.method==='POST')return await pinLogin(request,env,origin);
     if(path==='/api/session'&&request.method==='GET'){const auth=request.headers.get('authorization')||'',token=auth.replace(/^Bearer\s+/i,'').trim();const ok=await verifySession(token,env);return json({ok},ok?200:401,origin);}
     if(path==='/api/session/validate'&&request.method==='POST'){const body=await readJson(request);const ok=await verifySession(clean(body.token),env);return json({ok},ok?200:401,origin);}
+    if(path==='/api/project-status'&&request.method==='GET'){
+      const row=await env.DB.prepare('SELECT commit_sha, commit_message, deployed_at FROM project_deploy_status WHERE id=1').first();
+      return row?json({repository:'tonis1000/WebV2',commitSha:row.commit_sha,commitMessage:row.commit_message,deployedAt:row.deployed_at,checkpoints:'PIN-protected at /api/project-checkpoints'},200,origin):json({error:'Deployment status not initialized'},503,origin);
+    }
     if(path==='/api/project-checkpoints'&&request.method==='GET'){
       const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
       const rows=await env.DB.prepare('SELECT name, byte_length, sha256, updated_at FROM project_checkpoints ORDER BY name').all();
