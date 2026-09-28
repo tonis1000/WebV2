@@ -84,8 +84,8 @@ assert.doesNotMatch(savePolicy, /function routeHealthScore/, 'Source save policy
 assert.match(index, /Content-Security-Policy/, 'index.html should define a CSP boundary');
 
 const engine = read('src/source-hunt-engine.js');
-assert.match(engine, /Official Fallback Discovery/, 'Source Hunt should render a separate official fallback lane');
-assert.match(engine, /Not stored as an IPTV source/, 'Official fallback UI should state separation from IPTV persistence');
+assert.doesNotMatch(engine, /Official Fallback Discovery|officialDiscoveryLinks/, 'Source Hunt should not render the removed external search links');
+assert.doesNotMatch(index, /id="hunt-links"/, 'Source Hunt should not render manual search cards');
 
 const tvCacheWorkflow = read('.github/workflows/deploy-tv-cache.yml');
 assert.doesNotMatch(tvCacheWorkflow, /- 'src\/core\/player\.js'/, 'Frontend-only player changes should not trigger TV Cache deploy');

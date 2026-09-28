@@ -22,7 +22,7 @@ const els = {
   video:$('video'), iframe:$('iframe'), empty:$('empty-state'), programTitle:$('program-title'), programDescription:$('program-description'), programTime:$('program-time'),
   progress:$('epg-progress'), progressBar:$('epg-progress').querySelector('span'), next:$('next-programs'), diagnostics:$('diagnostics'), diagToggle:$('diagnostics-toggle'),
   diagSource:$('diag-source'), diagRoute:$('diag-route'), diagPlayer:$('diag-player'), diagStartup:$('diag-startup'), diagLog:$('diagnostic-log'), clearHealth:$('clear-health'),
-  sourceHuntToggle:$('source-hunt-toggle'), sourceHunt:$('source-hunt'), huntChannel:$('hunt-channel'), huntLinks:$('hunt-links'), candidateUrl:$('candidate-url'), testCandidate:$('test-candidate')
+  sourceHuntToggle:$('source-hunt-toggle'), sourceHunt:$('source-hunt'), huntChannel:$('hunt-channel'), candidateUrl:$('candidate-url'), testCandidate:$('test-candidate')
 };
 
 const health = new HealthStore();
@@ -76,33 +76,10 @@ function sourceLabel(value=''){
     return `${url.hostname}${path}`;
   }catch{return value||'-';}
 }
-function isoDateDaysAgo(days){const date=new Date();date.setDate(date.getDate()-days);return date.toISOString().slice(0,10);}
-function searchUrl(engine,query,type=''){
-  if(engine==='github')return `https://github.com/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type||'code')}`;
-  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-}
-
 function renderSourceHunt(channel){
   if(!channel){els.sourceHuntToggle.hidden=true;els.sourceHunt.hidden=true;return;}
   els.sourceHuntToggle.hidden=false;
   els.huntChannel.textContent=channel.name;
-  const since=isoDateDaysAgo(30),name=channel.name,base=`\"${name}\" Greece Greek TV`;
-  const hunts=[
-    {title:'Fresh Web',desc:'Τελευταίες 30 μέρες · HLS / M3U8',url:searchUrl('google',`${base} (m3u8 OR HLS OR \"playlist.m3u8\") after:${since}`)},
-    {title:'Active Playlists',desc:'Πρόσφατα playlists / EXTINF',url:searchUrl('google',`site:github.com ${base} (\"#EXTINF\" OR m3u8 OR \"playlist.m3u8\") after:${since}`)},
-    {title:'GitHub Code',desc:'Code search για stream URLs',url:searchUrl('github',`\"${name}\" m3u8`,'code')},
-    {title:'GitHub Issues',desc:`Issues ενημερωμένα από ${since}`,url:searchUrl('github',`\"${name}\" m3u8 updated:>=${since}`,'issues')},
-    {title:'GitHub Commits',desc:'Πρόσφατες αλλαγές σε stream lists',url:searchUrl('github',`\"${name}\" m3u8 committer-date:>=${since}`,'commits')},
-    {title:'Forums / Threads',desc:'Forums, IPTV threads, community reports',url:searchUrl('google',`${base} (m3u8 OR HLS) (forum OR thread OR IPTV) after:${since}`)}
-  ];
-  els.huntLinks.innerHTML='';
-  for(const hunt of hunts){
-    const link=document.createElement('a');
-    link.className='hunt-link';link.href=hunt.url;link.target='_blank';link.rel='noopener noreferrer';
-    const title=document.createElement('strong');title.textContent=hunt.title;
-    const desc=document.createElement('span');desc.textContent=hunt.desc;
-    link.append(title,desc);els.huntLinks.appendChild(link);
-  }
 }
 function setPlaybackState(state,label){els.status.className=`status-pill ${state}`;els.status.textContent=label;}
 function clearDiagnostics(){els.diagSource.textContent='-';els.diagRoute.textContent='-';els.diagPlayer.textContent='-';els.diagStartup.textContent='-';}
