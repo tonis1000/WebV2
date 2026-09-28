@@ -42,7 +42,7 @@ document.head.appendChild(style);
 
 async function integrateDiscoveryIntoSourceHunt(){
   await import('./discovery/discovery-ui.js?v=20260928-source-hunt-unified');
-  await import('./source-hunt-playlist-provenance.js?v=20260928-source-playlists');
+  await import('./source-hunt-playlist-provenance.js?v=20260928-source-playlists2');
 
   const sourceHunt = $('source-hunt');
   const toggle = $('source-hunt-toggle');
