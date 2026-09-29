@@ -38,3 +38,5 @@ assert.equal(summary.groups, 2);
 assert.deepEqual(summary.sample, ['MEGA', 'SPORT 1']);
 
 console.log('xtream-client tests passed');
+
+await import('./xtream-mock-deploy-contract.test.mjs');
