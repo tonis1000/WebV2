@@ -22,6 +22,7 @@ for (const path of obsoletePaths) {
 
 const discovery = fs.readFileSync('workers/webtv-source-discovery.js', 'utf8');
 const deploy = fs.readFileSync('.github/workflows/deploy-source-discovery.yml', 'utf8');
+const frontendClient = fs.readFileSync('src/discovery/external-discovery-client.js', 'utf8');
 
 assert.doesNotMatch(discovery, /browser-resolved-official/i, 'Source Discovery worker still advertises browser-resolved-official');
 assert.doesNotMatch(discovery, /BROWSER_RESOLVER/i, 'Source Discovery worker still depends on Browser Resolver configuration');
@@ -29,8 +30,14 @@ assert.doesNotMatch(deploy, /BROWSER_RESOLVER(?:_URL|_TOKEN|_SHARED_TOKEN|\s*=|:
 assert.doesNotMatch(deploy, /provider\\?['"]?\s*[:=]\s*['"]browser-resolved-official/i, 'Source Discovery deploy workflow still invokes retired provider');
 assert.match(deploy, /hasOwnProperty\.call\(s\.providers\|\|\{\},'browser-resolved-official'\)/, 'deploy verification must prove retired provider is absent from live status');
 
+assert.doesNotMatch(frontendClient, /browser-resolved-official/i, 'frontend discovery client still references retired browser-resolved-official provider');
+assert.doesNotMatch(frontendClient, /BROWSER_RESOLVED_OFFICIAL_PROVIDER/, 'frontend discovery client still exports retired Browser Resolver provider constant');
+assert.doesNotMatch(frontendClient, /discoverBrowserResolvedOfficial/, 'frontend discovery client still exposes retired Browser Resolver helper');
+
 assert.match(discovery, /official-api-resolver/i, 'official-api-resolver must remain active in Source Discovery');
 assert.match(deploy, /official-api-resolver/i, 'official-api-resolver live verification must remain in Source Discovery deploy workflow');
+assert.match(frontendClient, /OFFICIAL_API_RESOLVER_PROVIDER/, 'frontend must preserve official-api-resolver');
+assert.match(frontendClient, /OFFICIAL_PROVIDER_LANE/, 'frontend must preserve official-provider-lane fallback');
 assert.equal(fs.existsSync('workers/source-discovery/official-api-resolver.js'), true, 'official-api-resolver implementation must be preserved');
 assert.equal(fs.existsSync('tests/official-api-resolver-provider.test.mjs'), true, 'official-api-resolver regression coverage must be preserved');
 
