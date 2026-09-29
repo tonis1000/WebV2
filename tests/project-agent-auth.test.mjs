@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 
+// TDD RED: this test must fail until the project-agent pairing primitive exists.
 const registryModule = await import('../workers/webtv-registry.js?project-agent-auth-test=1');
 
 assert.equal(typeof registryModule.createProjectAgentPairing, 'function', 'createProjectAgentPairing must be exported');
