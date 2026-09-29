@@ -1,8 +1,0 @@
-{
-  "name": "webtv-browser-resolver",
-  "private": true,
-  "type": "module",
-  "devDependencies": {
-    "@cloudflare/puppeteer": "1.1.0"
-  }
-}
