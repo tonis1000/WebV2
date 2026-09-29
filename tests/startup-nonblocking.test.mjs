@@ -52,4 +52,19 @@ const cloudSyncTail = cloudReadSync.slice(cloudReadSync.indexOf('window.WebTVSav
 assert.match(cloudSyncTail, /startInitialSync\(\);/, 'Saved Playlists sync must start through the deferred helper');
 assert.doesNotMatch(cloudSyncTail.replace(savedSyncStarter, ''), /^\s*runSync\('startup', \{ force:true \}\);/m, 'Saved Playlists sync must not issue a bare pre-ready startup request');
 
+const staleHelperSource = cloudReadSync.match(/function staleLocalPlaylistIds\(localRows=\[\],remoteRows=\[\],syncStartedAt=Date\.now\(\)\)\{[\s\S]*?\n\}/)?.[0] || '';
+assert.ok(staleHelperSource, 'Saved Playlist sync must expose stale local reconciliation logic');
+const staleLocalPlaylistIds = Function(`${staleHelperSource}; return staleLocalPlaylistIds;`)();
+const syncStartedAt = 1000;
+const localRows = [
+  { id:'keep', updatedAt:100 },
+  { id:'deleted', updatedAt:100 },
+  { id:'fresh-concurrent', updatedAt:1000 },
+  { id:'__my_playlist__', updatedAt:1 },
+  { id:'legacy-no-time' },
+];
+const remoteRows = [{ id:'keep' }];
+assert.deepEqual(staleLocalPlaylistIds(localRows, remoteRows, syncStartedAt), ['deleted','legacy-no-time'], 'D1-absent stale cache entries should be removed while remote, protected, and concurrent fresh rows survive');
+assert.match(cloudReadSync, /const staleIds=staleLocalPlaylistIds\(localRows,remoteRows,syncStartedAt\);\s*const removed=await removeSavedCached\(staleIds\);/, 'Saved Playlist sync must apply stale reconciliation before refreshing remote rows');
+
 console.log('startup non-blocking regression: PASS');
