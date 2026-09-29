@@ -9,6 +9,7 @@ on:
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'tests/**/*.html'
+      - 'workers/webtv-registry.js'
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-xtream-router.js'
       - 'workers/xtream-preview-routes.js'
@@ -17,6 +18,7 @@ on:
       - 'workers/source-discovery/**/*.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
+      - '.github/workflows/deploy-webtv-registry.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
       - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
@@ -26,6 +28,7 @@ on:
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'tests/**/*.html'
+      - 'workers/webtv-registry.js'
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-xtream-router.js'
       - 'workers/xtream-preview-routes.js'
@@ -34,6 +37,7 @@ on:
       - 'workers/source-discovery/**/*.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
+      - '.github/workflows/deploy-webtv-registry.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
       - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
@@ -56,6 +60,8 @@ jobs:
         run: |
           set -euo pipefail
           while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find src -type f -name '*.js' | sort)
+      - name: Validate Registry Worker syntax
+        run: node --input-type=module --check < workers/webtv-registry.js
       - name: Validate Xtream Worker syntax
         shell: bash
         run: |
@@ -69,6 +75,8 @@ jobs:
         run: |
           node --input-type=module --check < workers/webtv-source-discovery.js
           while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find workers/source-discovery -type f -name '*.js' | sort)
+      - name: Run Registry project checkpoint write API regression test
+        run: node tests/project-checkpoint-write-api.test.mjs
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
       - name: Run source ranking regression test
