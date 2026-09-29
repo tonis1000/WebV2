@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
-const registryModule = await import('../workers/webtv-registry.js?project-agent-auth-test=3');
-const entryModule = await import('../workers/webtv-registry-entry.js?project-agent-browser-start-test=1');
+const registryModule = await import('../workers/webtv-registry.js?project-agent-auth-test=4');
+const entryModule = await import('../workers/webtv-registry-entry.js?project-agent-browser-finish-test=1');
 const worker = entryModule.default;
 
 for (const name of ['createProjectAgentPairing','approveProjectAgentPairing','completeProjectAgentPairing','verifyProjectAgentSession','revokeProjectAgentSession']) {
@@ -104,6 +104,48 @@ assert.match(startHtml,/<form[^>]+method=["']?post/i);
 assert.match(startHtml,/action=["']\/api\/project-agent\/pair\/start["']/i);
 assert.doesNotMatch(startHtml,/completionSecret|pairingId/i);
 assert.equal(DB.pairings.size,beforeGetCount,'GET /pair/start must not create a pairing');
+
+// Browser start must hide the secret in a short-lived HttpOnly cookie and show only the pairing ID.
+const beforeBrowserStart=new Set(DB.pairings.keys());
+response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/start',{method:'POST'}),env);
+assert.equal(response.status,200);
+assert.match(response.headers.get('content-type')||'',/text\/html/i);
+const browserStartHtml=await response.text();
+assert.doesNotMatch(browserStartHtml,/completionSecret/i);
+const browserPairId=[...DB.pairings.keys()].find(id=>!beforeBrowserStart.has(id));
+assert.ok(browserPairId,'browser POST start must create exactly one pairing');
+assert.match(browserStartHtml,new RegExp(browserPairId));
+const temporarySetCookie=response.headers.get('set-cookie')||'';
+assert.match(temporarySetCookie,/webv2_project_agent_pairing=/i);
+assert.match(temporarySetCookie,/HttpOnly/i);
+assert.match(temporarySetCookie,/Secure/i);
+assert.match(temporarySetCookie,/SameSite=Strict/i);
+assert.match(temporarySetCookie,/Path=\/api\/project-agent\/pair\/finish/i);
+assert.doesNotMatch(browserStartHtml,/[A-Za-z0-9_-]{40,}/,'start HTML must not expose the completion secret');
+const temporaryCookie=temporarySetCookie.split(';',1)[0];
+
+response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/finish'),env);
+assert.equal(response.status,400,'finish page without temporary cookie must fail closed');
+response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/finish',{headers:{cookie:temporaryCookie}}),env);
+assert.equal(response.status,200);
+const finishHtml=await response.text();
+assert.match(finishHtml,/<form[^>]+method=["']?post/i);
+assert.match(finishHtml,/action=["']\/api\/project-agent\/pair\/finish["']/i);
+assert.doesNotMatch(finishHtml,/completionSecret/i);
+
+await registryModule.approveProjectAgentPairing(env,browserPairId);
+const sessionsBeforeFinish=DB.sessions.size;
+response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/finish',{method:'POST',headers:{cookie:temporaryCookie}}),env);
+assert.equal(response.status,200);
+assert.equal(DB.sessions.size,sessionsBeforeFinish+1,'finish must create one project-agent session');
+assert.ok(DB.pairings.get(browserPairId)?.used_at,'finish must consume the one-time pairing');
+const finishSetCookie=response.headers.get('set-cookie')||'';
+assert.match(finishSetCookie,/webv2_project_agent=/i);
+assert.match(finishSetCookie,/webv2_project_agent_pairing=/i);
+assert.match(finishSetCookie,/Max-Age=0/i);
+const finishSuccessHtml=await response.text();
+assert.match(finishSuccessHtml,/pairing complete|connected/i);
+assert.doesNotMatch(finishSuccessHtml,/completionSecret/i);
 
 const livePair=await registryModule.createProjectAgentPairing(env);
 const adminHeaders={authorization:`Bearer ${env.ADMIN_TOKEN}`,'content-type':'application/json'};
