@@ -1,4 +1,4 @@
-const BUILD_ID = '20260926-discovery-read-api';
+const BUILD_ID = '20260929-deferred-startup-sync';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const URL_KEY = 'webtv_v2_registry_url';
@@ -151,7 +151,14 @@ window.WebTVSavedPlaylistsReadAPI=Object.freeze({
   getAllCached: async () => (await allSavedCached()).map(item => ({ ...item })),
 });
 
-runSync('startup', { force:true });
+function startInitialSync(){
+  if(window.WebTVPlaylistAPI?.ready){
+    runSync('startup', { force:true });
+    return;
+  }
+  window.addEventListener('webtv:ready', () => runSync('startup', { force:true }), { once:true });
+}
+startInitialSync();
 setInterval(() => runSync('timer', { force:true }), SYNC_INTERVAL_MS);
 document.addEventListener('visibilitychange', () => {
   if(!document.hidden) runSync('visible');
@@ -160,4 +167,4 @@ document.getElementById('playlist-manager-toggle')?.addEventListener('click', ()
   runSync('open-playlists');
 }, { capture: true });
 
-console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · 15m background sync; 5m open/visible throttle · read-only cache API ready`);
+console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · initial sync after webtv:ready · 15m background sync; 5m open/visible throttle · read-only cache API ready`);
