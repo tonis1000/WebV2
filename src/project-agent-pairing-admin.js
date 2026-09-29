@@ -1,8 +1,6 @@
 const BUILD_ID='20260929-project-agent-pairing';
 const PANEL_ID='project-agent-pairing-admin';
 
-function authApi(){return window.WebTVRegistryAuth||null;}
-
 function ensurePanel(){
   let panel=document.getElementById(PANEL_ID);
   if(panel)return panel;
@@ -33,12 +31,11 @@ function setVisible(unlocked){ensurePanel().hidden=!unlocked;}
 async function approve(pairingId){
   const id=String(pairingId||'').trim();
   if(!id)throw new Error('Pairing ID required');
-  const auth=authApi();
-  if(!auth)throw new Error('Registry authentication is not ready');
-  const ok=await auth.ensureSession({interactive:true});
+  if(!window.WebTVRegistryAuth)throw new Error('Registry authentication is not ready');
+  const ok=await window.WebTVRegistryAuth.ensureSession({interactive:true});
   if(!ok)throw new Error('Admin authentication required');
-  const token=auth.token();
-  const registry=auth.base();
+  const token=window.WebTVRegistryAuth.token();
+  const registry=window.WebTVRegistryAuth.base();
   if(!token)throw new Error('Admin session unavailable');
   const response=await fetch(`${registry}/api/project-agent/pair/approve`,{
     method:'POST',
