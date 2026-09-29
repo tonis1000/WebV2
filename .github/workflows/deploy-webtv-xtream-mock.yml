@@ -71,11 +71,11 @@ jobs:
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error "$MOCK_URL/api/status?verify=${GITHUB_SHA}-${attempt}" -o /tmp/mock-status.json; then
               cat /tmp/mock-status.json
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/mock-status.json','utf8'));process.exit(j.version==='1.0'&&j.service==='WebTV Xtream Test Provider'&&j.channels===3?0:1)"; then
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/mock-status.json','utf8'));process.exit(j.version==='1.1'&&j.service==='WebTV Xtream Test Provider'&&j.channels===4?0:1)"; then
                 curl --fail --silent --show-error "$MOCK_URL/player_api.php?username=test_user&password=test_pass" -o /tmp/mock-login.json
                 curl --fail --silent --show-error "$MOCK_URL/player_api.php?username=test_user&password=test_pass&action=get_live_categories" -o /tmp/mock-categories.json
                 curl --fail --silent --show-error "$MOCK_URL/player_api.php?username=test_user&password=test_pass&action=get_live_streams" -o /tmp/mock-streams.json
-                node -e "const fs=require('fs');const login=JSON.parse(fs.readFileSync('/tmp/mock-login.json'));const cats=JSON.parse(fs.readFileSync('/tmp/mock-categories.json'));const streams=JSON.parse(fs.readFileSync('/tmp/mock-streams.json'));if(String(login.user_info?.auth)!=='1'||cats.length!==3||streams.length!==3)process.exit(1);console.log('Verified Xtream mock login + 3 categories + 3 streams')"
+                node -e "const fs=require('fs');const login=JSON.parse(fs.readFileSync('/tmp/mock-login.json'));const cats=JSON.parse(fs.readFileSync('/tmp/mock-categories.json'));const streams=JSON.parse(fs.readFileSync('/tmp/mock-streams.json'));if(String(login.user_info?.auth)!=='1'||cats.length!==4||streams.length!==4)process.exit(1);console.log('Verified Xtream mock login + 4 categories + 4 streams')"
                 exit 0
               fi
             fi
