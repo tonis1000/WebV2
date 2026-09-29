@@ -57,6 +57,12 @@ function createFakeD1() {
       return result(1);
     }
 
+    if (/^UPDATE project_checkpoints SET sha256=sha256 WHERE name=\? AND sha256=\?/i.test(sql)) {
+      const [name, expectedSha] = args;
+      const row = checkpoints.get(name);
+      return result(row?.sha256 === expectedSha ? 1 : 0);
+    }
+
     if (/^UPDATE project_checkpoints SET content=\?,byte_length=\?,sha256=\?,updated_at=CURRENT_TIMESTAMP WHERE name=\? AND sha256=\?/i.test(sql)) {
       const [content, byteLength, sha256, name, expectedSha] = args;
       const row = checkpoints.get(name);
@@ -72,6 +78,7 @@ function createFakeD1() {
 
     if (/^INSERT INTO project_checkpoints/i.test(sql)) {
       const [name, content, byteLength, sha256] = args;
+      if (/ON CONFLICT\(name\) DO NOTHING/i.test(sql) && checkpoints.has(name)) return result(0);
       checkpoints.set(name, {
         content,
         byte_length: byteLength,
@@ -206,10 +213,11 @@ let secondSha = '';
 
 // A writer that loses a race after reading must not overwrite the newer checkpoint or create bogus history.
 {
-  const racedSha = 'e'.repeat(64);
+  const racedContent = '# external writer won\n';
+  const racedSha = await registryModule.projectCheckpointSha256(racedContent);
   DB.raceBeforeNextWrite('WEBV2_CURRENT.md', {
-    content: '# external writer won\n',
-    byte_length: 22,
+    content: racedContent,
+    byte_length: new TextEncoder().encode(racedContent).byteLength,
     sha256: racedSha,
     updated_at: '2026-09-29T12:00:02.000Z',
   });
