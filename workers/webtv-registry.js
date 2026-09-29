@@ -3,6 +3,9 @@ const SESSION_DAYS = 180;
 const MAX_PIN_FAILURES = 5;
 const PIN_BLOCK_MINUTES = 15;
 const CHECKPOINT_MAX_BYTES = 512 * 1024;
+const PROJECT_AGENT_PAIRING_MS = 5 * 60 * 1000;
+const PROJECT_AGENT_SESSION_DAYS = 180;
+const PROJECT_AGENT_COOKIE = 'webv2_project_agent';
 
 function cors(origin='*'){
   return {
@@ -13,7 +16,7 @@ function cors(origin='*'){
     'access-control-max-age': '86400'
   };
 }
-function json(data,status=200,origin='*'){return new Response(JSON.stringify(data),{status,headers:{...cors(origin),'content-type':'application/json;charset=utf-8','cache-control':'no-store'}});}
+function json(data,status=200,origin='*',extraHeaders={}){return new Response(JSON.stringify(data),{status,headers:{...cors(origin),'content-type':'application/json;charset=utf-8','cache-control':'no-store',...extraHeaders}});}
 function text(data,status=200,type='text/plain;charset=utf-8',origin='*'){return new Response(data,{status,headers:{...cors(origin),'content-type':type,'cache-control':'no-store'}});}
 function clean(value=''){return String(value??'').trim();}
 function escAttr(value=''){return clean(value).replace(/"/g,"'");}
@@ -44,6 +47,61 @@ async function requireAdmin(request,env){
   if(!await verifySession(token,env))return{ok:false,response:json({error:'Locked. Enter the 6-digit PIN.'},401,origin)};
   return{ok:true};
 }
+
+async function ensureProjectAgentTables(env){
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS project_agent_pairings (pairing_id TEXT PRIMARY KEY, secret_sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, approved_at INTEGER, used_at INTEGER)`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS project_agent_sessions (session_id TEXT PRIMARY KEY, issued_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER)`).run();
+}
+function randomUrlToken(bytes=24){const data=new Uint8Array(bytes);crypto.getRandomValues(data);return b64url(data);}
+function projectAgentError(message,status=400){const error=new Error(message);error.projectAgentStatus=status;return error;}
+async function projectAgentSignature(env,payload){return b64url(await hmac(env.ADMIN_TOKEN,`webv2-project-agent-v2:${payload}`));}
+export async function createProjectAgentPairing(env){
+  if(!env?.DB)throw projectAgentError('D1 binding DB is required',503);
+  await ensureProjectAgentTables(env);
+  const pairingId=randomUrlToken(18),completionSecret=randomUrlToken(32),createdAt=Date.now(),expiresAt=createdAt+PROJECT_AGENT_PAIRING_MS;
+  const secretSha256=await projectCheckpointSha256(completionSecret);
+  await env.DB.prepare(`INSERT INTO project_agent_pairings(pairing_id,secret_sha256,created_at,expires_at,approved_at,used_at) VALUES(?,?,?,?,NULL,NULL)`).bind(pairingId,secretSha256,createdAt,expiresAt).run();
+  return{pairingId,completionSecret,expiresAt};
+}
+export async function approveProjectAgentPairing(env,pairingId){
+  await ensureProjectAgentTables(env);const id=clean(pairingId),now=Date.now();if(!id)throw projectAgentError('pairingId is required',400);
+  const result=await env.DB.prepare(`UPDATE project_agent_pairings SET approved_at=? WHERE pairing_id=? AND approved_at IS NULL AND used_at IS NULL AND expires_at>?`).bind(now,id,now).run();
+  if(d1Changes(result)!==1)throw projectAgentError('Pairing is missing, expired, used, or already approved',409);
+  return{ok:true,pairingId:id,approvedAt:now};
+}
+export async function completeProjectAgentPairing(env,pairingId,completionSecret){
+  if(!env.ADMIN_TOKEN)throw projectAgentError('ADMIN_TOKEN signing secret is not configured',503);
+  await ensureProjectAgentTables(env);const id=clean(pairingId),secret=clean(completionSecret),now=Date.now();
+  const row=await env.DB.prepare(`SELECT pairing_id,secret_sha256,created_at,expires_at,approved_at,used_at FROM project_agent_pairings WHERE pairing_id=?`).bind(id).first();
+  if(!row)throw projectAgentError('Pairing not found',404);
+  if(row.used_at)throw projectAgentError('Pairing already used or complete',409);
+  if(Number(row.expires_at)<=now)throw projectAgentError('Pairing expired',410);
+  if(!row.approved_at)throw projectAgentError('Pairing is not approved',409);
+  const suppliedHash=await projectCheckpointSha256(secret);if(!safeEqual(new TextEncoder().encode(suppliedHash),new TextEncoder().encode(String(row.secret_sha256||''))))throw projectAgentError('Invalid completion secret',401);
+  const claimed=await env.DB.prepare(`UPDATE project_agent_pairings SET used_at=? WHERE pairing_id=? AND used_at IS NULL AND approved_at IS NOT NULL AND expires_at>?`).bind(now,id,now).run();
+  if(d1Changes(claimed)!==1)throw projectAgentError('Pairing already used or expired',409);
+  const sessionId=randomUrlToken(24),issuedAt=now,expiresAt=now+PROJECT_AGENT_SESSION_DAYS*86400*1000;
+  await env.DB.prepare(`INSERT INTO project_agent_sessions(session_id,issued_at,expires_at,revoked_at) VALUES(?,?,?,NULL)`).bind(sessionId,issuedAt,expiresAt).run();
+  const iat=Math.floor(issuedAt/1000),exp=Math.floor(expiresAt/1000),payload=b64urlText(JSON.stringify({v:2,scope:'project-state',sid:sessionId,iat,exp}));
+  const token=`${payload}.${await projectAgentSignature(env,payload)}`;
+  return{token,sessionId,expiresAt};
+}
+export async function verifyProjectAgentSession(token,env){
+  if(!token||!env.ADMIN_TOKEN)return{ok:false};const parts=String(token).split('.');if(parts.length!==2)return{ok:false};
+  try{
+    const expected=fromB64url(await projectAgentSignature(env,parts[0])),supplied=fromB64url(parts[1]);if(!safeEqual(expected,supplied))return{ok:false};
+    const payload=JSON.parse(new TextDecoder().decode(fromB64url(parts[0])));const nowSec=Math.floor(Date.now()/1000);
+    if(payload?.v!==2||payload?.scope!=='project-state'||!payload.sid||Number(payload.exp)<=nowSec)return{ok:false};
+    await ensureProjectAgentTables(env);const row=await env.DB.prepare(`SELECT session_id,issued_at,expires_at,revoked_at FROM project_agent_sessions WHERE session_id=?`).bind(payload.sid).first();
+    if(!row||row.revoked_at||Number(row.expires_at)<=Date.now())return{ok:false};return{ok:true,sessionId:payload.sid,expiresAt:Number(row.expires_at)};
+  }catch{return{ok:false};}
+}
+export async function revokeProjectAgentSession(env,sessionId){
+  await ensureProjectAgentTables(env);const id=clean(sessionId);if(!id)return{ok:false};const result=await env.DB.prepare(`UPDATE project_agent_sessions SET revoked_at=? WHERE session_id=? AND revoked_at IS NULL`).bind(Date.now(),id).run();return{ok:d1Changes(result)===1};
+}
+function cookieValue(request,name){const raw=request.headers.get('cookie')||'';for(const part of raw.split(';')){const i=part.indexOf('=');if(i<0)continue;if(part.slice(0,i).trim()===name)return decodeURIComponent(part.slice(i+1).trim());}return'';}
+function projectAgentCookie(token,maxAge=PROJECT_AGENT_SESSION_DAYS*86400){return `${PROJECT_AGENT_COOKIE}=${encodeURIComponent(token)}; Max-Age=${Math.max(0,Math.floor(maxAge))}; Path=/api/project-agent; Secure; HttpOnly; SameSite=Strict`;}
+async function requireProjectAgent(request,env){const result=await verifyProjectAgentSession(cookieValue(request,PROJECT_AGENT_COOKIE),env);if(!result.ok)return{ok:false,response:json({error:'Project agent session required'},401,requestOrigin(request,env))};return result;}
 
 async function ensurePinTable(env){
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pin_attempts (client_key TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, blocked_until INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
@@ -190,10 +248,41 @@ function toM3u(channels){const lines=['#EXTM3U'];for(const c of channels){const 
 export default{async fetch(request,env){
   const origin=requestOrigin(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});if(!env.DB)return json({error:'D1 binding DB is not configured'},503,origin);const url=new URL(request.url),path=url.pathname.replace(/\/+$/,'')||'/';
   try{
-    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/project-status','/api/project-checkpoints','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
+    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/project-status','/api/project-checkpoints','/api/project-agent','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
     if(path==='/api/login'&&request.method==='POST')return await pinLogin(request,env,origin);
     if(path==='/api/session'&&request.method==='GET'){const auth=request.headers.get('authorization')||'',token=auth.replace(/^Bearer\s+/i,'').trim();const ok=await verifySession(token,env);return json({ok},ok?200:401,origin);}
     if(path==='/api/session/validate'&&request.method==='POST'){const body=await readJson(request);const ok=await verifySession(clean(body.token),env);return json({ok},ok?200:401,origin);}
+
+    if(path==='/api/project-agent/pair/start'&&request.method==='POST')return json(await createProjectAgentPairing(env),201,origin);
+    if(path==='/api/project-agent/pair/approve'&&request.method==='POST'){
+      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;const body=await readJson(request);return json(await approveProjectAgentPairing(env,body.pairingId),200,origin);
+    }
+    if(path==='/api/project-agent/pair/complete'&&request.method==='POST'){
+      const body=await readJson(request);const completed=await completeProjectAgentPairing(env,body.pairingId,body.completionSecret);return json({ok:true,expiresAt:completed.expiresAt},200,origin,{'set-cookie':projectAgentCookie(completed.token)});
+    }
+    if(path==='/api/project-agent/session'&&request.method==='GET'){
+      const auth=await requireProjectAgent(request,env);if(!auth.ok)return auth.response;return json({ok:true,sessionId:auth.sessionId,expiresAt:auth.expiresAt},200,origin);
+    }
+    if(path==='/api/project-agent/session'&&request.method==='DELETE'){
+      const auth=await requireProjectAgent(request,env);if(!auth.ok)return auth.response;await revokeProjectAgentSession(env,auth.sessionId);return json({ok:true},200,origin,{'set-cookie':projectAgentCookie('',0)});
+    }
+    if(path==='/api/project-agent/status'&&request.method==='GET'){
+      const auth=await requireProjectAgent(request,env);if(!auth.ok)return auth.response;const row=await env.DB.prepare('SELECT commit_sha, commit_message, deployed_at FROM project_deploy_status WHERE id=1').first();return row?json({repository:'tonis1000/WebV2',commitSha:row.commit_sha,commitMessage:row.commit_message,deployedAt:row.deployed_at},200,origin):json({error:'Deployment status not initialized'},503,origin);
+    }
+    if(path==='/api/project-agent/checkpoints'&&request.method==='GET'){
+      const auth=await requireProjectAgent(request,env);if(!auth.ok)return auth.response;await ensureProjectCheckpointTables(env);const rows=await env.DB.prepare('SELECT name, byte_length, sha256, updated_at FROM project_checkpoints ORDER BY name').all();return json({checkpoints:rows.results||[]},200,origin);
+    }
+    const agentCheckpointPrefix='/api/project-agent/checkpoints/';
+    if(path.startsWith(agentCheckpointPrefix)&&path.endsWith('/history')&&request.method==='GET'){
+      const auth=await requireProjectAgent(request,env);if(!auth.ok)return auth.response;const name=decodeURIComponent(path.slice(agentCheckpointPrefix.length,-'/history'.length));if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);return json({name,history:await listProjectCheckpointHistory(env,name)},200,origin);
+    }
+    if(path.startsWith(agentCheckpointPrefix)&&request.method==='GET'){
+      const auth=await requireProjectAgent(request,env);if(!auth.ok)return auth.response;const name=decodeURIComponent(path.slice(agentCheckpointPrefix.length));if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);await ensureProjectCheckpointTables(env);const row=await env.DB.prepare('SELECT content, sha256, updated_at FROM project_checkpoints WHERE name=?').bind(name).first();return row?projectCheckpointText(row,origin):json({error:'Checkpoint not found'},404,origin);
+    }
+    if(path.startsWith(agentCheckpointPrefix)&&request.method==='PUT'){
+      const auth=await requireProjectAgent(request,env);if(!auth.ok)return auth.response;const name=decodeURIComponent(path.slice(agentCheckpointPrefix.length));if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);const body=await readJson(request);try{const checkpoint=await writeProjectCheckpoint(env,{name,content:body.content,expectedSha256:body.expectedSha256});return json({ok:true,checkpoint},checkpoint.created?201:200,origin);}catch(error){if(error?.projectCheckpointStatus)return json(error.projectCheckpointPayload,error.projectCheckpointStatus,origin);throw error;}
+    }
+
     if(path==='/api/project-status'&&request.method==='GET'){
       const row=await env.DB.prepare('SELECT commit_sha, commit_message, deployed_at FROM project_deploy_status WHERE id=1').first();
       return row?json({repository:'tonis1000/WebV2',commitSha:row.commit_sha,commitMessage:row.commit_message,deployedAt:row.deployed_at,checkpoints:'PIN-protected at /api/project-checkpoints'},200,origin):json({error:'Deployment status not initialized'},503,origin);
@@ -250,5 +339,5 @@ export default{async fetch(request,env){
     if(path.startsWith('/api/my-playlist/channel/')&&request.method==='DELETE'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;const id=decodeURIComponent(path.slice('/api/my-playlist/channel/'.length));await env.DB.prepare(`DELETE FROM my_playlist WHERE channel_id=?`).bind(id).run();return json({ok:true,id},200,origin);}
     if(path==='/api/my-playlist/replace'&&request.method==='POST'){const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;const body=await readJson(request);if(!Array.isArray(body.channels))return json({error:'channels array is required'},400,origin);await env.DB.prepare(`DELETE FROM my_playlist`).run();let position=0;for(const channel of body.channels)await putMyChannel(env,{...channel,position:position++,replaceSources:true});return json({ok:true,count:body.channels.length},200,origin);}
     return json({error:'Not found'},404,origin);
-  }catch(error){return json({error:error?.message||String(error)},500,origin);}
+  }catch(error){return json({error:error?.message||String(error)},error?.projectAgentStatus||500,origin);}
 }};
