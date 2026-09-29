@@ -7,7 +7,6 @@ export const RECENT_WEB_SEARCH_PROVIDER='recent-web-search';
 export const STRM_SPECIFIC_DISCOVERY_PROVIDER='strm-specific-discovery';
 export const OFFICIAL_PROVIDER_LANE='official-provider-lane';
 export const OFFICIAL_API_RESOLVER_PROVIDER='official-api-resolver';
-export const BROWSER_RESOLVED_OFFICIAL_PROVIDER='browser-resolved-official';
 export const EXTERNAL_DISCOVERY_TIMEOUT_MS=9000;
 export const PROVIDER_FLAGS=Object.freeze({
   [CURATED_REMOTE_FEEDS_PROVIDER]:true,
@@ -16,7 +15,6 @@ export const PROVIDER_FLAGS=Object.freeze({
   [STRM_SPECIFIC_DISCOVERY_PROVIDER]:true,
   [OFFICIAL_PROVIDER_LANE]:true,
   [OFFICIAL_API_RESOLVER_PROVIDER]:true,
-  [BROWSER_RESOLVED_OFFICIAL_PROVIDER]:true,
 });
 
 function timeoutSignal(parentSignal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS){
@@ -59,8 +57,7 @@ async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOV
 }
 async function officialStage(provider,channel,options,stages){
   try{
-    const timeoutMs=provider===BROWSER_RESOLVED_OFFICIAL_PROVIDER?(options.timeoutMs||15000):options.timeoutMs;
-    const result=await discoverProvider(provider,channel,{...options,timeoutMs});
+    const result=await discoverProvider(provider,channel,options);
     stages.push({provider,ok:true,recognized:result.recognized!==false,available:result.available!==false,candidateCount:result.candidates?.length||0,restrictionType:restrictionType(result)});
     return result;
   }catch(error){
@@ -86,18 +83,10 @@ export function discoverGithubPublicPlaylists(channel,options={}){return discove
 export function discoverRecentWebSearch(channel,options={}){return discoverProvider(RECENT_WEB_SEARCH_PROVIDER,channel,options);}
 export function discoverStrmSpecific(channel,options={}){return discoverProvider(STRM_SPECIFIC_DISCOVERY_PROVIDER,channel,options);}
 export function discoverOfficialApi(channel,options={}){return discoverProvider(OFFICIAL_API_RESOLVER_PROVIDER,channel,options);}
-export function discoverBrowserResolvedOfficial(channel,options={}){return discoverProvider(BROWSER_RESOLVED_OFFICIAL_PROVIDER,channel,{...options,timeoutMs:options.timeoutMs||15000});}
 export async function discoverOfficialProvider(channel,options={}){
   const stages=[];
   const api=await officialStage(OFFICIAL_API_RESOLVER_PROVIDER,channel,options,stages);
   if(api.candidates?.length)return aggregateOfficialResult(api,stages,channel);
-  if(restrictionType(api)==='SERVER_REGION_RESTRICTED'){
-    stages.push({provider:BROWSER_RESOLVED_OFFICIAL_PROVIDER,ok:true,recognized:true,available:true,candidateCount:0,skipped:true,skipReason:'SERVER_REGION_RESTRICTED'});
-    const page=await officialStage(OFFICIAL_PROVIDER_LANE,channel,options,stages);
-    return aggregateOfficialResult(page,stages,channel);
-  }
-  const browser=await officialStage(BROWSER_RESOLVED_OFFICIAL_PROVIDER,channel,options,stages);
-  if(browser.candidates?.length)return aggregateOfficialResult(browser,stages,channel);
   const page=await officialStage(OFFICIAL_PROVIDER_LANE,channel,options,stages);
   return aggregateOfficialResult(page,stages,channel);
 }
