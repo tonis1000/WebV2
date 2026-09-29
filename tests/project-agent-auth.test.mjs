@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-const registryModule = await import('../workers/webtv-registry.js?project-agent-auth-test=2');
+const registryModule = await import('../workers/webtv-registry.js?project-agent-auth-test=3');
 const worker = registryModule.default;
 
 for (const name of ['createProjectAgentPairing','approveProjectAgentPairing','completeProjectAgentPairing','verifyProjectAgentSession','revokeProjectAgentSession']) {
@@ -97,10 +97,21 @@ await assert.rejects(()=>registryModule.completeProjectAgentPairing(env,pairing.
 assert.equal((await registryModule.revokeProjectAgentSession(env,completed.sessionId)).ok,true);
 assert.equal((await registryModule.verifyProjectAgentSession(completed.token,env)).ok,false);
 
+// Browser-friendly GET entry must be side-effect free and submit POST to the same endpoint.
+const beforeGetCount=DB.pairings.size;
+let response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/start'),env);
+assert.equal(response.status,200);
+assert.match(response.headers.get('content-type')||'',/text\/html/i);
+const startHtml=await response.text();
+assert.match(startHtml,/<form[^>]+method=["']?post/i);
+assert.match(startHtml,/action=["']\/api\/project-agent\/pair\/start["']/i);
+assert.doesNotMatch(startHtml,/completionSecret|pairingId/i);
+assert.equal(DB.pairings.size,beforeGetCount,'GET /pair/start must not create a pairing');
+
 // HTTP route flow uses a scoped HttpOnly cookie and never broad admin auth.
 const livePair=await registryModule.createProjectAgentPairing(env);
 const adminHeaders={authorization:`Bearer ${env.ADMIN_TOKEN}`,'content-type':'application/json'};
-let response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/approve',{method:'POST',headers:adminHeaders,body:JSON.stringify({pairingId:livePair.pairingId})}),env);
+response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/approve',{method:'POST',headers:adminHeaders,body:JSON.stringify({pairingId:livePair.pairingId})}),env);
 assert.equal(response.status,200);
 response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/complete',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pairingId:livePair.pairingId,completionSecret:livePair.completionSecret})}),env);
 assert.equal(response.status,200);
