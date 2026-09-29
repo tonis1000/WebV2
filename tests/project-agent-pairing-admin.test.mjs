@@ -21,5 +21,6 @@ assert.ok(pin>=0&&gate>pin,'admin gate must still load after pin-auth');
 assert.match(adminGate,/import\s+['"]\.\/project-agent-pairing-admin\.js\?v=20260929-project-agent['"]/,'admin gate must load pairing module after the existing auth layer');
 
 await import('./project-agent-portable-resume.test.mjs');
+await import('./project-agent-auto-finish.test.mjs');
 
 console.log('project agent pairing admin regression: PASS');
