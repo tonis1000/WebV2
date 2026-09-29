@@ -7,6 +7,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const main = readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
 const favorites = readFileSync(path.join(ROOT, 'src/favorites-ui.js'), 'utf8');
 const playlistManager = readFileSync(path.join(ROOT, 'src/playlist-manager.js'), 'utf8');
+const cloudReadSync = readFileSync(path.join(ROOT, 'src/cloud-read-sync.js'), 'utf8');
 
 const bootMatch = main.match(/async function boot\(\)\{([\s\S]*?)\n\}/);
 assert.ok(bootMatch, 'main.js must expose the boot function');
@@ -41,5 +42,14 @@ const playlistStartup = playlistManager.match(/async function startup\(\)\{[^\n]
 assert.ok(playlistStartup, 'Playlist Manager must expose startup');
 assert.match(playlistStartup, /const shared=initialMyPlaylistFromApp\(\)/, 'Playlist Manager startup must try the shared main cache first');
 assert.match(playlistStartup, /myCache=shared\|\|await fetchMyPlaylist\(\)/, 'Playlist Manager startup must fall back to D1 when shared cache reuse is unavailable');
+
+const savedSyncStarter = cloudReadSync.match(/function startInitialSync\(\)\{[\s\S]*?\n\}/)?.[0] || '';
+assert.ok(savedSyncStarter, 'Saved Playlists cloud sync must expose a deferred startup helper');
+assert.match(savedSyncStarter, /window\.WebTVPlaylistAPI\?\.ready/, 'Saved Playlists sync may run immediately only if the main app is already ready');
+assert.match(savedSyncStarter, /window\.addEventListener\('webtv:ready'/, 'Saved Playlists initial sync must wait for webtv:ready when the app is still booting');
+assert.equal((savedSyncStarter.match(/runSync\('startup', \{ force:true \}\)/g) || []).length, 2, 'Deferred startup helper must cover both already-ready and future-ready paths');
+const cloudSyncTail = cloudReadSync.slice(cloudReadSync.indexOf('window.WebTVSavedPlaylistsReadAPI'));
+assert.match(cloudSyncTail, /startInitialSync\(\);/, 'Saved Playlists sync must start through the deferred helper');
+assert.doesNotMatch(cloudSyncTail.replace(savedSyncStarter, ''), /^\s*runSync\('startup', \{ force:true \}\);/m, 'Saved Playlists sync must not issue a bare pre-ready startup request');
 
 console.log('startup non-blocking regression: PASS');
