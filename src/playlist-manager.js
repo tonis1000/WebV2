@@ -1,7 +1,7 @@
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
 import { diffRemovedUrls, cleanupRemovedXtreamChannelSources } from './xtream-channel-lifecycle.js?v=20260926-1800';
 
-const BUILD_ID = '20260928-source-replace-api';
+const BUILD_ID = '20260929-reuse-main-playlist';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
@@ -21,7 +21,7 @@ function log(message){
   const stamp=new Date().toLocaleTimeString();
   box.textContent=`[${stamp}] ${message}\n${box.textContent}`.slice(0,18000);
 }
-function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));}
 function escAttr(value=''){return String(value||'').replace(/"/g,"'");}
 function normalize(value=''){return String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9α-ω]+/gi,'-').replace(/^-+|-+$/g,'');}
 function uid(){return `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;}
@@ -82,6 +82,21 @@ function channelsToM3U(channels){const lines=['#EXTM3U'];for(const c of channels
 function channelPayload(channel,position=999999,replaceSources=true){return{id:normalize(channel.id||channel.originalId||channel.name),name:channel.name,tvgId:channel.originalId||channel.id||channel.name,logo:channel.logo||'',groupName:channel.group||'Other',directUrls:[...(channel.directUrls||[])],sources:(channel.directUrls||[]).map((url,i)=>({url,origin:'curated',priority:100+i})),position,replaceSources};}
 function api(){return window.WebTVPlaylistAPI||null;}
 function selectedChannel(){return api()?.getSelectedChannel?.()||null;}
+function initialMyPlaylistFromApp(){
+  const bridge=api();
+  if(!bridge?.ready||bridge.getCatalogMode?.()!=='cloud')return null;
+  const rows=bridge.getChannels?.();
+  if(!Array.isArray(rows))return null;
+  return rows.map((c,index)=>({
+    id:normalize(c.id||c.originalId||c.name),
+    originalId:c.originalId||c.id||c.name,
+    name:c.name,
+    logo:c.logo||'',
+    group:c.group||'Other',
+    directUrls:[...new Set((c.directUrls||[]).filter(Boolean))],
+    position:Number.isFinite(Number(c.position))?Number(c.position):index
+  }));
+}
 async function cleanupXtreamAfterSourceRemoval(previousUrls,currentUrls,context){const removed=diffRemovedUrls(previousUrls,currentUrls);if(!removed.length)return{cleaned:[],retained:[],failed:[]};const result=await cleanupRemovedXtreamChannelSources(removed);if(result.cleaned.length)log(`XTREAM CHANNEL CLEANUP ${context} · deleted ${result.cleaned.length} orphan secret(s)`);if(result.retained.length)log(`XTREAM CHANNEL CLEANUP ${context} · retained ${result.retained.length} referenced secret(s)`);if(result.failed.length)log(`XTREAM CHANNEL CLEANUP ${context} · ${result.failed.length} cleanup failure(s) · My Playlist write remains committed`);return result;}
 
 async function refreshPrimary({forceSidebar=false,reason='write'}={}){myCache=await fetchMyPlaylist();myCacheLoaded=true;await renderMyPlaylist({reuseCache:true});await updateMyAction();const bridge=api();if(bridge?.reloadCloudMyPlaylist&&(forceSidebar||bridge.getCatalogMode?.()==='cloud'))await bridge.reloadCloudMyPlaylist({reason,preserveSelection:true});return myCache;}
@@ -120,7 +135,7 @@ async function showSources(channel){let overlay=$('source-editor-overlay');if(!o
 
 async function renderSaved(){const box=$('saved-playlists'),count=$('saved-playlist-count');if(!box)return;const rows=await allSaved();if(count)count.textContent=`${rows.length} saved`;box.innerHTML='';if(!rows.length){box.innerHTML='<div class="playlist-preview-empty">No Saved Playlists yet.</div>';return;}for(const item of rows){const card=document.createElement('article');card.className='playlist-card';const icon=document.createElement('div');icon.className='playlist-card-icon';icon.textContent=item.type==='url'?'↗':'≡';const main=document.createElement('div');main.className='playlist-card-main';const title=document.createElement('div');title.className='playlist-card-title';const strong=document.createElement('strong');strong.textContent=item.name;title.appendChild(strong);const meta=document.createElement('span');let host='';try{host=item.url?new URL(item.url).hostname:'';}catch{}meta.textContent=`${item.channelCount||0} channels · ${item.groupCount||0} groups${host?` · ${host}`:''}`;main.append(title,meta);const actions=document.createElement('div');actions.className='playlist-card-actions';const load=tinyButton('Load');load.addEventListener('click',()=>applyText(item.text,selectedMode(),item.name).catch(e=>setStatus(e.message,'error')));const rename=tinyButton('Rename','ghost');rename.addEventListener('click',async()=>{const name=prompt('Playlist name',item.name);if(!name?.trim())return;try{const changed={...item,name:name.trim(),updatedAt:Date.now()};await pushSavedPlaylistToRegistry(changed);await putSaved(changed);await renderSaved();}catch(error){setStatus(error.message,'error');}});const exportBtn=tinyButton('Export','ghost');exportBtn.addEventListener('click',()=>downloadM3UText(item.name,item.text));const del=tinyButton('Delete','danger');del.addEventListener('click',async()=>{if(!confirm(`Delete “${item.name}”?`))return;try{await ensureWriteSession();const r=await registryFetch(`/api/playlists/${encodeURIComponent(item.id)}`,{method:'DELETE',headers:registryHeaders({auth:true})});await readJsonResponse(r);await removeSaved(item.id);await renderSaved();setStatus(`${item.name} deleted`,'idle');}catch(error){setStatus(error.message,'error');}});actions.append(load,rename,exportBtn,del);card.append(icon,main,actions);box.appendChild(card);}}
 
-async function startup(){ensureMyUi();try{myCache=await fetchMyPlaylist();myCacheLoaded=true;await renderMyPlaylist({reuseCache:true});}catch(error){setStatus(`My Playlist D1 read failed · ${error.message}`,'error');}await renderSaved();await updateMyAction();}
+async function startup(){ensureMyUi();try{const shared=initialMyPlaylistFromApp();myCache=shared||await fetchMyPlaylist();myCacheLoaded=true;await renderMyPlaylist({reuseCache:true});if(shared)log(`MY PLAYLIST STARTUP REUSED · ${shared.length} channels · main D1 cache`);}catch(error){setStatus(`My Playlist D1 read failed · ${error.message}`,'error');}await renderSaved();await updateMyAction();}
 function bind(){$('playlist-manager-toggle')?.addEventListener('click',()=>{const p=$('playlist-manager');if(!p)return;p.hidden=!p.hidden;if(!p.hidden){renderMyPlaylist().catch(e=>setStatus(e.message,'error'));renderSaved().catch(()=>{});}});$('playlist-manager-close')?.addEventListener('click',()=>{const p=$('playlist-manager');if(p)p.hidden=true;});document.addEventListener('pointerdown',event=>{const p=$('playlist-manager');if(!p||p.hidden)return;if(p.contains(event.target)||$('playlist-manager-toggle')?.contains(event.target))return;p.hidden=true;});$('playlist-test-url')?.addEventListener('click',testUrl);$('playlist-load-url')?.addEventListener('click',()=>loadTemporary('url'));$('playlist-save-url')?.addEventListener('click',()=>saveCurrent('url'));$('playlist-test-paste')?.addEventListener('click',testPaste);$('playlist-load-paste')?.addEventListener('click',()=>loadTemporary('paste'));$('playlist-save-paste')?.addEventListener('click',()=>saveCurrent('paste'));$('playlist-add-url')?.addEventListener('keydown',e=>{if(e.key==='Enter')testUrl();});$('channel-list')?.addEventListener('click',()=>setTimeout(()=>updateMyAction(),0));const observer=new MutationObserver(()=>updateMyAction());const name=$('channel-name');if(name)observer.observe(name,{childList:true,characterData:true,subtree:true});window.addEventListener('webtv:cloud-read-synced',()=>renderSaved().catch(()=>{}));}
 
 window.WebTVMyPlaylistAPI={
