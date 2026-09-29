@@ -10,6 +10,7 @@ on:
       - 'tests/**/*.mjs'
       - 'tests/**/*.html'
       - 'workers/webtv-registry.js'
+      - 'workers/webtv-registry-entry.js'
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-xtream-router.js'
       - 'workers/xtream-preview-routes.js'
@@ -29,6 +30,7 @@ on:
       - 'tests/**/*.mjs'
       - 'tests/**/*.html'
       - 'workers/webtv-registry.js'
+      - 'workers/webtv-registry-entry.js'
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-xtream-router.js'
       - 'workers/xtream-preview-routes.js'
@@ -61,7 +63,10 @@ jobs:
           set -euo pipefail
           while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find src -type f -name '*.js' | sort)
       - name: Validate Registry Worker syntax
-        run: node --input-type=module --check < workers/webtv-registry.js
+        shell: bash
+        run: |
+          node --input-type=module --check < workers/webtv-registry.js
+          node --input-type=module --check < workers/webtv-registry-entry.js
       - name: Validate Xtream Worker syntax
         shell: bash
         run: |
