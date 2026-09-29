@@ -62,3 +62,5 @@ try{
 
   console.log('source discovery Worker tests PASS');
 }finally{globalThis.fetch=originalFetch;}
+
+await import('./browser-resolver-retirement.test.mjs');
