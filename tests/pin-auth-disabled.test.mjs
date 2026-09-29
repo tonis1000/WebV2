@@ -39,7 +39,7 @@ response=await worker.fetch(new Request('https://registry.example/api/project-ch
 assert.equal(response.status,200,'admin checkpoint reads must not require PIN while the temporary flag is enabled');
 
 const pinAuthSource=readFileSync('src/pin-auth.js','utf8');
-assert.match(pinAuthSource,/pinAuth\s*===\s*false|pinAuth\s*!==\s*true/,'frontend auth layer must recognize Registry pinAuth=false and avoid prompting for a PIN');
+assert.match(pinAuthSource,/pinAuth\s*===\s*false|pinAuth\s*!==\s*false/,'frontend auth layer must recognize Registry pinAuth=false and avoid prompting for a PIN');
 
 const deployWorkflow=readFileSync('.github/workflows/deploy-webtv-registry.yml','utf8');
 assert.match(deployWorkflow,/PIN_AUTH_DISABLED\s*=\s*["']1["']/,'Registry deploy must explicitly enable the temporary PIN bypass');
