@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from 'node:fs';
 assert.equal(existsSync('src/project-agent-pairing-admin.js'), true, 'pairing admin module must exist');
 const source=readFileSync('src/project-agent-pairing-admin.js','utf8');
 const index=readFileSync('index.html','utf8');
+const adminGate=readFileSync('src/admin-gate.js','utf8');
 
 assert.match(source,/webtv:admin-visibility/,'pairing UI should follow admin visibility');
 assert.match(source,/WebTVRegistryAuth\.ensureSession/,'pairing approval must reuse existing human admin auth');
@@ -16,7 +17,7 @@ assert.doesNotMatch(source,/ADMIN_TOKEN|ADMIN_PIN/i,'pairing module must not ref
 
 const pin=index.indexOf('./src/pin-auth.js');
 const gate=index.indexOf('./src/admin-gate.js');
-const pairing=index.indexOf('./src/project-agent-pairing-admin.js');
-assert.ok(pin>=0&&gate>pin&&pairing>gate,'pairing admin module should load after pin-auth and admin-gate');
+assert.ok(pin>=0&&gate>pin,'admin gate must still load after pin-auth');
+assert.match(adminGate,/import\s+['"]\.\/project-agent-pairing-admin\.js\?v=20260929-project-agent['"]/,'admin gate must load pairing module after the existing auth layer');
 
 console.log('project agent pairing admin regression: PASS');
