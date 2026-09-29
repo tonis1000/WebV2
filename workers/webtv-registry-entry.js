@@ -16,8 +16,14 @@ function escHtml(value=''){
 function startPage(){
   return htmlResponse('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebV2 Project Agent Pairing</title></head><body><main><h1>WebV2 Project Agent Pairing</h1><p>Start a one-time project-agent pairing. Opening this page alone does not create anything.</p><form method="post" action="/api/project-agent/pair/start"><button type="submit">Start Pairing</button></form></main></body></html>');
 }
+function formatResumeToken(resumeToken=''){
+  const token=String(resumeToken||'').trim();
+  const split=Math.ceil(token.length/2);
+  return token.slice(0,split)+'.'+token.slice(split);
+}
 function pairingStartedPage(pairingId,resumeToken){
-  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebV2 Pairing Started</title></head><body><main><h1>Pairing started</h1><p>Pairing ID:</p><code>'+escHtml(pairingId)+'</code><p>One-time resume token:</p><code>'+escHtml(resumeToken)+'</code><p>Approve this Pairing ID in the WebV2 admin tools. The resume token expires with the pairing and can be used from a different browser session.</p><form method="post" action="/api/project-agent/pair/finish"><input type="hidden" name="pairingId" value="'+escHtml(pairingId)+'"><input type="hidden" name="resumeToken" value="'+escHtml(resumeToken)+'"><button type="submit">Finish Pairing</button></form></main></body></html>';
+  const portableToken=formatResumeToken(resumeToken);
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebV2 Pairing Started</title></head><body><main><h1>Pairing started</h1><p>Pairing ID:</p><code>'+escHtml(pairingId)+'</code><p>One-time resume token:</p><code>'+escHtml(portableToken)+'</code><p>Approve this Pairing ID in the WebV2 admin tools. The resume token expires with the pairing and can be used from a different browser session.</p><form method="post" action="/api/project-agent/pair/finish"><input type="hidden" name="pairingId" value="'+escHtml(pairingId)+'"><input type="hidden" name="resumeToken" value="'+escHtml(portableToken)+'"><button type="submit">Finish Pairing</button></form></main></body></html>';
 }
 function finishPage(pairingId){
   return htmlResponse('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Finish WebV2 Pairing</title></head><body><main><h1>Finish Pairing</h1><p>Pairing ID: <code>'+escHtml(pairingId)+'</code></p><p>Continue only after this Pairing ID has been approved in WebV2.</p><form method="post" action="/api/project-agent/pair/finish"><button type="submit">Finish Pairing</button></form></main></body></html>');
@@ -59,7 +65,7 @@ async function portablePairing(request){
   if(request.method!=='POST')return null;
   const form=await request.formData();
   const pairingId=String(form.get('pairingId')||'').trim();
-  const resumeToken=String(form.get('resumeToken')||'').trim();
+  const resumeToken=String(form.get('resumeToken')||'').trim().replace(/\./g,'');
   if(!pairingId||!resumeToken)return null;
   return{pairingId,completionSecret:resumeToken};
 }
