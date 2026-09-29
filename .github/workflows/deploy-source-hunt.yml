@@ -7,6 +7,7 @@ on:
     paths:
       - 'workers/source-huntatonisworkersdev.js'
       - 'workers/source-hunt-smart.js'
+      - 'workers/source-hunt-bouquet-proxy.js'
       - '.github/workflows/deploy-source-hunt.yml'
 
 permissions:
@@ -32,13 +33,14 @@ jobs:
         run: |
           node --check workers/source-huntatonisworkersdev.js
           node --check workers/source-hunt-smart.js
+          node --check workers/source-hunt-bouquet-proxy.js
 
       - name: Build Wrangler config
         shell: bash
         run: |
           cat > wrangler.source-hunt.ci.toml <<'EOF'
           name = "source-huntatonisworkersdev"
-          main = "workers/source-hunt-smart.js"
+          main = "workers/source-hunt-bouquet-proxy.js"
           compatibility_date = "2026-09-20"
           workers_dev = true
           preview_urls = false
@@ -59,16 +61,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          HANS='https://gitlab.openpli.org/openpli/hanssettings/-/raw/master/e2_hanssettings_9e_13e_19e_23e_28e_AND_rotating/userbouquet.stream_griekenland__gr_.tv?ref_type=heads'
           for attempt in $(seq 1 12); do
             curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" -o /tmp/source-hunt-status.json || true
-            if node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/source-hunt-status.json','utf8'));process.exit(j.service==='WebTV Source Hunt Worker'&&j.version==='1.14'&&Array.isArray(j.features)&&j.features.includes('GitHub issue labels/state intelligence')?0:1)}catch{process.exit(1)}"; then
+            ROOT_OK=0
+            if node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/source-hunt-status.json','utf8'));process.exit(j.service==='WebTV Source Hunt Worker'&&j.version==='1.14'&&Array.isArray(j.features)&&j.features.includes('GitHub issue labels/state intelligence')?0:1)}catch{process.exit(1)}"; then ROOT_OK=1; fi
+            BOUQUET_OK=0
+            if curl --fail --silent --show-error --get --data-urlencode "url=$HANS" "$WORKER_URL/bouquet-proxy" -o /tmp/hans.tv && grep -q '^#SERVICE ' /tmp/hans.tv; then BOUQUET_OK=1; fi
+            if [ "$ROOT_OK" = 1 ] && [ "$BOUQUET_OK" = 1 ]; then
               cat /tmp/source-hunt-status.json
-              echo "Source Hunt v1.14 is live."
+              echo "Source Hunt v1.14 + Enigma2 bouquet proxy are live."
               exit 0
             fi
-            echo "Waiting for Cloudflare propagation ($attempt/12)…"
+            echo "Waiting for Cloudflare propagation ($attempt/12)… root=$ROOT_OK bouquet=$BOUQUET_OK"
             sleep 5
           done
-          echo "::error::Source Hunt v1.14 verification failed"
+          echo "::error::Source Hunt or bouquet proxy verification failed"
           cat /tmp/source-hunt-status.json 2>/dev/null || true
           exit 1
