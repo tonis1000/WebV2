@@ -23,10 +23,11 @@ for (const path of obsoletePaths) {
 const discovery = fs.readFileSync('workers/webtv-source-discovery.js', 'utf8');
 const deploy = fs.readFileSync('.github/workflows/deploy-source-discovery.yml', 'utf8');
 
-for (const [label, text] of [['Source Discovery worker', discovery], ['Source Discovery deploy workflow', deploy]]) {
-  assert.doesNotMatch(text, /browser-resolved-official/i, `${label} still advertises browser-resolved-official`);
-  assert.doesNotMatch(text, /BROWSER_RESOLVER/i, `${label} still depends on Browser Resolver configuration`);
-}
+assert.doesNotMatch(discovery, /browser-resolved-official/i, 'Source Discovery worker still advertises browser-resolved-official');
+assert.doesNotMatch(discovery, /BROWSER_RESOLVER/i, 'Source Discovery worker still depends on Browser Resolver configuration');
+assert.doesNotMatch(deploy, /BROWSER_RESOLVER(?:_URL|_TOKEN|_SHARED_TOKEN|\s*=|:)/i, 'Source Discovery deploy workflow still configures Browser Resolver');
+assert.doesNotMatch(deploy, /provider\\?['"]?\s*[:=]\s*['"]browser-resolved-official/i, 'Source Discovery deploy workflow still invokes retired provider');
+assert.match(deploy, /hasOwnProperty\.call\(s\.providers\|\|\{\},'browser-resolved-official'\)/, 'deploy verification must prove retired provider is absent from live status');
 
 assert.match(discovery, /official-api-resolver/i, 'official-api-resolver must remain active in Source Discovery');
 assert.match(deploy, /official-api-resolver/i, 'official-api-resolver live verification must remain in Source Discovery deploy workflow');
