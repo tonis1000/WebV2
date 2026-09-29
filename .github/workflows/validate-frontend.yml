@@ -17,12 +17,14 @@ on:
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
+      - 'workers/epg-proxy-gr.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-registry.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
       - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
+      - '.github/workflows/deploy-epg-proxy-gr.yml'
   pull_request:
     paths:
       - 'index.html'
@@ -37,12 +39,14 @@ on:
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
+      - 'workers/epg-proxy-gr.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-registry.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
       - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
+      - '.github/workflows/deploy-epg-proxy-gr.yml'
 
 permissions:
   contents: read
@@ -80,6 +84,8 @@ jobs:
         run: |
           node --input-type=module --check < workers/webtv-source-discovery.js
           while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find workers/source-discovery -type f -name '*.js' | sort)
+      - name: Validate EPG Proxy Worker syntax
+        run: node --check workers/epg-proxy-gr.js
       - name: Run Registry project checkpoint write API regression test
         run: node tests/project-checkpoint-write-api.test.mjs
       - name: Run project agent auth regression test
@@ -90,6 +96,8 @@ jobs:
         run: node tests/header-aware-proxy.test.mjs
       - name: Run source ranking regression test
         run: node tests/source-ranking.test.mjs
+      - name: Run EPG deploy verification contract test
+        run: node tests/epg-deploy-verification.test.mjs
       - name: Run Xtream source regression test
         run: node tests/xtream-client.test.mjs
       - name: Run Xtream preview route encryption regression test

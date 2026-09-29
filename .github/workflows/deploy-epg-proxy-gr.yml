@@ -49,18 +49,30 @@ jobs:
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.epg.ci.toml
 
-      - name: Verify live Worker
+      - name: Verify live XMLTV feed
         shell: bash
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 12); do
-            body="$(curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" || true)"
-            if printf '%s' "$body" | grep -q 'Use /epg or /epg.xml'; then
-              echo "EPG proxy is live."
-              exit 0
+          for attempt in $(seq 1 8); do
+            rm -f /tmp/epg.xml
+            if curl --fail --silent --show-error --max-time 45 \
+              -H 'Cache-Control: no-cache' \
+              "$WORKER_URL/epg.xml?verify=${GITHUB_SHA}-${attempt}" \
+              -o /tmp/epg.xml; then
+              if grep -q '<tv' /tmp/epg.xml \
+                && grep -q '<channel' /tmp/epg.xml \
+                && grep -q '<programme' /tmp/epg.xml; then
+                channels=$(grep -o '<channel\b' /tmp/epg.xml | wc -l | tr -d ' ')
+                programmes=$(grep -o '<programme\b' /tmp/epg.xml | wc -l | tr -d ' ')
+                bytes=$(wc -c < /tmp/epg.xml | tr -d ' ')
+                echo "Verified live XMLTV feed · channels=$channels programmes=$programmes bytes=$bytes"
+                exit 0
+              fi
+              echo "EPG response was reachable but not valid XMLTV · attempt $attempt/8"
+            else
+              echo "Waiting for EPG feed/Cloudflare propagation · attempt $attempt/8"
             fi
-            echo "Waiting for Cloudflare propagation ($attempt/12)…"
             sleep 5
           done
-          echo "::error::EPG proxy verification failed"
+          echo "::error::EPG proxy did not return a valid /epg.xml feed with <tv>, <channel>, and <programme>"
           exit 1
