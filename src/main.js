@@ -8,7 +8,7 @@ import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 
-const BUILD_ID = '20260924-stabilization';
+const BUILD_ID = '20260929-startup-nonblocking-sources';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const DEBUG_FLAGS = new Set((new URLSearchParams(location.search).get('debug') || '').split(',').map(v => v.trim()).filter(Boolean));
@@ -376,8 +376,11 @@ async function boot(){
     if(cloudHealth&&window.WebTVPlaylistAPI?.ready)renderChannels();
   }).catch(error=>log(`Health cloud unavailable · ${error.message}`));
 
-  const sourceTask=sources.refresh()
-    .then(()=>log(`Source registry loaded · build ${SOURCE_REGISTRY_BUILD_ID||'dev'} · ${Math.round(performance.now()-startedAt)} ms`))
+  sources.refresh()
+    .then(()=>{
+      log(`Source registry loaded · build ${SOURCE_REGISTRY_BUILD_ID||'dev'} · ${Math.round(performance.now()-startedAt)} ms`);
+      if(window.WebTVPlaylistAPI?.ready)renderChannels();
+    })
     .catch(error=>log(`Source registry unavailable: ${error.message}`));
   const epgTask=epg.refresh()
     .then(()=>{log(`EPG loaded · ${Math.round(performance.now()-startedAt)} ms`);renderEpg();})
@@ -391,8 +394,6 @@ async function boot(){
     const probe=storageProbe();
     if(probe)log(`STORAGE PROBE · origin=${probe.origin} · previous=${probe.previous||'∅'} · wrote=${probe.next} · read=${probe.readBack||'∅'} · ${probe.writeOk?'OK':'FAIL'}${probe.error?` · ${probe.error}`:''}`);
   }
-  await sourceTask;
-  renderGroups();renderChannels();
 
   window.WebTVPlaylistAPI.ready=true;
   log(`Startup interactive · ${Math.round(performance.now()-startedAt)} ms`);
