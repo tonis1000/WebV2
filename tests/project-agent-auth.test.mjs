@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 
 const registryModule = await import('../workers/webtv-registry.js?project-agent-auth-test=3');
-const worker = registryModule.default;
+const entryModule = await import('../workers/webtv-registry-entry.js?project-agent-browser-start-test=1');
+const worker = entryModule.default;
 
 for (const name of ['createProjectAgentPairing','approveProjectAgentPairing','completeProjectAgentPairing','verifyProjectAgentSession','revokeProjectAgentSession']) {
   assert.equal(typeof registryModule[name], 'function', `${name} must be exported`);
@@ -70,7 +71,6 @@ function createFakeD1(){
 const DB=createFakeD1();
 const env={DB,ADMIN_TOKEN:'test-admin-token',ADMIN_PIN:'123456'};
 
-// Pair creation: secret is returned once but only its hash is persisted.
 const before=Date.now();
 const pairing=await registryModule.createProjectAgentPairing(env);
 const after=Date.now();
@@ -82,7 +82,6 @@ assert.ok(persisted);
 assert.notEqual(persisted.secret_sha256,pairing.completionSecret);
 assert.match(persisted.secret_sha256,/^[a-f0-9]{64}$/);
 
-// Completion requires prior approval and the exact one-time secret.
 await assert.rejects(()=>registryModule.completeProjectAgentPairing(env,pairing.pairingId,pairing.completionSecret),/approved/i);
 const approved=await registryModule.approveProjectAgentPairing(env,pairing.pairingId);
 assert.equal(approved.ok,true);
@@ -93,11 +92,9 @@ assert.ok(completed.sessionId);
 assert.equal((await registryModule.verifyProjectAgentSession(completed.token,env)).ok,true);
 await assert.rejects(()=>registryModule.completeProjectAgentPairing(env,pairing.pairingId,pairing.completionSecret),/used|complete/i);
 
-// Revocation overrides an otherwise valid signature.
 assert.equal((await registryModule.revokeProjectAgentSession(env,completed.sessionId)).ok,true);
 assert.equal((await registryModule.verifyProjectAgentSession(completed.token,env)).ok,false);
 
-// Browser-friendly GET entry must be side-effect free and submit POST to the same endpoint.
 const beforeGetCount=DB.pairings.size;
 let response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/start'),env);
 assert.equal(response.status,200);
@@ -108,7 +105,6 @@ assert.match(startHtml,/action=["']\/api\/project-agent\/pair\/start["']/i);
 assert.doesNotMatch(startHtml,/completionSecret|pairingId/i);
 assert.equal(DB.pairings.size,beforeGetCount,'GET /pair/start must not create a pairing');
 
-// HTTP route flow uses a scoped HttpOnly cookie and never broad admin auth.
 const livePair=await registryModule.createProjectAgentPairing(env);
 const adminHeaders={authorization:`Bearer ${env.ADMIN_TOKEN}`,'content-type':'application/json'};
 response=await worker.fetch(new Request('https://registry.example/api/project-agent/pair/approve',{method:'POST',headers:adminHeaders,body:JSON.stringify({pairingId:livePair.pairingId})}),env);
@@ -131,7 +127,6 @@ response=await worker.fetch(new Request('https://registry.example/api/project-ag
 assert.equal(response.status,200);
 assert.match(await response.text(),/WEBV2 CURRENT/);
 
-// Project-agent cookie must not authorize ordinary admin mutations.
 response=await worker.fetch(new Request('https://registry.example/api/my-playlist/channel',{method:'PUT',headers:{cookie,'content-type':'application/json'},body:'{}'}),env);
 assert.equal(response.status,401);
 response=await worker.fetch(new Request('https://registry.example/api/favorites',{method:'PUT',headers:{cookie,'content-type':'application/json'},body:'{}'}),env);
@@ -141,7 +136,6 @@ assert.equal(response.status,401);
 response=await worker.fetch(new Request('https://registry.example/api/playlists',{method:'POST',headers:{cookie,'content-type':'application/json'},body:'{}'}),env);
 assert.equal(response.status,401);
 
-// Anonymous project-agent state remains private.
 response=await worker.fetch(new Request('https://registry.example/api/project-agent/checkpoints'),env);
 assert.equal(response.status,401);
 
