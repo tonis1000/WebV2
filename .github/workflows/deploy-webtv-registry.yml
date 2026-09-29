@@ -200,14 +200,33 @@ jobs:
             -H 'content-type: application/json' \
             --data '{"content":"# unauthorized deployment probe\n"}' \
             "$REGISTRY_URL/api/project-checkpoints/WEBV2_CURRENT.md?verify=$GITHUB_SHA" || true)
-          cat /tmp/webtv-checkpoint-list-unauth.json 2>/dev/null || true
-          cat /tmp/webtv-checkpoint-get-unauth.json 2>/dev/null || true
-          cat /tmp/webtv-checkpoint-put-unauth.json 2>/dev/null || true
           if [ "$list_status" != 401 ] || [ "$get_status" != 401 ] || [ "$put_status" != 401 ]; then
             echo "::error::Project checkpoint privacy boundary failed · list=$list_status get=$get_status put=$put_status"
             exit 1
           fi
           echo 'Verified project checkpoint list/read/write remain PIN/admin protected.'
+
+      - name: Verify project agent auth boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          session_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            -H 'Cache-Control: no-cache' \
+            "$REGISTRY_URL/api/project-agent/session?verify=$GITHUB_SHA" || true)
+          read_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            -H 'Cache-Control: no-cache' \
+            "$REGISTRY_URL/api/project-agent/checkpoints/WEBV2_CURRENT.md?verify=$GITHUB_SHA" || true)
+          write_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            -X PUT \
+            -H 'Cache-Control: no-cache' \
+            -H 'content-type: application/json' \
+            --data '{"content":"# unauthorized project-agent deployment probe\n"}' \
+            "$REGISTRY_URL/api/project-agent/checkpoints/WEBV2_CURRENT.md?verify=$GITHUB_SHA" || true)
+          if [ "$session_status" != 401 ] || [ "$read_status" != 401 ] || [ "$write_status" != 401 ]; then
+            echo "::error::Project-agent privacy boundary failed · session=$session_status read=$read_status write=$write_status"
+            exit 1
+          fi
+          echo 'Verified anonymous project-agent session/read/write remain locked.'
 
       - name: Record verified deployment status
         shell: bash
