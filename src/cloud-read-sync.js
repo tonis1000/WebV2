@@ -1,4 +1,4 @@
-const BUILD_ID = '20260929-deferred-startup-sync';
+const BUILD_ID = '20260929-saved-playlist-reconcile';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const URL_KEY = 'webtv_v2_registry_url';
@@ -59,6 +59,19 @@ async function putSaved(item){
   });
 }
 
+async function removeSavedCached(ids=[]){
+  const clean=[...new Set((Array.isArray(ids)?ids:[]).map(String).filter(Boolean))];
+  if(!clean.length)return 0;
+  const db=await openDb();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite');
+    const store=tx.objectStore(STORE);
+    for(const id of clean)store.delete(id);
+    tx.oncomplete=()=>resolve(clean.length);
+    tx.onerror=()=>reject(tx.error);
+  });
+}
+
 async function fetchJson(path){
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
@@ -79,12 +92,24 @@ function countM3U(text=''){
   return {channels,groups};
 }
 
+function staleLocalPlaylistIds(localRows=[],remoteRows=[],syncStartedAt=Date.now()){
+  const remoteIds=new Set((Array.isArray(remoteRows)?remoteRows:[]).map(row=>String(row?.id||'')).filter(Boolean));
+  return (Array.isArray(localRows)?localRows:[])
+    .filter(item=>item?.id&&item.id!=='__my_playlist__'&&!remoteIds.has(String(item.id))&&Number(item.updatedAt||0)<syncStartedAt)
+    .map(item=>String(item.id));
+}
+
 async function syncSavedPlaylists(){
+  const syncStartedAt=Date.now();
   const list = await fetchJson('/api/playlists');
+  const remoteRows=Array.isArray(list.playlists)?list.playlists:[];
+  const localRows=await allSavedCached();
+  const staleIds=staleLocalPlaylistIds(localRows,remoteRows,syncStartedAt);
+  const removed=await removeSavedCached(staleIds);
   let pulled = 0;
   let skipped = 0;
 
-  for(const meta of list.playlists || []){
+  for(const meta of remoteRows){
     try{
       const local = await getSaved(meta.id);
       const metaUpdatedAt = Date.parse(meta.updatedAt) || 0;
@@ -120,28 +145,29 @@ async function syncSavedPlaylists(){
       console.warn('[WebTV] Saved playlist read skipped', meta?.id, error);
     }
   }
-  return { pulled, skipped };
+  return { pulled, skipped, removed };
 }
 
 async function runSync(reason='manual', { force=false }={}){
   if(syncing) return syncing;
   const age = Date.now() - lastSyncAt;
   if(!force && lastSyncAt && age < VISIBLE_STALE_MS){
-    return { reason, savedPlaylists: 0, skipped: 0, throttled: true };
+    return { reason, savedPlaylists: 0, skipped: 0, removed: 0, throttled: true };
   }
 
   syncing = (async () => {
-    const result = { reason, savedPlaylists: 0, skipped: 0 };
+    const result = { reason, savedPlaylists: 0, skipped: 0, removed: 0 };
     try{
       const sync = await syncSavedPlaylists();
       result.savedPlaylists = sync.pulled;
       result.skipped = sync.skipped;
+      result.removed = sync.removed;
       lastSyncAt = Date.now();
     }catch(error){
       console.warn('[WebTV] Saved playlists cloud read unavailable', error);
     }
     window.dispatchEvent(new CustomEvent('webtv:cloud-read-synced', { detail: result }));
-    console.info(`[WebTV] Saved Playlists cloud read · ${reason} · ${result.savedPlaylists} pulled · ${result.skipped} unchanged`);
+    console.info(`[WebTV] Saved Playlists cloud read · ${reason} · ${result.savedPlaylists} pulled · ${result.skipped} unchanged · ${result.removed} stale removed`);
     return result;
   })().finally(() => { syncing = null; });
   return syncing;
@@ -167,4 +193,4 @@ document.getElementById('playlist-manager-toggle')?.addEventListener('click', ()
   runSync('open-playlists');
 }, { capture: true });
 
-console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · initial sync after webtv:ready · 15m background sync; 5m open/visible throttle · read-only cache API ready`);
+console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · D1-authoritative saved playlist cache reconciliation · initial sync after webtv:ready · 15m background sync; 5m open/visible throttle`);
