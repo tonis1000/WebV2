@@ -2,6 +2,7 @@ const VERSION = '1.5';
 const SESSION_DAYS = 180;
 const MAX_PIN_FAILURES = 5;
 const PIN_BLOCK_MINUTES = 15;
+const CHECKPOINT_MAX_BYTES = 512 * 1024;
 
 function cors(origin='*'){
   return {
@@ -102,6 +103,48 @@ async function writeHealth(env,payload){
   return {ok:true};
 }
 
+export function isValidProjectCheckpointName(name=''){return /^[A-Z0-9_]+\.md$/.test(clean(name));}
+export async function projectCheckpointSha256(content=''){
+  const bytes=new TextEncoder().encode(String(content));
+  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  return [...digest].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+async function ensureProjectCheckpointTables(env){
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS project_checkpoints (name TEXT PRIMARY KEY, content TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS project_checkpoint_history (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, checkpoint_updated_at TEXT NOT NULL, archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
+}
+function projectCheckpointError(message,status,extra={}){const error=new Error(message);error.projectCheckpointStatus=status;error.projectCheckpointPayload={error:message,...extra};return error;}
+export async function writeProjectCheckpoint(env,{name,content,expectedSha256}={}){
+  const checkpointName=clean(name);
+  if(!isValidProjectCheckpointName(checkpointName))throw projectCheckpointError('Invalid checkpoint name',400);
+  if(typeof content!=='string')throw projectCheckpointError('content must be a string',400);
+  const byteLength=new TextEncoder().encode(content).byteLength;
+  if(byteLength>CHECKPOINT_MAX_BYTES)throw projectCheckpointError('Checkpoint content is too large',413,{maxBytes:CHECKPOINT_MAX_BYTES});
+  await ensureProjectCheckpointTables(env);
+  const current=await env.DB.prepare('SELECT content, byte_length, sha256, updated_at FROM project_checkpoints WHERE name=?').bind(checkpointName).first();
+  const expected=clean(expectedSha256);
+  if(current&&!expected)throw projectCheckpointError('expectedSha256 is required when updating an existing checkpoint',428,{currentSha256:current.sha256});
+  if(current&&expected!==current.sha256)throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256:current.sha256});
+  if(!current&&expected)throw projectCheckpointError('Checkpoint does not exist at expectedSha256',409,{currentSha256:null});
+  const sha256=await projectCheckpointSha256(content);
+  if(current&&sha256===current.sha256)return{name:checkpointName,created:false,unchanged:true,historyCreated:false,previousSha256:current.sha256,sha256,byteLength};
+  let historyCreated=false;
+  if(current){
+    await env.DB.prepare(`INSERT INTO project_checkpoint_history(name,content,byte_length,sha256,checkpoint_updated_at,archived_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)`).bind(checkpointName,current.content,Number(current.byte_length)||new TextEncoder().encode(current.content||'').byteLength,current.sha256,current.updated_at||'').run();
+    historyCreated=true;
+  }
+  await env.DB.prepare(`INSERT INTO project_checkpoints(name,content,byte_length,sha256,updated_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(name) DO UPDATE SET content=excluded.content,byte_length=excluded.byte_length,sha256=excluded.sha256,updated_at=CURRENT_TIMESTAMP`).bind(checkpointName,content,byteLength,sha256).run();
+  return{name:checkpointName,created:!current,unchanged:false,historyCreated,previousSha256:current?.sha256||null,sha256,byteLength};
+}
+async function listProjectCheckpointHistory(env,name){
+  await ensureProjectCheckpointTables(env);
+  const rows=await env.DB.prepare(`SELECT id,name,byte_length,sha256,checkpoint_updated_at,archived_at FROM project_checkpoint_history WHERE name=? ORDER BY id DESC LIMIT 100`).bind(name).all();
+  return rows.results||[];
+}
+function projectCheckpointText(row,origin='*'){
+  return new Response(row.content,{status:200,headers:{...cors(origin),'content-type':'text/markdown;charset=utf-8','cache-control':'no-store','x-checkpoint-sha256':row.sha256||'','x-checkpoint-updated-at':row.updated_at||''}});
+}
+
 async function listPlaylists(env){const r=await env.DB.prepare(`SELECT id,name,kind,source_url AS sourceUrl,channel_count AS channelCount,group_count AS groupCount,created_at AS createdAt,updated_at AS updatedAt FROM playlists ORDER BY updated_at DESC`).all();return r.results||[];}
 async function getPlaylist(env,id){return await env.DB.prepare(`SELECT id,name,kind,source_url AS sourceUrl,raw_m3u AS rawM3u,channel_count AS channelCount,group_count AS groupCount,created_at AS createdAt,updated_at AS updatedAt FROM playlists WHERE id=?`).bind(id).first();}
 async function upsertSavedPlaylist(env,payload){const id=clean(payload.id)||`pl-${crypto.randomUUID()}`,name=clean(payload.name)||'Saved Playlist',kind=clean(payload.kind)||'saved',sourceUrl=clean(payload.sourceUrl||payload.url),rawM3u=String(payload.rawM3u||payload.text||'');if(!rawM3u.includes('#EXTINF'))throw new Error('rawM3u must contain #EXTINF entries');const channelCount=Math.max(0,Number(payload.channelCount)||0),groupCount=Math.max(0,Number(payload.groupCount)||0);await env.DB.prepare(`INSERT INTO playlists(id,name,kind,source_url,raw_m3u,channel_count,group_count,created_at,updated_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,source_url=excluded.source_url,raw_m3u=excluded.raw_m3u,channel_count=excluded.channel_count,group_count=excluded.group_count,updated_at=CURRENT_TIMESTAMP`).bind(id,name,kind,sourceUrl,rawM3u,channelCount,groupCount).run();return{id,name,kind,sourceUrl,channelCount,groupCount};}
@@ -124,7 +167,7 @@ function toM3u(channels){const lines=['#EXTM3U'];for(const c of channels){const 
 export default{async fetch(request,env){
   const origin=requestOrigin(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});if(!env.DB)return json({error:'D1 binding DB is not configured'},503,origin);const url=new URL(request.url),path=url.pathname.replace(/\/+$/,'')||'/';
   try{
-    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
+    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/project-status','/api/project-checkpoints','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
     if(path==='/api/login'&&request.method==='POST')return await pinLogin(request,env,origin);
     if(path==='/api/session'&&request.method==='GET'){const auth=request.headers.get('authorization')||'',token=auth.replace(/^Bearer\s+/i,'').trim();const ok=await verifySession(token,env);return json({ok},ok?200:401,origin);}
     if(path==='/api/session/validate'&&request.method==='POST'){const body=await readJson(request);const ok=await verifySession(clean(body.token),env);return json({ok},ok?200:401,origin);}
@@ -134,15 +177,37 @@ export default{async fetch(request,env){
     }
     if(path==='/api/project-checkpoints'&&request.method==='GET'){
       const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
+      await ensureProjectCheckpointTables(env);
       const rows=await env.DB.prepare('SELECT name, byte_length, sha256, updated_at FROM project_checkpoints ORDER BY name').all();
       return json({checkpoints:rows.results||[]},200,origin);
     }
-    if(path.startsWith('/api/project-checkpoints/')&&request.method==='GET'){
+    const checkpointPrefix='/api/project-checkpoints/';
+    if(path.startsWith(checkpointPrefix)&&path.endsWith('/history')&&request.method==='GET'){
       const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
-      const name=decodeURIComponent(path.slice('/api/project-checkpoints/'.length));
-      if(!/^[A-Z0-9_]+\.md$/.test(name))return json({error:'Invalid checkpoint name'},400,origin);
-      const row=await env.DB.prepare('SELECT content FROM project_checkpoints WHERE name=?').bind(name).first();
-      return row?text(row.content,200,'text/markdown;charset=utf-8',origin):json({error:'Checkpoint not found'},404,origin);
+      const name=decodeURIComponent(path.slice(checkpointPrefix.length,-'/history'.length));
+      if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);
+      return json({name,history:await listProjectCheckpointHistory(env,name)},200,origin);
+    }
+    if(path.startsWith(checkpointPrefix)&&request.method==='GET'){
+      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
+      const name=decodeURIComponent(path.slice(checkpointPrefix.length));
+      if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);
+      await ensureProjectCheckpointTables(env);
+      const row=await env.DB.prepare('SELECT content, sha256, updated_at FROM project_checkpoints WHERE name=?').bind(name).first();
+      return row?projectCheckpointText(row,origin):json({error:'Checkpoint not found'},404,origin);
+    }
+    if(path.startsWith(checkpointPrefix)&&request.method==='PUT'){
+      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
+      const name=decodeURIComponent(path.slice(checkpointPrefix.length));
+      if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);
+      const body=await readJson(request);
+      try{
+        const checkpoint=await writeProjectCheckpoint(env,{name,content:body.content,expectedSha256:body.expectedSha256});
+        return json({ok:true,checkpoint},checkpoint.created?201:200,origin);
+      }catch(error){
+        if(error?.projectCheckpointStatus)return json(error.projectCheckpointPayload,error.projectCheckpointStatus,origin);
+        throw error;
+      }
     }
     if(path==='/playlist.m3u'&&request.method==='GET')return text(toM3u(await myPlaylist(env)),200,'audio/x-mpegurl;charset=utf-8',origin);
     if(path==='/api/playlists'&&request.method==='GET')return json({playlists:await listPlaylists(env)},200,origin);
