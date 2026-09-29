@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const main = readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
 const favorites = readFileSync(path.join(ROOT, 'src/favorites-ui.js'), 'utf8');
+const playlistManager = readFileSync(path.join(ROOT, 'src/playlist-manager.js'), 'utf8');
 
 const bootMatch = main.match(/async function boot\(\)\{([\s\S]*?)\n\}/);
 assert.ok(bootMatch, 'main.js must expose the boot function');
@@ -30,5 +31,15 @@ const favoritesReady = favorites.match(/window\.addEventListener\('webtv:ready',
 assert.ok(favoritesReady, 'Favorites must react to webtv:ready');
 assert.doesNotMatch(favoritesReady, /loadCloud\s*\(/, 'webtv:ready must not trigger a second Favorites cloud read');
 assert.equal((favorites.match(/loadCloud\(\)\.then\(scheduleApply\)/g) || []).length, 1, 'Favorites must start exactly one initial cloud read');
+
+const sharedHelper = playlistManager.match(/function initialMyPlaylistFromApp\(\)\{[\s\S]*?\n\}/)?.[0] || '';
+assert.ok(sharedHelper, 'Playlist Manager must expose a startup cache reuse helper');
+assert.match(sharedHelper, /bridge\?\.ready/, 'Playlist Manager may reuse startup data only after the main playlist API is ready');
+assert.match(sharedHelper, /getCatalogMode\?\.\(\)!=='cloud'/, 'Playlist Manager may reuse startup data only for the cloud D1 catalog');
+assert.match(sharedHelper, /bridge\.getChannels\?\.\(\)/, 'Playlist Manager must reuse the channels already loaded by main.js');
+const playlistStartup = playlistManager.match(/async function startup\(\)\{[^\n]+\}/)?.[0] || '';
+assert.ok(playlistStartup, 'Playlist Manager must expose startup');
+assert.match(playlistStartup, /const shared=initialMyPlaylistFromApp\(\)/, 'Playlist Manager startup must try the shared main cache first');
+assert.match(playlistStartup, /myCache=shared\|\|await fetchMyPlaylist\(\)/, 'Playlist Manager startup must fall back to D1 when shared cache reuse is unavailable');
 
 console.log('startup non-blocking regression: PASS');
