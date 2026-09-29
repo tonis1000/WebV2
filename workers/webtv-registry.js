@@ -9,6 +9,7 @@ function cors(origin='*'){
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers': 'content-type,authorization',
+    'access-control-expose-headers': 'x-checkpoint-sha256,x-checkpoint-updated-at',
     'access-control-max-age': '86400'
   };
 }
@@ -114,6 +115,8 @@ async function ensureProjectCheckpointTables(env){
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS project_checkpoint_history (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, checkpoint_updated_at TEXT NOT NULL, archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
 }
 function projectCheckpointError(message,status,extra={}){const error=new Error(message);error.projectCheckpointStatus=status;error.projectCheckpointPayload={error:message,...extra};return error;}
+function d1Changes(result){return Number(result?.meta?.changes??result?.changes??0);}
+async function currentProjectCheckpointSha(env,name){const row=await env.DB.prepare('SELECT content, byte_length, sha256, updated_at FROM project_checkpoints WHERE name=?').bind(name).first();return row?.sha256||null;}
 export async function writeProjectCheckpoint(env,{name,content,expectedSha256}={}){
   const checkpointName=clean(name);
   if(!isValidProjectCheckpointName(checkpointName))throw projectCheckpointError('Invalid checkpoint name',400);
@@ -127,14 +130,34 @@ export async function writeProjectCheckpoint(env,{name,content,expectedSha256}={
   if(current&&expected!==current.sha256)throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256:current.sha256});
   if(!current&&expected)throw projectCheckpointError('Checkpoint does not exist at expectedSha256',409,{currentSha256:null});
   const sha256=await projectCheckpointSha256(content);
-  if(current&&sha256===current.sha256)return{name:checkpointName,created:false,unchanged:true,historyCreated:false,previousSha256:current.sha256,sha256,byteLength};
-  let historyCreated=false;
-  if(current){
-    await env.DB.prepare(`INSERT INTO project_checkpoint_history(name,content,byte_length,sha256,checkpoint_updated_at,archived_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)`).bind(checkpointName,current.content,Number(current.byte_length)||new TextEncoder().encode(current.content||'').byteLength,current.sha256,current.updated_at||'').run();
-    historyCreated=true;
+
+  if(!current){
+    const inserted=await env.DB.prepare(`INSERT INTO project_checkpoints(name,content,byte_length,sha256,updated_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(name) DO NOTHING`).bind(checkpointName,content,byteLength,sha256).run();
+    if(d1Changes(inserted)!==1){
+      const currentSha256=await currentProjectCheckpointSha(env,checkpointName);
+      throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256});
+    }
+    return{name:checkpointName,created:true,unchanged:false,historyCreated:false,previousSha256:null,sha256,byteLength};
   }
-  await env.DB.prepare(`INSERT INTO project_checkpoints(name,content,byte_length,sha256,updated_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(name) DO UPDATE SET content=excluded.content,byte_length=excluded.byte_length,sha256=excluded.sha256,updated_at=CURRENT_TIMESTAMP`).bind(checkpointName,content,byteLength,sha256).run();
-  return{name:checkpointName,created:!current,unchanged:false,historyCreated,previousSha256:current?.sha256||null,sha256,byteLength};
+
+  if(sha256===current.sha256){
+    const guard=await env.DB.prepare(`UPDATE project_checkpoints SET sha256=sha256 WHERE name=? AND sha256=?`).bind(checkpointName,expected).run();
+    if(d1Changes(guard)!==1){
+      const currentSha256=await currentProjectCheckpointSha(env,checkpointName);
+      throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256});
+    }
+    return{name:checkpointName,created:false,unchanged:true,historyCreated:false,previousSha256:current.sha256,sha256,byteLength};
+  }
+
+  const [archived,updated]=await env.DB.batch([
+    env.DB.prepare(`INSERT INTO project_checkpoint_history(name,content,byte_length,sha256,checkpoint_updated_at,archived_at) SELECT name,content,byte_length,sha256,updated_at,CURRENT_TIMESTAMP FROM project_checkpoints WHERE name=? AND sha256=?`).bind(checkpointName,expected),
+    env.DB.prepare(`UPDATE project_checkpoints SET content=?,byte_length=?,sha256=?,updated_at=CURRENT_TIMESTAMP WHERE name=? AND sha256=?`).bind(content,byteLength,sha256,checkpointName,expected),
+  ]);
+  if(d1Changes(updated)!==1||d1Changes(archived)!==1){
+    const currentSha256=await currentProjectCheckpointSha(env,checkpointName);
+    throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256});
+  }
+  return{name:checkpointName,created:false,unchanged:false,historyCreated:true,previousSha256:current.sha256,sha256,byteLength};
 }
 async function listProjectCheckpointHistory(env,name){
   await ensureProjectCheckpointTables(env);
