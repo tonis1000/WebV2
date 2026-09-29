@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const main = readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
+const favorites = readFileSync(path.join(ROOT, 'src/favorites-ui.js'), 'utf8');
 
 const bootMatch = main.match(/async function boot\(\)\{([\s\S]*?)\n\}/);
 assert.ok(bootMatch, 'main.js must expose the boot function');
@@ -24,5 +25,10 @@ assert.ok(epgAwait > readyEvent, 'EPG completion must not block webtv:ready');
 assert.doesNotMatch(boot, /await\s+sourceTask\b/, 'remote Source Registry must never block initial interactivity');
 assert.doesNotMatch(boot, /const\s+sourceTask\s*=\s*sources\.refresh\(\)/, 'boot should not create a Source Registry promise that is later awaited');
 assert.match(boot, /sources\.refresh\(\)[\s\S]*?\.then\(\(\)=>\{[\s\S]*?if\(window\.WebTVPlaylistAPI\?\.ready\)renderChannels\(\)/, 'background Source Registry completion should refresh channel route counts after startup');
+
+const favoritesReady = favorites.match(/window\.addEventListener\('webtv:ready',[^;]+;/)?.[0] || '';
+assert.ok(favoritesReady, 'Favorites must react to webtv:ready');
+assert.doesNotMatch(favoritesReady, /loadCloud\s*\(/, 'webtv:ready must not trigger a second Favorites cloud read');
+assert.equal((favorites.match(/loadCloud\(\)\.then\(scheduleApply\)/g) || []).length, 1, 'Favorites must start exactly one initial cloud read');
 
 console.log('startup non-blocking regression: PASS');
