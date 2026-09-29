@@ -79,6 +79,8 @@ jobs:
         run: node tests/project-checkpoint-write-api.test.mjs
       - name: Run project agent auth regression test
         run: node tests/project-agent-auth.test.mjs
+      - name: Run project agent pairing admin regression test
+        run: node tests/project-agent-pairing-admin.test.mjs
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
       - name: Run source ranking regression test
