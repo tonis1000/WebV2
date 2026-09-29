@@ -16,14 +16,20 @@ function escHtml(value=''){
 function startPage(){
   return htmlResponse('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebV2 Project Agent Pairing</title></head><body><main><h1>WebV2 Project Agent Pairing</h1><p>Start a one-time project-agent pairing. Opening this page alone does not create anything.</p><form method="post" action="/api/project-agent/pair/start"><button type="submit">Start Pairing</button></form></main></body></html>');
 }
-function pairingStartedPage(pairingId){
-  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebV2 Pairing Started</title></head><body><main><h1>Pairing started</h1><p>Pairing ID:</p><code>'+pairingId+'</code><p>Approve this Pairing ID in the WebV2 admin tools, then continue with Finish Pairing.</p><p><a href="/api/project-agent/pair/finish">Finish Pairing</a></p></main></body></html>';
+function formatResumeToken(resumeToken=''){
+  const token=String(resumeToken||'').trim();
+  const split=Math.ceil(token.length/2);
+  return token.slice(0,split)+'.'+token.slice(split);
+}
+function pairingStartedPage(pairingId,resumeToken){
+  const portableToken=formatResumeToken(resumeToken);
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebV2 Pairing Started</title></head><body><main><h1>Pairing started</h1><p>Pairing ID:</p><code>'+escHtml(pairingId)+'</code><p>One-time resume token:</p><code>'+escHtml(portableToken)+'</code><p>Approve this Pairing ID in the WebV2 admin tools. The resume token expires with the pairing and can be used from a different browser session.</p><form method="post" action="/api/project-agent/pair/finish"><input type="hidden" name="pairingId" value="'+escHtml(pairingId)+'"><input type="hidden" name="resumeToken" value="'+escHtml(portableToken)+'"><button type="submit">Finish Pairing</button></form></main></body></html>';
 }
 function finishPage(pairingId){
-  return htmlResponse('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Finish WebV2 Pairing</title></head><body><main><h1>Finish Pairing</h1><p>Pairing ID: <code>'+pairingId+'</code></p><p>Continue only after this Pairing ID has been approved in WebV2.</p><form method="post" action="/api/project-agent/pair/finish"><button type="submit">Finish Pairing</button></form></main></body></html>');
+  return htmlResponse('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Finish WebV2 Pairing</title></head><body><main><h1>Finish Pairing</h1><p>Pairing ID: <code>'+escHtml(pairingId)+'</code></p><p>Continue only after this Pairing ID has been approved in WebV2.</p><form method="post" action="/api/project-agent/pair/finish"><button type="submit">Finish Pairing</button></form></main></body></html>');
 }
 function noPairingPage(){
-  return htmlResponse('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>No WebV2 Pairing</title></head><body><main><h1>No active pairing</h1><p>Start a new pairing first.</p><p><a href="/api/project-agent/pair/start">Start Pairing</a></p></main></body></html>',400);
+  return htmlResponse('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>No WebV2 Pairing</title></head><body><main><h1>No active pairing cookie</h1><p>Use the Pairing ID and one-time resume token from the Start Pairing page, or start a new pairing.</p><form method="post" action="/api/project-agent/pair/finish"><p><label>Pairing ID <input name="pairingId" autocomplete="off"></label></p><p><label>Resume token <input name="resumeToken" autocomplete="off"></label></p><button type="submit">Finish Pairing</button></form><p><a href="/api/project-agent/pair/start">Start Pairing</a></p></main></body></html>',400);
 }
 function completedPage(){
   return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebV2 Pairing Complete</title></head><body><main><h1>Pairing complete</h1><p>The persistent project-agent session is connected.</p></main></body></html>';
@@ -55,6 +61,14 @@ function temporaryPairing(request){
   if(!pairingId||!completionSecret)return null;
   return{pairingId,completionSecret};
 }
+async function portablePairing(request){
+  if(request.method!=='POST')return null;
+  const form=await request.formData();
+  const pairingId=String(form.get('pairingId')||'').trim();
+  const resumeToken=String(form.get('resumeToken')||'').trim().replace(/\./g,'');
+  if(!pairingId||!resumeToken)return null;
+  return{pairingId,completionSecret:resumeToken};
+}
 function projectAgentRequest(request,path,init={}){
   const headers=new Headers(init.headers||{});
   const cookie=request.headers.get('cookie')||'';
@@ -66,10 +80,12 @@ async function startPairingInBrowser(request,env,ctx){
   if(response.status!==201)return response;
   const pairing=await response.json();
   if(!pairing?.pairingId||!pairing?.completionSecret)return htmlResponse('<h1>Pairing start failed</h1>',500);
-  return htmlResponse(pairingStartedPage(pairing.pairingId),200,{'set-cookie':temporaryPairingCookie(pairing.pairingId,pairing.completionSecret)});
+  const resumeToken=pairing.completionSecret;
+  return htmlResponse(pairingStartedPage(pairing.pairingId,resumeToken),200,{'set-cookie':temporaryPairingCookie(pairing.pairingId,pairing.completionSecret)});
 }
 async function finishPairingInBrowser(request,env,ctx){
-  const pairing=temporaryPairing(request);
+  let pairing=temporaryPairing(request)||null;
+  if(!pairing&&request.method==='POST')pairing=await portablePairing(request);
   if(!pairing)return noPairingPage();
   if(request.method==='GET')return finishPage(pairing.pairingId);
   const completionRequest=new Request(new URL('/api/project-agent/pair/complete',request.url),{
