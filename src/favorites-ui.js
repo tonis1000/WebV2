@@ -1,6 +1,6 @@
 import './right-rail-preview.js?v=20260928-admin-gate';
 
-const BUILD_ID = '20260929-single-favorites-read';
+const BUILD_ID = '20260929-d1-authoritative-favorites';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
 const FILTER_KEY = 'webtv_v2_favorites_filter_v1';
 const $ = id => document.getElementById(id);
@@ -12,7 +12,6 @@ async function loadCloud(){
     const r=await fetch(`${registryBase()}/api/favorites`,{cache:'no-store'});
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     const j=await r.json(),set=new Set((j.favorites||[]).map(String));
-    for(const id of load())set.add(id);
     save(set);cloudReady=true;return set;
   }catch{return load();}
 }
@@ -140,4 +139,4 @@ if(channelName) new MutationObserver(updateSelectedButton).observe(channelName,{
 window.addEventListener('webtv:ready',()=>{ensureUi();scheduleApply();});
 loadCloud().then(scheduleApply);
 scheduleApply();
-console.info(`[WebTV] Favorites UI loaded · build ${BUILD_ID} · D1 cloud favorites + persistent filter state`);
+console.info(`[WebTV] Favorites UI loaded · build ${BUILD_ID} · D1-authoritative cloud favorites with local fallback`);
