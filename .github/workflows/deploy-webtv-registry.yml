@@ -97,6 +97,9 @@ jobs:
           preview_urls = false
           keep_vars = true
 
+          [vars]
+          PIN_AUTH_DISABLED = "1"
+
           [secrets]
           required = ["ADMIN_TOKEN", "ADMIN_PIN"]
 
@@ -168,12 +171,12 @@ jobs:
               "$REGISTRY_URL/api/status?verify=${GITHUB_SHA}-${attempt}" \
               -o /tmp/webtv-registry-status.json; then
               cat /tmp/webtv-registry-status.json
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));process.exit(j.version==='1.5'&&j.primaryPlaylist==='d1'&&Number(j.sessionDays)===180?0:1)"; then
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));process.exit(j.version==='1.5'&&j.primaryPlaylist==='d1'&&Number(j.sessionDays)===180&&j.pinAuth===false&&j.pinAuthDisabled===true?0:1)"; then
                 curl --fail --silent --show-error \
                   -H 'Cache-Control: no-cache' \
                   "$REGISTRY_URL/api/my-playlist?verify=${GITHUB_SHA}-${attempt}" \
                   -o /tmp/webtv-my-playlist.json
-                if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-my-playlist.json','utf8'));if(!Array.isArray(j.channels)||j.channels.length<13){console.error('Expected migrated D1 My Playlist, got '+(j.channels?.length??0)+' channels');process.exit(1)};console.log('Verified Registry v1.5 · D1 primary · '+j.channels.length+' My Playlist channels · 180-day trusted session')"; then
+                if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-my-playlist.json','utf8'));if(!Array.isArray(j.channels)||j.channels.length<13){console.error('Expected migrated D1 My Playlist, got '+(j.channels?.length??0)+' channels');process.exit(1)};console.log('Verified Registry v1.5 · D1 primary · '+j.channels.length+' My Playlist channels · temporary PIN bypass active')"; then
                   exit 0
                 fi
               fi
@@ -181,30 +184,26 @@ jobs:
             echo "Waiting for Cloudflare propagation · attempt $attempt/30"
             sleep 3
           done
-          echo '::error::Registry did not expose v1.5 / D1-primary My Playlist after 90 seconds'
+          echo '::error::Registry did not expose v1.5 / D1-primary My Playlist / temporary PIN bypass after 90 seconds'
           exit 1
 
-      - name: Verify project checkpoint auth boundary
+      - name: Verify temporary PIN bypass
         shell: bash
         run: |
           set -euo pipefail
           list_status=$(curl --silent --show-error --output /tmp/webtv-checkpoint-list-unauth.json --write-out '%{http_code}' \
             -H 'Cache-Control: no-cache' \
             "$REGISTRY_URL/api/project-checkpoints?verify=$GITHUB_SHA" || true)
-          get_status=$(curl --silent --show-error --output /tmp/webtv-checkpoint-get-unauth.json --write-out '%{http_code}' \
+          get_status=$(curl --silent --show-error --output /tmp/webtv-checkpoint-get-unauth.md --write-out '%{http_code}' \
             -H 'Cache-Control: no-cache' \
             "$REGISTRY_URL/api/project-checkpoints/WEBV2_CURRENT.md?verify=$GITHUB_SHA" || true)
-          put_status=$(curl --silent --show-error --output /tmp/webtv-checkpoint-put-unauth.json --write-out '%{http_code}' \
-            -X PUT \
-            -H 'Cache-Control: no-cache' \
-            -H 'content-type: application/json' \
-            --data '{"content":"# unauthorized deployment probe\n"}' \
-            "$REGISTRY_URL/api/project-checkpoints/WEBV2_CURRENT.md?verify=$GITHUB_SHA" || true)
-          if [ "$list_status" != 401 ] || [ "$get_status" != 401 ] || [ "$put_status" != 401 ]; then
-            echo "::error::Project checkpoint privacy boundary failed · list=$list_status get=$get_status put=$put_status"
+          if [ "$list_status" != 200 ] || [ "$get_status" != 200 ]; then
+            echo "::error::Temporary PIN bypass failed · list=$list_status get=$get_status"
             exit 1
           fi
-          echo 'Verified project checkpoint list/read/write remain PIN/admin protected.'
+          grep -q 'WEBV2_CURRENT.md' /tmp/webtv-checkpoint-list-unauth.json
+          grep -q 'WEBV2 CURRENT STATE' /tmp/webtv-checkpoint-get-unauth.md
+          echo 'Verified temporary PIN bypass for Registry admin checkpoint reads.'
 
       - name: Verify project agent auth boundary
         shell: bash

@@ -22,5 +22,6 @@ assert.match(adminGate,/import\s+['"]\.\/project-agent-pairing-admin\.js\?v=2026
 
 await import('./project-agent-portable-resume.test.mjs');
 await import('./project-agent-auto-finish.test.mjs');
+await import('./pin-auth-disabled.test.mjs');
 
 console.log('project agent pairing admin regression: PASS');

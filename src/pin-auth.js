@@ -1,4 +1,4 @@
-const BUILD_ID='20260925-xtream-auth';
+const BUILD_ID='20260929-pin-auth-bypass';
 const DEFAULT_REGISTRY='https://webtv-registry.atonis.workers.dev';
 const URL_KEY='webtv_v2_registry_url';
 const TOKEN_KEY='webtv_v2_registry_token';
@@ -6,13 +6,30 @@ const TRUST_KEY='webtv_v2_trusted_device';
 
 if(!(localStorage.getItem(URL_KEY)||'').trim())localStorage.setItem(URL_KEY,DEFAULT_REGISTRY);
 
+let pinRequired=true;
+let pinRequirementKnown=false;
+
 function base(){return(localStorage.getItem(URL_KEY)||DEFAULT_REGISTRY).trim().replace(/\/$/,'');}
 function session(){return localStorage.getItem(TOKEN_KEY)||'';}
 function setStatus(text,tone='idle'){const el=document.getElementById('playlist-manager-status');if(el){el.textContent=text;el.dataset.tone=tone;}}
 function setState(text,online='0'){const el=document.getElementById('registry-state');if(el){el.textContent=text;el.dataset.online=online;}}
 async function request(path,options={}){const c=new AbortController(),t=setTimeout(()=>c.abort(),12000);try{return await fetch(`${base()}${path}`,{cache:'no-store',signal:c.signal,...options});}finally{clearTimeout(t);}}
 
+async function refreshPinRequirement(){
+  try{
+    const r=await request('/api/status');
+    if(!r.ok)return pinRequired;
+    const j=await r.json();
+    pinRequired=j.pinAuth!==false;
+    pinRequirementKnown=true;
+    if(!pinRequired)setState('Maintenance access','1');
+  }catch{}
+  return pinRequired;
+}
+
 async function validateSession(){
+  if(!pinRequirementKnown)await refreshPinRequirement();
+  if(!pinRequired){setState('Maintenance access','1');return true;}
   const token=session();
   if(!token)return false;
   try{
@@ -56,7 +73,7 @@ async function ensureSession({interactive=true}={}){
 function logout(){
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(TRUST_KEY);
-  setState('Read only');
+  setState(pinRequired?'Read only':'Maintenance access',pinRequired?'0':'1');
 }
 
 function hideLegacyPanel(){
@@ -83,7 +100,7 @@ document.addEventListener('click',event=>{
   if(replaying)return;
   const button=event.target.closest('button');
   if(!isWriteButton(button))return;
-  if(session())return;
+  if(session()||(pinRequirementKnown&&!pinRequired))return;
   event.preventDefault();
   event.stopImmediatePropagation();
   ensureSession({interactive:true}).then(ok=>{
