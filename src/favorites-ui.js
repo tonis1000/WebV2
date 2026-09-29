@@ -1,6 +1,6 @@
 import './right-rail-preview.js?v=20260928-admin-gate';
 
-const BUILD_ID = '20260924-2030';
+const BUILD_ID = '20260929-single-favorites-read';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
 const FILTER_KEY = 'webtv_v2_favorites_filter_v1';
 const $ = id => document.getElementById(id);
@@ -137,7 +137,7 @@ function scheduleApply(){
 ensureUi();
 if(list) new MutationObserver(scheduleApply).observe(list,{childList:true,subtree:false});
 if(channelName) new MutationObserver(updateSelectedButton).observe(channelName,{childList:true,characterData:true,subtree:true});
-window.addEventListener('webtv:ready',async()=>{ensureUi();await loadCloud();scheduleApply();});
+window.addEventListener('webtv:ready',()=>{ensureUi();scheduleApply();});
 loadCloud().then(scheduleApply);
 scheduleApply();
 console.info(`[WebTV] Favorites UI loaded · build ${BUILD_ID} · D1 cloud favorites + persistent filter state`);
