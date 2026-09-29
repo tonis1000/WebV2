@@ -111,5 +111,7 @@ jobs:
         run: node tests/discovery-isolation.test.mjs
       - name: Run Discovery Phase 5 browser smoke test
         run: node tests/discovery-browser-smoke.mjs
+      - name: Run non-blocking startup regression test
+        run: node tests/startup-nonblocking.test.mjs
       - name: Run frontend integration audit
         run: node tests/frontend-integration.test.mjs
