@@ -42,7 +42,8 @@ document.head.appendChild(style);
 
 async function integrateDiscoveryIntoSourceHunt(){
   await import('./discovery/discovery-ui.js?v=20260928-source-hunt-unified');
-  await import('./source-hunt-playlist-provenance.js?v=20260928-source-playlists2');
+  await import('./source-hunt-enigma2.js?v=20260929-enigma2-lane');
+  await import('./source-hunt-playlist-provenance.js?v=20260929-enigma2-lane');
 
   const sourceHunt = $('source-hunt');
   const toggle = $('source-hunt-toggle');
@@ -64,7 +65,7 @@ async function integrateDiscoveryIntoSourceHunt(){
 
   const note = shell.querySelector('.discovery-note');
   if(note){
-    note.textContent = 'Find & Test Best searches Local, Curated, GitHub, Recent Web, STRM, Official and Authorized Xtream sources, merges duplicates, uses verifier results as diagnostics, then lets real browser playback choose the winner. Nothing is saved until a source actually plays. New Xtream login testing stays explicit and secure below.';
+    note.textContent = 'Find & Test Best searches Local, Curated, GitHub, Recent Web, Enigma2 bouquets, STRM, Official and Authorized Xtream sources, merges duplicates, applies the same identity/protocol filters, uses verifier results as diagnostics, then lets real browser playback choose the winner. Enigma2 decodes #SERVICE URLs and filters local/private targets before they enter the common candidate pipeline. Nothing is saved until a source actually plays. New Xtream login testing stays explicit and secure below.';
   }
   const hint = shell.querySelector('.discovery-new-xtream-hint');
   if(hint){
@@ -93,7 +94,7 @@ async function integrateDiscoveryIntoSourceHunt(){
   }
 
   if(!sourceHunt.hidden) sync();
-  console.info('[WebTV] Unified Discovery integrated into Source Hunt · manual lane buttons hidden · Xtream preview retained · playlist provenance enabled');
+  console.info('[WebTV] Unified Discovery integrated into Source Hunt · Enigma2 bouquet lane + common filters · manual lane buttons hidden · Xtream preview retained · playlist provenance enabled');
 }
 
 integrateDiscoveryIntoSourceHunt().catch(error=>console.warn('[WebTV] Source Hunt discovery integration failed',error));
