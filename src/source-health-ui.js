@@ -1,3 +1,4 @@
+import './diagnostics-overlay-behavior.js?v=20260929-outside-close';
 import { CONFIG } from './config.js?v=20260923-2215';
 import { cleanUrl, parseIptvUrl, isHls, isDash, workerUrl } from './core/utils.js?v=20260924-0900';
 import { StrmResolver } from './core/strm-resolver.js?v=20260924-1919';
