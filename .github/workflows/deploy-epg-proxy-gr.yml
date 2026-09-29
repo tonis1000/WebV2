@@ -49,12 +49,15 @@ jobs:
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config wrangler.epg.ci.toml
 
-      - name: Verify live XMLTV feed
+      - name: Verify live XMLTV feed and status
         shell: bash
         run: |
           set -euo pipefail
           for attempt in $(seq 1 8); do
-            rm -f /tmp/epg.xml
+            rm -f /tmp/epg.xml /tmp/epg-status.json
+            feed_ok=0
+            status_ok=0
+
             if curl --fail --silent --show-error --max-time 45 \
               -H 'Cache-Control: no-cache' \
               "$WORKER_URL/epg.xml?verify=${GITHUB_SHA}-${attempt}" \
@@ -62,17 +65,30 @@ jobs:
               if grep -q '<tv' /tmp/epg.xml \
                 && grep -q '<channel' /tmp/epg.xml \
                 && grep -q '<programme' /tmp/epg.xml; then
-                channels=$(grep -o '<channel\b' /tmp/epg.xml | wc -l | tr -d ' ')
-                programmes=$(grep -o '<programme\b' /tmp/epg.xml | wc -l | tr -d ' ')
-                bytes=$(wc -c < /tmp/epg.xml | tr -d ' ')
-                echo "Verified live XMLTV feed · channels=$channels programmes=$programmes bytes=$bytes"
-                exit 0
+                feed_ok=1
               fi
-              echo "EPG response was reachable but not valid XMLTV · attempt $attempt/8"
-            else
-              echo "Waiting for EPG feed/Cloudflare propagation · attempt $attempt/8"
             fi
+
+            if curl --fail --silent --show-error --max-time 45 \
+              -H 'Cache-Control: no-cache' \
+              "$WORKER_URL/status?verify=${GITHUB_SHA}-${attempt}" \
+              -o /tmp/epg-status.json; then
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/epg-status.json','utf8'));process.exit(j.ok===true&&j.valid===true&&j.service==='WebTV EPG Proxy GR'&&j.version==='simple-v3'&&j.source==='ext.greektv.app'&&Number(j.channels)>0&&Number(j.programmes)>0&&Number(j.bytes)>0?0:1)"; then
+                status_ok=1
+              fi
+            fi
+
+            if [ "$feed_ok" = 1 ] && [ "$status_ok" = 1 ]; then
+              channels=$(grep -o '<channel\b' /tmp/epg.xml | wc -l | tr -d ' ')
+              programmes=$(grep -o '<programme\b' /tmp/epg.xml | wc -l | tr -d ' ')
+              bytes=$(wc -c < /tmp/epg.xml | tr -d ' ')
+              cat /tmp/epg-status.json
+              echo "Verified live XMLTV feed + status · channels=$channels programmes=$programmes bytes=$bytes"
+              exit 0
+            fi
+
+            echo "Waiting for EPG feed/status propagation · attempt $attempt/8 · feed=$feed_ok status=$status_ok"
             sleep 5
           done
-          echo "::error::EPG proxy did not return a valid /epg.xml feed with <tv>, <channel>, and <programme>"
+          echo "::error::EPG proxy did not return both valid /epg.xml and /status responses"
           exit 1
