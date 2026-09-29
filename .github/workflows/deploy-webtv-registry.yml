@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
           cat > wrangler.registry.ci.toml <<EOF
           name = "$REGISTRY_WORKER_NAME"
-          main = "workers/webtv-registry.js"
+          main = "workers/webtv-registry-entry.js"
           compatibility_date = "2026-09-22"
           workers_dev = true
           preview_urls = false
@@ -222,11 +222,17 @@ jobs:
             -H 'content-type: application/json' \
             --data '{"content":"# unauthorized project-agent deployment probe\n"}' \
             "$REGISTRY_URL/api/project-agent/checkpoints/WEBV2_CURRENT.md?verify=$GITHUB_SHA" || true)
-          if [ "$session_status" != 401 ] || [ "$read_status" != 401 ] || [ "$write_status" != 401 ]; then
-            echo "::error::Project-agent privacy boundary failed · session=$session_status read=$read_status write=$write_status"
+          start_status=$(curl --silent --show-error --output /tmp/webtv-project-agent-start.html --write-out '%{http_code}' \
+            -H 'Cache-Control: no-cache' \
+            "$REGISTRY_URL/api/project-agent/pair/start?verify=$GITHUB_SHA" || true)
+          if [ "$session_status" != 401 ] || [ "$read_status" != 401 ] || [ "$write_status" != 401 ] || [ "$start_status" != 200 ]; then
+            echo "::error::Project-agent boundary failed · session=$session_status read=$read_status write=$write_status start=$start_status"
             exit 1
           fi
-          echo 'Verified anonymous project-agent session/read/write remain locked.'
+          grep -qi '<form' /tmp/webtv-project-agent-start.html
+          grep -qi 'method="post"' /tmp/webtv-project-agent-start.html
+          grep -qi 'action="/api/project-agent/pair/start"' /tmp/webtv-project-agent-start.html
+          echo 'Verified project-agent privacy boundary and browser pairing start page.'
 
       - name: Record verified deployment status
         shell: bash
