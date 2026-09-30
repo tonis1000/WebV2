@@ -1,4 +1,5 @@
 import { channelMatchScore, greekChannelAliases, normalizeChannelText } from '../src/core/channel-identity-gr.js';
+import { parseM3uContainer } from '../src/core/m3u-container.js';
 
 const ALLOWED_ORIGIN='*';
 const VERSION='1.13';
@@ -91,7 +92,7 @@ function classifyEntry(extinf='',url='',channel=''){
   if(!relevant(`${title} ${extinf}`,channel))return false;
   return p.mainNames.some(n=>titleNorm===normalize(n)||titleNorm.startsWith(`${normalize(n)} `))||p.aliases.some(a=>titleNorm.includes(normalize(a)));
 }
-function parseM3u(text='',channel=''){const lines=String(text).replace(/\r/g,'').split('\n'),out=[];for(let i=0;i<lines.length;i++){const extinf=lines[i].trim();if(!/^#EXTINF:/i.test(extinf)||!relevant(extinf,channel))continue;let stream='';for(let j=i+1;j<Math.min(lines.length,i+10);j++){const next=lines[j].trim();if(!next||next.startsWith('#'))continue;if(/^https?:\/\//i.test(next))stream=cleanUrl(next);break;}if(stream&&classifyEntry(extinf,stream,channel))out.push({url:stream,extinf:extinf.slice(0,500)});}return out;}
+function parseM3u(text='',channel=''){const out=[];for(const entry of parseM3uContainer(text)){const extinf=entry.extinf;if(!relevant(extinf,channel))continue;if(entry.sourceOffset===null||entry.sourceOffset>=10)continue;const stream=/^https?:\/\//i.test(entry.sourceLine||'')?cleanUrl(entry.sourceLine):'';if(stream&&classifyEntry(extinf,stream,channel))out.push({url:stream,extinf:extinf.slice(0,500)});}return out;}
 function extractLive(text=''){return [...new Set((String(text).match(/https?:\/\/[^\s"'<>]+?\.(?:m3u8|mpd)(?:\?[^\s"'<>]*)?/gi)||[]).map(cleanUrl))].filter(isLiveUrl);}
 function extractUsefulLinks(text=''){return [...new Set((String(text).match(/https?:\/\/[^\s"'<>]+/gi)||[]).map(cleanUrl))].filter(u=>/github\.com|gist\.github\.com|raw\.githubusercontent\.com|\.m3u(?:\?|$)|iptv|playlist/i.test(u));}
 function toRawGithubUrl(input=''){try{const u=new URL(input);if(u.hostname==='github.com'){const p=u.pathname.split('/').filter(Boolean);if(p[2]==='blob'&&p.length>=5)return `https://raw.githubusercontent.com/${p[0]}/${p[1]}/${p[3]}/${p.slice(4).join('/')}`;}if(u.hostname==='gist.github.com'&&!u.pathname.endsWith('/raw'))return `${u.origin}${u.pathname}/raw`;}catch{}return input;}
