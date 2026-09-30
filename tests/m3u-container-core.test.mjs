@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   isM3uContainer,
   parseM3uAttributes,
@@ -91,5 +92,15 @@ assert.equal(malformed[0].title, 'Broken');
 assert.equal(malformed[0].duration, null);
 assert.equal(malformed[0].sourceLine, 'https://cdn.test/broken.m3u8');
 assert.equal(malformed[1].title, 'Good');
+
+const discoveryDeploy=fs.readFileSync(new URL('../.github/workflows/deploy-source-discovery.yml',import.meta.url),'utf8');
+assert.match(discoveryDeploy,/src\/core\/m3u-container\.js/,'shared M3U changes must trigger Source Discovery deploy');
+assert.match(discoveryDeploy,/m3u-container-core\.test\.mjs/,'Source Discovery deploy must run the shared M3U core contract');
+assert.match(discoveryDeploy,/source-discovery-m3u-parity\.test\.mjs/,'Source Discovery deploy must run Discovery M3U parity');
+
+const huntDeploy=fs.readFileSync(new URL('../.github/workflows/deploy-source-hunt.yml',import.meta.url),'utf8');
+assert.match(huntDeploy,/src\/core\/m3u-container\.js/,'shared M3U changes must trigger Source Hunt deploy');
+assert.match(huntDeploy,/m3u-container-core\.test\.mjs/,'Source Hunt deploy must run the shared M3U core contract');
+assert.match(huntDeploy,/source-hunt-m3u-parity\.test\.mjs/,'Source Hunt deploy must run Hunt M3U parity');
 
 console.log('M3U container core contract PASS');
