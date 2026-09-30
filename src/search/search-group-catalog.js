@@ -14,12 +14,12 @@ const GROUPS=Object.freeze([
       Object.freeze({id:'ant1-fight',name:'ANT1+ Fight'}),Object.freeze({id:'ant1-padel',name:'ANT1+ Padel Time TV'}),
     ]),
   }),
-  Object.freeze({id:'nova',type:'group',label:'Nova',aliases:Object.freeze(['NOVA']),targets:Object.freeze([Object.freeze({id:'nova-family',name:'Nova',familyQuery:true})])}),
-  Object.freeze({id:'cosmote',type:'group',label:'Cosmote',aliases:Object.freeze(['COSMOTE','OTE TV']),targets:Object.freeze([Object.freeze({id:'cosmote-family',name:'Cosmote',familyQuery:true})])}),
-  Object.freeze({id:'cosmote-sport',type:'subgroup',label:'Cosmote Sport',aliases:Object.freeze(['COSMOTE SPORT','COSMOTE SPORTS']),targets:Object.freeze([Object.freeze({id:'cosmote-sport-family',name:'Cosmote Sport',familyQuery:true})])}),
+  Object.freeze({id:'nova',type:'group',label:'Nova',aliases:Object.freeze(['NOVA']),targets:Object.freeze([Object.freeze({id:'nova-family',name:'Nova',familyQuery:true,familyAliases:Object.freeze(['nova','nova sports','novasports','nova cinema','novacinema'])})])}),
+  Object.freeze({id:'cosmote',type:'group',label:'Cosmote',aliases:Object.freeze(['COSMOTE','OTE TV']),targets:Object.freeze([Object.freeze({id:'cosmote-family',name:'Cosmote',familyQuery:true,familyAliases:Object.freeze(['cosmote','ote tv'])})])}),
+  Object.freeze({id:'cosmote-sport',type:'subgroup',label:'Cosmote Sport',aliases:Object.freeze(['COSMOTE SPORT','COSMOTE SPORTS']),targets:Object.freeze([Object.freeze({id:'cosmote-sport-family',name:'Cosmote Sport',familyQuery:true,familyAliases:Object.freeze(['cosmote sport','cosmotesport'])})])}),
 ]);
 
-function cloneTarget(target={}){return Object.freeze({...target});}
+function cloneTarget(target={}){return Object.freeze({...target,familyAliases:Array.isArray(target.familyAliases)?Object.freeze([...target.familyAliases]):undefined});}
 function cloneGroup(group={}){return Object.freeze({...group,aliases:Object.freeze([...(group.aliases||[])]),targets:Object.freeze((group.targets||[]).map(cloneTarget))});}
 
 export function listSearchGroups(){return GROUPS.map(cloneGroup);}
@@ -29,7 +29,7 @@ export function buildSearchContext(channels=[]){
   const synthetic=[];const seen=new Set(real.map(channel=>String(channel.id||'').trim()).filter(Boolean));
   for(const group of GROUPS)for(const target of group.targets||[]){
     if(seen.has(target.id))continue;
-    seen.add(target.id);synthetic.push(Object.freeze({...target}));
+    seen.add(target.id);synthetic.push(cloneTarget(target));
   }
   return Object.freeze({channels:Object.freeze([...real,...synthetic]),groups:Object.freeze(listSearchGroups())});
 }
