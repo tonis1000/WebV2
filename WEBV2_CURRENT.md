@@ -5,15 +5,17 @@ Repository: `tonis1000/WebV2`
 Canonical source: GitHub `main/WEBV2_CURRENT.md`.
 
 ## CURRENT VERSION
-GitHub main / canonical ownership merge SHA: `c7cb5bda983e405d53190ce4ea8858155b1c4a88`
-Registry deployed SHA after ownership merge: `c7cb5bda983e405d53190ce4ea8858155b1c4a88`
-Phase E2 runtime merge SHA: `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`
+Phase E3a STRM normalization runtime merge SHA: `35c3f7641221b3ad24b3533269e72218d729e241` via PR #73.
+GitHub-canonical CURRENT ownership merge SHA: `c7cb5bda983e405d53190ce4ea8858155b1c4a88`.
+Phase E2 runtime merge SHA: `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`.
 
-Verified canonical-ownership evidence at `c7cb5bda983e405d53190ce4ea8858155b1c4a88`:
-- Validate WebTV Frontend #573 SUCCESS
-- Deploy WebTV Registry Worker #90 SUCCESS
-- GitHub Pages #449 SUCCESS
-- exact GitHub `main/WEBV2_CURRENT.md` readback completed
+Verified Phase E3a production evidence at exact runtime merge SHA `35c3f7641221b3ad24b3533269e72218d729e241`:
+- Validate WebTV Frontend #619 SUCCESS
+- Deploy Source Discovery Worker #58 SUCCESS
+- Source Discovery live verification SUCCESS, including real `strm-specific-discovery` request for ERT1, successful STRM resolution condition, and one resolved STRM candidate
+- Deploy Source Hunt Worker #6 SUCCESS with live Worker verification
+- Deploy WebTV Registry Worker #92 SUCCESS
+- GitHub Pages #451 SUCCESS
 
 Verified Phase E2 evidence remains:
 - Validate WebTV Frontend #558 SUCCESS
@@ -23,7 +25,7 @@ Verified Phase E2 evidence remains:
 - GitHub Pages #447 SUCCESS
 
 ## CURRENT TASK
-GitHub-canonical CURRENT ownership migration: DONE.
+Phase E3a STRM normalization: DONE.
 
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
@@ -31,30 +33,27 @@ Current ownership:
 - Registry/D1 `WEBV2_CURRENT.md` checkpoint = mirror/history/fallback, not canonical authority.
 - Component-specific workflow/live evidence = deployment truth for that component.
 
-No runtime product behavior was changed by this migration.
-
 ## CURRENT VERIFIED OUTCOME
-Phase E2 shared M3U/container parsing: DONE.
-CLEAN-003 duplicate M3U structural parsers: RESOLVED for the approved active caller set.
-GitHub-canonical Project Brain current-state ownership: DONE via PR #71 / merge `c7cb5bda983e405d53190ce4ea8858155b1c4a88`.
+Phase E3a shared STRM structural normalization: DONE.
+CLEAN-004 STRM portion: RESOLVED. Enigma2 portion remains PENDING for Phase E3b.
 
-Phase E2 established:
-- canonical structural parser `src/core/m3u-container.js`;
-- migrated adapters: Channel Catalog, Source Discovery, Source Hunt Worker, frontend Source Hunt;
-- caller-owned matching, scheme acceptance, trust, ranking, STRM resolution, verification, promotion, and playback policy;
-- historical Discovery/Hunt nine-line behavior preserved through neutral `sourceOffset`;
-- Channel Catalog HTTP fallback preserved through ordered neutral `sourceCandidates`;
-- mixed-case `#EXTINF` is a structural boundary to prevent cross-entry source stealing.
+Phase E3a established:
+- canonical pure structural core `src/core/strm-core.js`;
+- shared STRM reference normalization, GitHub blob-to-raw normalization, `.strm` recognition, KODIPROP/DRM metadata parsing, Kodi header suffix parsing and ordered line structure;
+- browser `StrmResolver` migrated while preserving fetch, cache, failure TTL, in-flight dedupe, recursion and public API;
+- Source Discovery STRM provider migrated while preserving private/local target blocking, timeouts, body/subrequest/depth limits, reports and candidate policy;
+- Source Discovery smart curated STRM pre-resolver migrated while preserving curated-only scope, private-host policy, resolve limits and DRM auto-promotion rejection;
+- Source Hunt migrated while preserving Hunt-local fetch budget, ranking/relevance and final HLS/DASH acceptance;
+- route tooltip reuses canonical STRM detection;
+- permanent repo-wide duplicate-parser audit found no remaining known independent active STRM structural parser in the audited `src`/`workers` scope;
+- shared core remains network-free; caller-owned network/security/product policy remains local.
+
+Important E3a implementation lessons are recorded in `WEBV2_LESSONS.md`, `WEBV2_TOOLING.md` and `WEBV2_PLAYBOOKS.md`, including Actions-backed TDD when local clone/DNS is unavailable, stale historical test constraints, hidden consumers found by repo-wide audit, atomic import-map cache invalidation, temporary CI harness removal, connector safety false positives and SHA/CAS-safe GitHub file writes.
 
 ## REGISTRY / D1 MIRROR STATUS
-The Registry/D1 `WEBV2_CURRENT.md` checkpoint is currently stale and retained as mirror/history/fallback.
-
-Last verified mirror metadata before ownership migration:
-- SHA-256: `eb1c9237faae25be32265aa19049b7b7d4e5b626ac45f45d5ee35b5adf9905f1`
-- updated: `2026-09-30 12:08:09`
-- content describes Project Brain bootstrap at `fdf91d3274087237578a090fbb55402bef96141d` and says Phase E2 is next.
-
-This is a mirror-sync issue only. It does not override GitHub CURRENT.
+Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
+A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
+D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
 ## COMPLETED PHASES
 - State/persistence foundation: DONE
@@ -64,13 +63,14 @@ This is a mirror-sync issue only. It does not override GitHub CURRENT.
 - Phase D import/promotion contract: DONE, merge `d40a2f34027318d69dd78ef88d06fbfd60dc03fb`
 - Phase E1 Source Format Registry: DONE, merge `d9dff4f7b251afe34605e9588b49dcb15d353951`
 - Project Brain bootstrap: DONE, production main `fdf91d3274087237578a090fbb55402bef96141d`
-- Phase E2 shared M3U/container parsing: DONE, runtime merge `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`, Brain closure `8e87d80a94c5143c9be5c0e240cebc4c26da37e2`
+- Phase E2 shared M3U/container parsing: DONE, runtime merge `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`
 - GitHub-canonical CURRENT ownership migration: DONE, merge `c7cb5bda983e405d53190ce4ea8858155b1c4a88`
+- Phase E3a STRM normalization: DONE, runtime merge `35c3f7641221b3ad24b3533269e72218d729e241`
 
 ## NEXT SAFE ACTION
-Next runtime phase: Phase E3 STRM / Enigma2 normalization.
+Next runtime phase: Phase E3b Enigma2 normalization.
 
-Before implementation, run the normal `WEBV2_MANUAL.md` preflight under the GitHub-canonical ownership model, then state the exact STRM/Enigma2 duplication problem, non-goals, and proof of success. Do not assume `main` equals production without exact deployment evidence.
+Before implementation, run the normal `WEBV2_MANUAL.md` preflight, then audit all active Enigma2 bouquet/service parsing paths. Preserve transport/security proxy ownership separately from neutral bouquet/service structure. State exact problem, non-goals and proof before code changes.
 
 ## DO NOT BREAK
 - D1-primary My Playlist
@@ -81,6 +81,7 @@ Before implementation, run the normal `WEBV2_MANUAL.md` preflight under the GitH
 - Phase D import/promotion boundary
 - Phase E1 Source Format Registry transport-vs-media distinction
 - Phase E2 shared M3U structural ownership and caller-owned policy
+- Phase E3a shared STRM structural ownership and caller-owned network/security/product policy
 - Source Verifier security/status semantics
 - Existing Player/Discovery/Source Hunt/Xtream behavior unless a bounded change proves necessity
 - Project-agent least-privilege route separation
