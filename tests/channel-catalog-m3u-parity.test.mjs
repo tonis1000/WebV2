@@ -43,6 +43,20 @@ https://cdn.test/d.m3u8|User-Agent=UA
 `);
 assert.deepEqual(schemes.map(item => item.directUrls), [[], [], [], ['https://cdn.test/d.m3u8|User-Agent=UA']]);
 
+const httpFallbackAfterUnsupported = parseM3U(`#EXTM3U
+#EXTINF:-1 tvg-id="FALLBACK",Fallback
+rtsp://camera.test/live
+#COMMENT keep scanning like legacy Catalog
+https://cdn.test/fallback-after-rtsp.m3u8
+#EXTINF:-1 tvg-id="NEXT",Next
+https://cdn.test/next.m3u8
+`);
+assert.deepEqual(
+  httpFallbackAfterUnsupported.map(item => item.directUrls),
+  [['https://cdn.test/fallback-after-rtsp.m3u8'], ['https://cdn.test/next.m3u8']],
+  'Catalog must preserve legacy behavior: skip unsupported non-comment lines and keep scanning for the first HTTP(S) source before the next EXTINF',
+);
+
 const noSteal = parseM3U(`#EXTM3U
 #EXTINF:-1 tvg-id="ONE",One
 #COMMENT no source
