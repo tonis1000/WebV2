@@ -55,3 +55,5 @@ jobs:
         run: node tests/enigma2-proxy-boundary.test.mjs
       - name: Run repo-wide Enigma2 duplicate parser audit
         run: node tests/enigma2-duplicate-audit.test.mjs
+      - name: Run Enigma2 workflow wiring contract
+        run: node tests/enigma2-workflow-contract.test.mjs
