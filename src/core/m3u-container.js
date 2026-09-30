@@ -51,6 +51,7 @@ export function parseM3uContainer(text = '') {
 
     const directivesBeforeSource = [];
     let sourceLine = '';
+    let sourceOffset = null;
     for (let j = i + 1; j < lines.length; j += 1) {
       const next = lines[j].trim();
       if (!next) continue;
@@ -60,6 +61,7 @@ export function parseM3uContainer(text = '') {
         continue;
       }
       sourceLine = next;
+      sourceOffset = j - i;
       break;
     }
 
@@ -71,6 +73,7 @@ export function parseM3uContainer(text = '') {
       title,
       attributes: parseM3uAttributes(extinf),
       sourceLine,
+      sourceOffset,
       directivesBeforeSource,
     });
   }
