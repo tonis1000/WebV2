@@ -1,6 +1,7 @@
 import { channelMatchScore } from './channel-identity-gr.js';
+import { parseEnigma2Bouquet } from './core/enigma2-core.js?v=20260930-enigma2-e3b';
 
-const BUILD_ID='20260929-enigma2-visible-proxy';
+const BUILD_ID='20260930-enigma2-e3b';
 const $=id=>document.getElementById(id);
 const FETCH_TIMEOUT_MS=9000;
 const MAX_CANDIDATES=900;
@@ -23,7 +24,6 @@ let wrappedApi=null;
 
 function log(message){const box=$('diagnostic-log');if(!box)return;const stamp=new Date().toLocaleTimeString();box.textContent=`[${stamp}] ${message}\n${box.textContent}`.slice(0,18000);}
 function workerEndpoint(){return (localStorage.getItem('webtv_hunt_web_endpoint')||DEFAULT_WORKER).trim().replace(/\/$/,'');}
-function safeDecode(value=''){let out=String(value||'');for(let i=0;i<2;i++){try{const next=decodeURIComponent(out);if(next===out)break;out=next;}catch{break;}}return out;}
 function normalizeText(value=''){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,' ').replace(/\s+/g,' ').trim();}
 function currentQuery(){return String(window.WebTVSourceHuntQuery?.get?.()||window.WebTVPlaylistAPI?.getSelectedChannel?.()?.name||$('channel-name')?.textContent||'').trim();}
 function currentMode(){return String(window.WebTVSourceHuntQuery?.getMode?.()||'exact');}
@@ -56,37 +56,28 @@ function splitHeaders(url=''){
   return{url:decoded.slice(0,pipe).trim(),headers:safeHeadersFromSuffix(decoded.slice(pipe+1))};
 }
 function testValueFor(item={}){const url=String(item.sourceUrl||'').trim();const entries=Object.entries(item.requiredHeaders||{});if(!entries.length)return url;const params=new URLSearchParams();for(const [key,value] of entries)params.set(key,value);return `${url}|${params.toString()}`;}
-function extractService(line='',nextDescription=''){
-  if(!String(line).startsWith('#SERVICE '))return null;
-  const raw=String(line).slice(9).trim();const serviceType=raw.split(':',1)[0]||'';
-  const schemeMatch=raw.match(/(?:https?|rtmp|rtsp)(?::|%3a)\/\//i);if(!schemeMatch)return null;
-  const start=schemeMatch.index;let payload=raw.slice(start);let label='';
-  const lastColon=payload.lastIndexOf(':');
-  if(lastColon>0){label=safeDecode(payload.slice(lastColon+1)).trim();payload=payload.slice(0,lastColon);}
-  const decoded=safeDecode(payload).replace(/%25/gi,'%').trim();const parts=splitHeaders(decoded);if(!parts.url)return null;
-  let parsed=null;try{parsed=new URL(parts.url);}catch{return null;}
-  const channelName=label||safeDecode(nextDescription||'').replace(/^#DESCRIPTION\s*/i,'').trim()||parsed.hostname;
-  return{serviceType,channelName,url:parts.url,requiredHeaders:parts.headers,privateTarget:isPrivateHost(parsed.hostname)};
-}
 function parseBouquet(text='',seed={}){
-  const lines=String(text||'').split(/\r?\n/);const candidates=[];let localOnly=0,unsupported=0,decoded=0;
-  for(let i=0;i<lines.length;i++){
-    const line=lines[i].trim();if(!line.startsWith('#SERVICE '))continue;
-    const next=lines[i+1]?.trim()||'';const entry=extractService(line,next.startsWith('#DESCRIPTION')?next:'');if(!entry)continue;decoded++;
-    if(entry.privateTarget){localOnly++;continue;}
-    const type=classifyUrl(entry.url);if(type==='rtmp'||type==='rtsp'){unsupported++;continue;}
-    if(!/^https?:\/\//i.test(entry.url)){unsupported++;continue;}
+  const candidates=[];let localOnly=0,unsupported=0,decoded=0;
+  for(const service of parseEnigma2Bouquet(text).services){
+    if(!service.embeddedReference)continue;
+    const parts=splitHeaders(service.embeddedReference);if(!parts.url)continue;
+    let parsed=null;try{parsed=new URL(parts.url);}catch{continue;}
+    decoded++;
+    const channelName=service.embeddedInlineName||service.description||parsed.hostname;
+    if(isPrivateHost(parsed.hostname)){localOnly++;continue;}
+    const type=classifyUrl(parts.url);if(type==='rtmp'||type==='rtsp'){unsupported++;continue;}
+    if(!/^https?:\/\//i.test(parts.url)){unsupported++;continue;}
     candidates.push({
-      candidateId:`enigma2:${seed.name}:${i}:${entry.url}`,
-      channelName:entry.channelName,
-      normalizedChannelName:normalizeText(entry.channelName),
+      candidateId:`enigma2:${seed.name}:${service.lineIndex}:${parts.url}`,
+      channelName,
+      normalizedChannelName:normalizeText(channelName),
       sourceType:type,
-      sourceUrl:entry.url,
+      sourceUrl:parts.url,
       sourceOrigin:`${seed.name} · ${seed.url}`,
       discoveryProvider:'enigma2-bouquet',
       discoveredAt:new Date().toISOString(),
       freshness:'live-seed-scan',
-      requiredHeaders:entry.requiredHeaders,
+      requiredHeaders:parts.headers,
       verificationStatus:'UNVERIFIED',
       verified:false,
       matchConfidence:'MEDIUM',
@@ -95,7 +86,7 @@ function parseBouquet(text='',seed={}){
       saveEligible:true,
       playlistSourceUrl:seed.url,
       playlistSourceName:seed.name,
-      enigmaServiceType:entry.serviceType,
+      enigmaServiceType:service.serviceType,
     });
     if(candidates.length>=MAX_CANDIDATES)break;
   }
