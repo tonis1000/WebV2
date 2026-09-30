@@ -1,0 +1,1 @@
+RED gate: channel-profile-core test exists and must fail until src/core/channel-profile-gr.js is implemented.
