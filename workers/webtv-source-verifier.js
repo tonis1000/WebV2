@@ -74,7 +74,7 @@ function mediaProbeResult(type,text='',contentType=''){
   const drm=/widevine|playready|contentprotection|urn:uuid:/i.test(body);
   if(type==='hls'&&media!=='hls')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not a valid HLS manifest'};
   if(type==='dash'&&media!=='dash')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not a valid DASH manifest'};
-  if((type==='direct'||type==='header-aware')&&media==='unknown')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not recognized as playable media'};
+  if(type==='direct'&&media==='unknown')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not recognized as playable media'};
   const mediaType=media==='hls'?'hls':media==='dash'?'dash':ct.split(';')[0]||type;
   return{ok:true,mediaType,drmDetected:drm,reason:''};
 }
