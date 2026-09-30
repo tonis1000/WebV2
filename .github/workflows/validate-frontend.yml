@@ -17,6 +17,7 @@ on:
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
+      - 'workers/source-hunt*.js'
       - 'workers/epg-proxy-gr.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
@@ -24,6 +25,7 @@ on:
       - '.github/workflows/deploy-webtv-xtream.yml'
       - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
+      - '.github/workflows/deploy-source-hunt.yml'
       - '.github/workflows/deploy-epg-proxy-gr.yml'
   pull_request:
     paths:
@@ -39,6 +41,7 @@ on:
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
+      - 'workers/source-hunt*.js'
       - 'workers/epg-proxy-gr.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
@@ -46,6 +49,7 @@ on:
       - '.github/workflows/deploy-webtv-xtream.yml'
       - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
+      - '.github/workflows/deploy-source-hunt.yml'
       - '.github/workflows/deploy-epg-proxy-gr.yml'
 
 permissions:
@@ -84,6 +88,12 @@ jobs:
         run: |
           node --input-type=module --check < workers/webtv-source-discovery.js
           while IFS= read -r file; do echo "Checking $file"; node --check "$file"; done < <(find workers/source-discovery -type f -name '*.js' | sort)
+      - name: Validate Source Hunt Worker syntax
+        shell: bash
+        run: |
+          node --input-type=module --check < workers/source-huntatonisworkersdev.js
+          node --input-type=module --check < workers/source-hunt-smart.js
+          node --input-type=module --check < workers/source-hunt-bouquet-proxy.js
       - name: Validate EPG Proxy Worker syntax
         run: node --check workers/epg-proxy-gr.js
       - name: Run Registry project checkpoint write API regression test
@@ -118,6 +128,8 @@ jobs:
         run: node tests/discovery-local-sources.test.mjs
       - name: Run Discovery verifier client regression test
         run: node tests/discovery-verifier.test.mjs
+      - name: Run shared channel identity regression test
+        run: node tests/channel-identity-core.test.mjs
       - name: Run Source Verifier Worker regression test
         run: node tests/source-verifier-worker.test.mjs
       - name: Run external discovery client regression test
