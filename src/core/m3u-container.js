@@ -50,21 +50,20 @@ export function parseM3uContainer(text = '') {
     if (!/^#EXTINF\s*:/i.test(extinf)) continue;
 
     const directivesBeforeSource = [];
-    let sourceLine = '';
-    let sourceOffset = null;
+    const sourceCandidates = [];
     for (let j = i + 1; j < lines.length; j += 1) {
       const next = lines[j].trim();
       if (!next) continue;
       if (/^#EXTINF\s*:/i.test(next)) break;
       if (next.startsWith('#')) {
-        directivesBeforeSource.push(next);
+        if (!sourceCandidates.length) directivesBeforeSource.push(next);
         continue;
       }
-      sourceLine = next;
-      sourceOffset = j - i;
-      break;
+      sourceCandidates.push({ line: next, offset: j - i });
     }
 
+    const sourceLine = sourceCandidates[0]?.line || '';
+    const sourceOffset = sourceCandidates[0]?.offset ?? null;
     const { title } = splitExtinfPayload(extinf);
     entries.push({
       index: entries.length,
@@ -74,6 +73,7 @@ export function parseM3uContainer(text = '') {
       attributes: parseM3uAttributes(extinf),
       sourceLine,
       sourceOffset,
+      sourceCandidates,
       directivesBeforeSource,
     });
   }
