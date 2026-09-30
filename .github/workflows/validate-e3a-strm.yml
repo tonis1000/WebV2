@@ -26,3 +26,5 @@ jobs:
         run: node tests/strm-resolver-parity.test.mjs
       - name: Run Discovery STRM provider parity
         run: node tests/strm-specific-discovery-provider.test.mjs
+      - name: Run Source Hunt STRM parity
+        run: node tests/source-hunt-strm-parity.test.mjs
