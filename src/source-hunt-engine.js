@@ -1,6 +1,7 @@
 import { greekChannelAliases, normalizeChannelText } from './channel-identity-gr.js';
+import { parseM3uContainer } from './core/m3u-container.js?v=20260930-m3u-container-e2';
 
-const BUILD_ID = '20260930-shared-channel-identity';
+const BUILD_ID = '20260930-m3u-container-e2';
 const API = 'https://api.github.com';
 const FRESH_DAYS = 30;
 const MAX_REPOS = 8;
@@ -51,16 +52,11 @@ async function gh(path) {
 async function fetchText(url) { const response = await fetch(url, { cache: 'no-store' }); if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.text(); }
 
 function collectFromM3U(text, name, meta) {
-  const lines = String(text || '').split(/\r?\n/); const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim(); if (!line.startsWith('#EXTINF')) continue;
-    const headerScore = relevance(line, name); if (!headerScore) continue;
-    let j = i + 1;
-    while (j < lines.length) {
-      const next = lines[j].trim(); if (!next) { j++; continue; } if (next.startsWith('#EXTINF')) break; if (next.startsWith('#')) { j++; continue; }
-      for (const url of extractM3u8(next)) out.push({ url, origin: `${meta.origin} · M3U exact`, detail: meta.detail, updatedAt: meta.updatedAt, score: 40 + headerScore * 5 + urlRelevance(url, name) * 3 });
-      break;
-    }
+  const out = [];
+  for (const entry of parseM3uContainer(text)) {
+    if (!entry.extinf.startsWith('#EXTINF')) continue;
+    const headerScore = relevance(entry.extinf, name); if (!headerScore) continue;
+    for (const url of extractM3u8(entry.sourceLine || '')) out.push({ url, origin: `${meta.origin} · M3U exact`, detail: meta.detail, updatedAt: meta.updatedAt, score: 40 + headerScore * 5 + urlRelevance(url, name) * 3 });
   }
   return out;
 }
