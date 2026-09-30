@@ -67,7 +67,7 @@ assert.doesNotMatch(oneClick, /testButton\.click\(/, 'One-click must not simulat
 const main = read('src/main.js');
 assert.match(main, /window\.WebTVPlaybackAPI/, 'main.js should expose the narrow playback API bridge');
 assert.match(main, /DEBUG_STORAGE/, 'storage persistence diagnostics should be explicitly gated');
-const debugBlock = index.match(/<script>\s*\(\(\) => \{[\s\S]*?PREBOOT V2 DEBUG[\s\S]*?<\/script>/i)?.[0] || '';
+const debugBlock = index.match(/<script>\s+\(\(\) => \{[\s\S]*?PREBOOT V2 DEBUG[\s\S]*?<\/script>/i)?.[0] || '';
 assert.match(debugBlock, /debug\.has\('storage'\)/, 'preboot storage tracing must require ?debug=storage');
 
 const sourceRegistry = read('src/core/source-registry.js');
@@ -99,6 +99,17 @@ assert.match(frontendWorkflow, /workers\/source-discovery\/\*\*\/\*\.js/, 'Front
 assert.match(frontendWorkflow, /source-discovery-worker\.test\.mjs/, 'Frontend validation should run Source Discovery Worker regression');
 assert.match(frontendWorkflow, /github-public-playlists-provider\.test\.mjs/, 'Frontend validation should run GitHub provider regression');
 assert.match(frontendWorkflow, /recent-web-search-provider\.test\.mjs/, 'Frontend validation should run Recent Web provider regression');
+assert.match(frontendWorkflow, /channel-profile-core\.test\.mjs/, 'Frontend validation must enforce the Channel Profile contract');
+
+// Channel Profile Phase A is a data/schema foundation only. Runtime ownership moves in later phases.
+const epgCore = read('src/core/epg.js');
+const channelCatalog = read('src/core/channel-catalog.js');
+const logoUtils = read('src/logo-utils.js');
+assert.ok(existsSync(path.join(ROOT, 'src/core/channel-profile-gr.js')), 'Channel Profile registry should exist');
+assert.doesNotMatch(main, /channel-profile-gr\.js/, 'Phase A must not change My Playlist runtime presentation ownership');
+assert.doesNotMatch(epgCore, /channel-profile-gr\.js/, 'Phase A must not move EPG runtime ownership yet');
+assert.match(channelCatalog, /sourceTrust:\s*['"]temporary['"]/, 'Imported M3U metadata must remain temporary in Phase A');
+assert.doesNotMatch(logoUtils, /channel-profile-gr\.js/, 'Phase A must not move logo rendering ownership yet');
 
 const discoveryClient=read('src/discovery/external-discovery-client.js');
 assert.match(discoveryClient,/webtv-source-discovery\.atonis\.workers\.dev/, 'Phase 4 client must use the dedicated Source Discovery Worker');
