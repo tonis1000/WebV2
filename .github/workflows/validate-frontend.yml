@@ -140,6 +140,8 @@ jobs:
         run: node tests/source-discovery-m3u-parity.test.mjs
       - name: Run Source Hunt M3U parity
         run: node tests/source-hunt-m3u-parity.test.mjs
+      - name: Run frontend Source Hunt M3U parity
+        run: node tests/source-hunt-frontend-m3u-parity.test.mjs
       - name: Run Discovery candidate/state regression test
         run: node tests/discovery-candidate.test.mjs
       - name: Run Discovery local-source regression test
