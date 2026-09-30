@@ -99,9 +99,9 @@ export function workerUrl(url, headers = {}) {
 }
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = CONFIG.requestTimeoutMs) {
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),timeoutMs);
-  try { return await fetch(url,{...options,signal:controller.signal}); }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try { return await fetch(url, { ...options, signal: controller.signal }); }
   finally { clearTimeout(timeout); }
 }
 export function formatTime(date) {
