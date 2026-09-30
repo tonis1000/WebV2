@@ -23,7 +23,7 @@ assert.equal(rows.length, 24, 'exactly the 24 active My Playlist channels must h
 assert.deepEqual(new Set(rows.map(row => row.id)), new Set(ACTIVE_IDS), 'profile ids must be the strict identity ids');
 
 const expectedCategories = new Map([
-  ['ert1','Γενικά'],['ert2','Γενικά'],['ert3','Γενικά'],['ant1','Γενικά'],['alpha','Γενικά'],['skai','Γενικά'],['mega','Γενικά'],['open','Γενικά'],['star','Γενικά'],
+  ['ert1','Γενικά'],['ert2','Αθλητικά'],['ert3','Γενικά'],['ant1','Γενικά'],['alpha','Γενικά'],['skai','Γενικά'],['mega','Γενικά'],['open','Γενικά'],['star','Γενικά'],
   ['ertnews','Ειδήσεις'],['meganews','Ειδήσεις'],['action24','Ειδήσεις'],['kontra','Ειδήσεις'],
   ['tv100','Περιφερειακά'],
   ['baraza-greek-hits','Μουσική'],['baraza-laika','Μουσική'],['madtv','Μουσική'],['madworld','Μουσική'],['paniktv','Μουσική'],['realmusictv','Μουσική'],
@@ -40,6 +40,12 @@ for (const row of rows) {
   assert.ok(EXPECTED_CATEGORIES.includes(row.category?.primary), `${row.id}: unknown canonical category`);
   assert.ok(STATUS.has(row.logo?.status), `${row.id}: explicit logo status required`);
   assert.ok(STATUS.has(row.epg?.status), `${row.id}: explicit EPG status required`);
+  assert.ok(Object.isFrozen(row), `${row.id}: returned profile must be frozen`);
+  assert.ok(Object.isFrozen(row.category), `${row.id}: returned category must be frozen`);
+  assert.ok(Object.isFrozen(row.logo), `${row.id}: returned logo metadata must be frozen`);
+  assert.ok(Object.isFrozen(row.logo.fallbacks), `${row.id}: returned logo fallback list must be frozen`);
+  assert.ok(Object.isFrozen(row.epg), `${row.id}: returned EPG metadata must be frozen`);
+  assert.ok(Object.isFrozen(row.epg.aliases), `${row.id}: returned EPG aliases must be frozen`);
   if (row.logo.status === 'available') {
     assert.match(String(row.logo.preferredUrl || ''), /^https:\/\//i, `${row.id}: available logo requires HTTPS URL`);
     assert.ok(String(row.logo.sourceKind || '').trim(), `${row.id}: available logo requires provenance kind`);
@@ -51,7 +57,7 @@ for (const row of rows) {
   }
   assert.ok(Array.isArray(row.epg.aliases), `${row.id}: EPG aliases must be explicit array`);
   for (const forbidden of ['sources','directUrls','sourceUrl','playbackUrl']) assert.equal(Object.prototype.hasOwnProperty.call(row, forbidden), false, `${row.id}: Channel Profile root must not own ${forbidden}`);
-  assert.ok(!/\.m3u8(?:[?"\\]|$)/i.test(JSON.stringify(row)), `${row.id}: Channel Profile must not contain stream URLs`);
+  assert.ok(!/\.(?:m3u8|mpd|mp4|webm|ts)(?:[?"\\]|$)/i.test(JSON.stringify(row)), `${row.id}: Channel Profile must not contain stream URLs`);
   assert.deepEqual(profile.validateChannelProfileDefinition(row), { ok: true }, `${row.id}: current profile must satisfy the future-channel validator`);
 }
 
@@ -65,6 +71,9 @@ assert.equal(profile.validateChannelProfileDefinition({...badBase, country:''}).
 assert.equal(profile.validateChannelProfileDefinition({...badBase, language:''}).ok, false, 'language is required');
 assert.equal(profile.validateChannelProfileDefinition({...badBase, logo:{preferredUrl:'',sourceKind:'',sourceUrl:'',fallbacks:[]}}).ok, false, 'logo status is required');
 assert.equal(profile.validateChannelProfileDefinition({...badBase, logo:{status:'available',preferredUrl:'http://example.test/logo.png',sourceKind:'official-site',sourceUrl:'',fallbacks:[]}}).ok, false, 'available logo must be HTTPS');
+assert.equal(profile.validateChannelProfileDefinition({...badBase, epg:{...badBase.epg,playbackUrl:'https://example.test/live.m3u8'}}).ok, false, 'nested EPG playback fields must fail');
+assert.equal(profile.validateChannelProfileDefinition({...badBase, logo:{...badBase.logo,sourceUrl:'https://example.test/live.mpd'}}).ok, false, 'logo provenance must not be a media stream URL');
+assert.equal(profile.validateChannelProfileDefinition({...badBase, logo:{...badBase.logo,sourceUrl:'rtmp://example.test/live'}}).ok, false, 'non-http media stream schemes must fail');
 
 const compatibility = [
   ['ert1','ert1'],['ERT1','ert1'],['meganews','meganews'],['MEGA News','meganews'],
