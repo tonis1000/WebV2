@@ -8,72 +8,85 @@ Base production/main SHA: `d40a2f34027318d69dd78ef88d06fbfd60dc03fb`
 
 WebV2 currently recognizes source/media formats in multiple places with overlapping but non-identical logic:
 
-- `src/core/utils.js` has frontend helpers such as `isHls()`, `isDash()`, and `isVideoFile()`.
+- `src/core/utils.js` owns frontend helpers such as `isHls()`, `isDash()` and `isVideoFile()`.
 - `src/discovery/candidate-model.js` owns a broader `SOURCE_TYPES` set and `detectCandidateType()` for HLS, DASH, STRM, M3U, RTSP, RTMP, Xtream, header-aware and fallback direct sources.
-- `workers/webtv-source-verifier.js` has its own `inferredType()` and response-body classification logic.
+- `workers/webtv-source-verifier.js` has its own `inferredType()` and response-body classification.
 - Source Hunt contains additional format-specific regex extraction, especially for `.m3u8`.
 
-This duplication creates two risks:
+This creates two risks: the same source can be classified differently by different paths, and every future format requires scattered edits.
 
-1. The same URL can be classified differently depending on which path sees it.
-2. Adding a future format requires scattered edits across Discovery, verifier, player/source helpers and search/discovery logic.
-
-Phase E1 must introduce one explicit source-format contract without changing current playback behavior, STRM resolution behavior, M3U parsing behavior, Enigma2 parsing behavior, or the verified promotion contract from Phase D.
+Phase E1 introduces one explicit source-format contract without changing playback behavior, STRM resolution, M3U parsing, Enigma2 parsing, EPG ownership, Phase D promotion semantics, or persisted schemas.
 
 ## 2. Goal
 
-Create an extensible, pure source-format registry that becomes the canonical owner of source format identity, URL-level detection, format capabilities and safe unknown-format representation.
+Create an extensible pure Source Format Registry that becomes the canonical owner of source format identity, URL-level detection, format capabilities, safe unknown representation, and transport-vs-media distinction.
 
-The immediate success condition is:
+Success means:
 
-> Existing formats keep their current behavior, while a newly introduced format can be represented and detected through one descriptor/adapter plus tests, without modifying the Discovery candidate model, Source Verifier type inference, or Player compatibility helpers.
+> Existing inputs retain their externally expected behavior, while a new format can be added through one descriptor plus tests without format-specific edits to Discovery, Source Verifier, or Player compatibility consumers.
 
 ## 3. Non-goals
 
 Phase E1 does NOT:
 
-- rewrite the Player;
-- change playback routing or fallback order;
-- add browser playback for RTMP or RTSP;
+- rewrite Player or playback fallback;
+- add RTMP/RTSP browser playback;
 - change STRM recursive resolution;
 - move M3U parsing out of `channel-catalog.js`;
 - migrate Enigma2 parsing;
-- redesign Source Hunt discovery providers;
-- change D1 schema;
-- change My Playlist promotion semantics from Phase D;
-- change EPG ownership from Phase C;
-- claim support for a format merely because it can be detected;
-- dynamically download or execute third-party format plugins.
-
-Those remain separate follow-up phases.
+- redesign Source Hunt providers;
+- change D1 or My Playlist schema;
+- change Phase D metadata promotion;
+- change EPG ownership;
+- dynamically load third-party plugins.
 
 ## 4. Architectural decision
 
-### Chosen approach
-
-Introduce a shared pure module:
+Introduce:
 
 `src/core/source-format-registry.js`
 
-It contains static format descriptors and pure functions only. It must have no dependency on `window`, DOM, localStorage, Cloudflare bindings, network fetches, D1, playback engines or authentication.
+The module is pure and side-effect free. It must not depend on DOM/window, localStorage, Cloudflare bindings, network I/O, D1, playback engines, auth, or credentials.
 
-Browser code and Worker code may both import this module. The Source Verifier deployment workflow must therefore include the registry file in its `paths:` trigger so a registry change cannot leave a deployed verifier on stale format rules.
+Browser and Worker code consume this same module. The Source Verifier deploy workflow must include the registry file in its `paths:` trigger so a registry-only change cannot leave the deployed verifier stale.
 
-### Rejected alternatives
+Rejected alternatives:
 
-#### Frontend-only registry
+- frontend-only registry, because verifier drift remains;
+- full dynamic plugin engine, because E1 needs one canonical static contract, not runtime plugin trust/lifecycle complexity.
 
-Rejected because the verifier would still carry a separate source-format truth.
+## 5. Classification model: transport is not media format
 
-#### Full plugin engine with dynamic registration/runtime loading
+E1 explicitly separates **transport/resource classification** from **confirmed media format**.
 
-Rejected for E1 because it adds lifecycle, trust and deployment complexity that is not required to solve the current duplication problem.
+Example:
 
-Phase E1 uses a static registry with an intentionally extension-friendly descriptor contract. Dynamic plugin loading is not part of this design.
+`https://example.com/live?id=123`
 
-## 5. Source format descriptor contract
+From URL inspection alone, WebV2 can know it is an HTTP(S) resource. It cannot know that it is playable video.
 
-Each descriptor is immutable and includes at least:
+Therefore the canonical structured classification may be:
+
+```js
+{
+  formatId: 'http-resource',
+  mediaFormatId: 'unknown',
+  status: 'recognized',
+  confidence: 'transport-only'
+}
+```
+
+If body/content-type later proves HLS, DASH or direct media, `mediaFormatId` becomes that format.
+
+This resolves the current ambiguity around `direct`:
+
+- canonical registry truth does not equate generic HTTP(S) with playable direct media;
+- existing consumers that historically expect `sourceType: 'direct'` may receive it through an explicit compatibility mapping from `http-resource`;
+- unknown non-HTTP schemes/extensions remain truly `unknown` rather than being silently called `direct`.
+
+## 6. Descriptor contract
+
+Each immutable descriptor contains at least:
 
 ```js
 {
@@ -85,19 +98,19 @@ Each descriptor is immutable and includes at least:
   capabilities,
   verificationMode,
   resolutionMode,
-  savePolicy
+  savePolicy,
+  compatibilityType
 }
 ```
 
-### Required fields
+### `id`
 
-#### `id`
-
-Stable canonical format id. Examples:
+Stable canonical id. Initial ids include:
 
 - `hls`
 - `dash`
 - `direct-video`
+- `http-resource`
 - `strm`
 - `m3u`
 - `rtsp`
@@ -106,29 +119,25 @@ Stable canonical format id. Examples:
 - `header-aware`
 - `unknown`
 
-Existing externally visible source type strings that are already part of contracts should remain compatible through aliases or compatibility mapping rather than being silently renamed.
+### `aliases`
 
-#### `aliases`
+Accepted historical/external explicit type names.
 
-Known historical or external names accepted as explicit type hints.
+### `priority`
 
-#### `priority`
+Deterministic ordering when more than one descriptor could match.
 
-Deterministic ordering when multiple URL rules could match.
+### `detectUrl(input)`
 
-#### `detectUrl(input)`
+Pure scheme/path/extension detection. No network I/O.
 
-Pure URL/scheme/path inspection. It must not perform network I/O.
+### `detectBody(input)`
 
-It returns either no match or a confidence-bearing match result.
+Pure body/content-type detection where relevant.
 
-#### `detectBody(input)`
+### `capabilities`
 
-Pure response/body/content-type classification where applicable. E1 uses this primarily to consolidate HLS/DASH/media-body recognition currently duplicated in the verifier.
-
-#### `capabilities`
-
-An immutable capability object. Minimum keys:
+Minimum immutable capability keys:
 
 ```js
 {
@@ -142,43 +151,43 @@ An immutable capability object. Minimum keys:
 }
 ```
 
-Capability values describe known technical properties only. They do not imply that a particular URL has been verified.
+Capabilities describe format/runtime properties only. They never mean a particular URL is healthy or verified.
 
-#### `verificationMode`
+### `verificationMode`
 
-Examples:
+Examples: `manifest`, `direct-media`, `resolve-first`, `unsupported`, `external-contract`, `transport-probe`.
 
-- `manifest`
-- `direct-media`
-- `resolve-first`
-- `unsupported`
-- `external-contract`
+### `resolutionMode`
 
-#### `resolutionMode`
+Examples: `none`, `strm`, `container`, `xtream`, `external`.
 
-Examples:
+### `savePolicy`
 
-- `none`
-- `strm`
-- `container`
-- `xtream`
-- `external`
+Structural source-save eligibility only. It does not replace Channel Profile or Phase D promotion policy.
 
-#### `savePolicy`
+### `compatibilityType`
 
-Describes whether a detected source type is structurally eligible for existing source-save flows. It does not replace Channel Profile or Phase D metadata promotion policy.
+Optional legacy source type exposed to existing consumers while canonical structured classification remains richer.
 
-## 6. Canonical API
+Example: `http-resource` may map to legacy `direct` where current API parity requires it.
 
-The module exposes a small stable API:
+## 7. Canonical API
+
+The module exposes:
 
 ```js
-detectSourceFormat(input)
-getSourceFormat(id)
-classifySourceBody(input)
+createSourceFormatRegistry(descriptors)
+detectSourceFormat(input, registry?)
+getSourceFormat(id, registry?)
+classifySourceBody(input, registry?)
 normalizeSourceDescriptor(input)
-listSourceFormats()
+listSourceFormats(registry?)
+toLegacySourceType(classification)
 ```
+
+`createSourceFormatRegistry()` enables deterministic test injection and future extension without dynamic runtime plugin loading.
+
+The default export/registry remains static and production-controlled.
 
 ### `detectSourceFormat(input)`
 
@@ -193,13 +202,12 @@ Input may contain:
 }
 ```
 
-URL detection must work without `body` or `contentType`.
-
-Return value is structured, never just a bare string:
+Return value is structured:
 
 ```js
 {
   formatId,
+  mediaFormatId,
   status,
   confidence,
   explicitType,
@@ -212,170 +220,121 @@ Return value is structured, never just a bare string:
 }
 ```
 
-### Status values
-
-E1 defines these source-format recognition states:
+Recognition status values:
 
 - `recognized`
 - `recognized-unsupported`
 - `unknown`
 
-`recognized` means WebV2 knows the format contract. It does NOT mean a source is reachable, healthy, DRM-free or browser-playable.
+These are format-recognition states, not source-verification states.
 
-`recognized-unsupported` means WebV2 can identify the format but the current runtime intentionally lacks a required capability.
+## 8. Explicit type precedence
 
-`unknown` is fail-closed classification. It must not be silently converted to `direct` merely because no known extension matched.
+1. A valid registered explicit type or alias wins over URL inference.
+2. Empty, malformed, `unknown`, or unregistered explicit values do not force a false known format.
+3. URL inference runs over registered descriptors in deterministic priority order.
+4. Generic HTTP(S) without stronger evidence becomes `http-resource`, not confirmed media.
+5. Unsupported/non-HTTP unknown schemes with no matching descriptor remain `unknown`.
 
-## 7. Explicit type precedence
+Xtream must not be inferred from arbitrary URL shapes containing credentials. It remains explicit/context-driven.
 
-Explicit type hints are accepted only if they map to a registered canonical format or alias.
+## 9. Unknown and future formats
 
-Rules:
-
-1. Valid registered explicit type wins over URL inference.
-2. `unknown`, empty, malformed or unregistered explicit type does not force a false known format.
-3. URL inference then runs over registered descriptors in deterministic priority order.
-4. If no descriptor matches, result is `unknown`.
-
-This preserves current APIs that supply `sourceType` while preventing arbitrary future strings from being treated as authoritative known formats.
-
-## 8. Unknown and future formats
-
-Unknown-format preservation is a core requirement, not an error case to erase.
-
-For a URL such as:
+For:
 
 `foo://host/live/channel.xyz`
 
-WebV2 should be able to return:
+classification should preserve evidence:
 
 ```js
 {
   formatId: 'unknown',
+  mediaFormatId: 'unknown',
   status: 'unknown',
   rawScheme: 'foo',
   rawExtension: '.xyz'
 }
 ```
 
-The system may display, log, inspect or retain the candidate according to the consumer's existing policy, but it must not call it HLS, DASH or `direct` without evidence.
+Consumers may display, retain or inspect it according to their own policy, but must not call it HLS, DASH or direct media without evidence.
 
-A later phase can add a descriptor for the new format. Existing consumers should then receive the new classification through the same API without requiring format-specific edits.
+A later descriptor can teach the registry the format without requiring format-specific edits to generic consumers.
 
-## 9. Initial registry contents
-
-Phase E1 should model the formats already represented in the codebase. Minimum initial descriptors:
+## 10. Initial registry contents
 
 ### HLS
 
-Detection:
-- `.m3u8` path/URL
-- HLS manifest/body markers and MPEGURL content types where body inspection is available
+Detect `.m3u8`, HLS manifest markers and MPEGURL content types where body inspection exists.
 
-Capabilities:
-- browser playback: yes through existing player paths
-- verifier probe: yes
-- requires resolver: no
+Current browser playback and verifier behavior remain unchanged.
 
 ### DASH
 
-Detection:
-- `.mpd`
-- MPD body/content type
-
-Capabilities:
-- browser playback: according to existing player behavior
-- verifier probe: yes
-- requires resolver: no
+Detect `.mpd`, MPD XML/body markers and DASH content types.
 
 ### Direct video/media
 
-Detection:
-- known direct video extensions currently recognized by frontend compatibility helpers, including `.mp4` and `.webm`
-- body/content-type media evidence in verifier context
+Detect currently supported known direct media extensions such as `.mp4` and `.webm`, plus direct video/audio content types in verifier context.
 
-Important: generic HTTP(S) with no media evidence is not automatically a confirmed direct-media format. URL-only classification may remain unknown or use a compatibility result where required by current callers, but E1 must distinguish "generic transport URL" from "known playable media" in the structured result.
+This is distinct from generic `http-resource`.
+
+### HTTP resource
+
+Detect generic `http://` and `https://` resources that have no stronger known format evidence.
+
+It is recognized transport, not confirmed playable media.
+
+Legacy mapping may expose `direct` to existing callers where parity requires it.
 
 ### STRM
 
-Detection:
-- `.strm`
-
-Capabilities:
-- requires resolver: yes
-- container/reference: yes
-- direct verifier probe before resolution: no
-
-Existing `StrmResolver` remains unchanged in E1.
+Detect `.strm`; mark resolver required and container/reference semantics. `StrmResolver` remains unchanged.
 
 ### M3U
 
-Detection:
-- `.m3u`
-- playlist container semantics where body inspection is explicitly provided
-
-Capabilities:
-- container: yes
-- requires parse/resolve before media verification
-
-Existing `parseM3U()` remains unchanged in E1.
+Detect `.m3u` and explicit playlist-container evidence. Existing `parseM3U()` remains unchanged.
 
 ### RTSP
 
-Detection:
-- `rtsp://` and existing accepted secure variant if currently represented
-
-Status/capability:
-- recognized but browser playback unsupported by current WebV2 player
-- verifier behavior remains fail-closed/unsupported unless a later phase adds a resolver/gateway
+Detect existing RTSP scheme variants. Recognized but current browser playback remains unsupported.
 
 ### RTMP
 
-Detection:
-- `rtmp://` and existing accepted secure variant if currently represented
-
-Status/capability:
-- recognized but browser playback unsupported by current WebV2 player
+Detect existing RTMP scheme variants. Recognized but current browser playback remains unsupported.
 
 ### Xtream
 
-Explicit/source-context format. URL detection alone must not infer Xtream credentials from arbitrary URL shapes.
-
-Existing Xtream account/preview lifecycle remains outside E1.
+Explicit/context-driven. Existing Xtream credential/account/preview lifecycle stays outside E1.
 
 ### Header-aware
 
-Preserve as a compatibility source-type contract where existing callers use it. Header normalization remains in existing safe header utilities during E1.
+Compatibility contract only. Existing safe header normalization and allowed-header policy remain unchanged.
 
-## 10. Compatibility layer
-
-Phase E1 must preserve current public/internal contracts while moving ownership.
+## 11. Compatibility boundaries
 
 ### `src/core/utils.js`
 
-Existing helpers stay available:
+Keep public helpers:
 
 - `isHls()`
 - `isDash()`
 - `isVideoFile()`
 
-They become compatibility wrappers over the registry rather than independent regex owners.
-
-No player consumer should require a format-specific rewrite in E1.
+They become thin registry wrappers. Player consumers do not get format-specific rewrites in E1.
 
 ### `src/discovery/candidate-model.js`
 
-`detectCandidateType()` becomes a compatibility wrapper over `detectSourceFormat()`.
+`detectCandidateType()` becomes a compatibility wrapper over registry classification plus `toLegacySourceType()`.
 
-The externally expected `sourceType` values must remain compatible with existing Discovery tests and APIs.
+Existing externally expected `sourceType` values stay compatible.
 
-`SOURCE_TYPES` must no longer be an independently maintained source of truth. It should be derived from or validated against the registry plus any explicit compatibility-only values such as preview states.
+`SOURCE_TYPES` must be derived from or validated against registry descriptors plus explicit compatibility-only states such as preview types, rather than being independently maintained format truth.
 
 ### `workers/webtv-source-verifier.js`
 
-`inferredType()` and format-specific body classification move to shared registry functions or thin wrappers around them.
+Its `inferredType()` and format-specific body recognition become thin wrappers around shared registry functions.
 
-Verifier status semantics remain unchanged in E1:
+Verifier outcome semantics stay unchanged:
 
 - `VERIFIED`
 - `FAILED`
@@ -385,51 +344,49 @@ Verifier status semantics remain unchanged in E1:
 - `DRM`
 - `UNRESOLVED`
 
-Source-format recognition status is separate from verification status.
+A source can therefore be `recognized HLS + FAILED verification` or `recognized RTMP + unsupported playback` without mixing the state machines.
 
-## 11. Worker deployment consistency
+## 12. Worker deployment consistency
 
-The verifier imports the shared registry from repository code.
+`.github/workflows/deploy-source-verifier.yml` must add:
 
-`.github/workflows/deploy-source-verifier.yml` must add `src/core/source-format-registry.js` to its push `paths:` list.
+`src/core/source-format-registry.js`
 
-The deployment validation must prove the Worker build can import the shared module under Cloudflare Workers' module deployment model.
+to push path dependencies.
 
-If direct relative module import is incompatible with the current Wrangler single-entry deployment, implementation must stop and use a build/bundle step or another explicit single-source mechanism. It must not silently copy registry logic into the Worker.
+The deployment must prove Wrangler can include the shared relative ES module from the Worker entry point.
 
-This is an implementation gate because E1's purpose is one canonical format truth.
+If the current single-entry deployment cannot do this safely, implementation stops and introduces an explicit bundle/build step or equivalent single-source mechanism. Copy-pasting registry logic into Worker code is forbidden because it recreates the duplication E1 exists to remove.
 
-## 12. Source Hunt boundary
+## 13. Source Hunt boundary
 
-E1 does not rewrite Source Hunt.
+E1 does not rewrite Source Hunt. Its current `.m3u8`-heavy extraction remains a known duplicate/format-specific boundary.
 
-However, new tests should document that Source Hunt still contains format-specific discovery extraction and is a known follow-up boundary.
+Follow-up architecture:
 
-Planned follow-up:
+- **E2:** shared M3U/container parsing and playlist-source extraction;
+- **E3:** STRM/Enigma2 normalization and broader Source Hunt format adapters.
 
-- E2: M3U/container parsing ownership and shared playlist source extraction
-- E3: STRM/Enigma2 normalization and broader Source Hunt format adapters
+E1 must not claim E2/E3 work is complete.
 
-E1 must not claim those duplicates are removed.
+## 14. Security and trust
 
-## 13. Security and trust rules
+The registry classifies. It does not trust or verify.
 
-The registry is classification metadata, not a trust oracle.
+Rules:
 
-Therefore:
+- known format != verified source;
+- unknown schemes are never fetched merely for classification;
+- private/local target blocking stays in Worker security boundaries;
+- credentials are not exposed in classification/logging;
+- Xtream credentials stay in credential-aware lifecycle code;
+- header-aware detection does not relax allowed headers;
+- Phase D canonical metadata promotion remains unchanged;
+- safe HTTP(S) validation remains a server/Worker concern, not a format-registry concern.
 
-- detecting a known format does not mark a source verified;
-- unknown schemes are never fetched merely to identify them;
-- safe HTTP(S) target validation remains owned by server/Worker security boundaries;
-- credentials are not parsed into logs/display fields by the registry;
-- Xtream credentials remain handled by existing credential-aware lifecycle code;
-- header-aware classification does not relax the allowed-header list;
-- private/local network protection in the verifier remains unchanged;
-- Phase D canonical metadata promotion rules remain unchanged.
+## 15. Lifecycle relationship
 
-## 14. Lifecycle relationship
-
-E1 clarifies the candidate lifecycle as:
+E1 formalizes:
 
 ```text
 FOUND
@@ -440,138 +397,107 @@ FOUND
   -> SAVED
 ```
 
-Possible format outcomes at `FORMAT_CLASSIFIED`:
+`FORMAT_CLASSIFIED` may be:
 
-```text
-recognized
-recognized-unsupported
-unknown
-```
+- `recognized`
+- `recognized-unsupported`
+- `unknown`
 
-These are not verification outcomes.
+These states do not imply verification.
 
-A source can therefore be:
+## 16. TDD strategy
 
-`recognized HLS + FAILED verification`
+Implementation starts with RED tests proving the registry does not yet exist.
 
-or:
-
-`recognized RTMP + unsupported browser playback`
-
-or:
-
-`unknown format + inspectable candidate`
-
-without conflating those states.
-
-## 15. Test strategy
-
-Implementation must use TDD.
-
-### RED contract tests
-
-Create dedicated Phase E1 tests before production code changes. They must fail because no shared registry exists yet.
-
-Minimum cases:
+Minimum contract cases:
 
 1. HLS URL -> `hls`.
 2. DASH URL -> `dash`.
-3. MP4/WebM compatibility -> direct video/media classification.
-4. STRM -> recognized, resolver required.
-5. M3U -> recognized container, resolve/parse first.
-6. RTSP -> recognized unsupported browser playback.
-7. RTMP -> recognized unsupported browser playback.
-8. explicit registered type overrides URL inference.
-9. unregistered explicit type does not become a known format.
-10. unknown scheme/extension remains `unknown`, not `direct`.
-11. HLS body classification remains valid.
-12. DASH body classification remains valid.
-13. generic HTML response is not misclassified as playable media.
-14. compatibility helpers return the same answers as before for current fixtures.
-15. Discovery `sourceType` outputs preserve existing contract for current inputs.
-16. Verifier outputs preserve existing verification statuses for current fixtures.
+3. MP4/WebM -> `direct-video`.
+4. generic HTTP(S) -> `http-resource`, media unknown.
+5. compatibility mapping of generic HTTP(S) -> legacy `direct` where current consumers require it.
+6. STRM -> recognized, resolver required.
+7. M3U -> recognized container/parse first.
+8. RTSP -> recognized unsupported browser playback.
+9. RTMP -> recognized unsupported browser playback.
+10. valid explicit registered type overrides URL inference.
+11. unregistered explicit type does not become a known format.
+12. unknown non-HTTP scheme/extension stays `unknown`, not `direct`.
+13. HLS body detection remains valid.
+14. DASH body detection remains valid.
+15. generic HTML response is not playable media.
+16. current `isHls/isDash/isVideoFile` fixtures preserve outputs.
+17. Discovery sourceType outputs preserve existing contract.
+18. Source Verifier fixtures preserve verification results.
 
 ### Future-format extensibility proof
 
-A test-only registry construction or injected descriptor set must prove that a synthetic format such as `future-test` can be added via one descriptor and then detected through the generic registry API without editing Discovery, verifier or Player consumer code.
+A test-only registry created with `createSourceFormatRegistry()` must add a synthetic `future-test` descriptor and demonstrate generic detection through `detectSourceFormat()` without edits to Discovery, verifier or Player consumer code.
 
-This test must not add a fake production format to the default registry.
+The synthetic format must not be added to the production default registry.
 
 ### Regression suite
 
-Before merge, all existing suites must remain green, especially:
+Before merge, preserve green results for playback/fallback, source ranking, header-aware proxy, STRM, M3U/import promotion, Xtream, Discovery candidate/verifier/browser smoke, startup non-blocking, frontend integration, EPG parity and Channel Identity/Profile.
 
-- playback/fallback regressions
-- source ranking
-- header-aware proxy
-- STRM resolver/discovery
-- M3U/import promotion contract
-- Xtream lifecycle/preview routes
-- Discovery candidate/verifier/browser smoke
-- startup non-blocking
-- frontend integration
-- EPG parity
-- Channel Identity/Profile
+## 17. Deployment verification
 
-## 16. Deployment verification
-
-E1 is DONE only when all of the following are true on the same merge SHA:
+E1 is DONE only when the same merge SHA has:
 
 1. implementation merged to `main`;
-2. frontend CI succeeds;
-3. Source Verifier deploy workflow succeeds because the shared registry is in its dependency path;
-4. any additionally triggered Worker workflows succeed;
-5. GitHub Pages deploy succeeds;
-6. controlled live Source Verifier good/dead probes succeed on the merge SHA;
-7. browser smoke/startup gates succeed;
-8. checkpoint/canonical documentation is updated or explicitly records any remaining checkpoint SHA mismatch.
+2. frontend CI success;
+3. Source Verifier deployment success triggered by shared-registry dependency;
+4. any additionally triggered Worker workflows successful;
+5. GitHub Pages deployment success;
+6. controlled live Source Verifier good/dead probes success;
+7. browser smoke/startup gates success;
+8. project checkpoint/canonical documentation updated, or any checkpoint/main/deployed mismatch explicitly recorded.
 
-If deployed SHA, GitHub main SHA and project checkpoint SHA differ, E1 must not be called fully canonical until that mismatch is recorded/resolved according to project governance.
+If checkpoint SHA, GitHub main SHA and deployed SHA differ, E1 must not be called fully canonical until project governance records/resolves the mismatch.
 
-## 17. Canonical documentation update
+## 18. Canonical documentation update
 
 At the next authorized `WEBV2_CURRENT.md` update, record:
 
-- Phase C DONE evidence and SHA;
-- Phase D DONE evidence and SHA;
-- Phase E1 architecture and eventual implementation/deployment SHA;
-- Source Format Registry as canonical owner of format identity/detection after E1 is verified;
-- remaining E2/E3 boundaries;
-- TinyFish operational rule: all TinyFish operations are currently metered under the user's account contract and must not be used for WebV2 without explicit necessity/approval;
-- any checkpoint/main/deployed SHA mismatch observed at update time.
+- Phase C DONE evidence/SHA;
+- Phase D DONE evidence/SHA;
+- Phase E1 design and eventual implementation/deployment SHA;
+- Source Format Registry ownership after E1 verification;
+- E2/E3 remaining boundaries;
+- TinyFish rule: all current TinyFish operations are metered and must not be used for WebV2 without explicit necessity/approval;
+- checkpoint/main/deployed mismatch, if any.
 
-Historical checkpoints must not override the current canonical document.
+Historical checkpoints never override current `WEBV2_CURRENT.md`.
 
-## 18. Rollback
+## 19. Rollback
 
-E1 must be reversible without data migration.
+No schema migration is introduced. Rollback is code-only: revert registry imports/wrappers and redeploy affected frontend/Worker artifacts.
 
-Because it introduces no D1 schema change and does not alter persisted channel/source schema, rollback consists of reverting the consumer imports/wrappers and registry module on the frontend/Worker deploys.
+Persisted My Playlist, Favorites, Saved Playlist and EPG data require no transformation.
 
-No persisted My Playlist, Favorites, Saved Playlist or EPG data should require transformation.
+## 20. Acceptance criteria
 
-## 19. Acceptance criteria
-
-Phase E1 implementation is accepted only if:
+E1 is accepted only if:
 
 - one canonical registry owns format definitions used by Discovery and Source Verifier;
-- frontend compatibility helpers delegate to that registry;
+- frontend compatibility helpers delegate to it;
+- transport recognition is distinct from confirmed media format;
 - unknown formats fail closed and remain representable;
-- recognized-but-unsupported formats are distinguishable from unknown formats;
-- adding a synthetic future descriptor requires no format-specific consumer edit in the extensibility test;
-- existing source/playback/import/verifier behavior remains regression-green;
-- no D1 or canonical metadata schema changes are introduced;
-- worker deployment cannot miss a registry-only change;
-- production verification is successful on the same merge SHA.
+- recognized-but-unsupported differs from unknown;
+- synthetic future format extension requires descriptor/test only, not consumer-specific format code;
+- existing behavior remains regression-green;
+- no D1/persisted metadata schema change occurs;
+- Worker deployment cannot miss registry-only changes;
+- production verification succeeds on the same merge SHA.
 
-## 20. Follow-up phases
+## 21. Follow-up phases
 
 ### E2 — Shared playlist/container parsing
 
-Consolidate M3U parsing/extraction ownership while preserving import semantics and Phase D promotion boundaries.
+Consolidate M3U parsing/extraction ownership while preserving import semantics and Phase D boundaries.
 
 ### E3 — Resolver and discovery adapters
 
-Consolidate STRM, Enigma2 and broader Source Hunt source-format adapters around the registry/capability model.
+Consolidate STRM, Enigma2 and broader Source Hunt format adapters around the registry/capability model.
 
-Neither E2 nor E3 is started by approval or implementation of E1.
+Neither E2 nor E3 starts automatically with E1.
