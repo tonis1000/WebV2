@@ -1,5 +1,6 @@
 import { runUnifiedSearch } from './search-orchestrator.js';
 import { listUnifiedSearchLanes, getUnifiedSearchRuntimeAdapter } from './search-runtime.js';
+import { verifySearchCandidates } from './search-verification.js';
 import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay } from '../discovery/candidate-model.js';
@@ -60,7 +61,7 @@ function createUi(){
   return panel;
 }
 
-function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[ch]));}
 function safeText(value=''){return String(value??'').trim();}
 function formatSource(value=''){try{const url=new URL(value);return `${url.hostname}${url.pathname}`;}catch{return String(value||'');}}
 function headersForPlayback(headers={}){const params=new URLSearchParams();for(const [key,value] of Object.entries(headers||{}))if(value)params.set(key,value);return params.toString();}
@@ -153,7 +154,7 @@ async function playCandidate(candidate,channelName,button){
   finally{setTimeout(()=>{button.disabled=!playableCandidate(candidate);button.textContent=old;button.classList.remove('danger');const report=activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[];renderReport(report,activeRun?.reporter?.summary?.()||latestUpdate?.summary||{});},1200);}
 }
 
-function startSearch(event){event?.preventDefault?.();const query=$('unified-search-query')?.value.trim();if(!query)return;activeRun?.cancel?.('superseded');const context=searchContext();activeRun=runUnifiedSearch({query,context,sources:listUnifiedSearchLanes(),resolveAdapter:getUnifiedSearchRuntimeAdapter,concurrency:3,laneTimeoutMs:10000,onUpdate:renderUpdate});latestIntent=null;activeRun.done.then(result=>renderUpdate({snapshot:result.snapshot,report:result.report,summary:result.summary})).catch(error=>{renderProgress({status:'cancelled',candidates:[],lanes:{}},{failed:1});console.error('[WebTV] Unified Search failed',error);});}
+function startSearch(event){event?.preventDefault?.();const query=$('unified-search-query')?.value.trim();if(!query)return;activeRun?.cancel?.('superseded');const context=searchContext();activeRun=runUnifiedSearch({query,context,sources:listUnifiedSearchLanes(),resolveAdapter:getUnifiedSearchRuntimeAdapter,verifyBatch:verifySearchCandidates,concurrency:3,laneTimeoutMs:10000,onUpdate:renderUpdate});latestIntent=null;activeRun.done.then(result=>renderUpdate({snapshot:result.snapshot,report:result.report,summary:result.summary})).catch(error=>{renderProgress({status:'cancelled',candidates:[],lanes:{}},{failed:1});console.error('[WebTV] Unified Search failed',error);});}
 
 async function copyReport(){const text=activeRun?.reporter?.exportText?.()||'';if(!text)return;await navigator.clipboard?.writeText?.(text);}
 function exportJson(){const json=activeRun?.reporter?.exportJson?.();if(!json)return;const blob=new Blob([json],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`webtv-search-report-${activeRun.searchId||'run'}.json`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
