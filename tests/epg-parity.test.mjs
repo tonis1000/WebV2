@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { EpgService } from '../src/core/epg.js';
+import * as config from '../src/config.js';
+import { getChannelProfileById } from '../src/core/channel-profile-gr.js';
 import {
   EPG_PHASE_C_BASELINE_COMMIT,
   EPG_PARITY_NOW_ISO,
@@ -10,6 +12,23 @@ import {
 } from './fixtures/epg-phase-c-parity.mjs';
 
 const SINGLETON_KEY='__webtv_epg_service_singleton__';
+
+const EXPECTED_PROFILE_EPG_ALIASES=new Map([
+  ['ert1',['ERT1.gr','ERT1.HD.gr','EPT1.gr','ΕΡΤ1','ERT1 HD']],
+  ['ert2',['ERT2.gr','ERT2.HD.gr','EPT2.gr','ΕΡΤ2','ERT2 HD','ERT2 SPOR HD']],
+  ['ert3',['ERT3.gr','ERT3.HD.gr','EPT3.gr','ΕΡΤ3','ERT3 HD']],
+  ['ertnews',['ERTNEWS.gr','ERT.NEWS.gr','ΕΡΤNEWS','ERT NEWS']],
+  ['ant1',['ANT1.gr','ANT1.HD.gr','Antenna1.gr','ANT1 HD']],
+  ['alpha',['ALPHA.gr','ALPHA.HD.gr','Alpha.gr','Alpha.HD.gr','alphatv','ALPHA HD']],
+  ['skai',['SKAI.gr','SKAI.HD.gr','skaitv','SKAI HD']],
+  ['open',['OPEN.gr','OPEN.HD.gr','OPEN.BEYOND.HD.gr','opentv','OPEN TV HD']],
+  ['mega',['MEGA.gr','MEGA.HD.gr','MegaChannel.gr','megatv','MEGA HD']],
+  ['meganews',['MEGA NEWS','Mega News','MEGA.News.gr','meganews']],
+  ['star',['STAR.gr','STAR.HD.gr','startv','STAR HD']],
+  ['action24',['ACTION24.gr','ACTION24.HD.gr']],
+  ['kontra',['KONTRA.gr','KONTRA.HD.gr']],
+  ['madtv',['MADTV','MAD TV','MAD.TV.gr','MAD TV GREECE']],
+]);
 
 function freshService(){
   delete globalThis[SINGLETON_KEY];
@@ -45,6 +64,16 @@ assert.match(EPG_PHASE_C_BASELINE_COMMIT,/^[0-9a-f]{40}$/,'Phase C parity fixtur
 assert.equal(EPG_MY_PLAYLIST_LEGACY_PARITY.length,24,'Phase C parity must cover all 24 My Playlist identities');
 assert.equal(new Set(EPG_MY_PLAYLIST_LEGACY_PARITY.map(row=>row.channel.id)).size,24,'Phase C parity identities must be unique');
 assert.ok(EPG_PHASE_C_FAILURE_CLOSED.length>=4,'Phase C must define explicit fail-closed cases before migration');
+assert.equal(Object.prototype.hasOwnProperty.call(config,'CHANNEL_ALIASES'),false,'Phase C must remove the duplicate EPG alias registry from config.js');
+
+for(const row of EPG_MY_PLAYLIST_LEGACY_PARITY){
+  const profile=getChannelProfileById(row.channel.id);
+  assert.ok(profile,`${row.channel.id}: Phase C requires a Channel Profile`);
+  assert.equal(profile.epg.status,'pending',`${row.channel.id}: EPG availability must remain pending without independent verification`);
+  assert.equal(profile.epg.sourceId,null,`${row.channel.id}: pending EPG must not claim a sourceId`);
+  assert.equal(profile.epg.preferredId,null,`${row.channel.id}: pending EPG must not claim a preferredId`);
+  assert.deepEqual([...profile.epg.aliases],EXPECTED_PROFILE_EPG_ALIASES.get(row.channel.id)||[],`${row.channel.id}: EPG-specific aliases must be owned by Channel Profile`);
+}
 
 const now=new Date(EPG_PARITY_NOW_ISO);
 assert.ok(!Number.isNaN(now.getTime()),'Phase C parity clock must be deterministic');
@@ -107,4 +136,4 @@ assert.ok(!Number.isNaN(now.getTime()),'Phase C parity clock must be determinist
   assert.deepEqual(result.next,[]);
 }
 
-console.log('EPG Phase C shared-identity parity + fail-closed contract verified.');
+console.log('EPG Phase C shared-identity/profile parity + fail-closed contract verified.');
