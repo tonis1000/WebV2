@@ -1,7 +1,7 @@
 # WebV2 Project Brain Design
 
 Date: 2026-09-30
-Status: DESIGN REVIEW
+Status: APPROVED
 Base GitHub main SHA: `d9dff4f7b251afe34605e9588b49dcb15d353951`
 
 ## 1. Purpose
@@ -35,6 +35,7 @@ The final repository goal remains: a clean, functional, understandable, extensib
 9. Reusable successful methods become playbooks.
 10. Tool failures and successful alternatives become lessons/tooling knowledge.
 11. No big-bang cleanup. Work proceeds as bounded phases with explicit problem and proof criteria.
+12. Every solved problem that produces reusable knowledge must be classified into the appropriate Brain owner before the task is operationally closed.
 
 ## 3. Project Brain Files
 
@@ -54,15 +55,16 @@ It owns:
 - end-of-task knowledge-update checklist;
 - conflict/reconciliation rules;
 - deletion safety rules;
-- “when unsure” procedure.
+- “when unsure” procedure;
+- the Problem-to-Knowledge rule.
 
 It must not contain detailed roadmap history or component implementation details.
 
 ### 3.2 `WEBV2_CURRENT.md` — Current Verified State
 
-This remains the canonical current-state checkpoint in Registry Worker / D1.
+The canonical current-state content remains in Registry Worker / D1. The repository file named `WEBV2_CURRENT.md` is pointer-only and must not copy live current-state content or production SHA values.
 
-It owns only current operational truth:
+Canonical Current owns only current operational truth:
 - current GitHub main SHA;
 - Registry deployed SHA;
 - current checkpoint SHA when known;
@@ -249,7 +251,7 @@ It links the nine documents and explains one sentence about each.
 
 New-conversation reading order:
 1. `WEBV2_MANUAL.md`
-2. `WEBV2_CURRENT.md`
+2. live canonical `WEBV2_CURRENT.md`
 3. relevant Roadmap/Architecture/Playbook/Decision entries only
 4. historical documents only when needed for evidence
 
@@ -258,7 +260,7 @@ New-conversation reading order:
 Knowledge precedence is by responsibility, not a single linear list.
 
 - Process rules → `WEBV2_MANUAL.md`
-- Current verified project state → `WEBV2_CURRENT.md`
+- Current verified project state → live Registry/D1 `WEBV2_CURRENT.md`
 - Current responsibility boundaries → `WEBV2_ARCHITECTURE.md`
 - Future sequence/status → `WEBV2_ROADMAP.md`
 - Durable rationale → `WEBV2_DECISIONS.md`
@@ -318,7 +320,7 @@ Migration method:
 5. add historical source to cleanup queue if no unique value remains;
 6. delete only after verification that no unique project knowledge or active dependency remains.
 
-The old `WEBV2_CURRENT.md` is known stale at Phase A while GitHub/Registry production is Phase E1. This mismatch is a priority reconciliation task during Project Brain bootstrap.
+The old live `WEBV2_CURRENT.md` is known stale at Phase A while GitHub/Registry production is Phase E1. This mismatch is a priority reconciliation task during Project Brain bootstrap.
 
 ## 9. Current Bootstrap Inputs
 
@@ -340,7 +342,7 @@ Known next source-core sequence:
 
 Known current stopping point before bootstrap:
 - Phase E1 code is merged/deployed/verified;
-- canonical `WEBV2_CURRENT.md` is stale;
+- canonical live `WEBV2_CURRENT.md` is stale;
 - Registry reads are possible through an alternate path even when one normal web retrieval tool blocks `workers.dev`;
 - browser automation read path did not provide arbitrary PUT JSON checkpoint write capability;
 - a browser-friendly CAS editor was proposed but not implemented;
@@ -383,7 +385,7 @@ This bootstrap does not:
 3. Create Project Brain index + nine owner documents.
 4. Populate them from canonical/current evidence, GitHub history, project files, and verified conversation knowledge.
 5. Self-audit for duplicate/conflicting ownership.
-6. Reconcile `WEBV2_CURRENT.md` with Phase E1 reality using a safe CAS-capable route; if blocked, mark it explicitly rather than claiming success.
+6. Reconcile live `WEBV2_CURRENT.md` with Phase E1 reality using a safe CAS-capable route; if blocked, mark it explicitly rather than claiming success.
 7. Review old docs and add migration/deletion candidates to CLEANUP.
 8. Merge documentation bootstrap only after review.
 9. Resume runtime work from the roadmap, starting with unresolved canonical-write tooling if still blocking, then E2.
