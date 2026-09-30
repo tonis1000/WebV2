@@ -64,6 +64,7 @@ jobs:
           set -euo pipefail
           node tests/search-intent.test.mjs
           node tests/search-group-catalog.test.mjs
+          node tests/search-family-query.test.mjs
           node tests/search-state.test.mjs
           node tests/search-state-completion.test.mjs
           node tests/search-now-playing-state.test.mjs
