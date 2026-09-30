@@ -1,13 +1,22 @@
+function decodeOnce(value = '') {
+  const raw = String(value || '');
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw
+      .replace(/%3a/ig, ':')
+      .replace(/%2f/ig, '/')
+      .replace(/%7c/ig, '|')
+      .replace(/%20/ig, ' ');
+  }
+}
+
 function decodeRepeated(value = '', rounds = 2) {
   let out = String(value || '');
   for (let i = 0; i < rounds; i++) {
-    try {
-      const next = decodeURIComponent(out);
-      if (next === out) break;
-      out = next;
-    } catch {
-      break;
-    }
+    const next = decodeOnce(out);
+    if (next === out) break;
+    out = next;
   }
   return out.replace(/%25/gi, '%');
 }
@@ -42,6 +51,7 @@ export function parseEnigma2Bouquet(text = '') {
       rawService: line,
       serviceType,
       rawReference,
+      decodedReferenceOnce: decodeOnce(rawReference).trim(),
       decodedReference: decodeRepeated(rawReference).trim(),
       inlineName,
       description: hasDescription ? decodeRepeated(next.replace(/^#DESCRIPTION\s+/i, '')).trim() : '',
