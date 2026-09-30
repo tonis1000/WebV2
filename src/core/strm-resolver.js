@@ -1,62 +1,21 @@
-import { cleanUrl } from './utils.js?v=20260924-0900';
+import {
+  canonicalizeStrmReference,
+  isStrmReference,
+  parseStrmDocument,
+} from './strm-core.js';
+
+export { isStrmReference } from './strm-core.js';
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const FAILURE_TTL_MS = 60 * 1000;
 const MAX_DEPTH = 3;
 
-function canonicalReferenceUrl(value = '') {
-  const raw = cleanUrl(value);
-  if (!raw) return '';
-  try {
-    const url = new URL(raw);
-    if (url.hostname === 'github.com') {
-      const parts = url.pathname.split('/').filter(Boolean);
-      const blobIndex = parts.indexOf('blob');
-      if (blobIndex === 2 && parts.length > 4) {
-        const [owner, repo] = parts;
-        const ref = parts[3];
-        const path = parts.slice(4).join('/');
-        return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`;
-      }
-    }
-    return url.href;
-  } catch {
-    return '';
-  }
-}
-
-export function isStrmReference(value = '') {
-  const url = canonicalReferenceUrl(value);
-  if (!url) return false;
-  try {
-    return /\.strm$/i.test(new URL(url).pathname);
-  } catch {
-    return false;
-  }
-}
-
-function parseStrmText(text = '') {
-  let mediaUrl = '';
-  let licenseType = '';
-  let licenseKey = '';
-  for (const rawLine of String(text).replace(/\r/g, '').split('\n')) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    const prop = line.match(/^#KODIPROP:([^=]+)=(.*)$/i);
-    if (prop) {
-      const key = prop[1].trim().toLowerCase();
-      const value = prop[2].trim();
-      if (key === 'inputstream.adaptive.license_type') licenseType = value;
-      if (key === 'inputstream.adaptive.license_key') licenseKey = value;
-      continue;
-    }
-    if (!line.startsWith('#') && /^https?:\/\//i.test(line) && !mediaUrl) mediaUrl = line;
-  }
+function toResolverInfo(parsed = {}, resolvedUrl = '') {
   return {
-    mediaUrl,
-    drm: Boolean(licenseType || licenseKey),
-    licenseType,
-    licenseKey,
+    resolvedUrl,
+    drm: Boolean(parsed?.drm?.detected),
+    licenseType: parsed?.drm?.licenseType || '',
+    licenseKey: parsed?.drm?.licenseKey || '',
   };
 }
 
@@ -80,7 +39,7 @@ export class StrmResolver {
   }
 
   peek(value = '') {
-    const key = canonicalReferenceUrl(value);
+    const key = canonicalizeStrmReference(value);
     const entry = key ? this.cache.get(key) : null;
     if (!entry) return '';
     if (!entry.resolvedUrl && entry.expiresAt <= Date.now()) {
@@ -91,7 +50,7 @@ export class StrmResolver {
   }
 
   peekInfo(value = '') {
-    const key = canonicalReferenceUrl(value);
+    const key = canonicalizeStrmReference(value);
     const entry = key ? this.cache.get(key) : null;
     if (!entry || (!entry.resolvedUrl && entry.expiresAt <= Date.now())) return null;
     return entry.info || null;
@@ -103,7 +62,7 @@ export class StrmResolver {
   }
 
   async resolve(value = '') {
-    const key = canonicalReferenceUrl(value);
+    const key = canonicalizeStrmReference(value);
     if (!key || !isStrmReference(key)) return '';
 
     const cached = this.cache.get(key);
@@ -139,21 +98,21 @@ export class StrmResolver {
   async #resolveRecursive(referenceUrl, depth) {
     if (depth >= MAX_DEPTH) return { resolvedUrl: '', drm: false, licenseType: '', licenseKey: '' };
     const text = await fetchText(referenceUrl, this.timeoutMs);
-    const parsed = parseStrmText(text);
-    const candidate = canonicalReferenceUrl(parsed.mediaUrl);
-    if (!candidate) return { resolvedUrl: '', ...parsed };
+    const parsed = parseStrmDocument(text);
+    const candidate = canonicalizeStrmReference(parsed.mediaUrl);
+    if (!candidate) return toResolverInfo(parsed, '');
 
     if (!isStrmReference(candidate)) {
-      return { resolvedUrl: parsed.mediaUrl, ...parsed };
+      return toResolverInfo(parsed, parsed.mediaUrl);
     }
 
     const nestedCached = this.peekInfo(candidate);
     const nested = nestedCached || await this.#resolveRecursive(candidate, depth + 1);
     return {
       ...nested,
-      drm: parsed.drm || Boolean(nested?.drm),
-      licenseType: parsed.licenseType || nested?.licenseType || '',
-      licenseKey: parsed.licenseKey || nested?.licenseKey || '',
+      drm: Boolean(parsed?.drm?.detected) || Boolean(nested?.drm),
+      licenseType: parsed?.drm?.licenseType || nested?.licenseType || '',
+      licenseKey: parsed?.drm?.licenseKey || nested?.licenseKey || '',
     };
   }
 }
