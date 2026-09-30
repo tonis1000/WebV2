@@ -103,4 +103,9 @@ assert.match(utilsSource, /detectSourceFormat/);
 assert.doesNotMatch(utilsSource, /export function isHls\([^)]*\)\s*\{\s*return\s+\/\\\.m3u8/);
 assert.doesNotMatch(utilsSource, /export function isDash\([^)]*\)\s*\{\s*return\s+\/\\\.mpd/);
 
+const deployWorkflow = fs.readFileSync(new URL('../.github/workflows/deploy-source-verifier.yml', import.meta.url), 'utf8');
+assert.match(deployWorkflow, /src\/core\/source-format-registry\.js/);
+const frontendWorkflow = fs.readFileSync(new URL('../.github/workflows/validate-frontend.yml', import.meta.url), 'utf8');
+assert.match(frontendWorkflow, /node tests\/source-format-registry\.test\.mjs/);
+
 console.log('source format registry contract passed');
