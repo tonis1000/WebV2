@@ -34,3 +34,11 @@ Decision: DONE means **implemented + deployed + actually verified**. GitHub main
 
 ## DEC-010 Delete only with proof
 Decision: obsolete-looking code/docs enter Cleanup first. Removal requires replacement/no-consumer/regression/deploy proof.
+
+## DEC-011 Shared M3U structure, caller-owned policy
+Decision: Phase E2 centralizes only neutral M3U container structure in `src/core/m3u-container.js`.
+Reason: the previous active callers duplicated EXTINF/source traversal but intentionally had different matching, scheme acceptance, ranking, trust, and candidate behavior.
+Consequence: the shared parser may expose a neutral source line and structural metadata, while Channel Catalog, Source Discovery, Source Hunt Worker, and frontend Hunt continue to decide what they accept and how they rank/use it.
+Hard rule: **shared parser parses; caller decides.**
+Non-goal: this decision does not move STRM resolution or Enigma2 parsing into the M3U core.
+Reconsider when: only if a later explicit architecture phase proves that a policy itself has one canonical owner and parity is preserved.
