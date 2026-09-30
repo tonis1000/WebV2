@@ -2,9 +2,15 @@
 
 Rule: one canonical owner per responsibility. Wrappers/adapters may exist, but they do not acquire canonical ownership.
 
+## Project Brain / GitHub Current
+Owns: canonical project current-state truth in GitHub `main/WEBV2_CURRENT.md`, plus the versioned Brain owner documents and their reviewable history.
+Does not own: deployment reality by assertion, cloud application data, Worker runtime state, media verification, or playback.
+Rule: GitHub CURRENT is canonical documentation, while verified live/deployment evidence is used to reconcile whether the document is stale.
+
 ## Registry / D1
-Owns: persistent cloud state, My Playlist persistence, Favorites/cloud state, Saved Playlist truth, project checkpoints, deploy status.
-Does not own: channel identity semantics, format verification, playback.
+Owns: persistent cloud application state, My Playlist persistence, Favorites/cloud state, Saved Playlist truth, checkpoint/history infrastructure, and Registry deploy status.
+Does not own: canonical Project Brain current-state truth, channel identity semantics, format verification, playback.
+Rule: Registry/D1 `WEBV2_CURRENT.md` is mirror/history/fallback. `/api/project-status` remains Registry deployment truth.
 
 ## Channel Identity
 Owns: stable channel id, canonical/official names, aliases, rejects/collision guards, official references.
