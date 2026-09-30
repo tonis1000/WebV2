@@ -7,6 +7,7 @@ import { channelSignalsMatch, normalizeChannelText } from '../src/core/channel-i
 import { parseM3uContainer } from '../src/core/m3u-container.js';
 import { parseEnigma2Bouquet } from '../src/core/enigma2-core.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
+import { familySignalsMatch } from '../src/search/family-matching.js';
 
 const VERSION='1.7';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
@@ -35,8 +36,11 @@ function attr(line='',name=''){
   return match?.[1]?.trim()||'';
 }
 function titleOf(line=''){const index=String(line).lastIndexOf(',');return index>=0?String(line).slice(index+1).trim():'';}
+function signalsMatch(signals=[],channel={}){
+  return channel?.familyQuery===true?familySignalsMatch(signals,channel):channelSignalsMatch(signals,channel,'exact');
+}
 function candidateMatches(extinf='',channel={}){
-  return channelSignalsMatch([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')],channel,'exact');
+  return signalsMatch([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')],channel);
 }
 function typeOf(url=''){
   const clean=String(url).split('|')[0].trim();
@@ -74,7 +78,9 @@ function parseM3u(text='',channel={},feed={}){
     if(entry.sourceOffset===null||entry.sourceOffset>=10)continue;
     const sourceUrl=entry.sourceLine;
     if(!validPublicUrl(sourceUrl))continue;
-    results.push(makeCandidate({channel:{...channel,name:channel.name||titleOf(extinf)},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
+    const matchedName=titleOf(extinf)||attr(extinf,'tvg-name')||attr(extinf,'tvg-id')||channel.name||'';
+    const resultName=channel.familyQuery===true?matchedName:(channel.name||matchedName);
+    results.push(makeCandidate({channel:{...channel,name:resultName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
   }
   return results;
 }
@@ -87,8 +93,10 @@ function parseEnigma2(text='',channel={},feed={}){
     const inlineName=service.inlineNameDecodedOnce;
     const description=service.rawDescription;
     if(!validPublicUrl(sourceUrl))continue;
-    if(!channelSignalsMatch([inlineName,description],channel,'exact'))continue;
-    results.push(makeCandidate({channel:{...channel,name:channel.name||description||inlineName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
+    if(!signalsMatch([inlineName,description],channel))continue;
+    const matchedName=description||inlineName||channel.name||'';
+    const resultName=channel.familyQuery===true?matchedName:(channel.name||matchedName);
+    results.push(makeCandidate({channel:{...channel,name:resultName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
   }
   return results;
 }
@@ -116,7 +124,7 @@ async function mapBounded(items,limit,task){
 }
 function dedupe(candidates=[]){
   const seen=new Set();const out=[];
-  for(const item of candidates){const key=String(item.sourceUrl||'').trim();if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=MAX_RESULTS)break;}
+  for(const item of candidates){const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=MAX_RESULTS)break;}
   return out;
 }
 async function discoverCurated(channel,freshness,env={}){
