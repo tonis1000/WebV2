@@ -5,6 +5,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'index.html'
       - 'src/core/enigma2-core.js'
       - 'src/source-hunt-enigma2.js'
       - 'workers/webtv-source-discovery.js'
@@ -15,6 +16,7 @@ on:
       - '.github/workflows/validate-enigma2.yml'
   pull_request:
     paths:
+      - 'index.html'
       - 'src/core/enigma2-core.js'
       - 'src/source-hunt-enigma2.js'
       - 'workers/webtv-source-discovery.js'
