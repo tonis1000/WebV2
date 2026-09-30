@@ -18,6 +18,8 @@ for(const required of [
 assert.equal(/Find Official|Official Sources|official-provider-lane|official-api-resolver/i.test(js),false,'Official discovery controls must not appear in Unified Search UI');
 assert.ok(js.includes("target='_blank'")||js.includes('target="_blank"')||js.includes("link.target='_blank'"),'source links must open in a new tab');
 assert.ok(/noopener/.test(js)&&/noreferrer/.test(js),'source links must use noopener/noreferrer');
+assert.ok(/safePublicActionUrl/.test(js),'all public source/copy actions must use the canonical safe URL exposure policy');
+assert.equal(/writeText\?\.\(raw\.sourceUrl\)|writeText\(raw\.sourceUrl\)/.test(js),false,'UI must never copy a raw candidate URL directly');
 assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play action must use the existing playback boundary');
 assert.ok(/groupCandidatesByChannel/.test(js),'results must render grouped by channel');
 assert.ok(/buildSearchContext/.test(js),'search intent must use the group-aware context');
