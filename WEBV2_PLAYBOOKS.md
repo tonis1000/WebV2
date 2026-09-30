@@ -10,16 +10,20 @@ Failure mode: client tool may block `*.workers.dev`; do not call that an auth fa
 Fallback: another read-capable fetch/browser path.
 
 ## PB-002 Read canonical project state
-1. GET `/api/project-checkpoints`.
+Preferred least-privilege method with the persistent project-agent session:
+1. GET `/api/project-agent/checkpoints`.
 2. Record `WEBV2_CURRENT.md` SHA/updated time.
-3. GET `/api/project-checkpoints/WEBV2_CURRENT.md` and read the entire file.
+3. GET `/api/project-agent/checkpoints/WEBV2_CURRENT.md` and read the entire file.
 4. Compare with GitHub main and relevant deploy workflows.
-Do not use historical handoffs as a substitute when canonical access works.
+
+Admin alternative: `/api/project-checkpoints` and `/api/project-checkpoints/WEBV2_CURRENT.md` require Registry admin authentication unless a temporary maintenance bypass is active. Do not depend on that bypass for routine Project Brain reads.
+
+Do not use historical handoffs as a substitute when canonical scoped access works.
 
 ## PB-003 CAS checkpoint write + readback
-Preferred API method: checkpoint PUT JSON with fresh `expectedSha256`.
-Browser-friendly method: open `/api/project-agent/checkpoints/WEBV2_CURRENT.md/edit` inside an active scoped project-agent session. The form carries current checkpoint SHA and POST is internally forwarded to the existing CAS-protected PUT path.
-Steps: fresh read -> edit full content -> save once -> require Saved SHA -> read current again if independent readback is needed -> stop on conflict.
+Preferred API method for an admin-capable client: checkpoint PUT JSON with fresh `expectedSha256`.
+Browser-friendly scoped method for `WEBV2_CURRENT.md`: open `/api/project-agent/checkpoints/WEBV2_CURRENT.md/edit` inside an active project-agent session. The form loads current content/SHA and POST is internally forwarded to the existing CAS-protected PUT path.
+Steps: fresh scoped read -> edit full content -> save once -> require Saved SHA -> scoped GET readback when independent confirmation is needed -> stop on conflict.
 Never blind overwrite.
 Verified 2026-09-30: scoped editor session was active and saved canonical Current successfully; resulting checkpoint SHA-256 `0961afab1a627068805ea38a7cad8a9bc597fabbe825639596d330cad9cdf840`.
 Security: editor is limited to `WEBV2_CURRENT.md` and requires project-agent session; it does not grant general Registry admin access.
