@@ -4,8 +4,17 @@ import { runUnifiedSearch } from '../src/search/search-orchestrator.js';
 
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 assert.ok(html.includes('src/search/search-ui.js'),'Unified Search UI must remain the active search surface');
-assert.equal(html.includes('src/source-hunt-oneclick.js'),false,'legacy One-Click DOM merger must not load in the active page');
-assert.equal(html.includes('src/source-hunt-playlist-provenance.js'),false,'legacy DOM provenance augmenter must not load in the active page');
+for(const legacyScript of [
+  'src/source-hunt-oneclick.js',
+  'src/source-hunt-playlist-provenance.js',
+  'src/source-hunt-engine.js',
+  'src/source-hunt-web.js',
+  'src/source-hunt-enigma2.js',
+])assert.equal(html.includes(legacyScript),false,`legacy active-page script must be retired: ${legacyScript}`);
+
+assert.ok(html.includes('id="candidate-url"'),'manual candidate URL tester must remain available');
+assert.ok(html.includes('id="test-candidate"'),'manual candidate playback action must remain available');
+assert.ok(/Manual Source Test/.test(html),'legacy Source Hunt panel must be reframed as manual testing, not a second search surface');
 
 for(const path of [
   '../src/search/search-ui.js',
@@ -30,4 +39,4 @@ const run=runUnifiedSearch({
 await run.done;
 assert.equal(searchedTarget,'ERT1','free search target must not be rebound to the currently playing/sidebar channel');
 
-console.log('Unified Search legacy One-Click parity contract PASS');
+console.log('Unified Search duplicate-Hunt retirement parity contract PASS');
