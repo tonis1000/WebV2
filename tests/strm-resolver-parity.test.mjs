@@ -53,4 +53,10 @@ assert.match(source, /from ['"]\.\/strm-core\.js/,
 assert.doesNotMatch(source, /function\s+parseStrmText\s*\(/,
   'browser StrmResolver must not keep a local STRM document parser');
 
+const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+assert.match(index, /"\.\/src\/core\/strm-core\.js"\s*:\s*"\.\/src\/core\/strm-core\.js\?v=20260930-strm-e3a"/,
+  'browser import map must cache-bust the shared STRM core');
+assert.match(index, /"\.\/src\/core\/strm-resolver\.js"\s*:\s*"\.\/src\/core\/strm-resolver\.js\?v=20260930-strm-e3a"/,
+  'browser import map must cache-bust the migrated STRM resolver');
+
 console.log('browser STRM resolver parity tests PASS');
