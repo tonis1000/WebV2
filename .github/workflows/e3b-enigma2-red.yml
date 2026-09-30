@@ -6,9 +6,11 @@ on:
       - 'src/core/enigma2-core.js'
       - 'src/source-hunt-enigma2.js'
       - 'workers/webtv-source-discovery.js'
+      - 'workers/source-hunt-bouquet-proxy.js'
       - 'tests/enigma2-core.test.mjs'
       - 'tests/source-discovery-enigma2-parity.test.mjs'
       - 'tests/source-hunt-enigma2-parity.test.mjs'
+      - 'tests/enigma2-duplicate-audit.test.mjs'
       - '.github/workflows/e3b-enigma2-red.yml'
 
 permissions:
@@ -26,3 +28,5 @@ jobs:
         run: node tests/source-discovery-enigma2-parity.test.mjs
       - name: Run frontend Enigma2 parity
         run: node tests/source-hunt-enigma2-parity.test.mjs
+      - name: Run Enigma2 duplicate parser audit
+        run: node tests/enigma2-duplicate-audit.test.mjs
