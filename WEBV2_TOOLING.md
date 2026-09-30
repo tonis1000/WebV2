@@ -17,6 +17,7 @@ Observed E3a behaviors:
 - Connector responses for very large files may be visually truncated while the underlying response resource still contains more content. Use the response resource in line ranges to recover exact content instead of reconstructing from a truncated display.
 - a newly added PR workflow may take a short time before it appears in workflow-run queries; absence on the first read is not proof it did not trigger.
 - the connector safety classifier may occasionally reject a larger benign test-file write before GitHub receives it. A smaller equivalent fixture preserving the same assertions can avoid the false positive; do not weaken the test contract just to satisfy the tool.
+- content writes are SHA/CAS-protected. A 409 after another branch edit is a stale-read signal, not permission to force overwrite; re-fetch the latest file, reconcile, then write against the new SHA.
 
 ## GitHub Actions as execution fallback
 Use when: local/container source execution is blocked by environment/network limitations but branch writes and Actions are available.
