@@ -102,7 +102,7 @@ assert.match(frontendWorkflow, /recent-web-search-provider\.test\.mjs/, 'Fronten
 assert.match(frontendWorkflow, /channel-profile-core\.test\.mjs/, 'Frontend validation must enforce the Channel Profile contract');
 assert.match(frontendWorkflow, /epg-parity\.test\.mjs/, 'Frontend validation must enforce the Phase C EPG parity fixture');
 
-// Channel Profile Phase B owns canonical My Playlist logos/categories only.
+// Phase B owns canonical My Playlist logos/categories; Phase C owns EPG identity matching.
 const epgCore = read('src/core/epg.js');
 const channelCatalog = read('src/core/channel-catalog.js');
 const logoUtils = read('src/logo-utils.js');
@@ -112,9 +112,15 @@ assert.match(main, /resolveChannelProfile/, 'Phase B runtime must resolve canoni
 assert.match(main, /profile\?\.category\?\.primary/, 'Phase B must prefer canonical profile category for My Playlist');
 assert.match(main, /profile\?\.logo\?\.status\s*===\s*['"]available['"]/, 'Phase B must prefer available canonical profile logo');
 assert.match(main, /safeLogo\(c\.logo\|\|['"]{2}\)/, 'Phase B must preserve sanitized D1 logo fallback while profile logo is pending');
-assert.doesNotMatch(epgCore, /channel-profile-gr\.js/, 'Phase B must not move EPG runtime ownership yet');
-assert.match(channelCatalog, /sourceTrust:\s*['"]temporary['"]/, 'Imported M3U metadata must remain temporary in Phase B');
-assert.doesNotMatch(logoUtils, /channel-profile-gr\.js/, 'logo-utils must remain sanitation/rendering only in Phase B');
+assert.match(epgCore, /channel-identity-gr\.js/, 'Phase C EPG matching must consume shared Greek identity');
+assert.match(epgCore, /channel-profile-gr\.js/, 'Phase C EPG matching must consume Channel Profile metadata');
+assert.match(epgCore, /resolveGreekIdentity/, 'Phase C must resolve EPG identities through the shared registry');
+assert.match(epgCore, /getChannelProfileById/, 'Phase C must resolve EPG-specific aliases through Channel Profiles');
+assert.doesNotMatch(epgCore, /CHANNEL_ALIASES/, 'Phase C EPG runtime must not consume the legacy config alias table');
+assert.doesNotMatch(epgCore, /KNOWN_CHANNEL_KEYS|canonicalChannelKey/, 'Phase C EPG runtime must not keep the legacy family-prefix matcher');
+assert.match(sourceRegistry, /CHANNEL_ALIASES/, 'Playback SourceRegistry alias lookup must remain unchanged by Phase C');
+assert.match(channelCatalog, /sourceTrust:\s*['"]temporary['"]/, 'Imported M3U metadata must remain temporary through Phase C');
+assert.doesNotMatch(logoUtils, /channel-profile-gr\.js/, 'logo-utils must remain sanitation/rendering only through Phase C');
 
 const discoveryClient=read('src/discovery/external-discovery-client.js');
 assert.match(discoveryClient,/webtv-source-discovery\.atonis\.workers\.dev/, 'Phase 4 client must use the dedicated Source Discovery Worker');
