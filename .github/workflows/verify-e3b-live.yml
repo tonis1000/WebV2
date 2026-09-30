@@ -21,3 +21,17 @@ jobs:
           PAYLOAD='{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}'
           RESPONSE=$(curl --fail --silent --show-error -X POST "$WORKER/discover" -H 'content-type: application/json' --data "$PAYLOAD")
           node -e "const j=JSON.parse(process.argv[1]);const rows=(j.reports||[]).filter(x=>x.format==='enigma2');console.log(JSON.stringify({provider:j.provider,enigma2Reports:rows},null,2));const ok=j.provider==='curated-remote-feeds'&&rows.some(x=>x.feed==='HansSettings Greece'&&x.status===200&&x.count>0);if(!ok)process.exit(1);" "$RESPONSE"
+      - name: Verify live Pages Enigma2 cache key
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTML=$(curl --fail --silent --show-error 'https://tonis1000.github.io/WebV2/?verify=e3b')
+          printf '%s' "$HTML" | grep -F './src/source-hunt-enigma2.js?v=20260930-enigma2-e3b'
+          printf '%s' "$HTML" | grep -F './src/core/enigma2-core.js' >/dev/null || true
+          echo 'Live Pages serves the E3b Enigma2 top-level cache key.'
+      - name: Verify Registry exact runtime SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS=$(curl --fail --silent --show-error 'https://webtv-registry.atonis.workers.dev/api/project-status')
+          node -e "const j=JSON.parse(process.argv[1]);console.log(JSON.stringify(j,null,2));if(j.commitSha!=='cc7e2128e9257cc431a95abf08f2f286e93d2235')process.exit(1);" "$STATUS"
