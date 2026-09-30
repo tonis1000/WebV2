@@ -12,6 +12,23 @@ Exact pricing/limits are time-sensitive. **Verified: 2026-09-30; re-check before
 Use for: canonical `WEBV2_CURRENT.md`, Project Brain files, commits, branches, PRs, Actions/workflow evidence.
 Strength: exact repository state, diff/review history, and commit evidence.
 Rule: GitHub `main/WEBV2_CURRENT.md` is canonical project current-state truth after the ownership migration. GitHub state still does not itself prove production deployment; compare with `/api/project-status` and component-specific deployment/live evidence.
+Observed E3a behaviors:
+- `update_file` replaces the whole file; it is not a small patch API. For a large file, fetch/read the exact branch content before replacement.
+- Connector responses for very large files may be visually truncated while the underlying response resource still contains more content. Use the response resource in line ranges to recover exact content instead of reconstructing from a truncated display.
+- a newly added PR workflow may take a short time before it appears in workflow-run queries; absence on the first read is not proof it did not trigger.
+- the connector safety classifier may occasionally reject a larger benign test-file write before GitHub receives it. A smaller equivalent fixture preserving the same assertions can avoid the false positive; do not weaken the test contract just to satisfy the tool.
+
+## GitHub Actions as execution fallback
+Use when: local/container source execution is blocked by environment/network limitations but branch writes and Actions are available.
+Proven E3a method:
+1. put the RED test on an isolated PR branch;
+2. wire it into a narrow temporary PR workflow if the permanent workflow does not yet execute it;
+3. inspect job steps/logs to prove the expected RED cause;
+4. implement minimal GREEN;
+5. move the tests into permanent project workflows;
+6. delete the temporary harness before merge.
+Strength: deterministic repository-native Node/browser test environment with reviewable logs.
+Caution: PR Actions normally check out GitHub's synthetic PR merge ref, so use the PR head SHA and workflow metadata deliberately when comparing evidence.
 
 ## Registry API
 Use `/api/project-status` for Registry deployment truth.
@@ -46,6 +63,7 @@ Metered per run. Use only for explicit recurring monitoring needs.
 
 ## Container/runtime tools
 Useful for local syntax/tests/file generation when source is locally available. Container network access may differ from connector/web access; a DNS failure there does not prove remote service failure.
+Observed E2/E3a limitation: local clone/raw GitHub access can fail with DNS/name-resolution errors even while the GitHub connector and GitHub Actions work normally. In that condition, do not classify GitHub as down. Prefer the repository connector plus Actions-backed TDD rather than repeatedly retrying local network access.
 
 ## Rule for new tools
 Record: purpose, cost model, limits, success path, failure mode, security constraints, last verified date. Promote a proven method into Playbooks.
