@@ -21,8 +21,8 @@ assert.ok(/noopener/.test(js)&&/noreferrer/.test(js),'source links must use noop
 assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play action must use the existing playback boundary');
 assert.ok(/groupCandidatesByChannel/.test(js),'results must render grouped by channel');
 assert.ok(/buildSearchContext/.test(js),'search intent must use the group-aware context');
-assert.ok(/reporter\.exportText|exportText\(/.test(js),'Copy report must use redacted reporter export');
-assert.ok(/reporter\.exportJson|exportJson\(/.test(js),'JSON export must use redacted reporter export');
+assert.ok(js.includes('reporter?.exportText?.()')||js.includes('reporter.exportText()'),'Copy report must use redacted reporter export');
+assert.ok(js.includes('reporter?.exportJson?.()')||js.includes('reporter.exportJson()'),'JSON export must use redacted reporter export');
 
 for(const requiredClass of ['.unified-search-panel','.unified-search-grid','.unified-channel-card','.unified-candidate-row','.unified-report'])assert.ok(css.includes(requiredClass),`stylesheet must define ${requiredClass}`);
 assert.ok(/@media/.test(css),'Unified Search must include responsive layout rules');
