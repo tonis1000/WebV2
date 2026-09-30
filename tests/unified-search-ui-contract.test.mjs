@@ -21,6 +21,8 @@ assert.ok(/noopener/.test(js)&&/noreferrer/.test(js),'source links must use noop
 assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play action must use the existing playback boundary');
 assert.ok(/groupCandidatesByChannel/.test(js),'results must render grouped by channel');
 assert.ok(/buildSearchContext/.test(js),'search intent must use the group-aware context');
+assert.ok(/verifySearchCandidates/.test(js),'UI must use the canonical Unified Search verifier bridge');
+assert.ok(/verifyBatch\s*:\s*verifySearchCandidates/.test(js),'UI must pass progressive verification into the search orchestrator');
 assert.ok(js.includes('reporter?.exportText?.()')||js.includes('reporter.exportText()'),'Copy report must use redacted reporter export');
 assert.ok(js.includes('reporter?.exportJson?.()')||js.includes('reporter.exportJson()'),'JSON export must use redacted reporter export');
 
