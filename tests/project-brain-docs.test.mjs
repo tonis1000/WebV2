@@ -23,14 +23,15 @@ for (const phrase of [
   'Problem-to-Knowledge',
   'implemented + deployed + actually verified',
   '/api/project-status',
-  '/api/project-checkpoints',
-  'WEBV2_CURRENT.md',
+  '/api/project-agent/checkpoints',
+  '/api/project-agent/checkpoints/WEBV2_CURRENT.md',
   'reconciliation mode'
 ]) assert.equal(manual.includes(phrase), true, `Manual missing ${phrase}`);
 
 const currentPointer = read('WEBV2_CURRENT.md');
 assert.match(currentPointer, /Registry|D1/);
 assert.match(currentPointer, /not canonical|pointer/i);
+assert.equal(currentPointer.includes('/api/project-agent/checkpoints/WEBV2_CURRENT.md'), true, 'Repo CURRENT pointer must use scoped project-agent checkpoint read path');
 assert.equal(/[a-f0-9]{40}/i.test(currentPointer), false, 'Repo CURRENT pointer must not copy a production SHA');
 
 const roadmap = read('WEBV2_ROADMAP.md');
@@ -44,7 +45,7 @@ for (const phrase of ['Registry / D1','Channel Identity','Channel Profile','Sour
 }
 
 const playbooks = read('WEBV2_PLAYBOOKS.md');
-for (const phrase of ['CAS','readback','RED','GREEN','live verification']) {
+for (const phrase of ['CAS','readback','RED','GREEN','live verification','/api/project-agent/checkpoints']) {
   assert.equal(playbooks.includes(phrase), true, `Playbooks missing ${phrase}`);
 }
 

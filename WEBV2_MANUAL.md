@@ -6,14 +6,16 @@ This is the first document to read before any WebV2 work. It defines process, no
 ## Mandatory preflight
 1. Read this manual.
 2. Read `/api/project-status`.
-3. Read `/api/project-checkpoints`.
-4. Read the entire live Registry/D1 checkpoint `WEBV2_CURRENT.md`.
+3. Read `/api/project-agent/checkpoints` using the persistent scoped project-agent session.
+4. Read the entire live Registry/D1 checkpoint at `/api/project-agent/checkpoints/WEBV2_CURRENT.md`.
 5. Check GitHub `main` SHA.
 6. Check relevant CI/deploy workflows and component-specific deployment truth.
 7. Compare checkpoint/current state, GitHub main SHA, Registry deployed SHA, and relevant component deployed SHA(s).
 8. Identify the current roadmap phase and architecture owner.
 9. Read only relevant Playbook, Decision, Lesson, and Cleanup entries.
 10. Before a major change, state problem, scope/non-goals, and proof of success.
+
+The admin routes `/api/project-checkpoints` and `/api/project-checkpoints/<name>` require Registry admin authentication unless a temporary maintenance bypass is active. Routine Project Brain reads must prefer the scoped `/api/project-agent/checkpoints` routes so the persistent project-agent session stays least-privilege.
 
 If live current state and documentation disagree, enter **reconciliation mode**: stop implementation, inspect live evidence, identify stale knowledge, update the correct owner, and record a Lesson/Decision if the mismatch revealed a structural issue.
 
