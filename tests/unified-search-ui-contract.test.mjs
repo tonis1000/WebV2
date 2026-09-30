@@ -23,6 +23,9 @@ assert.ok(/groupCandidatesByChannel/.test(js),'results must render grouped by ch
 assert.ok(/buildSearchContext/.test(js),'search intent must use the group-aware context');
 assert.ok(/verifySearchCandidates/.test(js),'UI must use the canonical Unified Search verifier bridge');
 assert.ok(/verifyBatch\s*:\s*verifySearchCandidates/.test(js),'UI must pass progressive verification into the search orchestrator');
+assert.ok(/UnifiedNowPlayingState/.test(js),'UI must use independent Now Playing state');
+assert.ok(/setCandidate\(/.test(js),'successful candidate playback must own the Now Playing label');
+assert.ok(/sidebarChanged\(/.test(js),'explicit sidebar changes must clear candidate playback ownership');
 assert.ok(js.includes('reporter?.exportText?.()')||js.includes('reporter.exportText()'),'Copy report must use redacted reporter export');
 assert.ok(js.includes('reporter?.exportJson?.()')||js.includes('reporter.exportJson()'),'JSON export must use redacted reporter export');
 
