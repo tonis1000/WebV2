@@ -30,6 +30,27 @@ const expectedCategories = new Map([
   ['ertsports1','Αθλητικά'],['ertsports2','Αθλητικά'],['ertsports3','Αθλητικά'],['ertsports4','Αθλητικά'],
 ]);
 
+const expectedPhaseBLogos = new Map([
+  ['ert1','https://i.imgur.com/slE8U5m.png'],
+  ['ert2','https://upload.wikimedia.org/wikipedia/commons/5/50/%CE%95%CE%A1%CE%A42.png'],
+  ['ert3','https://i.imgur.com/f2l9bDR.png'],
+  ['ertnews','https://i.imgur.com/XwLTzaF.jpg'],
+  ['ant1','https://i.imgur.com/V1w22Or.png'],
+  ['alpha','https://i.imgur.com/6twzd38.png'],
+  ['skai','https://i.imgur.com/mrKRFnf.png'],
+  ['mega','https://i.ibb.co/f2rCKjh/mega.jpg'],
+  ['open','https://i.imgur.com/M6XG03v.png'],
+  ['meganews','https://www.alteregomedia.org/wp-content/uploads/2025/04/MEGA-IDENT.png'],
+  ['star','https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/STAR_Channel.png/250px-STAR_Channel.png'],
+  ['action24','https://i.imgur.com/Fsnz8GK.png'],
+  ['tv100','https://i.imgur.com/Qx5MEbl.png'],
+  ['baraza-greek-hits','https://i.imgur.com/gjf9q2g.png'],
+  ['baraza-laika','https://i.imgur.com/NlN4lmc.png'],
+  ['madtv','https://upload.wikimedia.org/wikipedia/commons/2/23/MADtv_logo.png'],
+  ['madworld','https://i.imgur.com/zoS5RWU.png'],
+]);
+const expectedPendingLogos = new Set(['kontra','paniktv','realmusictv','ertsports1','ertsports2','ertsports3','ertsports4']);
+
 for (const row of rows) {
   const resolvedIdentity = identity.resolveGreekIdentity(row.id);
   assert.ok(resolvedIdentity && !resolvedIdentity.legacy, `${row.id}: profile id must resolve to an active strict identity`);
@@ -51,6 +72,14 @@ for (const row of rows) {
     assert.ok(String(row.logo.sourceKind || '').trim(), `${row.id}: available logo requires provenance kind`);
   }
   if (row.logo.status === 'pending') assert.equal(String(row.logo.preferredUrl || ''), '', `${row.id}: pending logo must not claim a preferred URL`);
+  if (expectedPhaseBLogos.has(row.id)) {
+    assert.equal(row.logo.status, 'available', `${row.id}: current valid My Playlist logo must become canonical in Phase B`);
+    assert.equal(row.logo.preferredUrl, expectedPhaseBLogos.get(row.id), `${row.id}: Phase B must preserve the current valid logo`);
+    assert.ok(String(row.logo.sourceKind || '').trim(), `${row.id}: canonical Phase B logo requires provenance`);
+  } else {
+    assert.ok(expectedPendingLogos.has(row.id), `${row.id}: unexpected missing Phase B logo fixture`);
+    assert.equal(row.logo.status, 'pending', `${row.id}: invalid or missing current logo must remain pending`);
+  }
   if (row.epg.status === 'available') {
     assert.ok(String(row.epg.sourceId || '').trim(), `${row.id}: available EPG requires sourceId`);
     assert.ok(String(row.epg.preferredId || '').trim(), `${row.id}: available EPG requires preferredId`);
@@ -60,6 +89,8 @@ for (const row of rows) {
   assert.ok(!/\.(?:m3u8|mpd|mp4|webm|ts)(?:[?"\\]|$)/i.test(JSON.stringify(row)), `${row.id}: Channel Profile must not contain stream URLs`);
   assert.deepEqual(profile.validateChannelProfileDefinition(row), { ok: true }, `${row.id}: current profile must satisfy the future-channel validator`);
 }
+
+assert.equal(profile.getChannelProfileById('kontra')?.logo.status, 'pending', 'Kontra goo.gl logo must not be promoted to canonical metadata');
 
 const badBase = {
   id:'ert1',country:'GR',language:'el',category:{primary:'Γενικά'},
