@@ -57,6 +57,14 @@ export class UnifiedSearchState {
     return this.snapshot();
   }
 
+  completeSearch(searchId) {
+    if (!this.#isCurrent(searchId) || this.current.status !== 'running') return false;
+    this.current.status = 'completed';
+    this.current.cancelReason = '';
+    this.current.completedAt = new Date().toISOString();
+    return true;
+  }
+
   cancelSearch(searchId, reason = 'cancelled') {
     if (!this.#isCurrent(searchId) || this.current.status !== 'running') return false;
     this.current.status = 'cancelled';
