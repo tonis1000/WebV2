@@ -59,3 +59,17 @@ Consequences:
 - if GitHub CURRENT conflicts with verified live reality, enter reconciliation mode and update GitHub CURRENT rather than treating documentation as production by assertion;
 - D1 checkpoint/history infrastructure and project-agent routes remain preserved.
 Reconsider when: only through a new explicit architecture decision with a migration/rollback plan; never by silently promoting a mirror back to authority.
+
+## DEC-014 Shared STRM structure, caller-owned network/security/product policy
+Decision: Phase E3a centralizes neutral STRM structure and normalization in `src/core/strm-core.js`, while every runtime caller keeps its own networking, security, request-budget, reporting, ranking, save/test and playback policy.
+Reason: browser/runtime, Source Discovery, the Discovery smart wrapper, and Source Hunt duplicated STRM parsing but intentionally differed in fetch/security semantics. A universal network resolver would collapse trust boundaries and risk changing browser playback or Worker SSRF protections.
+Consequences:
+- the shared core is pure and MUST NOT fetch;
+- shared responsibilities include reference normalization, `.strm` recognition, KODIPROP/DRM metadata, Kodi header suffix parsing and ordered neutral STRM line structure;
+- browser `StrmResolver` keeps cache, failure TTL, in-flight dedupe and recursion;
+- Discovery keeps private/local target blocking, timeouts, body/subrequest/depth limits, reports and provider policy;
+- Discovery smart wrapper keeps curated-only pre-resolution, resolve limit and DRM auto-promotion rejection;
+- Hunt keeps budgets, relevance/ranking and final HLS/DASH acceptance;
+- Enigma2 remains a separate E3b problem.
+Hard rule: **shared STRM structure; caller-owned network/security/product policy.**
+Reconsider when: only if a later explicit design proves one network-resolution service should own all callers and preserves security/playback parity.
