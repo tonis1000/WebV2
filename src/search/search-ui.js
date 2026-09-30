@@ -1,12 +1,14 @@
 import { runUnifiedSearch } from './search-orchestrator.js';
 import { listUnifiedSearchLanes, getUnifiedSearchRuntimeAdapter } from './search-runtime.js';
 import { verifySearchCandidates } from './search-verification.js';
+import { UnifiedNowPlayingState } from './now-playing-state.js';
 import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay } from '../discovery/candidate-model.js';
 
 const BUILD_ID='20260930-unified-search-ui-a';
 const $=id=>document.getElementById(id);
+const nowPlayingState=new UnifiedNowPlayingState();
 let activeRun=null;
 let latestUpdate=null;
 let latestIntent=null;
@@ -21,7 +23,8 @@ function ensureStylesheet(){
   document.head.appendChild(link);
 }
 
-function nowPlayingName(){return String($('channel-name')?.textContent||'').trim()||'—';}
+function sidebarNowPlayingName(){return String($('channel-name')?.textContent||'').trim()||'—';}
+function displayNowPlayingName(){return nowPlayingState.value(sidebarNowPlayingName());}
 function playlistChannels(){try{return window.WebTVPlaylistAPI?.getChannels?.()||[];}catch{return[];}}
 function searchContext(){return buildSearchContext(playlistChannels());}
 
@@ -36,7 +39,7 @@ function createUi(){
   panel.innerHTML=`
     <div class="unified-search-head">
       <div class="unified-search-head-copy"><p class="eyebrow">SEARCH</p><h2>Find channels & sources</h2><p class="muted small">Search one channel, a group such as ERT / Nova / Cosmote, or any free text. Search never changes the player by itself.</p></div>
-      <div class="unified-search-now"><span>Now Playing</span><strong id="unified-search-now-playing">${escapeHtml(nowPlayingName())}</strong></div>
+      <div class="unified-search-now"><span>Now Playing</span><strong id="unified-search-now-playing">${escapeHtml(displayNowPlayingName())}</strong></div>
     </div>
     <form id="unified-search-form" class="unified-search-form">
       <input id="unified-search-query" type="search" autocomplete="off" placeholder="ERT1, ERT, Nova, Cosmote Sport…" aria-label="Search channels or groups">
@@ -61,7 +64,7 @@ function createUi(){
   return panel;
 }
 
-function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[ch]));}
+function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 function safeText(value=''){return String(value??'').trim();}
 function formatSource(value=''){try{const url=new URL(value);return `${url.hostname}${url.pathname}`;}catch{return String(value||'');}}
 function headersForPlayback(headers={}){const params=new URLSearchParams();for(const [key,value] of Object.entries(headers||{}))if(value)params.set(key,value);return params.toString();}
@@ -141,7 +144,7 @@ function renderReport(report=[],summary={}){
   const selected=filter.value;const rows=(selected?report.filter(event=>event.sourceId===selected):report).slice(-250);timeline.replaceChildren();if(!rows.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No report events yet.';timeline.appendChild(empty);}else for(const event of rows)timeline.appendChild(reportEventRow(event));
 }
 
-function renderUpdate(update={}){latestUpdate=update;latestIntent=update.snapshot?.intent||latestIntent;renderProgress(update.snapshot||{},update.summary||{});renderResults(update.snapshot||{});renderReport(update.report||[],update.summary||{});const cancel=$('unified-search-cancel');if(cancel)cancel.hidden=update.snapshot?.status!=='running';const now=$('unified-search-now-playing');if(now)now.textContent=nowPlayingName();}
+function renderUpdate(update={}){latestUpdate=update;latestIntent=update.snapshot?.intent||latestIntent;renderProgress(update.snapshot||{},update.summary||{});renderResults(update.snapshot||{});renderReport(update.report||[],update.summary||{});const cancel=$('unified-search-cancel');if(cancel)cancel.hidden=update.snapshot?.status!=='running';const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();}
 
 async function playCandidate(candidate,channelName,button){
   const api=window.WebTVPlaybackAPI;if(!api?.testCandidate)return;button.disabled=true;const old=button.textContent;button.textContent='Connecting…';
@@ -149,7 +152,7 @@ async function playCandidate(candidate,channelName,button){
     activeRun?.reporter?.emit?.({type:'playback.requested',severity:'INFO',candidateId:candidate.candidateId,channelName,stage:'playback'});
     const result=await api.testCandidate(playbackValue(candidate),{channel:{id:candidate.normalizedChannelName||channelName,name:channelName,originalId:channelName}});
     activeRun?.reporter?.emit?.({type:'playback.completed',severity:'OK',candidateId:candidate.candidateId,channelName,stage:'playback',durationMs:result?.startupMs||null,detail:{player:result?.player||'',route:result?.route||''}});
-    button.textContent='Playing';const now=$('unified-search-now-playing');if(now)now.textContent=channelName;
+    nowPlayingState.setCandidate(channelName);button.textContent='Playing';const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();
   }catch(error){activeRun?.reporter?.emit?.({type:'playback.completed',severity:'ERROR',candidateId:candidate.candidateId,channelName,stage:'playback',message:error?.message||String(error)});button.textContent='Failed';button.classList.add('danger');}
   finally{setTimeout(()=>{button.disabled=!playableCandidate(candidate);button.textContent=old;button.classList.remove('danger');const report=activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[];renderReport(report,activeRun?.reporter?.summary?.()||latestUpdate?.summary||{});},1200);}
 }
@@ -161,7 +164,7 @@ function exportJson(){const json=activeRun?.reporter?.exportJson?.();if(!json)re
 
 function bind(){const form=$('unified-search-form');if(!form||form.dataset.bound==='1')return;form.dataset.bound='1';form.addEventListener('submit',startSearch);$('unified-search-cancel')?.addEventListener('click',()=>activeRun?.cancel?.('user'));$('unified-search-report-copy')?.addEventListener('click',()=>copyReport().catch(()=>{}));$('unified-search-report-json')?.addEventListener('click',exportJson);$('unified-search-report-source')?.addEventListener('change',()=>renderReport(activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[],activeRun?.reporter?.summary?.()||latestUpdate?.summary||{}));}
 
-export function installUnifiedSearchUI(){if(installed)return true;ensureStylesheet();const panel=createUi();if(!panel)return false;installed=true;bind();const name=$('channel-name');if(name)new MutationObserver(()=>{const now=$('unified-search-now-playing');if(now&&!activeRun?.reporter?.snapshot?.().some(event=>event.type==='playback.completed'&&event.severity==='OK'))now.textContent=nowPlayingName();}).observe(name,{childList:true,subtree:true,characterData:true});console.info(`[WebTV] Unified Search UI loaded · ${BUILD_ID}`);return true;}
+export function installUnifiedSearchUI(){if(installed)return true;ensureStylesheet();const panel=createUi();if(!panel)return false;installed=true;bind();const name=$('channel-name');if(name)new MutationObserver(()=>{nowPlayingState.sidebarChanged();const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();}).observe(name,{childList:true,subtree:true,characterData:true});console.info(`[WebTV] Unified Search UI loaded · ${BUILD_ID}`);return true;}
 
 function bootInstall(){if(installUnifiedSearchUI())return;window.addEventListener('webtv:ready',()=>installUnifiedSearchUI(),{once:true});setTimeout(()=>installUnifiedSearchUI(),1200);}
 
