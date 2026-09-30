@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { detectSourceFormat } from './source-format-registry.js';
 
 const IPTV_HEADER_ALIASES = Object.freeze({
   'user-agent': 'User-Agent',
@@ -63,9 +64,9 @@ export function cleanUrl(url = '') {
   return parseIptvUrl(url).url;
 }
 
-export function isHls(url = '') { return /\.m3u8(?:\?.*)?$/i.test(cleanUrl(url)); }
-export function isDash(url = '') { return /\.mpd(?:\?.*)?$/i.test(cleanUrl(url)); }
-export function isVideoFile(url = '') { return /\.(mp4|webm)(?:\?.*)?$/i.test(cleanUrl(url)); }
+export function isHls(url = '') { return detectSourceFormat({ sourceUrl: cleanUrl(url) }).formatId === 'hls'; }
+export function isDash(url = '') { return detectSourceFormat({ sourceUrl: cleanUrl(url) }).formatId === 'dash'; }
+export function isVideoFile(url = '') { return detectSourceFormat({ sourceUrl: cleanUrl(url) }).formatId === 'direct-video'; }
 export function isEmbed(url = '') { return /(?:embed|\.php(?:\?|$)|\.html?(?:\?|$))/i.test(url); }
 
 function encodeHeaderContext(headers = {}) {
@@ -98,9 +99,9 @@ export function workerUrl(url, headers = {}) {
 }
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = CONFIG.requestTimeoutMs) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try { return await fetch(url, { ...options, signal: controller.signal }); }
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),timeoutMs);
+  try { return await fetch(url,{...options,signal:controller.signal}); }
   finally { clearTimeout(timeout); }
 }
 export function formatTime(date) {
