@@ -1,0 +1,16 @@
+name: Phase B RED Contract
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  phase-b-red:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Channel Profile Phase B contract
+        run: node tests/channel-profile-phase-b.test.mjs
