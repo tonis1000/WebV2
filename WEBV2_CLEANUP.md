@@ -11,7 +11,7 @@ Required fields for every candidate:
 
 ## CLEAN-001 Historical current-state / handoff documents
 Current consumers: may still be used as historical evidence.
-Replacement: Project Brain owner documents + live canonical Current.
+Replacement: Project Brain owner documents + canonical GitHub `main/WEBV2_CURRENT.md`.
 Required proof: migrate all unique knowledge, verify no instructions/tooling depend on file, cross-check history value.
 Status: INVENTORY / DO NOT DELETE YET.
 
@@ -42,6 +42,6 @@ Status: FUTURE AUDIT.
 
 ## CLEAN-006 Superseded project documentation after Brain bootstrap
 Current consumers: humans/agents may still reference old docs.
-Replacement: Brain index + owner documents.
+Replacement: Brain index + owner documents + canonical GitHub `main/WEBV2_CURRENT.md`; Registry/D1 CURRENT remains mirror/history/fallback rather than replacement authority.
 Required proof: unique knowledge migrated, no active workflow/instruction dependency, explicit migration note.
 Status: PENDING MIGRATION AUDIT.
