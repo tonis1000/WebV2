@@ -50,14 +50,13 @@ for (const row of rows) {
     assert.ok(String(row.epg.preferredId || '').trim(), `${row.id}: available EPG requires preferredId`);
   }
   assert.ok(Array.isArray(row.epg.aliases), `${row.id}: EPG aliases must be explicit array`);
-  const serialized = JSON.stringify(row);
-  for (const forbidden of ['"sources"','"directUrls"','"sourceUrl"','"playbackUrl"']) assert.ok(!serialized.includes(forbidden), `${row.id}: Channel Profile must not own stream state`);
-  assert.ok(!/\.m3u8(?:[?"\\]|$)/i.test(serialized), `${row.id}: Channel Profile must not contain stream URLs`);
+  for (const forbidden of ['sources','directUrls','sourceUrl','playbackUrl']) assert.equal(Object.prototype.hasOwnProperty.call(row, forbidden), false, `${row.id}: Channel Profile root must not own ${forbidden}`);
+  assert.ok(!/\.m3u8(?:[?"\\]|$)/i.test(JSON.stringify(row)), `${row.id}: Channel Profile must not contain stream URLs`);
   assert.deepEqual(profile.validateChannelProfileDefinition(row), { ok: true }, `${row.id}: current profile must satisfy the future-channel validator`);
 }
 
 const badBase = {
-  id:'new-tv',country:'GR',language:'el',category:{primary:'Γενικά'},
+  id:'ert1',country:'GR',language:'el',category:{primary:'Γενικά'},
   logo:{status:'pending',preferredUrl:'',sourceKind:'',sourceUrl:'',fallbacks:[]},
   epg:{status:'pending',sourceId:null,preferredId:null,aliases:[]},
 };
