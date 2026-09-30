@@ -55,17 +55,15 @@ export function parseEnigma2Bouquet(text = '') {
 
     const rawBody = line.slice(9).trim();
     const parts = rawBody.split(':');
-    if (parts.length < 11) continue;
-
     const serviceType = String(parts[0] || '').trim();
-    const rawReference = String(parts[10] || '').trim();
-    if (!serviceType || !rawReference) continue;
+    const rawReference = parts.length >= 11 ? String(parts[10] || '').trim() : '';
+    const embedded = embeddedReferenceFacts(rawBody);
+    if (!serviceType || (!rawReference && !embedded.embeddedReference)) continue;
 
     const next = lines[i + 1]?.trim() || '';
     const hasDescription = /^#DESCRIPTION\s+/i.test(next);
-    const rawInlineName = parts.slice(11).join(':').trim();
+    const rawInlineName = parts.length >= 11 ? parts.slice(11).join(':').trim() : '';
     const rawDescription = hasDescription ? next.replace(/^#DESCRIPTION\s+/i, '').trim() : '';
-    const embedded = embeddedReferenceFacts(rawBody);
 
     services.push({
       lineIndex: i,
