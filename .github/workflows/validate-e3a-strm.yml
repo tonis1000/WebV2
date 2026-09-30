@@ -28,3 +28,5 @@ jobs:
         run: node tests/strm-specific-discovery-provider.test.mjs
       - name: Run Source Hunt STRM parity
         run: node tests/source-hunt-strm-parity.test.mjs
+      - name: Run permanent STRM workflow contract
+        run: node tests/strm-workflow-contract.test.mjs
