@@ -58,6 +58,13 @@ try {
     'https://media.test/live.mpd|User-Agent=FixtureUA&Referer=https%3A%2F%2Fexample.test%2F',
     'https://ignored.test/second.m3u8',
   ]);
+  assert.deepEqual(parsed.lines.map(item => [item.kind, item.value]), [
+    ['directive', '# comment'],
+    ['directive', '#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha'],
+    ['directive', '#KODIPROP:INPUTSTREAM.ADAPTIVE.LICENSE_KEY=https://license.test/key'],
+    ['value', 'https://media.test/live.mpd|User-Agent=FixtureUA&Referer=https%3A%2F%2Fexample.test%2F'],
+    ['value', 'https://ignored.test/second.m3u8'],
+  ], 'shared core must preserve nonblank line order for caller parity');
 
   const nested = parseStrmDocument('https://example.test/nested.strm\n');
   assert.equal(nested.mediaUrl, 'https://example.test/nested.strm');
