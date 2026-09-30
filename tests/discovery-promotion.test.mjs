@@ -5,6 +5,9 @@ globalThis.window={};
 globalThis.localStorage={getItem:()=>'',setItem(){},removeItem(){}};
 
 const { promotionBlockReason, previewChoiceBlockReason, promoteCandidate, keepXtreamAccount, promotePreviewXtreamChannel, saveFullXtreamAccountFromCandidate, canPromoteCandidate, canChoosePreviewXtream } = await import('../src/discovery/promotion.js');
+let importPromotionPolicy=null;
+try{importPromotionPolicy=await import('../src/core/import-promotion-policy.js');}catch{}
+assert.ok(importPromotionPolicy?.promoteImportedChannel,'Phase D requires shared import promotion policy before Discovery/My Playlist promotion can be considered canonical');
 
 const expectedChannel={id:'mega',originalId:'MEGA',tvgId:'mega.gr',name:'MEGA'};
 const verified={
