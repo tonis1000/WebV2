@@ -10,7 +10,7 @@ export function parseM3U(text = '') {
     const name = entry.attributes['tvg-name'] || fallbackName || id || 'Unknown';
     const logo = entry.attributes['tvg-logo'] || '';
     const group = entry.attributes['group-title'] || 'Other';
-    const directUrl = /^https?:\/\//i.test(entry.sourceLine || '') ? entry.sourceLine : '';
+    const directUrl = (entry.sourceCandidates || []).find(candidate => /^https?:\/\//i.test(candidate.line || ''))?.line || '';
     channels.push({
       id: normalizeId(id || name),
       originalId: id || name,
