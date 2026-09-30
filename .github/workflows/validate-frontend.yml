@@ -148,6 +148,8 @@ jobs:
         run: node tests/source-hunt-strm-parity.test.mjs
       - name: Run STRM workflow wiring contract
         run: node tests/strm-workflow-contract.test.mjs
+      - name: Run STRM duplicate parser audit
+        run: node tests/strm-duplicate-audit.test.mjs
       - name: Run frontend Source Hunt M3U parity
         run: node tests/source-hunt-frontend-m3u-parity.test.mjs
       - name: Run Discovery candidate/state regression test
