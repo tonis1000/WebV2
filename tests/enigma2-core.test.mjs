@@ -14,6 +14,7 @@ function serviceByDescription(result, description) {
     rawService: '#SERVICE 4097:0:1:0:0:0:0:0:0:0:http%3A//example.com/live/master.m3u8:ERT 1',
     serviceType: '4097',
     rawReference: 'http%3A//example.com/live/master.m3u8',
+    decodedReferenceOnce: 'http://example.com/live/master.m3u8',
     decodedReference: 'http://example.com/live/master.m3u8',
     inlineName: 'ERT 1',
     description: 'ERT1',
@@ -27,6 +28,7 @@ function serviceByDescription(result, description) {
   const service = parsed.services[0];
   assert.equal(service.serviceType, '5001');
   assert.equal(service.rawReference, 'https%253A//cdn.example.com/live/index.mpd%257CUser-Agent%253DWebTV%2520Test');
+  assert.equal(service.decodedReferenceOnce, 'https%3A//cdn.example.com/live/index.mpd%7CUser-Agent%3DWebTV%20Test');
   assert.equal(service.decodedReference, 'https://cdn.example.com/live/index.mpd|User-Agent=WebTV Test');
   assert.equal(service.inlineName, 'MEGA HD');
   assert.equal(service.description, 'MEGA');
@@ -51,6 +53,7 @@ function serviceByDescription(result, description) {
   assert.equal(parsed.name, 'Mixed');
   assert.equal(parsed.services.length, 1, 'malformed SERVICE structure is skipped, structurally parseable references are preserved neutrally');
   assert.equal(parsed.services[0].rawReference, 'not-a-url');
+  assert.equal(parsed.services[0].decodedReferenceOnce, 'not-a-url');
   assert.equal(parsed.services[0].decodedReference, 'not-a-url');
 }
 
