@@ -61,20 +61,3 @@ export const SOURCE_BLOCKLIST = Object.freeze([
   'http://185.102.171.218/MegaHD/index.m3u8',
   'http://wow.anixa.tv/live/mega/playlist.m3u8',
 ]);
-
-export const CHANNEL_ALIASES = Object.freeze({
-  ert1: ['ERT1.gr', 'ERT1.HD.gr', 'EPT1.gr', 'ΕΡΤ1', 'ERT1 HD'],
-  ert2: ['ERT2.gr', 'ERT2.HD.gr', 'EPT2.gr', 'ΕΡΤ2', 'ERT2 HD', 'ERT2 SPOR HD'],
-  ert3: ['ERT3.gr', 'ERT3.HD.gr', 'EPT3.gr', 'ΕΡΤ3', 'ERT3 HD'],
-  ertnews: ['ERTNEWS.gr', 'ERT.NEWS.gr', 'ΕΡΤNEWS', 'ERT NEWS'],
-  ant1: ['ANT1.gr', 'ANT1.HD.gr', 'Antenna1.gr', 'ANT1 HD'],
-  alpha: ['ALPHA.gr', 'ALPHA.HD.gr', 'Alpha.gr', 'Alpha.HD.gr', 'alphatv', 'ALPHA HD'],
-  skai: ['SKAI.gr', 'SKAI.HD.gr', 'skaitv', 'SKAI HD'],
-  open: ['OPEN.gr', 'OPEN.HD.gr', 'OPEN.BEYOND.HD.gr', 'opentv', 'OPEN TV HD'],
-  mega: ['MEGA.gr', 'MEGA.HD.gr', 'MegaChannel.gr', 'megatv', 'MEGA HD'],
-  meganews: ['MEGA NEWS', 'Mega News', 'MEGA.News.gr', 'meganews'],
-  star: ['STAR.gr', 'STAR.HD.gr', 'startv', 'STAR HD'],
-  action24: ['ACTION24.gr', 'ACTION24.HD.gr'],
-  kontra: ['KONTRA.gr', 'KONTRA.HD.gr'],
-  madtv: ['MADTV', 'MAD TV', 'MAD.TV.gr', 'MAD TV GREECE'],
-});
