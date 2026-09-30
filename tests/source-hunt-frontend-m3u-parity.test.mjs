@@ -3,21 +3,26 @@ import fs from 'node:fs';
 
 const source=fs.readFileSync(new URL('../src/source-hunt-engine.js',import.meta.url),'utf8');
 const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const registry=fs.readFileSync(new URL('../src/search/source-registry.js',import.meta.url),'utf8');
+const catalog=fs.readFileSync(new URL('../src/search/curated-source-catalog.js',import.meta.url),'utf8');
+const worker=fs.readFileSync(new URL('../workers/webtv-source-discovery.js',import.meta.url),'utf8');
 
-assert.match(source,/function\s+extractM3u8\s*\(/,'frontend Hunt must keep its HLS-only URL extractor local');
-assert.match(source,/\.m3u8/,'frontend exact M3U path must remain HLS-focused');
-assert.match(source,/function\s+collectFromLooseText\s*\(/,'loose-text fallback must remain local and independent');
-assert.match(source,/40\s*\+\s*headerScore\s*\*\s*5\s*\+\s*urlRelevance\(url,\s*name\)\s*\*\s*3/,'exact M3U scoring formula must remain unchanged');
-assert.match(source,/exact\.length\s*\?\s*exact\s*:\s*collectFromLooseText/,'loose-text fallback decision must remain unchanged');
+// Historical frontend adapter remains parse-compatible while retired from active page execution.
+assert.match(source,/function\s+extractM3u8\s*\(/,'retired frontend Hunt adapter keeps its historical HLS-only URL extractor for parity/reference');
+assert.match(source,/\.m3u8/,'retired frontend exact M3U path remains HLS-focused');
+assert.match(source,/function\s+collectFromLooseText\s*\(/,'retired loose-text fallback remains intact for parity/reference');
+assert.match(source,/m3u-container\.js/,'retired frontend Hunt adapter still consumes shared M3U container core');
+assert.match(source,/parseM3uContainer/,'retired frontend Hunt adapter still consumes parseM3uContainer');
+assert.doesNotMatch(source,/function\s+collectFromM3U\([^)]*\)\s*\{\s*const lines\s*=/,'retired frontend adapter must not regain an independent M3U line parser');
 
-assert.match(source,/m3u-container\.js/,'frontend Source Hunt must import the shared M3U container core');
-assert.match(source,/parseM3uContainer/,'frontend Source Hunt must consume parseM3uContainer');
-assert.match(source,/entry\.extinf\.startsWith\(['"]#EXTINF['"]\)/,'frontend Hunt must preserve its previous case-sensitive EXTINF acceptance');
-assert.match(source,/extractM3u8\(entry\.sourceLine/,'shared structural source must still pass through the local HLS-only extractor');
-assert.doesNotMatch(source,/function\s+collectFromM3U\([^)]*\)\s*\{\s*const lines\s*=/,'frontend Hunt must not retain independent M3U line traversal');
+// Consolidation ownership: the old browser scanner is no longer active.
+assert.doesNotMatch(index,/\.\/src\/source-hunt-engine\.js(?:\?|"|')/,'legacy frontend Hunt M3U scanner must remain retired from active page load');
+assert.match(index,/\.\/src\/search\/search-ui\.js\?v=20260930-unified-search-a/,'Unified Search must be the active automatic search surface');
+assert.match(registry,/curated-source-catalog\.js/,'Unified Search registry must derive curated sources from the shared source catalog');
+assert.match(worker,/curated-source-catalog\.js/,'Discovery Worker must consume the same shared curated source catalog');
+assert.match(catalog,/format:'m3u'/,'canonical curated catalog must retain M3U source declarations');
 
-assert.match(index,/\.\/src\/source-hunt-engine\.js\?v=20260930-m3u-container-e2/,'frontend Hunt module retains its E2 cache bust because its code is unchanged by E3a');
 const importMap=index.match(/<script\s+type="importmap">([\s\S]*?)<\/script>/i)?.[1]||'';
-assert.match(importMap,/\.\/src\/core\/channel-catalog\.js[^\n]*20260930-strm-e3a/,'browser import map must keep Channel Catalog invalidated under the current unified E3a build id');
+assert.match(importMap,/\.\/src\/core\/channel-catalog\.js[^\n]*20260930-strm-e3a/,'browser import map must preserve the current Channel Catalog cache ownership');
 
-console.log('frontend Source Hunt M3U parity PASS');
+console.log('frontend M3U parity + Unified Search ownership PASS');
