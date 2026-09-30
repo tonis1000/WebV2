@@ -6,6 +6,7 @@ on:
       - 'src/core/strm-core.js'
       - 'src/core/strm-resolver.js'
       - 'workers/source-discovery/strm-specific-discovery.js'
+      - 'workers/webtv-source-discovery-smart.js'
       - 'workers/source-huntatonisworkersdev.js'
       - 'tests/strm-*.test.mjs'
       - 'tests/source-*-strm-parity.test.mjs'
@@ -26,7 +27,11 @@ jobs:
         run: node tests/strm-resolver-parity.test.mjs
       - name: Run Discovery STRM provider parity
         run: node tests/strm-specific-discovery-provider.test.mjs
+      - name: Run Discovery smart STRM parity
+        run: node tests/source-discovery-smart-strm-parity.test.mjs
       - name: Run Source Hunt STRM parity
         run: node tests/source-hunt-strm-parity.test.mjs
       - name: Run permanent STRM workflow contract
         run: node tests/strm-workflow-contract.test.mjs
+      - name: Run STRM duplicate parser audit
+        run: node tests/strm-duplicate-audit.test.mjs
