@@ -16,10 +16,13 @@ assert.match(hunt, /src\/core\/strm-core\.js/,
 assert.match(frontend, /node tests\/strm-core\.test\.mjs/);
 assert.match(frontend, /node tests\/strm-resolver-parity\.test\.mjs/);
 assert.match(frontend, /node tests\/strm-specific-discovery-provider\.test\.mjs/);
+assert.match(frontend, /node tests\/source-discovery-smart-strm-parity\.test\.mjs/);
 assert.match(frontend, /node tests\/source-hunt-strm-parity\.test\.mjs/);
+assert.match(frontend, /node tests\/strm-duplicate-audit\.test\.mjs/);
 
 assert.match(discovery, /node tests\/strm-core\.test\.mjs/);
 assert.match(discovery, /node tests\/strm-specific-discovery-provider\.test\.mjs/);
+assert.match(discovery, /node tests\/source-discovery-smart-strm-parity\.test\.mjs/);
 assert.match(discovery, /"name":"ERT1"/, 'Discovery live STRM gate must remain ERT1-based');
 assert.match(discovery, /strmResolved/, 'Discovery live gate must still require successful STRM resolution');
 
