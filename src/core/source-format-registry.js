@@ -86,11 +86,9 @@ function descriptorByName(name, registry) {
 }
 
 function recognitionStatus(descriptor) {
-  return descriptor?.verificationMode === 'unsupported' && ['rtsp', 'rtmp'].includes(descriptor.id)
-    ? 'recognized-unsupported'
-    : descriptor?.id === 'unknown'
-      ? 'unknown'
-      : 'recognized';
+  if (!descriptor || descriptor.id === 'unknown') return 'unknown';
+  if (descriptor.verificationMode === 'unsupported') return 'recognized-unsupported';
+  return 'recognized';
 }
 
 function classificationFromDescriptor(descriptor, facts, explicitType = '', confidence = 'high', mediaFormatId) {
@@ -195,7 +193,7 @@ const descriptors = [
   {
     id: 'hls', aliases: [], priority: 100,
     detectUrl: ({ pathname }) => /\.m3u8$/i.test(pathname || ''),
-    detectBody: ({ body, contentType }) => String(body || '').trimStart().startsWith('#EXTM3U') && (String(body).includes('#EXT-X-') || /mpegurl/i.test(contentType || '')) || /mpegurl/i.test(contentType || ''),
+    detectBody: ({ body, contentType }) => String(body || '').trimStart().startsWith('#EXTM3U') && (String(body).includes('#EXT-X-') || /mpegurl/i.test(contentType || '')),
     capabilities: { browserPlayback: true, verifierProbe: true, requiresResolver: false, container: false, credentialed: false, live: true, vod: true },
     verificationMode: 'manifest', resolutionMode: 'none', savePolicy: 'saveable', compatibilityType: 'hls',
   },
