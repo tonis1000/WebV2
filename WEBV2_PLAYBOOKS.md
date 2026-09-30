@@ -10,23 +10,31 @@ Failure mode: client tool may block `*.workers.dev`; do not call that an auth fa
 Fallback: another read-capable fetch/browser path.
 
 ## PB-002 Read canonical project state
-Preferred least-privilege method with the persistent project-agent session:
-1. GET `/api/project-agent/checkpoints`.
-2. Record `WEBV2_CURRENT.md` SHA/updated time.
-3. GET `/api/project-agent/checkpoints/WEBV2_CURRENT.md` and read the entire file.
-4. Compare with GitHub main and relevant deploy workflows.
+Preferred canonical method:
+1. Read GitHub `main/WEBV2_CURRENT.md` in full.
+2. Record GitHub `main` SHA.
+3. Read `/api/project-status` for Registry deployment truth.
+4. Read relevant component workflow/live evidence.
+5. Read Registry/D1 checkpoint metadata when available to record mirror/history status.
+6. Compare canonical CURRENT claims with verified live/deployment evidence; enter reconciliation mode on a real mismatch.
 
-Admin alternative: `/api/project-checkpoints` and `/api/project-checkpoints/WEBV2_CURRENT.md` require Registry admin authentication unless a temporary maintenance bypass is active. Do not depend on that bypass for routine Project Brain reads.
+Registry/D1 `WEBV2_CURRENT.md` is mirror/history/fallback, not canonical authority. Routine mirror inspection can use `/api/project-agent/checkpoints` and `/api/project-agent/checkpoints/WEBV2_CURRENT.md` with the scoped project-agent session. Admin `/api/project-checkpoints` routes remain an explicit admin alternative.
 
-Do not use historical handoffs as a substitute when canonical scoped access works.
+Do not use historical handoffs or the D1 mirror as a substitute for GitHub CURRENT when the canonical GitHub file is available.
 
-## PB-003 CAS checkpoint write + readback
-Preferred API method for an admin-capable client: checkpoint PUT JSON with fresh `expectedSha256`.
-Browser-friendly scoped method for `WEBV2_CURRENT.md`: open `/api/project-agent/checkpoints/WEBV2_CURRENT.md/edit` inside an active project-agent session. The form loads current content/SHA and POST is internally forwarded to the existing CAS-protected PUT path.
-Steps: fresh scoped read -> edit full content -> save once -> require Saved SHA -> scoped GET readback when independent confirmation is needed -> stop on conflict.
-Never blind overwrite.
-Verified 2026-09-30: scoped editor session was active and saved canonical Current successfully; resulting checkpoint SHA-256 `0961afab1a627068805ea38a7cad8a9bc597fabbe825639596d330cad9cdf840`.
-Security: editor is limited to `WEBV2_CURRENT.md` and requires project-agent session; it does not grant general Registry admin access.
+## PB-003 Update canonical CURRENT and optionally sync the D1 mirror
+Canonical GitHub CURRENT update:
+1. start from fresh `main` and verified live evidence;
+2. edit `WEBV2_CURRENT.md` on the working branch or a dedicated docs-only closure branch;
+3. include exact merge/deploy/live evidence and truthful mirror status;
+4. run the Project Brain contract and relevant validation;
+5. merge through the normal PR/review gate;
+6. read back GitHub `main/WEBV2_CURRENT.md` and record the exact merge SHA.
+
+D1 mirror synchronization is optional operational follow-up, not the canonical state transition. When syncing the mirror, use a fresh checkpoint SHA and CAS-protected write only; stop on conflict and verify readback.
+
+Browser-friendly mirror sync method for `WEBV2_CURRENT.md`: `/api/project-agent/checkpoints/WEBV2_CURRENT.md/edit` inside an active project-agent session. The form POST internally forwards to the checkpoint PUT path.
+Never blind overwrite a checkpoint.
 
 ## PB-004 Check code vs deployment
 1. Read GitHub main SHA.

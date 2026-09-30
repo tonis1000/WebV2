@@ -7,14 +7,14 @@ Lesson: a client/tool-access limitation is not automatically an auth failure or 
 Knowledge update: PB-007 and Tooling matrix.
 
 ## LESSON-002 Alternate read path can recover Registry visibility
-Worked: alternate fetch/browser path returned project status, checkpoint list, and canonical current content.
+Worked: alternate fetch/browser path returned project status, checkpoint list, and canonical current content under the old D1-canonical model.
 Lesson: keep more than one safe read route, favoring free/native paths first.
 
 ## LESSON-003 Raw browser PUT limitation was already solved by a scoped editor
 Initial observation: browser automation could read Registry but did not expose arbitrary PUT JSON.
 Root cause of our confusion: we had forgotten an already implemented route from PR #51 / merge `17ea6687e59fc602e908bea46ea7e812a2087703`.
 Proven solution: `/api/project-agent/checkpoints/WEBV2_CURRENT.md/edit` uses a scoped project-agent session, HTML form POST, and internally forwards to the CAS-protected checkpoint PUT.
-Verified 2026-09-30: editor opened with the persistent scoped session and saved canonical Current, producing SHA-256 `0961afab1a627068805ea38a7cad8a9bc597fabbe825639596d330cad9cdf840`.
+Verified 2026-09-30: editor opened with the persistent scoped session and saved the D1 Current checkpoint, producing SHA-256 `0961afab1a627068805ea38a7cad8a9bc597fabbe825639596d330cad9cdf840`.
 Lesson: before designing a replacement, search Decisions/Playbooks/history for an existing proven path.
 
 ## LESSON-004 Checkpoint writes require CAS + readback
@@ -32,9 +32,8 @@ When a fix reveals a reusable route, constraint, failure mode, decision, or clea
 ## LESSON-008 Scoped and admin checkpoint routes are different trust boundaries
 Situation: the first Project Brain manual pointed routine reads at `/api/project-checkpoints`, while the persistent project-agent cookie is authorized only for `/api/project-agent/checkpoints`.
 Reviewer finding: using the admin path would return 401 once the temporary admin/PIN bypass is removed, despite a valid scoped project-agent session.
-Lesson: documentation must name the route that matches the credential scope. Routine Project Brain reads use `/api/project-agent/checkpoints`; admin checkpoint routes are an explicit admin alternative, not the default path.
+Lesson: documentation must name the route that matches the credential scope. Scoped project-agent routes are the normal D1 mirror/history read path; admin checkpoint routes are an explicit admin alternative.
 Proof: `workers/webtv-registry.js` has separate `requireProjectAgent()` handling for `/api/project-agent/checkpoints` and `requireAdmin()` handling for admin checkpoint routes.
-Knowledge update: Manual, Current pointer, PB-002 and PB-003.
 
 ## LESSON-009 Structural parity sometimes needs metadata that looks caller-specific
 Situation: Source Discovery and Source Hunt historically searched only the first nine physical lines after an `#EXTINF`, while a neutral shared parser naturally scans until the next entry.
@@ -57,3 +56,10 @@ RED proof: `tests/channel-catalog-m3u-parity.test.mjs` reproduced the old `rtsp 
 Solution: the shared core now exposes ordered neutral `sourceCandidates: [{line, offset}]`; `sourceLine/sourceOffset` remain the first candidate for existing callers, while Catalog applies its own HTTP(S) acceptance policy across the candidate list.
 Lesson: if callers disagree about which structurally associated line is acceptable, preserve the ordered structural facts in the shared core and leave selection policy to the caller. Do not make the shared parser choose a domain winner.
 Verification: full PR validation #554 passed on `df3b36c838b3238666c037e23389d2f27870a94c`.
+
+## LESSON-013 Put the frequently updated project truth where it is easiest to version and review
+Situation: Phase E2 runtime and Brain closure advanced to verified production while the D1 `WEBV2_CURRENT.md` checkpoint remained at the earlier Project Brain bootstrap and still described E2 as future work.
+Evidence at migration preflight: GitHub main and Registry deployment were `8e87d80a94c5143c9be5c0e240cebc4c26da37e2`, while the D1 CURRENT mirror SHA-256 `eb1c9237faae25be32265aa19049b7b7d4e5b626ac45f45d5ee35b5adf9905f1` still described `fdf91d...` and Phase E2 as next.
+Observation: the rest of the Project Brain, PR review and deployment evidence were already versioned/readable in GitHub, while updating the D1 CURRENT required a narrower session/method path and generic automation could not reliably perform the CAS write.
+Lesson: the canonical current-state document should live with the versioned Brain in GitHub. Keep D1 checkpoint/history as mirror/fallback, but do not make the hardest-to-update copy the authority.
+Consequence: a stale D1 mirror is recorded truthfully as operational debt; it no longer makes canonical CURRENT unavailable.

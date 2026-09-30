@@ -48,3 +48,14 @@ Decision: the shared M3U core recognizes `#EXTINF` case-insensitively as a struc
 Reason: one entry must never consume a source structurally belonging to the next entry. The old Catalog/frontend line loops could accidentally let an uppercase entry steal a URL from a following lowercase `#extinf` entry because their boundary check was case-sensitive.
 Consequence: caller acceptance policy remains unchanged, but cross-entry source stealing from malformed/mixed-case input is explicitly not preserved.
 Evidence: `tests/channel-catalog-m3u-parity.test.mjs` freezes the no-steal rule; the E2 design already requires mixed-case structural coverage and says behavior differences must be explicit rather than silent.
+
+## DEC-013 GitHub CURRENT is canonical project current state
+Decision: GitHub `main/WEBV2_CURRENT.md` is canonical project current-state truth; Registry/D1 `WEBV2_CURRENT.md` is mirror/history/fallback.
+Reason: the Project Brain is already versioned, reviewed and diffable in GitHub, while the D1 CURRENT became stale after verified E2 production progress because updating it depended on a narrower checkpoint write path.
+Consequences:
+- only the copy merged to GitHub `main` is canonical;
+- `/api/project-status` remains Registry deployment truth and component workflows/live evidence remain authoritative for their components;
+- a stale D1 CURRENT mirror is a mirror-sync issue, not canonical unavailability;
+- if GitHub CURRENT conflicts with verified live reality, enter reconciliation mode and update GitHub CURRENT rather than treating documentation as production by assertion;
+- D1 checkpoint/history infrastructure and project-agent routes remain preserved.
+Reconsider when: only through a new explicit architecture decision with a migration/rollback plan; never by silently promoting a mirror back to authority.
