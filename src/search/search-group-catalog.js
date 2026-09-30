@@ -14,8 +14,8 @@ const GROUPS=Object.freeze([
       Object.freeze({id:'ant1-fight',name:'ANT1+ Fight'}),Object.freeze({id:'ant1-padel',name:'ANT1+ Padel Time TV'}),
     ]),
   }),
-  Object.freeze({id:'nova',type:'group',label:'Nova',aliases:Object.freeze(['NOVA']),targets:Object.freeze([Object.freeze({id:'nova-family',name:'Nova',familyQuery:true,familyAliases:Object.freeze(['nova','nova sports','novasports','nova cinema','novacinema'])})])}),
-  Object.freeze({id:'cosmote',type:'group',label:'Cosmote',aliases:Object.freeze(['COSMOTE','OTE TV']),targets:Object.freeze([Object.freeze({id:'cosmote-family',name:'Cosmote',familyQuery:true,familyAliases:Object.freeze(['cosmote','ote tv'])})])}),
+  Object.freeze({id:'nova',type:'group',label:'Nova',aliases:Object.freeze(['NOVA']),targets:Object.freeze([Object.freeze({id:'nova-family',name:'Nova',familyQuery:true,familyAliases:Object.freeze(['nova','nova sports','novasports','nova cinema','novacinema','nova life','novalife','nova news','novanews','nova stars','novastars'])})])}),
+  Object.freeze({id:'cosmote',type:'group',label:'Cosmote',aliases:Object.freeze(['COSMOTE','OTE TV']),targets:Object.freeze([Object.freeze({id:'cosmote-family',name:'Cosmote',familyQuery:true,familyAliases:Object.freeze(['cosmote','cosmote sport','cosmotesport','cosmote cinema','cosmotecinema','cosmote history','cosmotehistory','ote tv'])})])}),
   Object.freeze({id:'cosmote-sport',type:'subgroup',label:'Cosmote Sport',aliases:Object.freeze(['COSMOTE SPORT','COSMOTE SPORTS']),targets:Object.freeze([Object.freeze({id:'cosmote-sport-family',name:'Cosmote Sport',familyQuery:true,familyAliases:Object.freeze(['cosmote sport','cosmotesport'])})])}),
 ]);
 
