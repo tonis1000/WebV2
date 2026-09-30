@@ -31,6 +31,18 @@ Does not own: channel matching, accepted URL schemes, source-format classificati
 Rule: **shared parser parses; caller decides.** Channel Catalog, Source Discovery, Source Hunt Worker, and frontend Source Hunt remain policy adapters.
 Status: Phase E2 DONE at merge `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`, with exact-SHA frontend, Discovery, Hunt, Registry and Pages deployment verification plus live Discovery/Hunt checks.
 
+## STRM Structural Core
+Owns: pure STRM structure and normalization in `src/core/strm-core.js`: canonical HTTP(S) reference normalization, GitHub blob-to-raw normalization, `.strm` reference recognition, `#KODIPROP` DRM metadata parsing, Kodi header-suffix parsing, first structural media/reference line, and ordered nonblank line metadata needed for caller parity.
+Does not own: network fetches, SSRF/private-host policy, request budgets, timeouts, max-body limits, recursion limits, candidate ranking, save/test eligibility, verification status, DRM playback, or Player routing.
+Adapters/consumers:
+- `src/core/strm-resolver.js`: browser/runtime fetch, cache, failure TTL, in-flight dedupe, recursion, browser-facing resolver API;
+- `workers/source-discovery/strm-specific-discovery.js`: Discovery provider security/budgets/reporting/candidate policy;
+- `workers/webtv-source-discovery-smart.js`: curated-feed STRM pre-resolution policy, private-host block, resolve limit, DRM auto-promotion rejection;
+- `workers/source-huntatonisworkersdev.js`: Hunt fetch/budget/relevance/ranking/final-media acceptance policy;
+- `src/route-tooltip.js`: presentation-only STRM detection consumer.
+Rule: **shared STRM structure; caller-owned network/security/product policy.** The shared core must remain network-free.
+Status: Phase E3a implementation/parity/audit complete on PR #73 branch; production DONE is still gated on merge, exact-SHA deploys and live verification.
+
 ## Source Hunt
 Owns: broad lead hunting/search, provenance/freshness/ranking of leads.
 Does not own: final VERIFIED media truth or canonical save state.
@@ -60,5 +72,5 @@ Owns: auxiliary runtime cache, route health, ranking support.
 Does not own: canonical channel identity/profile/source-format truth.
 
 ## Current cleanup boundaries
-Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry, M3U Container Core.
-Pending later primitives: STRM/Enigma2 normalization (E3), then search/lifecycle consolidation.
+Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry, M3U Container Core; STRM Structural Core is implemented on E3a PR #73 and awaits production verification before DONE.
+Pending later primitive: Enigma2 normalization (E3b), then search/lifecycle consolidation.

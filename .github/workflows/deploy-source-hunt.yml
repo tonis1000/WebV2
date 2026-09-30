@@ -10,9 +10,12 @@ on:
       - 'workers/source-hunt-bouquet-proxy.js'
       - 'src/core/channel-identity-gr.js'
       - 'src/core/m3u-container.js'
+      - 'src/core/strm-core.js'
       - 'tests/channel-identity-core.test.mjs'
       - 'tests/m3u-container-core.test.mjs'
+      - 'tests/strm-core.test.mjs'
       - 'tests/source-hunt-m3u-parity.test.mjs'
+      - 'tests/source-hunt-strm-parity.test.mjs'
       - '.github/workflows/deploy-source-hunt.yml'
 
 permissions:
@@ -41,9 +44,12 @@ jobs:
           node --check workers/source-hunt-bouquet-proxy.js
           node --check src/core/channel-identity-gr.js
           node --check src/core/m3u-container.js
+          node --check src/core/strm-core.js
           node tests/channel-identity-core.test.mjs
           node tests/m3u-container-core.test.mjs
+          node tests/strm-core.test.mjs
           node tests/source-hunt-m3u-parity.test.mjs
+          node tests/source-hunt-strm-parity.test.mjs
 
       - name: Build Wrangler config
         shell: bash

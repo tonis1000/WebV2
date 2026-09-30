@@ -10,8 +10,10 @@ on:
       - 'workers/source-discovery/**/*.js'
       - 'src/core/channel-identity-gr.js'
       - 'src/core/m3u-container.js'
+      - 'src/core/strm-core.js'
       - 'tests/channel-identity-core.test.mjs'
       - 'tests/m3u-container-core.test.mjs'
+      - 'tests/strm-core.test.mjs'
       - 'tests/source-discovery-m3u-parity.test.mjs'
       - 'tests/*discovery*.test.mjs'
       - 'tests/*provider.test.mjs'
@@ -44,12 +46,14 @@ jobs:
           node --input-type=module --check < workers/webtv-source-discovery-smart.js
           node --check src/core/channel-identity-gr.js
           node --check src/core/m3u-container.js
+          node --check src/core/strm-core.js
           while IFS= read -r file; do node --check "$file"; done < <(find workers/source-discovery -type f -name '*.js' | sort)
 
       - name: Run discovery regression tests
         run: |
           node tests/channel-identity-core.test.mjs
           node tests/m3u-container-core.test.mjs
+          node tests/strm-core.test.mjs
           node tests/source-discovery-m3u-parity.test.mjs
           node tests/discovery-external.test.mjs
           node tests/source-discovery-worker.test.mjs
@@ -57,6 +61,7 @@ jobs:
           node tests/github-public-playlists-provider.test.mjs
           node tests/recent-web-search-provider.test.mjs
           node tests/strm-specific-discovery-provider.test.mjs
+          node tests/source-discovery-smart-strm-parity.test.mjs
           node tests/official-provider-lane.test.mjs
           node tests/official-api-resolver-provider.test.mjs
 
