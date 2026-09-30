@@ -36,3 +36,5 @@ jobs:
         run: node tests/discovery-candidate-provenance.test.mjs
       - name: Run external provenance normalization contract
         run: node tests/discovery-external-provenance.test.mjs
+      - name: Run structured search reporter contract
+        run: node tests/search-reporter.test.mjs
