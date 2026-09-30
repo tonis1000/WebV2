@@ -1,4 +1,4 @@
-import { detectSourceFormat, listSourceFormats, toLegacySourceType } from '../core/source-format-registry.js';
+import { detectSourceFormat, getSourceFormat, listSourceFormats, toLegacySourceType } from '../core/source-format-registry.js';
 
 const SOURCE_TYPES = new Set([
   ...listSourceFormats().map(descriptor => descriptor.compatibilityType),
@@ -7,6 +7,7 @@ const SOURCE_TYPES = new Set([
 ]);
 const MATCH_CONFIDENCE = new Set(['HIGH','MEDIUM','LOW','UNKNOWN']);
 const VERIFICATION_STATES = new Set(['UNVERIFIED','VERIFYING','VERIFIED','FAILED','TIMEOUT','HTTP 403','HTTP 404','DRM','WRONG CHANNEL','UNRESOLVED']);
+const SENSITIVE_ORIGIN_PARAMS = new Set(['username','user','password','pass','token','access_token','authorization','auth','apikey','api_key','key']);
 
 export function normalizeChannelName(value='') {
   return String(value)
@@ -46,10 +47,36 @@ function cleanHeaders(headers={}) {
   return out;
 }
 
+function canonicalMediaFormat(input={},sourceUrl='') {
+  const explicit=String(input.resolvedMediaFormatId||input.mediaType||'').trim().toLowerCase();
+  const explicitDescriptor=getSourceFormat(explicit);
+  if(explicitDescriptor && explicitDescriptor.capabilities.browserPlayback) return explicitDescriptor.id;
+  return detectSourceFormat({sourceUrl}).mediaFormatId || 'unknown';
+}
+
+function mediaIsBrowserPlayable(formatId='') {
+  return Boolean(getSourceFormat(formatId)?.capabilities?.browserPlayback);
+}
+
+function safePublicOriginUrl(value='', { credentialed=false }={}) {
+  if(credentialed) return '';
+  try {
+    const url=new URL(String(value||'').trim());
+    if(!/^https?:$/.test(url.protocol))return '';
+    if(url.username||url.password)return '';
+    for(const key of url.searchParams.keys())if(SENSITIVE_ORIGIN_PARAMS.has(String(key).toLowerCase()))return '';
+    return url.href;
+  }catch{return '';}
+}
+
 export function createCandidate(input={}) {
   const channelName=String(input.channelName||'').trim();
   const sourceUrl=String(input.sourceUrl||'').trim();
+  const sourceClassification=detectSourceFormat({sourceUrl,explicitType:input.sourceType});
   const sourceType=input.xtreamContext ? 'xtream' : detectCandidateType(sourceUrl,input.sourceType);
+  const inputFormatId=String(input.inputFormatId||sourceClassification.formatId||sourceType||'unknown').trim().toLowerCase()||'unknown';
+  const resolvedMediaFormatId=canonicalMediaFormat(input,sourceUrl);
+  const browserPlayable=mediaIsBrowserPlayable(resolvedMediaFormatId);
   const verificationStatus=VERIFICATION_STATES.has(input.verificationStatus) ? input.verificationStatus : 'UNVERIFIED';
   const verified=verificationStatus === 'VERIFIED' && input.verified !== false;
   const matchConfidence=MATCH_CONFIDENCE.has(input.matchConfidence) ? input.matchConfidence : 'UNKNOWN';
@@ -72,6 +99,11 @@ export function createCandidate(input={}) {
     sourceType,
     sourceUrl,
     sourceOrigin:String(input.sourceOrigin||'local-mock'),
+    sourceOriginUrl:String(input.sourceOriginUrl||''),
+    sourceOriginLabel:String(input.sourceOriginLabel||input.sourceOrigin||'').trim(),
+    inputFormatId,
+    resolvedMediaFormatId,
+    browserPlayable,
     discoveredAt,
     discoveryProvider:String(input.discoveryProvider||'phase1-local'),
     freshness:input.freshness ?? null,
@@ -108,6 +140,7 @@ export function withVerification(candidate={},result={}) {
     startupMs:result.startupMs,
     lastHttpStatus:result.lastHttpStatus,
     mediaType:result.mediaType||candidate.mediaType,
+    resolvedMediaFormatId:result.mediaType||candidate.resolvedMediaFormatId,
     drmDetected:Boolean(result.drmDetected),
     verificationDetail:result.detail||'',
   });
@@ -119,6 +152,7 @@ export function candidateForDisplay(candidate={}) {
   return {
     ...rest,
     sourceUrl:xtreamContext ? '[redacted Xtream source]' : isPreview ? '[temporary Xtream preview]' : redactUrlCredentials(rest.sourceUrl),
+    sourceOriginUrl:safePublicOriginUrl(rest.sourceOriginUrl,{credentialed:Boolean(xtreamContext)||isPreview||rest.inputFormatId==='xtream'}),
     xtreamPreviewToken:xtreamPreviewToken ? '[opaque preview token]' : '',
     xtreamContext:xtreamContext ? {
       server:xtreamContext.server,
