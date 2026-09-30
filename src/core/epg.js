@@ -1,8 +1,11 @@
-import { CONFIG, CHANNEL_ALIASES } from '../config.js';
+import { CONFIG } from '../config.js';
+import { resolveGreekIdentity } from './channel-identity-gr.js';
+import { getChannelProfileById } from './channel-profile-gr.js';
 import { normalizeId, formatTime } from './utils.js';
 
 const GLOBAL_EPG_KEY = '__webtv_epg_service_singleton__';
 const MIN_REFRESH_GAP_MS = 60 * 1000;
+const IDENTITY_INDEX_PREFIX='@identity:';
 
 function parseXmltvTime(value = '') {
   const match = String(value).trim().match(/^(\d{14})(?:\s*([+-]\d{2}:?\d{2}|Z))?$/i);
@@ -18,34 +21,6 @@ function parseXmltvTime(value = '') {
     ms -= sign * ((Number(t[2]) * 60) + Number(t[3])) * 60000;
   }
   return new Date(ms);
-}
-
-const KNOWN_CHANNEL_KEYS = [
-  'ertnews', 'ert1', 'ert2', 'ert3', 'ant1', 'alpha', 'skai', 'open', 'mega', 'star', 'action24', 'kontra'
-];
-
-function canonicalChannelKey(value = '') {
-  let norm = normalizeId(String(value || ''));
-  if (!norm) return '';
-
-  norm = norm
-    .replace(/\p{Lm}/gu, '')
-    .replace(/[ᴴᴰ]/gu, '')
-    .replace(/(?:fullhd|fhd|uhd|hd|4k)$/giu, '')
-    .replace(/(?:channel|tv)$/giu, '');
-
-  if (norm.startsWith('openbeyond')) return 'open';
-  if (norm.startsWith('megachannel')) return 'mega';
-  if (norm.startsWith('alphatv')) return 'alpha';
-  if (norm.startsWith('skaitv')) return 'skai';
-  if (norm.startsWith('startv')) return 'star';
-  if (norm.startsWith('ertnews')) return 'ertnews';
-
-  for (const key of KNOWN_CHANNEL_KEYS) {
-    if (norm === key || norm.startsWith(key)) return key;
-  }
-
-  return norm;
 }
 
 function epgVariants(value = '') {
@@ -69,36 +44,24 @@ function epgVariants(value = '') {
   const withoutTv = cleaned.replace(/\bTV\b/gi, '').replace(/\s+/g, ' ').trim();
   if (withoutTv) variants.add(withoutTv);
 
-  const canonical = canonicalChannelKey(raw);
-  if (canonical) variants.add(canonical);
-
-  if (/^open\s+beyond$/i.test(cleaned)) variants.add('OPEN');
-
   return [...variants];
 }
 
-function aliasCandidates(values = []) {
-  const out = new Set();
+function identityIndexKey(id=''){return `${IDENTITY_INDEX_PREFIX}${String(id||'').trim()}`;}
 
-  for (const value of values) {
-    for (const variant of epgVariants(value)) out.add(variant);
-  }
+function identityState(values=[]){
+  const identities=values.map(resolveGreekIdentity).filter(Boolean);
+  const unique=new Map(identities.map(identity=>[identity.id,identity]));
+  if(unique.size>1)return{identity:null,conflict:true};
+  return{identity:unique.values().next().value||null,conflict:false};
+}
 
-  const normalized = new Set([...out].flatMap(value => [normalizeId(value), canonicalChannelKey(value)]).filter(Boolean));
-
-  for (const [canonical, aliases] of Object.entries(CHANNEL_ALIASES)) {
-    const aliasNorms = [canonical, ...(aliases || [])]
-      .flatMap(epgVariants)
-      .flatMap(value => [normalizeId(value), canonicalChannelKey(value)])
-      .filter(Boolean);
-
-    if (aliasNorms.some(norm => normalized.has(norm))) {
-      out.add(canonical);
-      for (const alias of aliases || []) out.add(alias);
-    }
-  }
-
-  return [...out];
+function candidateValues(values=[],identity=null,profile=null){
+  return [...new Set([
+    ...values,
+    ...(profile?.epg?.aliases||[]),
+    ...(identity?.aliases||[]),
+  ].map(value=>String(value||'').trim()).filter(Boolean))];
 }
 
 export class EpgService {
@@ -154,9 +117,9 @@ export class EpgService {
   #indexValue(value, id) {
     for (const variant of epgVariants(value)) {
       const norm = normalizeId(variant);
-      const canonical = canonicalChannelKey(variant);
       if (norm) this.resolveIndex.set(norm, id);
-      if (canonical) this.resolveIndex.set(canonical, id);
+      const identity=resolveGreekIdentity(variant);
+      if(identity)this.resolveIndex.set(identityIndexKey(identity.id),id);
     }
   }
 
@@ -207,24 +170,30 @@ export class EpgService {
 
       for (const variant of epgVariants(channel)) {
         const norm = normalizeId(variant);
-        const canonical = canonicalChannelKey(variant);
         if (norm && !this.programKeyIndex.has(norm)) this.programKeyIndex.set(norm, channel);
-        if (canonical && !this.programKeyIndex.has(canonical)) this.programKeyIndex.set(canonical, channel);
+        const identity=resolveGreekIdentity(variant);
+        const identityKey=identity?identityIndexKey(identity.id):'';
+        if(identityKey&&!this.programKeyIndex.has(identityKey))this.programKeyIndex.set(identityKey,channel);
       }
     }
   }
 
   #resolve(channel) {
-    const candidates = aliasCandidates([channel.id, channel.originalId, channel.name].filter(Boolean));
+    const values=[channel?.id,channel?.originalId,channel?.name].map(value=>String(value||'').trim()).filter(Boolean);
+    const {identity,conflict}=identityState(values);
+    if(conflict)return null;
 
-    for (const candidate of candidates) {
-      const norm = normalizeId(candidate);
-      const canonical = canonicalChannelKey(candidate);
+    const profile=identity&&!identity.legacy?getChannelProfileById(identity.id):null;
+    const identityKey=identity?identityIndexKey(identity.id):'';
+    if(identityKey&&this.resolveIndex.has(identityKey))return this.resolveIndex.get(identityKey);
+    if(identityKey&&this.programKeyIndex.has(identityKey))return this.programKeyIndex.get(identityKey);
 
-      if (canonical && this.resolveIndex.has(canonical)) return this.resolveIndex.get(canonical);
-      if (norm && this.resolveIndex.has(norm)) return this.resolveIndex.get(norm);
-      if (canonical && this.programKeyIndex.has(canonical)) return this.programKeyIndex.get(canonical);
-      if (norm && this.programKeyIndex.has(norm)) return this.programKeyIndex.get(norm);
+    for(const candidate of candidateValues(values,identity,profile)){
+      for(const variant of epgVariants(candidate)){
+        const norm=normalizeId(variant);
+        if(norm&&this.resolveIndex.has(norm))return this.resolveIndex.get(norm);
+        if(norm&&this.programKeyIndex.has(norm))return this.programKeyIndex.get(norm);
+      }
     }
 
     return null;
