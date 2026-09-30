@@ -50,3 +50,10 @@ Lesson: extracting a shared core is incomplete until every runtime consumer is a
 Situation: the first E2 core test existed on the branch but was not yet executed by the PR workflow, which could have produced a misleading green CI.
 Solution: wire the focused test into validation before treating the failure as the RED gate.
 Lesson: a test file that CI does not execute is not branch-level RED evidence.
+
+## LESSON-012 Shared structure may need ordered candidates, not one chosen source
+Situation: self-review found a Channel Catalog parity regression after the first E2 migration. Legacy Catalog skipped unsupported non-comment lines such as `rtsp://...` and kept scanning until it found the first HTTP(S) line before the next entry. A shared parser exposing only one `sourceLine` lost that fallback.
+RED proof: `tests/channel-catalog-m3u-parity.test.mjs` reproduced the old `rtsp -> HTTP` fallback and failed before the fix.
+Solution: the shared core now exposes ordered neutral `sourceCandidates: [{line, offset}]`; `sourceLine/sourceOffset` remain the first candidate for existing callers, while Catalog applies its own HTTP(S) acceptance policy across the candidate list.
+Lesson: if callers disagree about which structurally associated line is acceptable, preserve the ordered structural facts in the shared core and leave selection policy to the caller. Do not make the shared parser choose a domain winner.
+Verification: full PR validation #554 passed on `df3b36c838b3238666c037e23389d2f27870a94c`.
