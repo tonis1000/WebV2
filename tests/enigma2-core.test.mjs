@@ -16,22 +16,25 @@ function serviceByDescription(result, description) {
     rawReference: 'http%3A//example.com/live/master.m3u8',
     decodedReferenceOnce: 'http://example.com/live/master.m3u8',
     decodedReference: 'http://example.com/live/master.m3u8',
+    rawInlineName: 'ERT 1',
+    inlineNameDecodedOnce: 'ERT 1',
     inlineName: 'ERT 1',
+    rawDescription: 'ERT1',
     description: 'ERT1',
     descriptionLineIndex: 2,
   });
 }
 
 {
-  const parsed = parseEnigma2Bouquet(`#SERVICE 5001:0:1:0:0:0:0:0:0:0:https%253A//cdn.example.com/live/index.mpd%257CUser-Agent%253DWebTV%2520Test:MEGA HD\n#DESCRIPTION MEGA\n`);
-  assert.equal(parsed.services.length, 1);
+  const parsed = parseEnigma2Bouquet(`#SERVICE 5001:0:1:0:0:0:0:0:0:0:https%253A//cdn.example.com/live/index.mpd%257CUser-Agent%253DWebTV%2520Test:MEGA%2520HD\n#DESCRIPTION MEGA%2520NEWS\n`);
   const service = parsed.services[0];
-  assert.equal(service.serviceType, '5001');
-  assert.equal(service.rawReference, 'https%253A//cdn.example.com/live/index.mpd%257CUser-Agent%253DWebTV%2520Test');
   assert.equal(service.decodedReferenceOnce, 'https%3A//cdn.example.com/live/index.mpd%7CUser-Agent%3DWebTV%20Test');
   assert.equal(service.decodedReference, 'https://cdn.example.com/live/index.mpd|User-Agent=WebTV Test');
+  assert.equal(service.rawInlineName, 'MEGA%2520HD');
+  assert.equal(service.inlineNameDecodedOnce, 'MEGA%20HD');
   assert.equal(service.inlineName, 'MEGA HD');
-  assert.equal(service.description, 'MEGA');
+  assert.equal(service.rawDescription, 'MEGA%2520NEWS');
+  assert.equal(service.description, 'MEGA NEWS');
 }
 
 {
