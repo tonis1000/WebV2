@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 globalThis.window = globalThis.window || {};
 const identity = await import('../src/channel-identity-gr.js');
@@ -44,7 +45,6 @@ for (const [channelName, hosts] of expectedOfficialHosts) {
   assert.ok(hosts.some(host => [...refHosts].some(actual => actual === host || actual.endsWith(`.${host}`))), `${channelName}: expected an authoritative official reference host`);
 }
 
-// Representative variants from playlists, EPG labels, broadcaster branding and human input.
 const variants = [
   ['ΕΡΤ 1','ERT1'],['EPT1','ERT1'],['ΕΡΤ2 ΣΠΟΡ','ERT2'],['ERT2 SPORT','ERT2'],['ERTNEWS','ERT News'],
   ['ANTENNA TV','ANT1'],['ΑΝΤ1','ANT1'],['ALPHA','Alpha TV'],['ΣΚΑΪ','SKAI'],['Mega Channel','MEGA'],['MEGA HD','MEGA'],
@@ -58,15 +58,26 @@ for (const [variant, channelName] of variants) {
   assert.ok(identity.channelMatchScore(variant, channelName, 'exact') > 0, `variant should match ${channelName}: ${variant}`);
 }
 
-// Collision guards. Similar names must not bleed into a different channel/family.
 assert.equal(identity.channelMatchScore('OMEGA TV HD','MEGA','exact'), 0, 'MEGA must not match OMEGA');
 assert.equal(identity.channelMatchScore('MEGA TV','MEGA News','exact'), 0, 'MEGA News must not collapse into MEGA TV');
 assert.equal(identity.channelMatchScore('MAD World','MADTV','exact'), 0, 'MAD TV must not match MAD World');
 assert.equal(identity.channelMatchScore('ERT Sports 4','ERT2','exact'), 0, 'ERT2 must not match an ERT Sports numbered channel');
 assert.equal(identity.channelMatchScore('Baraza Greek Laika','BARAZA TV HD Greek Hits','exact'), 0, 'Baraza Hits must not match Baraza Laika');
 
-// Future additions must obey the same schema.
 assert.throws(() => identity.validateGreekChannelIdentityDefinition({ id:'new-tv', canonicalName:'New TV', aliases:['New TV'], officialNames:['New TV'], officialRefs:[] }, { throwOnError:true }), /official reference/i);
 assert.throws(() => identity.validateGreekChannelIdentityDefinition({ id:'new-tv', canonicalName:'New TV', aliases:[], officialNames:['New TV'], officialRefs:[{kind:'official-site',url:'https://new.example/'}] }, { throwOnError:true }), /alias/i);
+
+// Architecture regression: active matching callers must consume the shared identity core,
+// not carry independent alias registries that drift over time.
+const huntWorker = fs.readFileSync('workers/source-huntatonisworkersdev.js','utf8');
+const discoveryWorker = fs.readFileSync('workers/webtv-source-discovery.js','utf8');
+const huntFrontend = fs.readFileSync('src/source-hunt-engine.js','utf8');
+assert.match(huntWorker, /src\/core\/channel-identity-gr\.js/, 'Source Hunt Worker must import the shared channel identity core');
+assert.doesNotMatch(huntWorker, /aliases:\s*\[/, 'Source Hunt Worker must not keep its own alias registry');
+assert.match(discoveryWorker, /src\/core\/channel-identity-gr\.js/, 'Source Discovery Worker must import the shared channel identity core');
+assert.doesNotMatch(discoveryWorker, /function\s+identitySet\s*\(/, 'Source Discovery Worker must not keep a second identitySet implementation');
+assert.doesNotMatch(discoveryWorker, /function\s+matchesSignals\s*\(/, 'Source Discovery Worker must use shared signal matching');
+assert.match(huntFrontend, /channel-identity-gr\.js/, 'frontend Source Hunt must consume shared channel identity helpers');
+assert.doesNotMatch(huntFrontend, /const\s+CHANNEL_FINGERPRINTS\s*=/, 'frontend Source Hunt must not keep a separate channel fingerprint registry');
 
 console.log(`channel identity core contract PASS · ${ACTIVE_PLAYLIST_CHANNELS.length} active channels covered`);
