@@ -33,7 +33,7 @@ const unknown=policy.promoteImportedChannel({
   id:'mystery-feed',originalId:'mystery.feed',name:'Mystery TV',logo:'https://untrusted.invalid/logo.png',group:'Premium',
   directUrls:['https://media.example/mystery.m3u8'],sourceTrust:'temporary',
 });
-assert.equal(unknown.id,'mystery-feed','unknown imports may retain their normalized local id');
+assert.equal(unknown.id,'mysteryfeed','unknown imports must retain the project shared normalized local id');
 assert.equal(unknown.name,'Mystery TV','unknown imports need a usable display name');
 assert.equal(unknown.logo,'','unknown imported logo must not become canonical metadata');
 assert.equal(unknown.group,'Other','unknown imported group must not become canonical metadata');
