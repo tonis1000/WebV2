@@ -24,3 +24,5 @@ jobs:
         run: node tests/strm-core.test.mjs
       - name: Run browser STRM resolver parity
         run: node tests/strm-resolver-parity.test.mjs
+      - name: Run Discovery STRM provider parity
+        run: node tests/strm-specific-discovery-provider.test.mjs
