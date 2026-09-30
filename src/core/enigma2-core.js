@@ -21,6 +21,25 @@ function decodeRepeated(value = '', rounds = 2) {
   return out.replace(/%25/gi, '%');
 }
 
+function embeddedReferenceFacts(rawBody = '') {
+  const raw = String(rawBody || '');
+  const schemeMatch = raw.match(/(?:https?|rtmp|rtsp)(?::|%3a)\/\//i);
+  if (!schemeMatch) return { embeddedReference: '', embeddedInlineName: '' };
+
+  let payload = raw.slice(schemeMatch.index);
+  let rawLabel = '';
+  const lastColon = payload.lastIndexOf(':');
+  if (lastColon > 0) {
+    rawLabel = payload.slice(lastColon + 1).trim();
+    payload = payload.slice(0, lastColon);
+  }
+
+  return {
+    embeddedReference: decodeRepeated(payload).trim(),
+    embeddedInlineName: decodeRepeated(rawLabel).trim(),
+  };
+}
+
 export function parseEnigma2Bouquet(text = '') {
   const lines = String(text || '').replace(/\r/g, '').split('\n');
   let name = '';
@@ -46,6 +65,7 @@ export function parseEnigma2Bouquet(text = '') {
     const hasDescription = /^#DESCRIPTION\s+/i.test(next);
     const rawInlineName = parts.slice(11).join(':').trim();
     const rawDescription = hasDescription ? next.replace(/^#DESCRIPTION\s+/i, '').trim() : '';
+    const embedded = embeddedReferenceFacts(rawBody);
 
     services.push({
       lineIndex: i,
@@ -60,6 +80,7 @@ export function parseEnigma2Bouquet(text = '') {
       rawDescription,
       description: decodeRepeated(rawDescription).trim(),
       descriptionLineIndex: hasDescription ? i + 1 : null,
+      ...embedded,
     });
   }
 
