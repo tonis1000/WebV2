@@ -1,6 +1,9 @@
 const SEVERITIES=new Set(['INFO','OK','WARN','ERROR','TIMEOUT','SKIPPED']);
 const SENSITIVE_KEYS=/^(?:username|user|password|passwd|pass|authorization|cookie|set-cookie|token|access_token|refresh_token|api[_-]?key|secret|client_secret|previewtoken|xtreampreviewtoken)$/i;
 const SENSITIVE_QUERY_KEYS=new Set(['username','user','password','passwd','pass','authorization','auth','cookie','token','access_token','refresh_token','apikey','api_key','key','secret']);
+const INLINE_SECRET_ASSIGNMENT=/\b(username|user|password|passwd|pass|token|access_token|refresh_token|api[_-]?key|secret|client_secret)\s*([:=])\s*([^\s&,;]+)/gi;
+const AUTHORIZATION_TEXT=/\bauthorization\s*:\s*(?:bearer\s+)?[^\s,;]+/gi;
+const COOKIE_TEXT=/\bcookie\s*:\s*[^\s]+/gi;
 
 function redactUrl(value=''){
   try{
@@ -18,14 +21,23 @@ function redactUrl(value=''){
   }catch{return '[redacted URL]';}
 }
 
-function looksLikeUrl(value=''){
-  return /^(?:https?|rtsp|rtsps|rtmp|rtmps|file):\/\//i.test(String(value||'').trim());
+function redactText(value=''){
+  let text=String(value??'');
+  text=text.replace(/https?:\/\/[^\s<>"']+/gi,raw=>{
+    let core=raw,trailing='';
+    while(/[),.;]$/.test(core)){trailing=core.slice(-1)+trailing;core=core.slice(0,-1);}
+    return `${redactUrl(core)}${trailing}`;
+  });
+  text=text.replace(INLINE_SECRET_ASSIGNMENT,(_match,key,separator)=>`${key}${separator}[redacted]`);
+  text=text.replace(AUTHORIZATION_TEXT,'Authorization: [redacted]');
+  text=text.replace(COOKIE_TEXT,'Cookie: [redacted]');
+  return text;
 }
 
 function redact(value,key=''){
   if(SENSITIVE_KEYS.test(String(key||'')))return '[redacted]';
   if(value===null||value===undefined)return value;
-  if(typeof value==='string')return looksLikeUrl(value)?redactUrl(value):value;
+  if(typeof value==='string')return redactText(value);
   if(Array.isArray(value))return value.map(item=>redact(item));
   if(typeof value==='object'){
     const out={};
@@ -49,14 +61,14 @@ function normalizeEvent(searchId,eventId,input={}){
     at:String(input.at||new Date().toISOString()),
     severity,
     type:String(input.type||'event.unknown'),
-    laneId:String(input.laneId||''),
-    sourceId:String(input.sourceId||''),
-    sourceLabel:String(input.sourceLabel||''),
-    candidateId:String(input.candidateId||''),
-    channelName:String(input.channelName||''),
-    stage:String(input.stage||''),
+    laneId:redactText(input.laneId||''),
+    sourceId:redactText(input.sourceId||''),
+    sourceLabel:redactText(input.sourceLabel||''),
+    candidateId:redactText(input.candidateId||''),
+    channelName:redactText(input.channelName||''),
+    stage:redactText(input.stage||''),
     durationMs:Number.isFinite(Number(input.durationMs))?Number(input.durationMs):null,
-    message:String(input.message||''),
+    message:redactText(input.message||''),
     detail:redact(input.detail??null),
   };
   return deepFreeze(raw);
@@ -103,8 +115,8 @@ export function createSearchReporter({searchId,maxEvents=1000}={}){
     });
   }
 
-  function filterBySource(sourceId){const key=String(sourceId||'');return deepFreeze(events.filter(event=>event.sourceId===key));}
-  function filterByCandidate(candidateId){const key=String(candidateId||'');return deepFreeze(events.filter(event=>event.candidateId===key));}
+  function filterBySource(sourceId){const key=redactText(sourceId||'');return deepFreeze(events.filter(event=>event.sourceId===key));}
+  function filterByCandidate(candidateId){const key=redactText(candidateId||'');return deepFreeze(events.filter(event=>event.candidateId===key));}
   function exportJson(){return JSON.stringify(snapshot(),null,2);}
   function exportText(){
     return snapshot().map(event=>{
