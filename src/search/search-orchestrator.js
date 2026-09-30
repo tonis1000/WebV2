@@ -122,28 +122,18 @@ export function runUnifiedSearch({
       }
     });
     await Promise.all(workers);
-    if(state.snapshot().status==='running'){
-      state.completeSearch?.(searchId);
-      if(state.snapshot().status==='running'){
-        // Completion is intentionally owned here; older state versions may not expose completeSearch.
-        state.cancelSearch(searchId,'__complete__');
-      }
-    }
+    if(state.snapshot().status==='running')state.completeSearch(searchId);
   }
 
   run.done=(async()=>{
     try{
       await execute();
-      let snapshot=state.snapshot();
-      if(snapshot.status==='cancelled'&&snapshot.cancelReason==='__complete__'){
-        // Preserve a true completed state without teaching search state about Player or transport concerns.
-        snapshot=Object.freeze({...snapshot,status:'completed',cancelReason:'',completedAt:snapshot.completedAt||new Date().toISOString()});
-      }
+      const snapshot=state.snapshot();
       if(!cancelled&&snapshot.status==='completed'){
         report.emit({type:'search.completed',severity:'OK',stage:'orchestrator',detail:{candidateCount:snapshot.candidates.length,leadCount:snapshot.leads.length}});
         notify();
       }
-      return {snapshot,report:report.snapshot(),summary:report.summary(),intent};
+      return {snapshot:state.snapshot(),report:report.snapshot(),summary:report.summary(),intent};
     }finally{
       settled=true;
       if(activeRun===run)activeRun=null;
