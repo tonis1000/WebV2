@@ -44,7 +44,8 @@ export function parseEnigma2Bouquet(text = '') {
 
     const next = lines[i + 1]?.trim() || '';
     const hasDescription = /^#DESCRIPTION\s+/i.test(next);
-    const inlineName = decodeRepeated(parts.slice(11).join(':')).trim();
+    const rawInlineName = parts.slice(11).join(':').trim();
+    const rawDescription = hasDescription ? next.replace(/^#DESCRIPTION\s+/i, '').trim() : '';
 
     services.push({
       lineIndex: i,
@@ -53,8 +54,11 @@ export function parseEnigma2Bouquet(text = '') {
       rawReference,
       decodedReferenceOnce: decodeOnce(rawReference).trim(),
       decodedReference: decodeRepeated(rawReference).trim(),
-      inlineName,
-      description: hasDescription ? decodeRepeated(next.replace(/^#DESCRIPTION\s+/i, '')).trim() : '',
+      rawInlineName,
+      inlineNameDecodedOnce: decodeOnce(rawInlineName).trim(),
+      inlineName: decodeRepeated(rawInlineName).trim(),
+      rawDescription,
+      description: decodeRepeated(rawDescription).trim(),
       descriptionLineIndex: hasDescription ? i + 1 : null,
     });
   }
