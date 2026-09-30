@@ -31,6 +31,7 @@ assert.equal(entry.attributes['tvg-id'], 'MEGA');
 assert.equal(entry.attributes['group-title'], 'General');
 assert.equal(entry.sourceLine, 'https://cdn.test/mega.m3u8?token=1|User-Agent=UA');
 assert.equal(entry.sourceOffset, 3, 'sourceOffset must count physical lines after EXTINF, including blank/directive lines');
+assert.deepEqual(entry.sourceCandidates, [{ line: 'https://cdn.test/mega.m3u8?token=1|User-Agent=UA', offset: 3 }]);
 assert.deepEqual(entry.directivesBeforeSource, ['#EXTVLCOPT:http-user-agent=WebTV']);
 
 const structural = parseM3uContainer(`#EXTM3U
@@ -57,6 +58,21 @@ assert.deepEqual(structural.map(item => item.sourceLine), [
 ]);
 assert.ok(structural.every(item => item.sourceOffset === 1));
 
+const multipleCandidates = parseM3uContainer(`#EXTM3U
+#EXTINF:-1,Multiple structural lines
+rtsp://camera.test/live
+#COMMENT keep walking structurally
+https://cdn.test/fallback.m3u8
+#EXTINF:-1,Next
+https://cdn.test/next.m3u8
+`)[0];
+assert.deepEqual(multipleCandidates.sourceCandidates, [
+  { line: 'rtsp://camera.test/live', offset: 1 },
+  { line: 'https://cdn.test/fallback.m3u8', offset: 3 },
+]);
+assert.equal(multipleCandidates.sourceLine, 'rtsp://camera.test/live', 'sourceLine remains the first neutral candidate for existing callers');
+assert.equal(multipleCandidates.sourceOffset, 1);
+
 const missing = parseM3uContainer(`#EXTM3U
 #EXTINF:-1,Missing source
 #COMMENT keep me
@@ -66,6 +82,7 @@ https://cdn.test/next.m3u8
 assert.equal(missing.length, 2);
 assert.equal(missing[0].sourceLine, '');
 assert.equal(missing[0].sourceOffset, null);
+assert.deepEqual(missing[0].sourceCandidates, []);
 assert.deepEqual(missing[0].directivesBeforeSource, ['#COMMENT keep me']);
 assert.equal(missing[1].sourceLine, 'https://cdn.test/next.m3u8');
 assert.equal(missing[1].sourceOffset, 1);
