@@ -14,7 +14,9 @@ Strength: exact repository state and commit evidence.
 Limit: GitHub state does not itself prove production deployment.
 
 ## Registry API
-Use for: `/api/project-status`, `/api/project-checkpoints`, canonical current checkpoint.
+Routine Project Brain reads use the scoped project-agent routes: `/api/project-agent/checkpoints` and `/api/project-agent/checkpoints/WEBV2_CURRENT.md` when a valid project-agent session exists.
+Admin alternative: `/api/project-checkpoints` remains an admin/bypass surface, not the default scoped path.
+Use for: canonical Current/checkpoint state plus `/api/project-status` deploy-status surface.
 Strength: project current-state/deploy-status surface and CAS checkpoint model.
 Rule: Registry project status is Registry deployment truth, not universal Worker truth.
 
@@ -29,11 +31,12 @@ Use when a current web search materially helps and native web/connector is unsui
 ## TinyFish Fetch
 Current status on 2026-09-30: free fetch capability available; re-check exact quotas.
 Use for known URL content extraction when it avoids metered browser automation.
+Observed WebV2 limitation on 2026-09-30: Fetch reached Registry `workers.dev` URLs during E2 preflight but did not surface the raw API response body needed for canonical SHA/content reconciliation. Do not treat successful reachability alone as a complete checkpoint read.
 
 ## TinyFish Browser
 Metered. Use only when browser interaction is materially required and cheaper/free paths cannot accomplish the task.
 Known success: reached Registry `workers.dev` endpoints when another retrieval path refused the host.
-Known limitation: the browser-style attempt used in this project did not expose arbitrary PUT JSON needed for checkpoint write.
+Known limitation: the generic browser automation path did not expose arbitrary PUT JSON, but the project already has the scoped HTML CAS editor `/api/project-agent/checkpoints/WEBV2_CURRENT.md/edit` for canonical Current writes.
 
 ## TinyFish Agent
 Metered. Use only for a real interaction/automation need, not routine reads that Search/Fetch/native APIs can do.
