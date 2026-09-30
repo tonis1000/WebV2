@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createCandidate, candidateForDisplay, detectCandidateType, normalizeChannelName } from '../src/discovery/candidate-model.js';
+import fs from 'node:fs';
+import { createCandidate, candidateForDisplay, detectCandidateType, normalizeChannelName, SOURCE_TYPES } from '../src/discovery/candidate-model.js';
 import { DiscoveryState, DEFAULT_FRESHNESS, FRESHNESS_OPTIONS } from '../src/discovery/discovery-state.js';
 
 assert.equal(normalizeChannelName('  ΜΕΓΑ TV HD  '),'μεγα tv hd');
@@ -9,6 +10,19 @@ assert.equal(detectCandidateType('https://x.test/a.strm'),'strm');
 assert.equal(detectCandidateType('https://x.test/list.m3u'),'m3u');
 assert.equal(detectCandidateType('rtsp://example.test/live'),'rtsp');
 assert.equal(detectCandidateType('rtmps://example.test/live'),'rtmp');
+assert.equal(detectCandidateType('https://x.test/live?id=1'),'direct');
+assert.equal(detectCandidateType('https://x.test/live.m3u8','dash'),'dash');
+assert.equal(detectCandidateType('https://x.test/live.m3u8','not-a-format'),'hls');
+assert.equal(detectCandidateType('foo://example.test/live'),'unknown');
+for (const type of ['hls','dash','strm','m3u','direct','rtsp','rtmp','xtream','xtream-preview','header-aware','unknown']) assert.equal(SOURCE_TYPES.has(type), true);
+
+const candidateSource=fs.readFileSync(new URL('../src/discovery/candidate-model.js',import.meta.url),'utf8');
+assert.match(candidateSource,/source-format-registry\.js/);
+assert.match(candidateSource,/detectSourceFormat/);
+assert.match(candidateSource,/toLegacySourceType/);
+assert.doesNotMatch(candidateSource,/if \(\/\^rtsps\?:\\\/\\\//);
+assert.doesNotMatch(candidateSource,/if \(\/\\\.m3u8/);
+
 const rtsp=createCandidate({channelName:'MEGA',sourceUrl:'rtsp://user:password@example.test/live'});
 assert.equal(rtsp.saveEligible,false);
 assert.equal(candidateForDisplay(rtsp).sourceUrl.includes('password'),false);

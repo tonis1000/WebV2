@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import verifier from '../workers/webtv-source-verifier.js';
+
+const workerSource=fs.readFileSync(new URL('../workers/webtv-source-verifier.js',import.meta.url),'utf8');
+assert.match(workerSource,/source-format-registry\.js/);
+assert.match(workerSource,/detectSourceFormat/);
+assert.match(workerSource,/classifySourceBody/);
+assert.doesNotMatch(workerSource,/function inferredType\(/);
+assert.doesNotMatch(workerSource,/function classifyBody\(/);
 
 const originalFetch=globalThis.fetch;
 try{
@@ -9,10 +17,20 @@ try{
     if(value.includes('good.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     if(value.includes('dead.test'))return new Response('gone',{status:404,headers:{'content-type':'text/plain'}});
     if(value.includes('drm.test'))return new Response('<?xml version="1.0"?><MPD><Period><ContentProtection schemeIdUri="urn:uuid:test"/></Period></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
+    if(value.includes('html.test'))return new Response('<html>not media</html>',{status:200,headers:{'content-type':'text/html'}});
     if(value.includes('redirect.test/start.mpd'))return new Response(null,{status:307,headers:{location:'https://cdn.test/final.mpd?token=super-secret&expires=999999','set-cookie':'session=do-not-leak; Secure; HttpOnly','cache-control':'no-store','x-edge-test':'redirect'}});
     if(value.includes('cdn.test/final.mpd'))return new Response('denied',{status:401,headers:{'content-type':'text/plain','www-authenticate':'Bearer realm="do-not-leak"','x-edge-test':'final'}});
     return new Response('nope',{status:500});
   };
+
+  const unresolvedRequest=new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidates:[
+    {candidateId:'strm',sourceType:'strm',sourceUrl:'https://x.test/file.strm'},
+    {candidateId:'m3u',sourceType:'m3u',sourceUrl:'https://x.test/list.m3u'},
+  ]})});
+  const unresolvedResponse=await verifier.fetch(unresolvedRequest,{});
+  const unresolvedBody=await unresolvedResponse.json();
+  assert.equal(unresolvedBody.results[0].status,'UNRESOLVED');
+  assert.equal(unresolvedBody.results[1].status,'UNRESOLVED');
 
   const request=new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidates:[
     {candidateId:'good',sourceType:'hls',sourceUrl:'https://good.test/live.m3u8'},
@@ -33,6 +51,11 @@ try{
   assert.equal(body.results[2].drmDetected,true);
   assert.equal(body.results[3].status,'FAILED');
   assert.match(body.results[3].detail,/Private(?: IP|\/local) targets are not allowed/);
+
+  const htmlResponse=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidate:{candidateId:'html',sourceUrl:'https://html.test/live'}})}),{});
+  const htmlBody=await htmlResponse.json();
+  assert.equal(htmlBody.results[0].status,'FAILED');
+  assert.equal(htmlBody.results[0].verified,false);
 
   const redirectResponse=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidate:{candidateId:'redirect',sourceType:'dash',sourceUrl:'https://redirect.test/start.mpd?initial=hidden',requiredHeaders:{'User-Agent':'Browser UA','Referer':'https://official.test/live','Origin':'https://official.test'}}})}),{});
   const redirectBody=await redirectResponse.json();
