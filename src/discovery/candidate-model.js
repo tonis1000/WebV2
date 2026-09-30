@@ -1,4 +1,10 @@
-const SOURCE_TYPES = new Set(['hls','dash','strm','m3u','direct','rtsp','rtmp','xtream','xtream-preview','header-aware','unknown']);
+import { detectSourceFormat, listSourceFormats, toLegacySourceType } from '../core/source-format-registry.js';
+
+const SOURCE_TYPES = new Set([
+  ...listSourceFormats().map(descriptor => descriptor.compatibilityType),
+  'xtream-preview',
+  'unknown',
+]);
 const MATCH_CONFIDENCE = new Set(['HIGH','MEDIUM','LOW','UNKNOWN']);
 const VERIFICATION_STATES = new Set(['UNVERIFIED','VERIFYING','VERIFIED','FAILED','TIMEOUT','HTTP 403','HTTP 404','DRM','WRONG CHANNEL','UNRESOLVED']);
 
@@ -14,16 +20,8 @@ export function normalizeChannelName(value='') {
 
 export function detectCandidateType(sourceUrl='', explicitType='') {
   const requested=String(explicitType||'').toLowerCase();
-  if (SOURCE_TYPES.has(requested) && requested !== 'unknown') return requested;
-  const url=String(sourceUrl||'').split('|')[0].trim().toLowerCase();
-  if (!url) return 'unknown';
-  if (/^rtsps?:\/\//i.test(url)) return 'rtsp';
-  if (/^rtmps?:\/\//i.test(url)) return 'rtmp';
-  if (/\.strm(?:[?#]|$)/i.test(url)) return 'strm';
-  if (/\.mpd(?:[?#]|$)/i.test(url)) return 'dash';
-  if (/\.m3u8(?:[?#]|$)/i.test(url)) return 'hls';
-  if (/\.m3u(?:[?#]|$)/i.test(url)) return 'm3u';
-  return 'direct';
+  if(requested==='xtream-preview') return 'xtream-preview';
+  return toLegacySourceType(detectSourceFormat({sourceUrl,explicitType:requested}));
 }
 
 function stableId(parts=[]) {
