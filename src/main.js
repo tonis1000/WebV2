@@ -1,5 +1,6 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js';
+import { resolveChannelProfile } from './core/channel-profile-gr.js';
 import { HealthStore } from './core/health-store.js';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
 import { EpgService } from './core/epg.js';
@@ -179,12 +180,15 @@ function applyPlaylistText(text,{mode='replace',label='Playlist'}={}){
 }
 
 function mapRegistryChannel(c){
+  const id=normalizeId(c.id||c.tvgId||c.name);
+  const profile=resolveChannelProfile(id||c.tvgId||c.name);
+  const fallbackLogo=safeLogo(c.logo||'');
   return {
-    id: normalizeId(c.id||c.tvgId||c.name),
+    id,
     originalId: c.tvgId||c.id||c.name,
     name: c.name,
-    logo: safeLogo(c.logo||''),
-    group: c.groupName||'Other',
+    logo: profile?.logo?.status==='available'?safeLogo(profile.logo.preferredUrl):fallbackLogo,
+    group: profile?.category?.primary||c.groupName||'Other',
     directUrls: [...new Set((c.sources||[]).map(s=>s?.url).filter(Boolean))],
     position: Number(c.position)||0,
     sourceTrust: 'curated'
