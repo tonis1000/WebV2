@@ -34,6 +34,8 @@ jobs:
         run: node tests/unified-source-registry.test.mjs
       - name: Run search adapter contract
         run: node tests/search-adapter-contract.test.mjs
+      - name: Run search provider adapter contract
+        run: node tests/search-provider-adapters.test.mjs
       - name: Run candidate provenance and capability contract
         run: node tests/discovery-candidate-provenance.test.mjs
       - name: Run external provenance normalization contract
