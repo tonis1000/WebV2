@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { listChannelProfiles } from '../src/core/channel-profile-gr.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = rel => readFileSync(path.join(ROOT, rel), 'utf8');
 
 const expectedLogos = new Map([
   ['ert1','https://i.imgur.com/slE8U5m.png'],
@@ -39,5 +45,18 @@ for (const row of profiles) {
 
 const kontra = profiles.find(row => row.id === 'kontra');
 assert.equal(kontra.logo.status, 'pending', 'Kontra goo.gl logo must not be promoted to canonical metadata');
+
+const main = read('src/main.js');
+const logoUtils = read('src/logo-utils.js');
+const epg = read('src/core/epg.js');
+const channelCatalog = read('src/core/channel-catalog.js');
+assert.match(main, /channel-profile-gr\.js/, 'Phase B My Playlist runtime must consume Channel Profiles');
+assert.match(main, /resolveChannelProfile/, 'Phase B runtime must resolve canonical metadata through Channel Profiles');
+assert.match(main, /profile\?\.category\?\.primary/, 'cloud My Playlist category must prefer the canonical Channel Profile category');
+assert.match(main, /profile\?\.logo\?\.status\s*===\s*['"]available['"]/, 'cloud My Playlist logo must prefer canonical available profile logo');
+assert.match(main, /safeLogo\(c\.logo\|\|['"]{2}\)/, 'cloud My Playlist must retain sanitized D1 logo as transition fallback for pending profiles');
+assert.match(channelCatalog, /sourceTrust:\s*['"]temporary['"]/, 'imported M3U metadata must remain temporary in Phase B');
+assert.doesNotMatch(logoUtils, /channel-profile-gr\.js/, 'logo-utils must remain sanitation/rendering only');
+assert.doesNotMatch(epg, /channel-profile-gr\.js/, 'Phase B must not start EPG ownership migration');
 
 console.log('channel profile Phase B RED/GREEN contract PASS');
