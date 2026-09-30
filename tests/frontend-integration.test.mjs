@@ -100,6 +100,7 @@ assert.match(frontendWorkflow, /source-discovery-worker\.test\.mjs/, 'Frontend v
 assert.match(frontendWorkflow, /github-public-playlists-provider\.test\.mjs/, 'Frontend validation should run GitHub provider regression');
 assert.match(frontendWorkflow, /recent-web-search-provider\.test\.mjs/, 'Frontend validation should run Recent Web provider regression');
 assert.match(frontendWorkflow, /channel-profile-core\.test\.mjs/, 'Frontend validation must enforce the Channel Profile contract');
+assert.match(frontendWorkflow, /epg-parity\.test\.mjs/, 'Frontend validation must enforce the Phase C EPG parity fixture');
 
 // Channel Profile Phase B owns canonical My Playlist logos/categories only.
 const epgCore = read('src/core/epg.js');

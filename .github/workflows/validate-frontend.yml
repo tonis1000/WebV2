@@ -108,6 +108,8 @@ jobs:
         run: node tests/source-ranking.test.mjs
       - name: Run EPG deploy verification contract test
         run: node tests/epg-deploy-verification.test.mjs
+      - name: Run EPG parity regression test
+        run: node tests/epg-parity.test.mjs
       - name: Run Xtream source regression test
         run: node tests/xtream-client.test.mjs
       - name: Run Xtream preview route encryption regression test
