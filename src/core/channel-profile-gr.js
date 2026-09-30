@@ -5,6 +5,8 @@ export const CHANNEL_PROFILE_CATEGORIES = Object.freeze(['Γενικά','Ειδ�
 
 const VALID_STATUS = new Set(['available','pending','unavailable']);
 const CATEGORY = new Set(CHANNEL_PROFILE_CATEGORIES);
+const FORBIDDEN_METADATA_KEYS = ['sources','directUrls','playbackUrl'];
+const STREAM_URL_RE = /(?:rtmps?|rtsps?):\/\/|\.(?:m3u8|mpd|mp4|webm|ts)(?:[?"\\]|$)/i;
 
 function blankLogo(){
   return Object.freeze({status:'pending',preferredUrl:'',sourceKind:'',sourceUrl:'',fallbacks:Object.freeze([])});
@@ -26,7 +28,7 @@ function profile(id,category){
 
 const DEFINITIONS = Object.freeze([
   profile('ert1','Γενικά'),
-  profile('ert2','Γενικά'),
+  profile('ert2','Αθλητικά'),
   profile('ert3','Γενικά'),
   profile('ertnews','Ειδήσεις'),
   profile('ant1','Γενικά'),
@@ -56,14 +58,18 @@ const byId = new Map(DEFINITIONS.map(item => [item.id,item]));
 function isHttps(value=''){
   try{return new URL(String(value||'')).protocol==='https:';}catch{return false;}
 }
+function hasForbiddenKeys(value,keys=FORBIDDEN_METADATA_KEYS){
+  if(!value||typeof value!=='object')return false;
+  return keys.some(key=>Object.prototype.hasOwnProperty.call(value,key));
+}
 function cloneProfile(item){
   if(!item)return null;
-  return {
-    ...item,
-    category:{...item.category},
-    logo:{...item.logo,fallbacks:[...(item.logo?.fallbacks||[])]},
-    epg:{...item.epg,aliases:[...(item.epg?.aliases||[])]},
-  };
+  const category=Object.freeze({...item.category});
+  const fallbacks=Object.freeze([...(item.logo?.fallbacks||[])]);
+  const logo=Object.freeze({...item.logo,fallbacks});
+  const aliases=Object.freeze([...(item.epg?.aliases||[])]);
+  const epg=Object.freeze({...item.epg,aliases});
+  return Object.freeze({...item,category,logo,epg});
 }
 
 export function validateChannelProfileDefinition(input={},options={}){
@@ -93,8 +99,10 @@ export function validateChannelProfileDefinition(input={},options={}){
   }
   if(!Array.isArray(epg.aliases))errors.push('EPG aliases must be an array');
 
-  for(const forbidden of ['sources','directUrls','sourceUrl','playbackUrl'])if(Object.prototype.hasOwnProperty.call(input,forbidden))errors.push(`profile must not contain ${forbidden}`);
-  if(/\.m3u8(?:[?"\\]|$)/i.test(JSON.stringify(input)))errors.push('profile must not contain stream URLs');
+  if(hasForbiddenKeys(input,[...FORBIDDEN_METADATA_KEYS,'sourceUrl']))errors.push('profile root must not contain stream/source ownership fields');
+  if(hasForbiddenKeys(input.category)||hasForbiddenKeys(epg)||hasForbiddenKeys(logo))errors.push('nested profile metadata must not contain playback/source ownership fields');
+  if(Object.prototype.hasOwnProperty.call(epg,'sourceUrl'))errors.push('EPG metadata must not contain sourceUrl');
+  if(STREAM_URL_RE.test(JSON.stringify(input)))errors.push('profile must not contain media stream URLs');
 
   const result=errors.length?{ok:false,errors}:{ok:true};
   if(errors.length&&options.throwOnError)throw new Error(`Invalid channel profile: ${errors.join('; ')}`);
