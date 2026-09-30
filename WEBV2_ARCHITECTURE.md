@@ -19,6 +19,12 @@ Rule: stable WebV2 channel id and EPG provider id are different concepts.
 Owns: source format identity, detection, capability metadata, transport-vs-media classification, legacy compatibility mapping.
 Does not own: network verification, trust, saving, playback success.
 
+## M3U Container Core
+Owns: pure structural M3U parsing in `src/core/m3u-container.js`: EXTINF recognition, neutral attribute/title/duration extraction, source-line association, structural offsets, and intervening directives/comments.
+Does not own: channel matching, accepted URL schemes, source-format classification, trust, save eligibility, ranking, STRM resolution, Enigma2 parsing, verification, or playback.
+Rule: **shared parser parses; caller decides.** Channel Catalog, Source Discovery, Source Hunt Worker, and frontend Source Hunt remain policy adapters.
+Status: Phase E2 implementation in progress until merge + exact-SHA deployment/live verification.
+
 ## Source Hunt
 Owns: broad lead hunting/search, provenance/freshness/ranking of leads.
 Does not own: final VERIFIED media truth or canonical save state.
@@ -49,4 +55,5 @@ Does not own: canonical channel identity/profile/source-format truth.
 
 ## Current cleanup boundaries
 Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry.
-Pending shared primitives: M3U/container parsing (E2), STRM/Enigma2 normalization (E3), later search/lifecycle consolidation.
+In-progress shared primitive: M3U Container Core (E2), pending exact-SHA production verification.
+Pending later primitives: STRM/Enigma2 normalization (E3), then search/lifecycle consolidation.
