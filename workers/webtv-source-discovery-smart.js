@@ -1,4 +1,9 @@
 import baseWorker from './webtv-source-discovery.js';
+import {
+  canonicalizeStrmReference,
+  isStrmReference,
+  parseStrmDocument,
+} from '../src/core/strm-core.js';
 
 const VERSION='1.8';
 const MAX_STRM_RESOLVES=4;
@@ -17,28 +22,15 @@ function privateHost(host=''){
   const a=+m[1],b=+m[2];return a===10||a===127||a===0||(a===169&&b===254)||(a===192&&b===168)||(a===172&&b>=16&&b<=31);
 }
 function canonicalUrl(raw=''){
-  const clean=String(raw||'').split('|')[0].trim();const url=new URL(clean);
-  if(!/^https?:$/.test(url.protocol))throw new Error('Only http/https STRM targets are allowed');
+  const canonical=canonicalizeStrmReference(raw);
+  if(!canonical)throw new Error('Only http/https STRM targets are allowed');
+  const url=new URL(canonical);
   if(privateHost(url.hostname))throw new Error('Private/local STRM targets are not allowed');
-  if(url.hostname.toLowerCase()==='github.com'){
-    const parts=url.pathname.split('/').filter(Boolean),blob=parts.indexOf('blob');
-    if(blob===2&&parts.length>4)return new URL(`https://raw.githubusercontent.com/${parts[0]}/${parts[1]}/${parts[3]}/${parts.slice(4).join('/')}`);
-  }
   return url;
 }
 function typeOf(raw=''){
   const clean=String(raw||'').split('|')[0].trim();
-  if(/\.m3u8(?:[?#]|$)/i.test(clean))return'hls';if(/\.mpd(?:[?#]|$)/i.test(clean))return'dash';if(/\.m3u(?:[?#]|$)/i.test(clean))return'm3u';if(/\.strm(?:[?#]|$)/i.test(clean))return'strm';return'direct';
-}
-function kodiHeaders(raw=''){
-  const i=String(raw).indexOf('|');if(i<0)return{};const params=new URLSearchParams(String(raw).slice(i+1).replace(/;/g,'&')),out={};
-  for(const [key,value] of params){const k=key.toLowerCase(),v=String(value||'').trim();if(!v||/[\r\n\0]/.test(v))continue;if(k==='user-agent'||k==='user_agent')out['User-Agent']=v;else if(k==='referer'||k==='referrer')out.Referer=v;else if(k==='origin')out.Origin=v;}
-  return out;
-}
-function parseStrm(text=''){
-  let mediaUrl='',drm=false;
-  for(const raw of String(text).replace(/\r/g,'').split('\n')){const line=raw.trim();if(!line)continue;if(/^#KODIPROP:.*(?:license_type|license_key)=/i.test(line)){drm=true;continue;}if(!line.startsWith('#')&&/^https?:\/\//i.test(line)&&!mediaUrl)mediaUrl=line;}
-  return{mediaUrl,drm};
+  if(/\.m3u8(?:[?#]|$)/i.test(clean))return'hls';if(/\.mpd(?:[?#]|$)/i.test(clean))return'dash';if(/\.m3u(?:[?#]|$)/i.test(clean))return'm3u';if(isStrmReference(clean))return'strm';return'direct';
 }
 async function fetchText(raw){
   const url=canonicalUrl(raw);const c=new AbortController(),timer=setTimeout(()=>c.abort(new DOMException('timeout','AbortError')),STRM_TIMEOUT_MS);
@@ -49,11 +41,11 @@ async function resolveStrm(raw,depth=0,chain=[]){
   if(depth>=STRM_MAX_DEPTH)return{ok:false,error:'Maximum STRM depth reached',chain};
   let fetched;try{fetched=await fetchText(raw);}catch(error){return{ok:false,error:error.message,chain};}
   const next=[...chain,fetched.url];if(!fetched.ok)return{ok:false,status:fetched.status,error:fetched.error||`STRM HTTP ${fetched.status}`,chain:next};
-  const parsed=parseStrm(fetched.text);if(parsed.drm)return{ok:false,status:fetched.status,error:'DRM-marked STRM is not auto-promoted',chain:next,drmDetected:true};
+  const parsed=parseStrmDocument(fetched.text);if(parsed.drm?.detected)return{ok:false,status:fetched.status,error:'DRM-marked STRM is not auto-promoted',chain:next,drmDetected:true};
   if(!parsed.mediaUrl)return{ok:false,status:fetched.status,error:'STRM did not contain an HTTP media target',chain:next};
-  if(typeOf(parsed.mediaUrl)==='strm')return resolveStrm(parsed.mediaUrl,depth+1,next);
+  if(isStrmReference(parsed.mediaUrl))return resolveStrm(parsed.mediaUrl,depth+1,next);
   let target;try{target=canonicalUrl(parsed.mediaUrl).toString();}catch(error){return{ok:false,error:error.message,chain:next};}
-  return{ok:true,status:fetched.status,resolvedUrl:target,sourceType:typeOf(parsed.mediaUrl),requiredHeaders:kodiHeaders(parsed.mediaUrl),chain:next};
+  return{ok:true,status:fetched.status,resolvedUrl:target,sourceType:typeOf(parsed.mediaUrl),requiredHeaders:parsed.requiredHeaders||{},chain:next};
 }
 async function resolveCuratedStrm(payload={}){
   const input=Array.isArray(payload.candidates)?payload.candidates:[],out=[],reports=[];let attempts=0;
