@@ -5,6 +5,7 @@ import { OFFICIAL_PROVIDER_LANE, discoverOfficialProvider } from './source-disco
 import { OFFICIAL_API_RESOLVER_PROVIDER, discoverOfficialApi } from './source-discovery/official-api-resolver.js';
 import { channelSignalsMatch, normalizeChannelText } from '../src/core/channel-identity-gr.js';
 import { parseM3uContainer } from '../src/core/m3u-container.js';
+import { parseEnigma2Bouquet } from '../src/core/enigma2-core.js';
 
 const VERSION='1.7';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
@@ -61,9 +62,6 @@ function typeOf(url=''){
 function validPublicUrl(value=''){
   try{const url=new URL(String(value).split('|')[0].trim());return /^(https?|rtsp|rtsps|rtmp|rtmps):$/.test(url.protocol);}catch{return false;}
 }
-function safeDecode(value=''){
-  try{return decodeURIComponent(String(value));}catch{return String(value).replace(/%3a/ig,':').replace(/%2f/ig,'/').replace(/%7c/ig,'|').replace(/%20/ig,' ');}
-}
 function makeCandidate({channel,sourceUrl,sourceOrigin,freshness='live-feed-check'}){
   return {
     channelName:String(channel.name||''),
@@ -92,16 +90,13 @@ function parseM3u(text='',channel={},feed={}){
   return results;
 }
 function parseEnigma2(text='',channel={},feed={}){
-  const lines=String(text).replace(/\r/g,'').split('\n');
   const results=[];
-  for(let i=0;i<lines.length&&results.length<MAX_RESULTS;i++){
-    const line=lines[i].trim();
-    if(!/^#SERVICE\s+(?:4097|5001|5002):/i.test(line))continue;
-    const parts=line.split(':');
-    if(parts.length<11)continue;
-    const sourceUrl=safeDecode(parts[10]).trim();
-    const inlineName=safeDecode(parts.slice(11).join(':')).trim();
-    const description=/^#DESCRIPTION\s+/i.test(lines[i+1]?.trim()||'')?String(lines[i+1]).trim().replace(/^#DESCRIPTION\s+/i,'').trim():'';
+  for(const service of parseEnigma2Bouquet(text).services){
+    if(results.length>=MAX_RESULTS)break;
+    if(!['4097','5001','5002'].includes(service.serviceType))continue;
+    const sourceUrl=service.decodedReferenceOnce;
+    const inlineName=service.inlineNameDecodedOnce;
+    const description=service.rawDescription;
     if(!validPublicUrl(sourceUrl))continue;
     if(!channelSignalsMatch([inlineName,description],channel,'exact'))continue;
     results.push(makeCandidate({channel:{...channel,name:channel.name||description||inlineName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
