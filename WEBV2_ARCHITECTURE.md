@@ -41,7 +41,7 @@ Adapters/consumers:
 - `workers/source-huntatonisworkersdev.js`: Hunt fetch/budget/relevance/ranking/final-media acceptance policy;
 - `src/route-tooltip.js`: presentation-only STRM detection consumer.
 Rule: **shared STRM structure; caller-owned network/security/product policy.** The shared core must remain network-free.
-Status: Phase E3a implementation/parity/audit complete on PR #73 branch; production DONE is still gated on merge, exact-SHA deploys and live verification.
+Status: Phase E3a DONE via PR #73 / runtime merge `35c3f7641221b3ad24b3533269e72218d729e241`. Production proof: Frontend #619 SUCCESS; Source Discovery #58 SUCCESS with live all-provider verification and real ERT1 STRM resolution; Source Hunt #6 SUCCESS with live Worker verification; Registry #92 SUCCESS; Pages #451 SUCCESS.
 
 ## Source Hunt
 Owns: broad lead hunting/search, provenance/freshness/ranking of leads.
@@ -72,5 +72,5 @@ Owns: auxiliary runtime cache, route health, ranking support.
 Does not own: canonical channel identity/profile/source-format truth.
 
 ## Current cleanup boundaries
-Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry, M3U Container Core; STRM Structural Core is implemented on E3a PR #73 and awaits production verification before DONE.
-Pending later primitive: Enigma2 normalization (E3b), then search/lifecycle consolidation.
+Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry, M3U Container Core, STRM Structural Core.
+Pending next primitive: Enigma2 normalization (E3b), then search/lifecycle consolidation.
