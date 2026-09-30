@@ -34,8 +34,15 @@ function serviceByDescription(result, description) {
   assert.equal(service.inlineName, 'MEGA HD');
   assert.equal(service.rawDescription, 'MEGA%2520NEWS');
   assert.equal(service.description, 'MEGA NEWS');
-  assert.equal(service.embeddedReference, 'https://cdn.example.com/live/index.mpd|User-Agent=WebTV Test');
-  assert.equal(service.embeddedInlineName, 'MEGA HD');
+  assert.equal(service.embeddedReference, '', 'legacy frontend scheme recognition does not discover a double-encoded %253A scheme before decoding');
+  assert.equal(service.embeddedInlineName, '');
+}
+
+{
+  const parsed = parseEnigma2Bouquet(`#SERVICE 5001:0:1:0:0:0:0:0:0:0:https%3A//cdn.example.com/live/index.mpd%7CUser-Agent%3DWebTV%20Test:MEGA%20HD\n#DESCRIPTION MEGA\n`);
+  const service=parsed.services[0];
+  assert.equal(service.embeddedReference,'https://cdn.example.com/live/index.mpd|User-Agent=WebTV Test');
+  assert.equal(service.embeddedInlineName,'MEGA HD');
 }
 
 {
