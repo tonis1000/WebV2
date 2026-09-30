@@ -22,10 +22,10 @@ Required proof: compare content, preserve unique evidence, verify no active link
 Status: INVENTORY / DO NOT DELETE YET.
 
 ## CLEAN-003 Duplicate M3U parsers
-Current consumers: multiple active paths.
-Replacement: Phase E2 shared M3U/container primitive.
-Required proof: RED parity fixtures, migrated callers, regressions/deploy/live proof, no remaining imports/calls.
-Status: BLOCKED ON E2.
+Current consumers before E2: Channel Catalog, Source Discovery, Source Hunt Worker, frontend Source Hunt each owned independent EXTINF/source traversal.
+Replacement: `src/core/m3u-container.js` for neutral container structure, with caller-owned policy adapters.
+Required proof: RED parity fixtures, all active structural callers migrated, repo-wide duplicate-parser audit, full regressions, exact-SHA Source Discovery/Source Hunt/frontend/Pages deploy and live proof.
+Status: E2 MIGRATION IN PROGRESS. Local structural loops in the four approved callers have been replaced on PR #69; do not mark RESOLVED until final audit + production verification complete.
 
 ## CLEAN-004 Duplicate STRM / Enigma2 parsing primitives
 Current consumers: active Hunt/Discovery/frontend paths.
