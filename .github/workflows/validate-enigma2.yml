@@ -1,0 +1,55 @@
+name: Validate Enigma2 Ownership
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/core/enigma2-core.js'
+      - 'src/source-hunt-enigma2.js'
+      - 'workers/webtv-source-discovery.js'
+      - 'workers/source-hunt-bouquet-proxy.js'
+      - 'tests/enigma2-*.test.mjs'
+      - 'tests/source-discovery-enigma2-parity.test.mjs'
+      - 'tests/source-hunt-enigma2-parity.test.mjs'
+      - '.github/workflows/validate-enigma2.yml'
+  pull_request:
+    paths:
+      - 'src/core/enigma2-core.js'
+      - 'src/source-hunt-enigma2.js'
+      - 'workers/webtv-source-discovery.js'
+      - 'workers/source-hunt-bouquet-proxy.js'
+      - 'tests/enigma2-*.test.mjs'
+      - 'tests/source-discovery-enigma2-parity.test.mjs'
+      - 'tests/source-hunt-enigma2-parity.test.mjs'
+      - '.github/workflows/validate-enigma2.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-enigma2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate Enigma2 source syntax
+        run: |
+          node --check src/core/enigma2-core.js
+          node --check src/source-hunt-enigma2.js
+          node --input-type=module --check < workers/webtv-source-discovery.js
+          node --input-type=module --check < workers/source-hunt-bouquet-proxy.js
+      - name: Run shared Enigma2 core contract
+        run: node tests/enigma2-core.test.mjs
+      - name: Run Discovery Enigma2 parity
+        run: node tests/source-discovery-enigma2-parity.test.mjs
+      - name: Run frontend Hunt Enigma2 parity
+        run: node tests/source-hunt-enigma2-parity.test.mjs
+      - name: Run bouquet proxy boundary contract
+        run: node tests/enigma2-proxy-boundary.test.mjs
+      - name: Run repo-wide Enigma2 duplicate parser audit
+        run: node tests/enigma2-duplicate-audit.test.mjs
