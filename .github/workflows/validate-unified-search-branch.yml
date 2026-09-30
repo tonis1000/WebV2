@@ -34,6 +34,8 @@ jobs:
         run: node tests/search-state.test.mjs
       - name: Run unified search completion contract
         run: node tests/search-state-completion.test.mjs
+      - name: Run Unified Search Now Playing state contract
+        run: node tests/search-now-playing-state.test.mjs
       - name: Run unified source registry contract
         run: node tests/unified-source-registry.test.mjs
       - name: Run search adapter contract
