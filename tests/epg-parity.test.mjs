@@ -49,8 +49,7 @@ assert.ok(EPG_PHASE_C_FAILURE_CLOSED.length>=4,'Phase C must define explicit fai
 const now=new Date(EPG_PARITY_NOW_ISO);
 assert.ok(!Number.isNaN(now.getTime()),'Phase C parity clock must be deterministic');
 
-// Freeze the observable legacy resolver baseline without parsing/fetching XMLTV.
-// The service indexes are public runtime state; seeding them exercises the real private resolver.
+// Phase C keeps safe baseline matches but intentionally fixes the documented active collision.
 {
   const service=freshService();
   seedResolveIndex(service);
@@ -58,7 +57,8 @@ assert.ok(!Number.isNaN(now.getTime()),'Phase C parity clock must be determinist
 
   for(const row of EPG_MY_PLAYLIST_LEGACY_PARITY){
     const observed=observedResolvedId(service,row.channel,now);
-    assert.equal(observed,row.legacyResolvedId,`${row.channel.id}: legacy EPG resolution changed before Phase C migration`);
+    const expected=Object.prototype.hasOwnProperty.call(row,'phaseCExpectedResolvedId')?row.phaseCExpectedResolvedId:row.legacyResolvedId;
+    assert.equal(observed,expected,`${row.channel.id}: Phase C EPG resolution must preserve safe parity and fix explicit unsafe collisions`);
   }
 
   const unsafe=EPG_MY_PLAYLIST_LEGACY_PARITY.filter(row=>row.unsafeLegacy);
@@ -68,8 +68,7 @@ assert.ok(!Number.isNaN(now.getTime()),'Phase C parity clock must be determinist
   assert.equal(unsafe[0].phaseCExpectedResolvedId,'MEGA.News.gr');
 }
 
-// Record known sibling false positives separately. These are observations of the legacy matcher,
-// plus the Phase C target contract; the target is enforced only in the separate migration change.
+// Phase C must fail closed on sibling/family false positives instead of borrowing a guide.
 {
   const service=freshService();
   seedResolveIndex(service);
@@ -77,13 +76,12 @@ assert.ok(!Number.isNaN(now.getTime()),'Phase C parity clock must be determinist
 
   for(const row of EPG_PHASE_C_FAILURE_CLOSED){
     const observed=observedResolvedId(service,row.channel,now);
-    assert.equal(observed,row.legacyResolvedId,`${row.channel.id}: documented legacy safety observation changed`);
-    assert.ok(Object.prototype.hasOwnProperty.call(row,'phaseCExpectedResolvedId'),`${row.channel.id}: Phase C target resolution must be explicit`);
+    assert.equal(observed,row.phaseCExpectedResolvedId,`${row.channel.id}: ${row.reason}`);
     assert.ok(String(row.reason||'').trim(),`${row.channel.id}: fail-closed case requires a reason`);
   }
 }
 
-// Lock current programme output semantics independently from identity ownership.
+// Programme output semantics stay independent from identity ownership.
 {
   const service=freshService();
   seedResolveIndex(service);
@@ -101,7 +99,6 @@ assert.ok(!Number.isNaN(now.getTime()),'Phase C parity clock must be determinist
   assert.ok(String(result.current?.timeLabel||'').includes('–'),'current programme must keep a human-readable time range');
 }
 
-// Current resolver already fails closed for a truly unknown identity; Phase C must preserve that.
 {
   const service=freshService();
   seedResolveIndex(service);
@@ -110,4 +107,4 @@ assert.ok(!Number.isNaN(now.getTime()),'Phase C parity clock must be determinist
   assert.deepEqual(result.next,[]);
 }
 
-console.log('EPG Phase C legacy parity + fail-closed contract captured.');
+console.log('EPG Phase C shared-identity parity + fail-closed contract verified.');
