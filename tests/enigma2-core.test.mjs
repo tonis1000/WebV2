@@ -54,6 +54,17 @@ function serviceByDescription(result, description) {
 }
 
 {
+  const parsed = parseEnigma2Bouquet(`#SERVICE 4097:0:https%3A//compact.example/live/master.m3u8:Compact\n#DESCRIPTION Compact channel\n`);
+  assert.equal(parsed.services.length,1,'frontend-compatible compact SERVICE forms are retained even without eleven fixed Enigma fields');
+  const service=parsed.services[0];
+  assert.equal(service.serviceType,'4097');
+  assert.equal(service.rawReference,'','fixed-field reference is absent rather than invented');
+  assert.equal(service.embeddedReference,'https://compact.example/live/master.m3u8');
+  assert.equal(service.embeddedInlineName,'Compact');
+  assert.equal(service.description,'Compact channel');
+}
+
+{
   const parsed = parseEnigma2Bouquet(`#SERVICE 1:0:1:0:0:0:0:0:0:0:rtsp%3A//camera.example.com/live:Camera\n#DESCRIPTION Camera feed\n#SERVICE 4097:0:1:0:0:0:0:0:0:0:rtmp%3A//media.example.com/live:Legacy\n#DESCRIPTION Legacy feed\n`);
   assert.equal(parsed.services.length, 2, 'neutral parser must preserve structurally valid services regardless of product support');
   assert.equal(serviceByDescription(parsed, 'Camera feed').decodedReference, 'rtsp://camera.example.com/live');
