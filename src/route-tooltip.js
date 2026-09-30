@@ -1,3 +1,5 @@
+import { isStrmReference } from './core/strm-core.js';
+
 const CACHE_URL='https://tv-cache.atonis.workers.dev/channel-streams.json';
 let remoteMap=null;
 let loading=null;
@@ -11,7 +13,6 @@ function cleanSource(raw=''){
   return pipe>=0?value.slice(0,pipe):value;
 }
 function isHls(url=''){return /\.m3u8(?:$|[?#])/i.test(url);}
-function isStrm(url=''){return /\.strm(?:$|[?#])/i.test(url);}
 function shortUrl(value=''){
   try{
     const u=new URL(value);
@@ -49,7 +50,7 @@ function buildRows(channel,map={}){
     const key=`${item.origin}|${source}`;
     if(seen.has(key))continue;
     seen.add(key);
-    if(isStrm(source)){
+    if(isStrmReference(source)){
       out.push({kind:'STRM',origin:item.origin,url:source});
       continue;
     }
