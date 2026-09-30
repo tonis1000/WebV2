@@ -1,0 +1,23 @@
+name: Verify E3b Live Enigma2
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/verify-e3b-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live ERT1 Enigma2 Discovery result
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKER='https://webtv-source-discovery.atonis.workers.dev'
+          PAYLOAD='{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}'
+          RESPONSE=$(curl --fail --silent --show-error -X POST "$WORKER/discover" -H 'content-type: application/json' --data "$PAYLOAD")
+          node -e "const j=JSON.parse(process.argv[1]);const rows=(j.reports||[]).filter(x=>x.format==='enigma2');console.log(JSON.stringify({provider:j.provider,enigma2Reports:rows},null,2));const ok=j.provider==='curated-remote-feeds'&&rows.some(x=>x.feed==='HansSettings Greece'&&x.status===200&&x.count>0);if(!ok)process.exit(1);" "$RESPONSE"
