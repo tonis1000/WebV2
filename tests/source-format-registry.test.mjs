@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   createSourceFormatRegistry,
   detectSourceFormat,
@@ -7,6 +8,7 @@ import {
   listSourceFormats,
   toLegacySourceType,
 } from '../src/core/source-format-registry.js';
+import { isHls, isDash, isVideoFile } from '../src/core/utils.js';
 
 function pick(value, keys) {
   return Object.fromEntries(keys.map(key => [key, value[key]]));
@@ -88,5 +90,17 @@ const future = createSourceFormatRegistry([
 ]);
 assert.equal(detectSourceFormat({ sourceUrl: 'future://host/item' }, future).formatId, 'future-test');
 assert.equal(detectSourceFormat({ sourceUrl: 'future://host/item' }).formatId, 'unknown');
+
+assert.equal(isHls('https://x/a.m3u8?token=1'), true);
+assert.equal(isDash('https://x/a.mpd?token=1'), true);
+assert.equal(isVideoFile('https://x/a.mp4?token=1'), true);
+assert.equal(isVideoFile('https://x/a.webm'), true);
+assert.equal(isHls('https://x/page.html'), false);
+
+const utilsSource = fs.readFileSync(new URL('../src/core/utils.js', import.meta.url), 'utf8');
+assert.match(utilsSource, /source-format-registry\.js/);
+assert.match(utilsSource, /detectSourceFormat/);
+assert.doesNotMatch(utilsSource, /export function isHls\([^)]*\)\s*\{\s*return\s+\/\\\.m3u8/);
+assert.doesNotMatch(utilsSource, /export function isDash\([^)]*\)\s*\{\s*return\s+\/\\\.mpd/);
 
 console.log('source format registry contract passed');
