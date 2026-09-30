@@ -26,6 +26,8 @@ jobs:
       - uses: actions/checkout@v6
       - name: Run unified search intent contract
         run: node tests/search-intent.test.mjs
+      - name: Run unified search group catalog contract
+        run: node tests/search-group-catalog.test.mjs
       - name: Run unified search state contract
         run: node tests/search-state.test.mjs
       - name: Run unified search completion contract
