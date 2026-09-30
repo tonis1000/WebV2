@@ -9,6 +9,7 @@ function verifierEligible(candidate={}){
 
 export async function verifySearchCandidates(candidates=[],{
   signal,
+  onStart=()=>{},
   onResult=()=>{},
   verifyImpl=verifyWithConcurrency,
   concurrency=2,
@@ -16,6 +17,7 @@ export async function verifySearchCandidates(candidates=[],{
 }={}){
   const eligible=(candidates||[]).filter(verifierEligible);
   if(!eligible.length)return[];
+  for(const candidate of eligible)onStart(candidate);
   const updated=[];
   await verifyImpl(eligible,{
     ...options,
