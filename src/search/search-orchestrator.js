@@ -33,6 +33,14 @@ function abortKind(error,signal){
   return 'error';
 }
 
+function verificationSeverity(status=''){
+  const value=String(status||'').toUpperCase();
+  if(value==='VERIFIED')return 'OK';
+  if(value==='TIMEOUT')return 'TIMEOUT';
+  if(value==='UNVERIFIED'||value==='VERIFYING')return 'INFO';
+  return 'ERROR';
+}
+
 export function runUnifiedSearch({
   query='',
   context={},
@@ -42,6 +50,7 @@ export function runUnifiedSearch({
   concurrency=3,
   laneTimeoutMs=10000,
   reporter=null,
+  verifyBatch=null,
 }={}){
   if(activeRun&&!activeRun.settled)activeRun.cancel('superseded');
 
@@ -56,6 +65,8 @@ export function runUnifiedSearch({
   const jobs=[];
   let jobIndex=0;
   for(const source of enabledSources)for(const target of targets)jobs.push({source,target,laneId:laneIdFor(source,target,jobIndex++)});
+  const verificationTasks=[];
+  const verificationScheduled=new Set();
   let cancelled=false;
   let settled=false;
 
@@ -79,6 +90,40 @@ export function runUnifiedSearch({
   const run={cancel,done:null,get settled(){return settled;},searchId,reporter:report};
   activeRun=run;
 
+  function scheduleVerification(candidates=[]){
+    if(typeof verifyBatch!=='function'||controller.signal.aborted)return;
+    const batch=[];
+    for(const candidate of candidates||[]){
+      const id=String(candidate?.candidateId||'').trim();
+      if(!id||verificationScheduled.has(id))continue;
+      verificationScheduled.add(id);
+      batch.push(candidate);
+    }
+    if(!batch.length)return;
+    const task=Promise.resolve().then(()=>verifyBatch(batch,{
+      signal:controller.signal,
+      onStart:candidate=>{
+        if(controller.signal.aborted||state.snapshot().status!=='running')return;
+        report.emit({type:'verification.started',severity:'INFO',candidateId:candidate?.candidateId||'',channelName:candidate?.channelName||'',stage:'verification'});
+        notify();
+      },
+      onResult:(candidate,result)=>{
+        if(controller.signal.aborted||state.snapshot().status!=='running')return;
+        if(!state.replaceCandidate(searchId,candidate))return;
+        const status=String(candidate?.verificationStatus||'FAILED');
+        report.emit({type:'verification.completed',severity:verificationSeverity(status),candidateId:candidate?.candidateId||'',channelName:candidate?.channelName||'',stage:'verification',message:candidate?.verificationDetail||'',detail:{status,lastHttpStatus:candidate?.lastHttpStatus??null,mediaType:candidate?.resolvedMediaFormatId||candidate?.mediaType||'',drmDetected:Boolean(candidate?.drmDetected),rawStatus:result?.status||''}});
+        notify();
+      },
+    })).catch(error=>{
+      if(controller.signal.aborted||state.snapshot().status!=='running')return;
+      for(const candidate of batch){
+        report.emit({type:'verification.completed',severity:'ERROR',candidateId:candidate?.candidateId||'',channelName:candidate?.channelName||'',stage:'verification',message:error?.message||String(error),detail:{status:'FAILED'}});
+      }
+      notify();
+    });
+    verificationTasks.push(task);
+  }
+
   async function executeJob(job){
     if(controller.signal.aborted||state.snapshot().status!=='running')return;
     const {source,target,laneId}=job;
@@ -96,6 +141,7 @@ export function runUnifiedSearch({
       for(const candidate of result?.candidates||[])report.emit({type:'candidate.found',severity:'OK',laneId,sourceId:source.id,sourceLabel:source.label||source.id,candidateId:candidate?.candidateId||'',channelName:candidate?.channelName||target.name||'',stage:'candidate',detail:{inputFormatId:candidate?.inputFormatId||source.type,resolvedMediaFormatId:candidate?.resolvedMediaFormatId||'',browserPlayable:candidate?.browserPlayable??null}});
       report.emit({type:'lane.completed',severity:'OK',laneId,sourceId:source.id,sourceLabel:source.label||source.id,channelName:target.name||target.query||'',stage:'search',durationMs:Date.now()-startedAt,detail:{candidateCount:result?.candidates?.length||0,leadCount:result?.leads?.length||0}});
       notify();
+      scheduleVerification(result?.candidates||[]);
     }catch(error){
       const kind=abortKind(error,timed.signal);
       if(controller.signal.aborted||state.snapshot().status!=='running')return;
@@ -122,6 +168,7 @@ export function runUnifiedSearch({
       }
     });
     await Promise.all(workers);
+    if(verificationTasks.length)await Promise.allSettled([...verificationTasks]);
     if(state.snapshot().status==='running')state.completeSearch(searchId);
   }
 
