@@ -1,4 +1,5 @@
 import { listXtreamAccounts, loadXtreamChannels } from '../xtream-client.js';
+import { familySignalsMatch } from '../search/family-matching.js';
 import { createCandidate, normalizeChannelName } from './candidate-model.js';
 
 export const AUTHORIZED_XTREAM_DISCOVERY_PROVIDER='authorized-xtream-expansion';
@@ -14,6 +15,7 @@ function identityKeys(channel={}){
 }
 
 export function matchesAuthorizedXtreamChannel(selected={},candidate={}){
+  if(selected?.familyQuery===true)return familySignalsMatch([candidate.name,candidate.id,candidate.originalId,candidate.tvgId],selected);
   const wanted=new Set(identityKeys(selected));
   if(!wanted.size)return false;
   return identityKeys(candidate).some(key=>wanted.has(key));
@@ -39,8 +41,9 @@ export async function discoverAuthorizedXtream(selected={}, {
         const playbackUrl=String(channel.playbackUrl||'').trim();
         if(!streamId||!/^https?:\/\//i.test(playbackUrl))continue;
         matches+=1;
+        const matchedName=String(channel.name||channel.originalId||channel.tvgId||selected.name||selected.originalId||selected.id||'').trim();
         candidates.push(createCandidate({
-          channelName:selected.name||selected.originalId||selected.id||'',
+          channelName:selected.familyQuery===true?matchedName:(selected.name||selected.originalId||selected.id||matchedName),
           sourceType:'xtream',
           sourceUrl:playbackUrl,
           sourceOrigin:`Xtream · ${account.name||account.server||account.id||'Authorized account'}`,
