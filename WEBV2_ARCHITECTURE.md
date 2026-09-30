@@ -43,6 +43,16 @@ Adapters/consumers:
 Rule: **shared STRM structure; caller-owned network/security/product policy.** The shared core must remain network-free.
 Status: Phase E3a DONE via PR #73 / runtime merge `35c3f7641221b3ad24b3533269e72218d729e241`. Production proof: Frontend #619 SUCCESS; Source Discovery #58 SUCCESS with live all-provider verification and real ERT1 STRM resolution; Source Hunt #6 SUCCESS with live Worker verification; Registry #92 SUCCESS; Pages #451 SUCCESS.
 
+## Enigma2 Structural Core
+Owns: pure Enigma2 bouquet/service structure in `src/core/enigma2-core.js`: bouquet `#NAME`, service type, raw reference, one-pass and repeated decoded reference facts, raw/decoded inline name, `#DESCRIPTION` association, ordered line metadata, embedded stream-reference facts, and compact/nonstandard service preservation needed for caller parity.
+Does not own: channel matching, allowed service types, accepted protocols, URL/public-target validation, private-host policy, Kodi header allowlisting, ranking, trust, save eligibility, candidate construction, fetch/proxy behavior, verification, playback, or UI.
+Adapters/consumers:
+- `workers/webtv-source-discovery.js`: service-type policy, one-pass/reference semantics, channel matching, public URL validation and Discovery candidate production;
+- `src/source-hunt-enigma2.js`: embedded-scheme selection, repeated decoding behavior, header parsing/allowlisting, private-target filtering, format classification, frontend candidate construction and UI/orchestration;
+- `workers/source-hunt-bouquet-proxy.js`: **not a structural parser owner**; owns transport/security only, including HTTPS restriction, host allowlist, timeout, max body and raw bouquet fetch/sanity gate.
+Rule: **shared Enigma2 structure; caller-owned matching/header/security/UI policy.** The structural core must remain network-free and the bouquet proxy must not absorb neutral parsing ownership.
+Status: Phase E3b DONE via PR #75 / runtime merge `cc7e2128e9257cc431a95abf08f2f286e93d2235`. Production proof: Enigma Ownership #15 SUCCESS; Frontend #655 SUCCESS; Source Discovery #59 SUCCESS; Registry #94 SUCCESS; Pages #453 SUCCESS; post-merge verification confirmed real ERT1 HansSettings Greece `format=enigma2`, HTTP 200, count 1, live Pages cache key and exact Registry runtime SHA.
+
 ## Source Hunt
 Owns: broad lead hunting/search, provenance/freshness/ranking of leads.
 Does not own: final VERIFIED media truth or canonical save state.
@@ -72,5 +82,5 @@ Owns: auxiliary runtime cache, route health, ranking support.
 Does not own: canonical channel identity/profile/source-format truth.
 
 ## Current cleanup boundaries
-Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry, M3U Container Core, STRM Structural Core.
-Pending next primitive: Enigma2 normalization (E3b), then search/lifecycle consolidation.
+Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry, M3U Container Core, STRM Structural Core, Enigma2 Structural Core.
+Next ownership phase: Hunt / Discovery consolidation, then candidate/proof/save lifecycle cleanup.
