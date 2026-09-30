@@ -34,6 +34,7 @@ function exactGroupMatch(query, groups = []) {
 }
 
 function groupTargets(group, channels = []) {
+  if (Array.isArray(group?.targets) && group.targets.length) return group.targets.map(target => ({ ...target }));
   const members = new Set((Array.isArray(group?.members) ? group.members : []).map(value => normalizeChannelText(value)));
   return (channels || [])
     .filter(channel => members.has(normalizeChannelText(channel?.id || '')))
@@ -47,16 +48,16 @@ export function resolveSearchIntent(query = '', context = {}) {
   const channels = Array.isArray(context?.channels) ? context.channels : [];
   const groups = Array.isArray(context?.groups) ? context.groups : [];
 
-  const channel = exactChannelMatch(originalQuery, channels);
-  if (channel) {
-    return Object.freeze({ type:'channel', query:originalQuery, targets:Object.freeze([Object.freeze(channel)]) });
-  }
-
   const group = exactGroupMatch(originalQuery, groups);
   if (group) {
     const type = group.type === 'subgroup' ? 'subgroup' : 'group';
     const targets = groupTargets(group, channels).map(item => Object.freeze(item));
     return Object.freeze({ type, query:originalQuery, targets:Object.freeze(targets) });
+  }
+
+  const channel = exactChannelMatch(originalQuery, channels);
+  if (channel) {
+    return Object.freeze({ type:'channel', query:originalQuery, targets:Object.freeze([Object.freeze(channel)]) });
   }
 
   return Object.freeze({ type:'free-text', query:originalQuery, targets:Object.freeze([]) });
