@@ -62,3 +62,5 @@ jobs:
         run: node tests/unified-search-ui-contract.test.mjs
       - name: Run Unified Search page wiring contract
         run: node tests/unified-search-page-wiring.test.mjs
+      - name: Run Unified Search legacy One-Click parity contract
+        run: node tests/unified-search-oneclick-parity.test.mjs
