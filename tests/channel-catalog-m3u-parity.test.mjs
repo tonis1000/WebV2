@@ -67,6 +67,16 @@ assert.equal(noSteal.length, 2);
 assert.deepEqual(noSteal[0].directUrls, []);
 assert.deepEqual(noSteal[1].directUrls, ['https://cdn.test/two.m3u8']);
 
+const mixedCaseNoSteal = parseM3U(`#EXTM3U
+#EXTINF:-1 tvg-id="UPPER",Upper
+#COMMENT no source for Upper
+#extinf:-1 tvg-id="LOWER",Lower
+https://cdn.test/lower.m3u8
+`);
+assert.equal(mixedCaseNoSteal.length, 1, 'Catalog keeps its legacy uppercase entry-acceptance policy');
+assert.equal(mixedCaseNoSteal[0].originalId, 'UPPER');
+assert.deepEqual(mixedCaseNoSteal[0].directUrls, [], 'a lowercase structural EXTINF boundary must not donate its source to the preceding uppercase Catalog entry');
+
 const deduped = parseM3U(`#EXTM3U
 #EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA" group-title="Other",MEGA
 https://cdn.test/one.m3u8
