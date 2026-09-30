@@ -1,3 +1,5 @@
+import { channelMatchScore, greekChannelAliases, normalizeChannelText } from '../src/core/channel-identity-gr.js';
+
 const ALLOWED_ORIGIN='*';
 const VERSION='1.13';
 const CACHE_TTL_SECONDS=900;
@@ -10,19 +12,20 @@ const MAX_PAGE_SCANS=4;
 const FETCH_TIMEOUT_MS=6500;
 const BRAVE_TIMEOUT_MS=6000;
 
-const PROFILES={
-  'ERT1':{aliases:['ert1','ert 1','ert1.gr','ερτ1'],searches:['ERT1','ERT 1'],mainNames:['ert1','ert 1','ερτ1']},
-  'ERT2':{aliases:['ert2','ert 2','ert2.gr','ερτ2'],searches:['ERT2','ERT 2'],mainNames:['ert2','ert 2','ερτ2']},
-  'ERT3':{aliases:['ert3','ert 3','ert3.gr','ερτ3'],searches:['ERT3','ERT 3','ερτ3'],mainNames:['ert3','ert 3','ερτ3']},
-  'ERT News':{aliases:['ertnews','ert news','ert_news','ert-news','ertnews.gr','ερτ news'],searches:['ERT News','ERTNEWS'],mainNames:['ert news','ertnews','ερτ news']},
-  'ANT1':{aliases:['ant1','antenna1','ant1.gr','antenna','ant1 hd'],searches:['ANT1 Greece TV','ANT1 TV'],mainNames:['ant1','ant1 hd','ant1 tv','antenna']},
-  'Alpha TV':{aliases:['alpha tv','alphatv','alpha.gr','alpha hd'],searches:['Alpha TV Greece','AlphaTV'],mainNames:['alpha','alpha tv','alpha hd','alphatv']},
-  'SKAI':{aliases:['skai','skaitv','skai tv','skai.gr','skai hd','σκαι','σκαϊ'],searches:['SKAI TV Greece','SKAI TV'],mainNames:['skai','skai hd','skai tv','skaitv','σκαι','σκαϊ']},
-  'Open TV':{aliases:['open tv','opentv','open beyond','open.gr','open hd'],searches:['OPEN TV Greece','OPEN Beyond'],mainNames:['open','open tv','open hd','open beyond','opentv']},
-  'MEGA':{aliases:['mega tv','megatv','mega channel','mega.gr','mega hd'],searches:['MEGA TV Greece','Mega Channel'],mainNames:['mega','mega tv','mega hd','mega channel','megatv']},
-  'Star TV':{aliases:['star tv','startv','star channel','star.gr','star hd'],searches:['STAR TV Greece','Star Channel Greece'],mainNames:['star','star tv','star hd','star channel','startv']},
-  'Action 24':{aliases:['action 24','action24','action tv','action24.gr'],searches:['Action 24 Greece','Action24'],mainNames:['action 24','action24','action tv']},
-  'Kontra':{aliases:['kontra','kontra channel','kontra tv','kontrachannel'],searches:['Kontra Channel Greece','Kontra Channel'],mainNames:['kontra','kontra channel','kontra tv','kontrachannel']}
+// Search wording is Source Hunt policy. Identity aliases/matching come only from the shared core.
+const SEARCHES={
+  'ERT1':['ERT1','ERT 1'],
+  'ERT2':['ERT2','ERT 2'],
+  'ERT3':['ERT3','ERT 3'],
+  'ERT News':['ERT News','ERTNEWS'],
+  'ANT1':['ANT1 Greece TV','ANT1 TV'],
+  'Alpha TV':['Alpha TV Greece','AlphaTV'],
+  'SKAI':['SKAI TV Greece','SKAI TV'],
+  'Open TV':['OPEN TV Greece','OPEN Beyond'],
+  'MEGA':['MEGA TV Greece','Mega Channel'],
+  'Star TV':['STAR TV Greece','Star Channel Greece'],
+  'Action 24':['Action 24 Greece','Action24'],
+  'Kontra':['Kontra Channel Greece','Kontra Channel']
 };
 
 const SEEDS=[
@@ -43,9 +46,9 @@ const ANT1_SUBCHANNELS=/\b(drama|comedy|just[ _-]?music|music|series|movies|kids
 
 function cors(){return {'access-control-allow-origin':ALLOWED_ORIGIN,'access-control-allow-methods':'GET,OPTIONS','access-control-allow-headers':'content-type'};}
 function json(data,status=200,extra={}){return new Response(JSON.stringify(data),{status,headers:{...cors(),'content-type':'application/json;charset=utf-8',...extra}});}
-function normalize(s=''){return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9α-ω]+/gi,' ').replace(/\s+/g,' ').trim();}
-function profile(channel){return PROFILES[channel]||{aliases:[String(channel||'').toLowerCase()],searches:[String(channel||'')],mainNames:[String(channel||'').toLowerCase()]};}
-function relevant(text,channel){const h=normalize(text);return profile(channel).aliases.some(a=>h.includes(normalize(a)));}
+function normalize(s=''){return normalizeChannelText(s);}
+function profile(channel){const aliases=greekChannelAliases(channel);return{aliases,searches:SEARCHES[channel]||[String(channel||'')],mainNames:aliases};}
+function relevant(text,channel){return channelMatchScore(text,channel,'broad')>0;}
 function cleanUrl(url=''){return String(url).replace(/&amp;/g,'&').replace(/\\\//g,'/').replace(/[),.;]+$/g,'');}
 function hostOf(url=''){try{return new URL(url).hostname.toLowerCase();}catch{return '';}}
 function isLiveUrl(url=''){const s=String(url);return /\.(?:m3u8|mpd)(?:\?|$)/i.test(s)&&!REJECT_NONLIVE.test(s);}
@@ -116,7 +119,7 @@ export default{async fetch(request,env){
   const url=new URL(request.url);
   if(url.pathname==='/playlist-proxy'){const target=(url.searchParams.get('url')||'').trim();if(!target)return json({error:'url is required'},400);return await proxyPlaylist(target);}
   if(url.pathname==='/inspect'){const channel=(url.searchParams.get('channel')||'').trim(),target=(url.searchParams.get('url')||'').trim();if(!channel||!target)return json({error:'channel and url are required'},400);try{return json(await inspectLead(target,channel));}catch(error){return json({error:error?.message||String(error),channel,url:target},500);}}
-  if(url.pathname!=='/hunt')return json({ok:true,service:'WebTV Source Hunt Worker',version:VERSION,features:['safe playlist proxy','provenance guard','strict inspect','stale lead rejection','direct Reddit JSON search','Web/Forum leads','strict ANT1 filter','parallel discovery','15m cache'],endpoints:['/hunt?channel=SKAI&days=30','/inspect?channel=SKAI&url=...','/playlist-proxy?url=...']});
+  if(url.pathname!=='/hunt')return json({ok:true,service:'WebTV Source Hunt Worker',version:VERSION,features:['safe playlist proxy','provenance guard','strict inspect','stale lead rejection','direct Reddit JSON search','Web/Forum leads','strict ANT1 filter','parallel discovery','15m cache','shared channel identity'],endpoints:['/hunt?channel=SKAI&days=30','/inspect?channel=SKAI&url=...','/playlist-proxy?url=...']});
   const channel=(url.searchParams.get('channel')||'').trim();const days=Math.min(30,Math.max(1,Number(url.searchParams.get('days')||30)));const wantDebug=url.searchParams.get('debug')==='1';if(!channel)return json({error:'channel is required'},400);
   if(!wantDebug){const hit=await cacheGet(request.url);if(hit){const data=await hit.json();return json({...data,cached:true,elapsedMs:0},200,{'cache-control':'no-store','x-source-hunt-cache':'HIT'});}}
   try{const payload=await runHunt(env,channel,days,wantDebug);payload.cached=false;if(!wantDebug)await cachePut(request.url,payload);return json(payload,200,{'cache-control':'no-store','x-source-hunt-cache':'MISS'});}catch(error){return json({error:error?.message||String(error),channel,days},500);}

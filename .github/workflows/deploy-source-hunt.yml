@@ -8,6 +8,8 @@ on:
       - 'workers/source-huntatonisworkersdev.js'
       - 'workers/source-hunt-smart.js'
       - 'workers/source-hunt-bouquet-proxy.js'
+      - 'src/core/channel-identity-gr.js'
+      - 'tests/channel-identity-core.test.mjs'
       - '.github/workflows/deploy-source-hunt.yml'
 
 permissions:
@@ -34,6 +36,8 @@ jobs:
           node --check workers/source-huntatonisworkersdev.js
           node --check workers/source-hunt-smart.js
           node --check workers/source-hunt-bouquet-proxy.js
+          node --check src/core/channel-identity-gr.js
+          node tests/channel-identity-core.test.mjs
 
       - name: Build Wrangler config
         shell: bash

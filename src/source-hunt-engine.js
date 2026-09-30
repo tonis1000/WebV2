@@ -1,4 +1,6 @@
-const BUILD_ID = '20260924-1435';
+import { greekChannelAliases, normalizeChannelText } from './channel-identity-gr.js';
+
+const BUILD_ID = '20260930-shared-channel-identity';
 const API = 'https://api.github.com';
 const FRESH_DAYS = 30;
 const MAX_REPOS = 8;
@@ -12,22 +14,6 @@ const channelNameEl = $('channel-name');
 const candidateInput = $('candidate-url');
 const testButton = $('test-candidate');
 const diagLog = $('diagnostic-log');
-
-const CHANNEL_FINGERPRINTS = {
-  'ERT1': ['ert1', 'ert 1', 'ert1.gr', 'ept1'],
-  'ERT2': ['ert2', 'ert 2', 'ert2.gr', 'ept2'],
-  'ERT3': ['ert3', 'ert 3', 'ert3.gr', 'ept3'],
-  'ERT News': ['ertnews', 'ert news', 'ert_news', 'ert-news', 'ertnews.gr'],
-  'ANT1': ['ant1', 'antenna1', 'antenna gr', 'ant1.gr'],
-  'Alpha TV': ['alpha tv', 'alphatv', 'alpha.gr'],
-  'SKAI': ['skai', 'skaitv', 'skai tv', 'skai.gr'],
-  'Open TV': ['open tv', 'opentv', 'open beyond', 'open.gr'],
-  'MEGA': ['mega tv', 'megatv', 'mega channel', 'mega.gr'],
-  'Star TV': ['star tv', 'startv', 'star channel', 'star.gr'],
-  'Action 24': ['action 24', 'action24', 'action tv', 'action24.gr'],
-  'Kontra': ['kontra', 'kontra channel', 'kontrachannel.gr'],
-  'MADTV': ['madtv', 'mad tv', 'mad tv greece', 'madtvgreece'],
-};
 
 const SEED_REPOS = [
   'kilirushi/iptv',
@@ -47,8 +33,8 @@ function sinceDate(days = FRESH_DAYS) { const d = new Date(); d.setDate(d.getDat
 function freshCutoffMs(days = FRESH_DAYS) { return Date.now() - days * 24 * 60 * 60 * 1000; }
 function isFresh(value, days = FRESH_DAYS) { if (!value) return false; const time = new Date(value).getTime(); return Number.isFinite(time) && time >= freshCutoffMs(days); }
 function extractM3u8(text = '') { const found = text.match(/https?:\/\/[^\s"'<>]+?\.m3u8(?:\?[^\s"'<>]*)?/gi) || []; return [...new Set(found.map(url => url.replace(/[),.;]+$/g, '')))]; }
-function fingerprints(name) { return CHANNEL_FINGERPRINTS[name] || [String(name || '').toLowerCase()]; }
-function normalize(text = '') { return String(text).toLowerCase().replace(/[^a-z0-9α-ωάέήίόύώϊϋΐΰ]+/gi, ' '); }
+function fingerprints(name) { return greekChannelAliases(name); }
+function normalize(text = '') { return normalizeChannelText(text); }
 function relevance(text, name) { const hay = normalize(text); let best = 0; for (const fp of fingerprints(name)) { const needle = normalize(fp).trim(); if (!needle) continue; if (hay.includes(needle)) best = Math.max(best, needle.length >= 6 ? 4 : 3); } return best; }
 function urlRelevance(url, name) { return relevance(url, name); }
 function currentChannel(name = '') {
