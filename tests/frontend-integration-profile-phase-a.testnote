@@ -1,1 +1,0 @@
-Phase A execution note: runtime ownership remains unchanged until dedicated later phases. The mandatory executable guard lives in tests/frontend-integration.test.mjs and will be added after profile GREEN.
