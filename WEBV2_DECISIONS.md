@@ -34,3 +34,17 @@ Decision: DONE means **implemented + deployed + actually verified**. GitHub main
 
 ## DEC-010 Delete only with proof
 Decision: obsolete-looking code/docs enter Cleanup first. Removal requires replacement/no-consumer/regression/deploy proof.
+
+## DEC-011 Shared M3U structure, caller-owned policy
+Decision: Phase E2 centralizes only neutral M3U container structure in `src/core/m3u-container.js`.
+Reason: the previous active callers duplicated EXTINF/source traversal but intentionally had different matching, scheme acceptance, ranking, trust, and candidate behavior.
+Consequence: the shared parser may expose a neutral source line and structural metadata, while Channel Catalog, Source Discovery, Source Hunt Worker, and frontend Hunt continue to decide what they accept and how they rank/use it.
+Hard rule: **shared parser parses; caller decides.**
+Non-goal: this decision does not move STRM resolution or Enigma2 parsing into the M3U core.
+Reconsider when: only if a later explicit architecture phase proves that a policy itself has one canonical owner and parity is preserved.
+
+## DEC-012 Mixed-case EXTINF is always a structural boundary
+Decision: the shared M3U core recognizes `#EXTINF` case-insensitively as a structural entry boundary, even when a caller such as Channel Catalog keeps a stricter uppercase-only policy for accepting that entry.
+Reason: one entry must never consume a source structurally belonging to the next entry. The old Catalog/frontend line loops could accidentally let an uppercase entry steal a URL from a following lowercase `#extinf` entry because their boundary check was case-sensitive.
+Consequence: caller acceptance policy remains unchanged, but cross-entry source stealing from malformed/mixed-case input is explicitly not preserved.
+Evidence: `tests/channel-catalog-m3u-parity.test.mjs` freezes the no-steal rule; the E2 design already requires mixed-case structural coverage and says behavior differences must be explicit rather than silent.

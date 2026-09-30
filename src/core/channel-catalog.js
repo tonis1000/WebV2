@@ -1,30 +1,16 @@
 import { normalizeId } from './utils.js?v=20260920-1021';
-
-function attr(line, name) {
-  const quoted = line.match(new RegExp(`${name}="([^"]*)"`, 'i'));
-  if (quoted) return quoted[1].trim();
-  const bare = line.match(new RegExp(`${name}=([^\s,]+)`, 'i'));
-  return bare ? bare[1].replace(/^['"]|['"]$/g, '').trim() : '';
-}
+import { parseM3uContainer } from './m3u-container.js?v=20260930-m3u-container-e2';
 
 export function parseM3U(text = '') {
-  const lines = String(text).replace(/\r/g, '').split('\n');
   const channels = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i].trim();
-    if (!line.startsWith('#EXTINF')) continue;
-    const fallbackName = (line.split(',').slice(1).join(',') || '').trim();
-    const id = attr(line, 'tvg-id') || attr(line, 'tvg-name') || fallbackName;
-    const name = attr(line, 'tvg-name') || fallbackName || id || 'Unknown';
-    const logo = attr(line, 'tvg-logo');
-    const group = attr(line, 'group-title') || 'Other';
-    let directUrl = '';
-    for (let j = i + 1; j < lines.length; j += 1) {
-      const candidate = lines[j].trim();
-      if (!candidate) continue;
-      if (candidate.startsWith('#EXTINF')) break;
-      if (!candidate.startsWith('#') && /^https?:\/\//i.test(candidate)) { directUrl = candidate; break; }
-    }
+  for (const entry of parseM3uContainer(text)) {
+    if (!entry.extinf.startsWith('#EXTINF')) continue;
+    const fallbackName = entry.title || '';
+    const id = entry.attributes['tvg-id'] || entry.attributes['tvg-name'] || fallbackName;
+    const name = entry.attributes['tvg-name'] || fallbackName || id || 'Unknown';
+    const logo = entry.attributes['tvg-logo'] || '';
+    const group = entry.attributes['group-title'] || 'Other';
+    const directUrl = (entry.sourceCandidates || []).find(candidate => /^https?:\/\//i.test(candidate.line || ''))?.line || '';
     channels.push({
       id: normalizeId(id || name),
       originalId: id || name,

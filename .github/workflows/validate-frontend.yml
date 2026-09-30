@@ -132,6 +132,16 @@ jobs:
         run: node tests/import-promotion-contract.test.mjs
       - name: Run Phase E1 source format registry contract
         run: node tests/source-format-registry.test.mjs
+      - name: Run Phase E2 M3U container core contract
+        run: node tests/m3u-container-core.test.mjs
+      - name: Run Channel Catalog M3U parity
+        run: node tests/channel-catalog-m3u-parity.test.mjs
+      - name: Run Source Discovery M3U parity
+        run: node tests/source-discovery-m3u-parity.test.mjs
+      - name: Run Source Hunt M3U parity
+        run: node tests/source-hunt-m3u-parity.test.mjs
+      - name: Run frontend Source Hunt M3U parity
+        run: node tests/source-hunt-frontend-m3u-parity.test.mjs
       - name: Run Discovery candidate/state regression test
         run: node tests/discovery-candidate.test.mjs
       - name: Run Discovery local-source regression test

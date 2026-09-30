@@ -4,6 +4,7 @@ import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source
 import { OFFICIAL_PROVIDER_LANE, discoverOfficialProvider } from './source-discovery/official-provider-lane.js';
 import { OFFICIAL_API_RESOLVER_PROVIDER, discoverOfficialApi } from './source-discovery/official-api-resolver.js';
 import { channelSignalsMatch, normalizeChannelText } from '../src/core/channel-identity-gr.js';
+import { parseM3uContainer } from '../src/core/m3u-container.js';
 
 const VERSION='1.7';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
@@ -78,19 +79,14 @@ function makeCandidate({channel,sourceUrl,sourceOrigin,freshness='live-feed-chec
   };
 }
 function parseM3u(text='',channel={},feed={}){
-  const lines=String(text).replace(/\r/g,'').split('\n');
   const results=[];
-  for(let i=0;i<lines.length&&results.length<MAX_RESULTS;i++){
-    const extinf=lines[i].trim();
-    if(!/^#EXTINF:/i.test(extinf)||!candidateMatches(extinf,channel))continue;
-    let sourceUrl='';
-    for(let j=i+1;j<Math.min(lines.length,i+10);j++){
-      const next=lines[j].trim();
-      if(!next||next.startsWith('#'))continue;
-      if(validPublicUrl(next))sourceUrl=next;
-      break;
-    }
-    if(!sourceUrl)continue;
+  for(const entry of parseM3uContainer(text)){
+    if(results.length>=MAX_RESULTS)break;
+    const extinf=entry.extinf;
+    if(!candidateMatches(extinf,channel))continue;
+    if(entry.sourceOffset===null||entry.sourceOffset>=10)continue;
+    const sourceUrl=entry.sourceLine;
+    if(!validPublicUrl(sourceUrl))continue;
     results.push(makeCandidate({channel:{...channel,name:channel.name||titleOf(extinf)},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
   }
   return results;
