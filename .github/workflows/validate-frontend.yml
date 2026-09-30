@@ -130,6 +130,8 @@ jobs:
         run: node tests/discovery-verifier.test.mjs
       - name: Run shared channel identity regression test
         run: node tests/channel-identity-core.test.mjs
+      - name: Run channel profile regression test
+        run: node tests/channel-profile-core.test.mjs
       - name: Run Source Verifier Worker regression test
         run: node tests/source-verifier-worker.test.mjs
       - name: Run external discovery client regression test
