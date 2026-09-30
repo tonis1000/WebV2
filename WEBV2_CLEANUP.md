@@ -25,7 +25,8 @@ Status: INVENTORY / DO NOT DELETE YET.
 Current consumers before E2: Channel Catalog, Source Discovery, Source Hunt Worker, frontend Source Hunt each owned independent EXTINF/source traversal.
 Replacement: `src/core/m3u-container.js` for neutral container structure, with caller-owned policy adapters.
 Required proof: RED parity fixtures, all active structural callers migrated, repo-wide duplicate-parser audit, full regressions, exact-SHA Source Discovery/Source Hunt/frontend/Pages deploy and live proof.
-Status: E2 MIGRATION IN PROGRESS. Local structural loops in the four approved callers have been replaced on PR #69; do not mark RESOLVED until final audit + production verification complete.
+Status: RESOLVED by Phase E2 / PR #69, merge `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`. The four approved active structural callers use the shared core; the duplicate-parser audit found no remaining known independent M3U structural parser in that scope; exact-SHA Frontend #558, Source Discovery #57, Source Hunt #5, Registry #88 and Pages #447 succeeded, with live Discovery/Hunt verification.
+Deletion SHA: not applicable. E2 removed duplicated traversal in place rather than deleting a standalone obsolete file.
 
 ## CLEAN-004 Duplicate STRM / Enigma2 parsing primitives
 Current consumers: active Hunt/Discovery/frontend paths.
