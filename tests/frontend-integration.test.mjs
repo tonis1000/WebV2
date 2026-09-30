@@ -101,15 +101,19 @@ assert.match(frontendWorkflow, /github-public-playlists-provider\.test\.mjs/, 'F
 assert.match(frontendWorkflow, /recent-web-search-provider\.test\.mjs/, 'Frontend validation should run Recent Web provider regression');
 assert.match(frontendWorkflow, /channel-profile-core\.test\.mjs/, 'Frontend validation must enforce the Channel Profile contract');
 
-// Channel Profile Phase A is a data/schema foundation only. Runtime ownership moves in later phases.
+// Channel Profile Phase B owns canonical My Playlist logos/categories only.
 const epgCore = read('src/core/epg.js');
 const channelCatalog = read('src/core/channel-catalog.js');
 const logoUtils = read('src/logo-utils.js');
 assert.ok(existsSync(path.join(ROOT, 'src/core/channel-profile-gr.js')), 'Channel Profile registry should exist');
-assert.doesNotMatch(main, /channel-profile-gr\.js/, 'Phase A must not change My Playlist runtime presentation ownership');
-assert.doesNotMatch(epgCore, /channel-profile-gr\.js/, 'Phase A must not move EPG runtime ownership yet');
-assert.match(channelCatalog, /sourceTrust:\s*['"]temporary['"]/, 'Imported M3U metadata must remain temporary in Phase A');
-assert.doesNotMatch(logoUtils, /channel-profile-gr\.js/, 'Phase A must not move logo rendering ownership yet');
+assert.match(main, /channel-profile-gr\.js/, 'Phase B must move My Playlist presentation ownership onto Channel Profiles');
+assert.match(main, /resolveChannelProfile/, 'Phase B runtime must resolve canonical profile metadata');
+assert.match(main, /profile\?\.category\?\.primary/, 'Phase B must prefer canonical profile category for My Playlist');
+assert.match(main, /profile\?\.logo\?\.status\s*===\s*['"]available['"]/, 'Phase B must prefer available canonical profile logo');
+assert.match(main, /safeLogo\(c\.logo\|\|['"]{2}\)/, 'Phase B must preserve sanitized D1 logo fallback while profile logo is pending');
+assert.doesNotMatch(epgCore, /channel-profile-gr\.js/, 'Phase B must not move EPG runtime ownership yet');
+assert.match(channelCatalog, /sourceTrust:\s*['"]temporary['"]/, 'Imported M3U metadata must remain temporary in Phase B');
+assert.doesNotMatch(logoUtils, /channel-profile-gr\.js/, 'logo-utils must remain sanitation/rendering only in Phase B');
 
 const discoveryClient=read('src/discovery/external-discovery-client.js');
 assert.match(discoveryClient,/webtv-source-discovery\.atonis\.workers\.dev/, 'Phase 4 client must use the dedicated Source Discovery Worker');
