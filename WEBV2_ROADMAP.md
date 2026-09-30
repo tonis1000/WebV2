@@ -54,15 +54,21 @@ Audit finding: E3a discovered an additional active smart-wrapper STRM resolver n
 Production proof at exact runtime SHA: Frontend #619 SUCCESS; Source Discovery #58 SUCCESS with live all-provider verification and real ERT1 STRM resolution; Source Hunt #6 SUCCESS with live Worker verification; Registry #92 SUCCESS; Pages #451 SUCCESS.
 Non-goals preserved: no Enigma2 migration, Player/Verifier redesign, DRM playback, Xtream work or Hunt/Discovery consolidation.
 
+### Phase E3b Enigma2 normalization — DONE
+Runtime merge: `cc7e2128e9257cc431a95abf08f2f286e93d2235` via PR #75.
+Problem: Enigma2 bouquet/service parsing was duplicated across Source Discovery and frontend Source Hunt while transport/security proxy behavior was a separate responsibility.
+Outcome: pure `src/core/enigma2-core.js` owns neutral bouquet/service structure; Source Discovery and frontend Hunt remain caller-policy adapters; `workers/source-hunt-bouquet-proxy.js` remains transport/security-only.
+Parity/audit proof: Actions-backed RED→GREEN core/Discovery/frontend contracts, raw/one-pass/repeated decode facts preserved for caller parity, embedded-scheme and compact/nonstandard service behavior preserved, permanent repo-wide duplicate-parser audit, proxy-boundary contract, workflow dependency contract and browser cache-bust regression.
+Production proof at exact runtime SHA: Enigma Ownership #15 SUCCESS; Frontend #655 SUCCESS; Source Discovery #59 SUCCESS; Registry #94 SUCCESS; Pages #453 SUCCESS. Post-merge verification-only run #3 confirmed real ERT1 `HansSettings Greece` Enigma2 result with HTTP 200/count 1, the live Pages E3b cache key and Registry exact runtime SHA.
+Non-goals preserved: no Player/Verifier redesign, no RTSP/RTMP playback change, no Hunt/Discovery consolidation, no seed/ranking/save-policy redesign and no transport/security ownership moved into the shared core.
+
 ## Current runtime phase
-### Phase E3b Enigma2 normalization — NEXT
-Problem: Enigma2 bouquet/service parsing is duplicated across Discovery/frontend Hunt while transport/security proxy behavior is a separate responsibility.
-Proof target: one neutral shared Enigma2 structural parser with caller-owned matching/header/security/UI policy; bouquet proxy remains transport/security-only; exact regressions and deployment/live verification required.
+### Hunt / Discovery consolidation — NEXT
+Problem: broad lead hunting/search and normalized candidate production still have overlapping scanning/orchestration surfaces even though shared format primitives are now normalized.
+Proof target: explicit ownership between exploratory Hunt and normalized Discovery; remove only proven duplicate search/scanning/orchestration; preserve current provider contracts, freshness/provenance, candidate metadata, verification boundary, UI behavior and save/playback semantics; exact regressions and deployment/live verification required.
+Non-goals: no Player rewrite, no Source Verifier truth weakening, no candidate lifecycle redesign unless separately scoped, no broad state/API cleanup.
 
 ## Later runtime phases
-### Hunt / Discovery consolidation — FUTURE
-Clarify broad lead hunting versus normalized candidate production; reduce duplicated search/scanning only after shared primitive parity.
-
 ### Candidate / proof / save lifecycle cleanup — FUTURE
 Target conceptual lifecycle: `FOUND -> FORMAT_CLASSIFIED -> RESOLVED -> VERIFIED_MEDIA -> PLAYBACK_CONFIRMED -> SAVED`.
 Strengthen proof metadata without weakening current verifier/security rules.
