@@ -14,6 +14,7 @@ export function promoteImportedChannel(channel={}){
   const directUrls=urls(channel.directUrls);
 
   if(identity&&profile){
+    const group=clean(profile.category?.primary)||'Other';
     return {
       ...channel,
       id:identity.id,
@@ -21,7 +22,8 @@ export function promoteImportedChannel(channel={}){
       tvgId:identity.id,
       name:identity.canonicalName,
       logo:profile.logo?.status==='available'?clean(profile.logo.preferredUrl):'',
-      group:clean(profile.category?.primary)||'Other',
+      group,
+      groupName:group,
       directUrls,
       metadataTrust:'canonical-profile',
     };
@@ -36,6 +38,7 @@ export function promoteImportedChannel(channel={}){
     name:clean(channel.name||channel.originalId||channel.tvgId||channel.id)||'Unknown',
     logo:'',
     group:'Other',
+    groupName:'Other',
     directUrls,
     metadataTrust:'imported-unprofiled',
   };
