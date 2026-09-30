@@ -6,6 +6,7 @@ on:
       - design/hunt-discovery-unified-search
     paths:
       - 'src/search/**'
+      - 'unified-search.css'
       - 'src/discovery/candidate-model.js'
       - 'src/discovery/external-discovery-client.js'
       - 'tests/search-*.test.mjs'
@@ -50,3 +51,5 @@ jobs:
         run: node tests/search-reporter.test.mjs
       - name: Run progressive search orchestrator contract
         run: node tests/search-orchestrator.test.mjs
+      - name: Run polished unified search UI contract
+        run: node tests/unified-search-ui-contract.test.mjs
