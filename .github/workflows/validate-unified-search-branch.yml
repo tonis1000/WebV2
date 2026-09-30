@@ -50,8 +50,12 @@ jobs:
         run: node tests/discovery-external-provenance.test.mjs
       - name: Run structured search reporter contract
         run: node tests/search-reporter.test.mjs
+      - name: Run unified search verifier bridge contract
+        run: node tests/search-verification.test.mjs
       - name: Run progressive search orchestrator contract
         run: node tests/search-orchestrator.test.mjs
+      - name: Run progressive verifier integration contract
+        run: node tests/search-orchestrator-verification.test.mjs
       - name: Run polished unified search UI contract
         run: node tests/unified-search-ui-contract.test.mjs
       - name: Run Unified Search page wiring contract
