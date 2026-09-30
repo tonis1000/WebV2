@@ -3,6 +3,7 @@ import { RECENT_WEB_SEARCH_PROVIDER, discoverRecentWebSearch } from './source-di
 import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source-discovery/strm-specific-discovery.js';
 import { OFFICIAL_PROVIDER_LANE, discoverOfficialProvider } from './source-discovery/official-provider-lane.js';
 import { OFFICIAL_API_RESOLVER_PROVIDER, discoverOfficialApi } from './source-discovery/official-api-resolver.js';
+import { channelSignalsMatch, normalizeChannelText } from '../src/core/channel-identity-gr.js';
 
 const VERSION='1.7';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
@@ -28,7 +29,7 @@ const FEEDS=Object.freeze([
 
 function cors(){return {'access-control-allow-origin':'*','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'};}
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{...cors(),'content-type':'application/json;charset=utf-8','cache-control':'no-store'}});}
-function normalize(value=''){return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,' ').replace(/\s+/g,' ').trim();}
+function normalize(value=''){return normalizeChannelText(value);}
 function benignBase(value=''){
   let out=normalize(value);
   for(let i=0;i<3;i++){
@@ -38,27 +39,13 @@ function benignBase(value=''){
   }
   return out;
 }
-function identitySet(channel={}){
-  const values=[channel.name,channel.id,channel.originalId,channel.tvgId].filter(Boolean);
-  const out=new Set();
-  for(const value of values){const n=normalize(value),b=benignBase(value);if(n)out.add(n);if(b)out.add(b);}
-  return out;
-}
-function matchesSignals(signals=[],channel={}){
-  const targets=identitySet(channel);
-  if(!targets.size)return false;
-  return signals.filter(Boolean).some(signal=>{
-    const n=normalize(signal),b=benignBase(signal);
-    return (n&&targets.has(n))||(b&&targets.has(b));
-  });
-}
 function attr(line='',name=''){
   const match=String(line).match(new RegExp(`${name}="([^"]*)"`,'i'));
   return match?.[1]?.trim()||'';
 }
 function titleOf(line=''){const index=String(line).lastIndexOf(',');return index>=0?String(line).slice(index+1).trim():'';}
 function candidateMatches(extinf='',channel={}){
-  return matchesSignals([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')],channel);
+  return channelSignalsMatch([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')],channel,'exact');
 }
 function typeOf(url=''){
   const clean=String(url).split('|')[0].trim();
@@ -120,7 +107,7 @@ function parseEnigma2(text='',channel={},feed={}){
     const inlineName=safeDecode(parts.slice(11).join(':')).trim();
     const description=/^#DESCRIPTION\s+/i.test(lines[i+1]?.trim()||'')?String(lines[i+1]).trim().replace(/^#DESCRIPTION\s+/i,'').trim():'';
     if(!validPublicUrl(sourceUrl))continue;
-    if(!matchesSignals([inlineName,description],channel))continue;
+    if(!channelSignalsMatch([inlineName,description],channel,'exact'))continue;
     results.push(makeCandidate({channel:{...channel,name:channel.name||description||inlineName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
   }
   return results;
