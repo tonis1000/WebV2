@@ -20,10 +20,10 @@ Owns: source format identity, detection, capability metadata, transport-vs-media
 Does not own: network verification, trust, saving, playback success.
 
 ## M3U Container Core
-Owns: pure structural M3U parsing in `src/core/m3u-container.js`: EXTINF recognition, neutral attribute/title/duration extraction, source-line association, structural offsets, and intervening directives/comments.
+Owns: pure structural M3U parsing in `src/core/m3u-container.js`: EXTINF recognition, neutral attribute/title/duration extraction, ordered source candidates, primary source-line association, structural offsets, and intervening directives/comments.
 Does not own: channel matching, accepted URL schemes, source-format classification, trust, save eligibility, ranking, STRM resolution, Enigma2 parsing, verification, or playback.
 Rule: **shared parser parses; caller decides.** Channel Catalog, Source Discovery, Source Hunt Worker, and frontend Source Hunt remain policy adapters.
-Status: Phase E2 implementation in progress until merge + exact-SHA deployment/live verification.
+Status: Phase E2 DONE at merge `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`, with exact-SHA frontend, Discovery, Hunt, Registry and Pages deployment verification plus live Discovery/Hunt checks.
 
 ## Source Hunt
 Owns: broad lead hunting/search, provenance/freshness/ranking of leads.
@@ -54,6 +54,5 @@ Owns: auxiliary runtime cache, route health, ranking support.
 Does not own: canonical channel identity/profile/source-format truth.
 
 ## Current cleanup boundaries
-Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry.
-In-progress shared primitive: M3U Container Core (E2), pending exact-SHA production verification.
+Implemented shared cores: Channel Identity, Channel Profile ownership, Source Format Registry, M3U Container Core.
 Pending later primitives: STRM/Enigma2 normalization (E3), then search/lifecycle consolidation.
