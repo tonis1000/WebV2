@@ -45,11 +45,20 @@ Parity/review proof: caller-by-caller RED→GREEN contracts, historical nine-lin
 Production proof at exact merge SHA: Validate WebTV Frontend #558 SUCCESS; Source Discovery #57 SUCCESS with live Worker verification; Source Hunt #5 SUCCESS with live Worker/bouquet verification; Registry #88 SUCCESS with live D1/project-status verification; GitHub Pages #447 SUCCESS.
 Non-goals preserved: no STRM/Enigma2 migration; no playback/promotion/verifier behavior redesign.
 
-## Next runtime phase
-### Phase E3 STRM / Enigma2 normalization — FUTURE
-Problem: STRM and Enigma2 parsing/resolution primitives remain duplicated.
-Proof: shared primitives reproduce accepted behavior before caller migration; bouquet transport remains separate where appropriate.
+## Current runtime phase
+### Phase E3a STRM normalization — IN PROGRESS / IMPLEMENTED, AWAITING PRODUCTION PROOF
+Problem: active browser/Discovery/Hunt paths duplicated STRM reference/document/Kodi-header/DRM parsing and GitHub reference normalization while intentionally differing in networking and security policy.
+Chosen architecture: pure `src/core/strm-core.js` owns shared structural facts; browser `StrmResolver`, Source Discovery STRM provider, Source Discovery smart curated pre-resolver and Source Hunt remain caller-policy adapters. Route tooltip reuses canonical STRM detection.
+Branch proof so far: caller-by-caller RED→GREEN parity, ordered-line parity preservation, Discovery private-host/security policies retained, permanent workflow dependency contract, permanent repo-wide duplicate-parser audit, and full frontend validation green after reconciling stale E2 ownership/cache assertions.
+Audit finding: E3a discovered an additional active smart-wrapper STRM resolver not present in the initial known-caller inventory; it was migrated rather than whitelisted.
+Still required before DONE: PR review, exact-head CI, merge, exact-SHA Frontend/Pages + Source Discovery + Source Hunt deployment/live proof, real ERT1 STRM resolution, Brain closure/current readback.
+Non-goals preserved: no Enigma2 migration, Player/Verifier redesign, DRM playback, Xtream work or Hunt/Discovery consolidation.
 
+### Phase E3b Enigma2 normalization — NEXT AFTER E3a CLOSURE
+Problem: Enigma2 bouquet/service parsing is duplicated across Discovery/frontend Hunt while transport/security proxy behavior is a separate responsibility.
+Proof target: one neutral shared Enigma2 structural parser with caller-owned matching/header/security/UI policy; bouquet proxy remains transport/security-only; exact regressions and deployment/live verification required.
+
+## Later runtime phases
 ### Hunt / Discovery consolidation — FUTURE
 Clarify broad lead hunting versus normalized candidate production; reduce duplicated search/scanning only after shared primitive parity.
 
