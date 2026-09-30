@@ -10,6 +10,7 @@ on:
       - 'unified-search.css'
       - 'src/discovery/candidate-model.js'
       - 'src/discovery/external-discovery-client.js'
+      - 'workers/webtv-source-discovery.js'
       - 'tests/search-*.test.mjs'
       - 'tests/unified-*.test.mjs'
       - 'tests/discovery-candidate-provenance.test.mjs'
@@ -38,6 +39,8 @@ jobs:
         run: node tests/search-now-playing-state.test.mjs
       - name: Run unified source registry contract
         run: node tests/unified-source-registry.test.mjs
+      - name: Run single-owner curated source addition ergonomics contract
+        run: node tests/search-source-addition-ergonomics.test.mjs
       - name: Run search adapter contract
         run: node tests/search-adapter-contract.test.mjs
       - name: Run search provider adapter contract
