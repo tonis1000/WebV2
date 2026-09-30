@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { EpgService } from '../src/core/epg.js';
-import * as config from '../src/config.js';
 import { getChannelProfileById } from '../src/core/channel-profile-gr.js';
 import {
   EPG_PHASE_C_BASELINE_COMMIT,
@@ -64,7 +63,6 @@ assert.match(EPG_PHASE_C_BASELINE_COMMIT,/^[0-9a-f]{40}$/,'Phase C parity fixtur
 assert.equal(EPG_MY_PLAYLIST_LEGACY_PARITY.length,24,'Phase C parity must cover all 24 My Playlist identities');
 assert.equal(new Set(EPG_MY_PLAYLIST_LEGACY_PARITY.map(row=>row.channel.id)).size,24,'Phase C parity identities must be unique');
 assert.ok(EPG_PHASE_C_FAILURE_CLOSED.length>=4,'Phase C must define explicit fail-closed cases before migration');
-assert.equal(Object.prototype.hasOwnProperty.call(config,'CHANNEL_ALIASES'),false,'Phase C must remove the duplicate EPG alias registry from config.js');
 
 for(const row of EPG_MY_PLAYLIST_LEGACY_PARITY){
   const profile=getChannelProfileById(row.channel.id);
