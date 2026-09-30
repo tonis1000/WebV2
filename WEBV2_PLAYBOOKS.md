@@ -64,3 +64,25 @@ Never reverse the order.
 ## PB-009 Live media proof vocabulary
 `FOUND` is not `VERIFIED_MEDIA`; `VERIFIED_MEDIA` is not `PLAYBACK_CONFIRMED`; `PLAYBACK_CONFIRMED` is not automatically `SAVED`.
 Use precise lifecycle terms in reports.
+
+## PB-010 Actions-backed TDD when local execution is unavailable
+Goal: preserve real RED/GREEN evidence when the local container cannot clone/read the repository because of DNS/network limits.
+1. Create an isolated GitHub branch from the verified base/spec/plan commit.
+2. Write only the failing test/contract first.
+3. If no permanent workflow executes it yet, add a narrow temporary PR-only validation workflow.
+4. Open a draft PR and inspect Actions job steps/logs. RED counts only when the expected test fails for the expected reason.
+5. Implement the minimal GREEN change and verify the same Actions gate passes.
+6. As the feature matures, move every durable test into the normal frontend/Worker workflows and add dependency-path assertions where useful.
+7. Delete the temporary workflow before review/merge.
+8. Run the full permanent suite after the temporary harness is gone.
+Failure mode: a newly created workflow may not appear in the first run query; re-read before concluding it did not trigger.
+
+## PB-011 Safe large-file edits through the GitHub connector
+Goal: modify a large existing file without reconstructing it from truncated display output.
+1. Fetch the exact branch version of the file and record its blob SHA.
+2. If the connector response is truncated, use its response-resource URI and read the content in line ranges until the full file is recovered.
+3. Make the smallest deterministic transformation against that exact content.
+4. Use `update_file` with the recorded SHA; remember the connector replaces the whole file rather than applying a patch.
+5. Immediately run syntax/parity/full relevant CI to catch accidental whole-file drift.
+6. For repeat large-file work, prefer extracting smaller shared modules so future edits become bounded.
+Do not copy from a stale `main` file when the branch already contains earlier task changes.
