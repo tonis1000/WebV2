@@ -28,3 +28,10 @@ Phase E1 showed generic HTTP recognition must not silently become confirmed medi
 
 ## LESSON-007 Solved problems must enrich the Brain
 When a fix reveals a reusable route, constraint, failure mode, decision, or cleanup candidate, record it before closing the task. Otherwise the project relearns the same lesson later.
+
+## LESSON-008 Scoped and admin checkpoint routes are different trust boundaries
+Situation: the first Project Brain manual pointed routine reads at `/api/project-checkpoints`, while the persistent project-agent cookie is authorized only for `/api/project-agent/checkpoints`.
+Reviewer finding: using the admin path would return 401 once the temporary admin/PIN bypass is removed, despite a valid scoped project-agent session.
+Lesson: documentation must name the route that matches the credential scope. Routine Project Brain reads use `/api/project-agent/checkpoints`; admin checkpoint routes are an explicit admin alternative, not the default path.
+Proof: `workers/webtv-registry.js` has separate `requireProjectAgent()` handling for `/api/project-agent/checkpoints` and `requireAdmin()` handling for admin checkpoint routes.
+Knowledge update: Manual, Current pointer, PB-002 and PB-003.
