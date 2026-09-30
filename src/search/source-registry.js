@@ -1,44 +1,15 @@
+import { CURATED_SOURCE_FEEDS } from './curated-source-catalog.js';
+
 const SEARCH_SOURCES = Object.freeze([
-  Object.freeze({
-    id:'hitnickgr-iptv',
-    label:'hitnickgr/iptv',
-    type:'m3u',
-    location:'https://raw.githubusercontent.com/hitnickgr/iptv/refs/heads/main/GreekChannels',
-    enabled:true,
-    priority:'high',
-  }),
-  Object.freeze({
-    id:'iptv-org-gr',
-    label:'iptv-org Greece',
-    type:'m3u',
-    location:'https://iptv-org.github.io/iptv/countries/gr.m3u',
-    enabled:true,
-    priority:'high',
-  }),
-  Object.freeze({
-    id:'free-tv-iptv',
-    label:'Free-TV/IPTV',
-    type:'m3u',
-    location:'https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8',
-    enabled:true,
-    priority:'normal',
-  }),
-  Object.freeze({
-    id:'hanssettings-gr',
-    label:'HansSettings Greece',
-    type:'enigma2',
-    location:'https://gitlab.openpli.org/openpli/hanssettings/-/raw/master/e2_hanssettings_9e_13e_19e_23e_28e_AND_rotating/userbouquet.stream_griekenland__gr_.tv?ref_type=heads',
-    enabled:true,
-    priority:'high',
-  }),
-  Object.freeze({
-    id:'hanssettings-sport',
-    label:'HansSettings Sport',
-    type:'enigma2',
-    location:'https://gitlab.openpli.org/openpli/hanssettings/-/raw/master/e2_hanssettings_9e_13e_19e_23e_28e_AND_rotating/userbouquet.stream_sport.tv?ref_type=heads',
-    enabled:true,
-    priority:'normal',
-  }),
+  ...CURATED_SOURCE_FEEDS.map(feed=>Object.freeze({
+    id:feed.id,
+    label:feed.label||feed.name,
+    type:feed.format,
+    location:feed.url,
+    enabled:feed.enabled!==false,
+    priority:feed.priority||'normal',
+    tier:feed.tier||'primary',
+  })),
   Object.freeze({
     id:'strm-specific-discovery',
     label:'STRM Discovery',
