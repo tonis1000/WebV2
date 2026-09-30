@@ -8,7 +8,6 @@ assert.match(source,/function\s+isLiveUrl\s*\(/,'Hunt live HLS\/DASH filtering m
 assert.match(source,/function\s+isStrm\s*\(/,'STRM recognition must remain local in E2');
 assert.match(source,/async\s+function\s+resolveStrm\s*\(/,'STRM resolution must remain local in E2');
 assert.match(source,/function\s+rank\s*\(/,'Hunt ranking must remain local');
-assert.match(source,/Math\.min\(lines\.length,i\+10\)/,'pre-migration fixture documents the current 9-line M3U source window');
 
 assert.match(source,/m3u-container\.js/,'Source Hunt Worker must import the shared M3U container core');
 assert.match(source,/parseM3uContainer/,'Source Hunt Worker must consume parseM3uContainer');
