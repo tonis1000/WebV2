@@ -17,11 +17,12 @@ Fallback: another read-capable fetch/browser path.
 Do not use historical handoffs as a substitute when canonical access works.
 
 ## PB-003 CAS checkpoint write + readback
-Prerequisite: current checkpoint SHA.
-Preferred method: checkpoint PUT JSON using `expectedSha256`.
-Steps: fresh read -> prepare full content -> PUT with expected SHA -> reject/stop on conflict -> GET again -> verify new SHA/content/history.
+Preferred API method: checkpoint PUT JSON with fresh `expectedSha256`.
+Browser-friendly method: open `/api/project-agent/checkpoints/WEBV2_CURRENT.md/edit` inside an active scoped project-agent session. The form carries current checkpoint SHA and POST is internally forwarded to the existing CAS-protected PUT path.
+Steps: fresh read -> edit full content -> save once -> require Saved SHA -> read current again if independent readback is needed -> stop on conflict.
 Never blind overwrite.
-Known limitation as of 2026-09-30: alternate browser automation proved read access but did not expose arbitrary PUT JSON in that attempt; browser-friendly CAS editor remains proposed, not verified.
+Verified 2026-09-30: scoped editor session was active and saved canonical Current successfully; resulting checkpoint SHA-256 `0961afab1a627068805ea38a7cad8a9bc597fabbe825639596d330cad9cdf840`.
+Security: editor is limited to `WEBV2_CURRENT.md` and requires project-agent session; it does not grant general Registry admin access.
 
 ## PB-004 Check code vs deployment
 1. Read GitHub main SHA.
