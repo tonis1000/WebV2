@@ -11,7 +11,7 @@ const STREAM_URL_RE = /(?:rtmps?|rtsps?):\/\/|\.(?:m3u8|mpd|mp4|webm|ts)(?:[?"\\
 function blankLogo(){
   return Object.freeze({status:'pending',preferredUrl:'',sourceKind:'',sourceUrl:'',fallbacks:Object.freeze([])});
 }
-function availableLogo(preferredUrl,sourceKind='trusted-maintained-fallback',sourceUrl=preferredUrl){
+function availableLogo(preferredUrl,sourceKind='registry-curated-baseline',sourceUrl=preferredUrl){
   return Object.freeze({status:'available',preferredUrl,sourceKind,sourceUrl,fallbacks:Object.freeze([])});
 }
 function blankEpg(){
