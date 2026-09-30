@@ -15,6 +15,10 @@ on:
       - 'tests/unified-*.test.mjs'
       - 'tests/discovery-candidate-provenance.test.mjs'
       - 'tests/discovery-external-provenance.test.mjs'
+      - 'tests/curated-remote-feeds.test.mjs'
+      - 'tests/source-discovery-m3u-parity.test.mjs'
+      - 'tests/source-discovery-enigma2-parity.test.mjs'
+      - '.github/workflows/deploy-source-discovery.yml'
       - '.github/workflows/validate-unified-search-branch.yml'
   workflow_dispatch:
 
@@ -27,6 +31,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
+      - name: Validate shared curated source syntax
+        run: |
+          node --check src/search/curated-source-catalog.js
+          node --input-type=module --check < workers/webtv-source-discovery.js
       - name: Run unified search intent contract
         run: node tests/search-intent.test.mjs
       - name: Run unified search group catalog contract
@@ -41,6 +49,11 @@ jobs:
         run: node tests/unified-source-registry.test.mjs
       - name: Run single-owner curated source addition ergonomics contract
         run: node tests/search-source-addition-ergonomics.test.mjs
+      - name: Run curated source parser regressions
+        run: |
+          node tests/curated-remote-feeds.test.mjs
+          node tests/source-discovery-m3u-parity.test.mjs
+          node tests/source-discovery-enigma2-parity.test.mjs
       - name: Run search adapter contract
         run: node tests/search-adapter-contract.test.mjs
       - name: Run search provider adapter contract
