@@ -45,6 +45,17 @@ assert.equal(redacted.detail.safe,'kept');
 assert.equal(redacted.detail.nested.note,'visible');
 assert.match(redacted.detail.url,/\[redacted\]/i);
 
+const topLevel=createSearchReporter({searchId:'top-level-security'});
+topLevel.emit({
+  type:'search.started',severity:'INFO',
+  message:'query https://demo.test/live/user/pass/100.ts?token=top-token-123 and password=plain-pass-456',
+  sourceLabel:'source https://demo.test/list.m3u?username=joe&password=label-pass-789',
+  channelName:'https://demo.test/player_api.php?username=joe&password=channel-pass-000',
+});
+const topSerialized=JSON.stringify(topLevel.snapshot()[0]);
+for(const forbidden of ['top-token-123','plain-pass-456','label-pass-789','channel-pass-000'])assert.equal(topSerialized.includes(forbidden),false,`top-level report fields must redact ${forbidden}`);
+assert.match(topSerialized,/\[redacted\]/i);
+
 const text=secrets.exportText();
 const json=secrets.exportJson();
 for(const exported of [text,json]){
