@@ -34,8 +34,8 @@ Non-goals preserved: no Player rewrite, no M3U parser migration, no STRM/Enigma2
 
 ### Project Brain — DONE
 Problem: project knowledge was spread across conversations, historical docs, and stale current state.
-Outcome: Manual/Current pointer/Roadmap/Architecture/Playbooks/Tooling/Decisions/Lessons/Cleanup exist, are contract-tested, and the live canonical Current was reconciled.
-Production merge after route-scope correction: `fdf91d3274087237578a090fbb55402bef96141d`.
+Outcome: Manual/Current/Roadmap/Architecture/Playbooks/Tooling/Decisions/Lessons/Cleanup exist and are contract-tested. Canonical project current-state ownership is GitHub `main/WEBV2_CURRENT.md`; Registry/D1 CURRENT is retained as mirror/history/fallback while `/api/project-status` remains Registry deployment truth.
+Initial production merge after route-scope correction: `fdf91d3274087237578a090fbb55402bef96141d`.
 
 ### Phase E2 shared M3U/container parsing — DONE
 Merge: `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14` via PR #69.
