@@ -22,3 +22,5 @@ jobs:
       - uses: actions/checkout@v6
       - name: Run shared STRM core contract
         run: node tests/strm-core.test.mjs
+      - name: Run browser STRM resolver parity
+        run: node tests/strm-resolver-parity.test.mjs
