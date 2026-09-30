@@ -35,3 +35,18 @@ Reviewer finding: using the admin path would return 401 once the temporary admin
 Lesson: documentation must name the route that matches the credential scope. Routine Project Brain reads use `/api/project-agent/checkpoints`; admin checkpoint routes are an explicit admin alternative, not the default path.
 Proof: `workers/webtv-registry.js` has separate `requireProjectAgent()` handling for `/api/project-agent/checkpoints` and `requireAdmin()` handling for admin checkpoint routes.
 Knowledge update: Manual, Current pointer, PB-002 and PB-003.
+
+## LESSON-009 Structural parity sometimes needs metadata that looks caller-specific
+Situation: Source Discovery and Source Hunt historically searched only the first nine physical lines after an `#EXTINF`, while a neutral shared parser naturally scans until the next entry.
+Solution: the shared M3U core exposes `sourceOffset` as neutral structural metadata. Callers preserve their own nine-line acceptance policy with `sourceOffset < 10` instead of reintroducing private traversal loops.
+Lesson: when migrating duplicated structure, add neutral structural facts to the shared core rather than moving domain policy into it or duplicating traversal again.
+
+## LESSON-010 Shared modules require deployment and browser-cache dependency wiring
+Situation: moving M3U structure into one module meant frontend, Source Discovery, and Source Hunt all depended on a file they did not previously watch/cache-bust together.
+Solution: add the shared core to both Worker deploy triggers/tests and use a consistent E2 browser module cache-bust.
+Lesson: extracting a shared core is incomplete until every runtime consumer is automatically rebuilt/redeployed when that core changes and browser module graphs cannot serve mixed old/new versions.
+
+## LESSON-011 RED tests must be wired before they count as TDD evidence
+Situation: the first E2 core test existed on the branch but was not yet executed by the PR workflow, which could have produced a misleading green CI.
+Solution: wire the focused test into validation before treating the failure as the RED gate.
+Lesson: a test file that CI does not execute is not branch-level RED evidence.
