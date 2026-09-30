@@ -38,3 +38,5 @@ jobs:
         run: node tests/discovery-external-provenance.test.mjs
       - name: Run structured search reporter contract
         run: node tests/search-reporter.test.mjs
+      - name: Run progressive search orchestrator contract
+        run: node tests/search-orchestrator.test.mjs
