@@ -8,6 +8,22 @@ const { promotionBlockReason, previewChoiceBlockReason, promoteCandidate, keepXt
 let importPromotionPolicy=null;
 try{importPromotionPolicy=await import('../src/core/import-promotion-policy.js');}catch{}
 assert.ok(importPromotionPolicy?.promoteImportedChannel,'Phase D requires shared import promotion policy before Discovery/My Playlist promotion can be considered canonical');
+const {promoteImportedChannel}=importPromotionPolicy;
+
+const promotedErt=promoteImportedChannel({id:'ert-1-imported',originalId:'ΕΡΤ 1',name:'ΕΡΤ 1',logo:'https://evil.invalid/fake.png',group:'Adult',directUrls:['https://media.example/ert1.m3u8'],sourceTrust:'temporary'});
+assert.equal(promotedErt.id,'ert1');
+assert.equal(promotedErt.name,'ERT1');
+assert.equal(promotedErt.logo,'https://i.imgur.com/slE8U5m.png');
+assert.equal(promotedErt.group,'Γενικά');
+assert.deepEqual(promotedErt.directUrls,['https://media.example/ert1.m3u8']);
+
+const promotedMegaNews=promoteImportedChannel({id:'mega-news-feed',originalId:'MEGA NEWS',name:'MEGA News',logo:'https://evil.invalid/mega.png',group:'General',directUrls:['https://media.example/meganews.m3u8'],sourceTrust:'temporary'});
+assert.equal(promotedMegaNews.id,'meganews','MEGA News must not collapse into MEGA during promotion');
+
+const promotedUnknown=promoteImportedChannel({id:'mystery-feed',originalId:'mystery.feed',name:'Mystery TV',logo:'https://untrusted.invalid/logo.png',group:'Premium',directUrls:['https://media.example/mystery.m3u8'],sourceTrust:'temporary'});
+assert.equal(promotedUnknown.logo,'','unknown imported logo must not become canonical');
+assert.equal(promotedUnknown.group,'Other','unknown imported group must not become canonical');
+assert.equal(promotedUnknown.metadataTrust,'imported-unprofiled');
 
 const expectedChannel={id:'mega',originalId:'MEGA',tvgId:'mega.gr',name:'MEGA'};
 const verified={
@@ -85,5 +101,8 @@ assert.equal(/\busername\b/i.test(source),false,'promotion layer must never hand
 assert.match(source,/saveBestSourceToCurrent/);
 assert.match(source,/saveXtreamChannelFromPreview/);
 assert.match(source,/saveXtreamAccountFromPreview/);
+
+const mainSource=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+assert.match(mainSource,/catalogMode\s*===\s*['"]temporary['"]\s*\?\s*promoteImportedChannel\(selected\)/,'temporary channels must cross Phase D policy before persistence APIs receive them');
 
 console.log('Discovery promotion tests PASS');
