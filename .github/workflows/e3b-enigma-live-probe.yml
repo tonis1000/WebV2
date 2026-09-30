@@ -1,0 +1,25 @@
+name: E3b one-shot Enigma2 production probe
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/e3b-enigma-live-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe production curated Enigma2 reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://webtv-source-discovery.atonis.workers.dev/discover'
+          for CHANNEL in ERT1 ERT2 ERT3 MEGA SKAI ANT1; do
+            BODY=$(printf '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"%s","id":"probe","originalId":"%s"}}' "$CHANNEL" "$CHANNEL")
+            OUT=$(curl --fail --silent --show-error -X POST "$URL" -H 'content-type: application/json' --data "$BODY")
+            node -e "const j=JSON.parse(process.argv[1]);const e=(j.reports||[]).filter(x=>x.format==='enigma2');console.log(process.argv[2],JSON.stringify(e));" "$OUT" "$CHANNEL"
+          done
