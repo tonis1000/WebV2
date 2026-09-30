@@ -60,6 +60,8 @@ assert.equal(detectSourceFormat({ sourceUrl: 'https://x/live.m3u8', explicitType
 
 const hlsBody = classifySourceBody({ body: '#EXTM3U\n#EXT-X-VERSION:3\n', contentType: 'application/vnd.apple.mpegurl' });
 assert.equal(hlsBody.mediaFormatId, 'hls');
+const hlsMimeOnly = classifySourceBody({ body: 'not a manifest', contentType: 'application/vnd.apple.mpegurl' });
+assert.equal(hlsMimeOnly.mediaFormatId, 'unknown');
 const dashBody = classifySourceBody({ body: '<MPD></MPD>', contentType: 'application/dash+xml' });
 assert.equal(dashBody.mediaFormatId, 'dash');
 const videoBody = classifySourceBody({ body: '', contentType: 'video/mp4' });
@@ -88,7 +90,9 @@ const future = createSourceFormatRegistry([
     compatibilityType: 'unknown',
   },
 ]);
-assert.equal(detectSourceFormat({ sourceUrl: 'future://host/item' }, future).formatId, 'future-test');
+const futureClassification = detectSourceFormat({ sourceUrl: 'future://host/item' }, future);
+assert.equal(futureClassification.formatId, 'future-test');
+assert.equal(futureClassification.status, 'recognized-unsupported');
 assert.equal(detectSourceFormat({ sourceUrl: 'future://host/item' }).formatId, 'unknown');
 
 assert.equal(isHls('https://x/a.m3u8?token=1'), true);
