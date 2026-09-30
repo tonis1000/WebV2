@@ -37,14 +37,15 @@ Problem: project knowledge was spread across conversations, historical docs, and
 Outcome: Manual/Current pointer/Roadmap/Architecture/Playbooks/Tooling/Decisions/Lessons/Cleanup exist, are contract-tested, and the live canonical Current was reconciled.
 Production merge after route-scope correction: `fdf91d3274087237578a090fbb55402bef96141d`.
 
-## Current runtime phase
-### Phase E2 shared M3U/container parsing — IN PROGRESS
+### Phase E2 shared M3U/container parsing — DONE
+Merge: `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14` via PR #69.
 Problem: M3U structural parsing was duplicated across Channel Catalog, Source Discovery, Source Hunt Worker, and frontend Source Hunt.
-Scope: one pure policy-free `src/core/m3u-container.js`; callers retain their matching/filtering/trust/ranking/resolution/playback policies.
-Current implementation: shared core plus caller-by-caller migrations are on PR #69 / branch `phase-e2/m3u-container`; RED→GREEN parity gates have been exercised for core, Catalog, Discovery, Worker Hunt, frontend Hunt, deploy dependency wiring, and browser cache-busting.
-Non-goals: no STRM/Enigma2 migration; no playback/promotion/verifier behavior redesign.
-Proof required before DONE: final branch validation, duplicate-parser audit, code review, merge SHA, exact-SHA Frontend + Source Discovery + Source Hunt + Pages deployment/live verification, Brain closure, canonical Current CAS update.
+Outcome: one pure policy-free `src/core/m3u-container.js` owns neutral M3U structure; callers retain matching, URL acceptance, trust, ranking, resolution, verification, promotion, and playback policy.
+Parity/review proof: caller-by-caller RED→GREEN contracts, historical nine-line Discovery/Hunt windows preserved with neutral `sourceOffset`, Catalog HTTP fallback preserved with ordered neutral `sourceCandidates`, mixed-case EXTINF no-steal boundary made explicit, and repo-wide active-path audit found no remaining known duplicate structural parser in the approved E2 caller set.
+Production proof at exact merge SHA: Validate WebTV Frontend #558 SUCCESS; Source Discovery #57 SUCCESS with live Worker verification; Source Hunt #5 SUCCESS with live Worker/bouquet verification; Registry #88 SUCCESS with live D1/project-status verification; GitHub Pages #447 SUCCESS.
+Non-goals preserved: no STRM/Enigma2 migration; no playback/promotion/verifier behavior redesign.
 
+## Next runtime phase
 ### Phase E3 STRM / Enigma2 normalization — FUTURE
 Problem: STRM and Enigma2 parsing/resolution primitives remain duplicated.
 Proof: shared primitives reproduce accepted behavior before caller migration; bouquet transport remains separate where appropriate.
