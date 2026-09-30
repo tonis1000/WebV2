@@ -3,8 +3,8 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../src/source-hunt-enigma2.js', import.meta.url), 'utf8');
 
-assert.match(source, /core\/enigma2-core\.js/,
-  'frontend Enigma2 Hunt must consume the shared structural core');
+assert.match(source, /core\/enigma2-core\.js\?v=20260930-enigma2-e3b/,
+  'frontend Enigma2 Hunt must consume the cache-busted shared structural core');
 assert.match(source, /parseEnigma2Bouquet\s*\(/,
   'frontend Enigma2 Hunt must derive bouquet service structure from the shared core');
 assert.doesNotMatch(source, /function\s+extractService\s*\(/,
@@ -26,5 +26,11 @@ assert.match(source, /workerFetchText\s*\(/,
   'bouquet transport fallback remains outside the shared structural core');
 assert.match(source, /type===['"]rtmp['"]\|\|type===['"]rtsp['"]/,
   'unsupported RTMP/RTSP policy remains in the frontend adapter');
+
+const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+assert.match(index,/\.\/src\/source-hunt-enigma2\.js\?v=20260930-enigma2-e3b/,
+  'top-level Enigma2 browser module must move atomically with the E3b shared-core dependency');
+assert.doesNotMatch(index,/source-hunt-enigma2\.js\?v=20260929-enigma2-visible-proxy/,
+  'stale pre-E3b Enigma2 module cache key must be retired');
 
 console.log('frontend Enigma2 parity tests PASS');
