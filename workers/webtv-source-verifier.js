@@ -1,3 +1,5 @@
+import { detectSourceFormat, classifySourceBody, toLegacySourceType } from '../src/core/source-format-registry.js';
+
 const VERSION='1.0';
 const ALLOWED_ORIGIN='*';
 const UPSTREAM_TIMEOUT_MS=6000;
@@ -46,14 +48,6 @@ function safeResponseHeaderSummary(headers){
   const headerNames=[...new Set([...headers.keys()].map(name=>String(name||'').trim().toLowerCase()).filter(Boolean))].sort().slice(0,40);
   return{headerNames,hasSetCookie:headerNames.includes('set-cookie'),hasWwwAuthenticate:headerNames.includes('www-authenticate')};
 }
-function inferredType(url='',explicit=''){
-  const type=String(explicit||'').toLowerCase();
-  if(['hls','dash','direct','xtream','header-aware'].includes(type))return type;
-  const clean=String(url).split('|')[0].toLowerCase();
-  if(/\.m3u8(?:[?#]|$)/.test(clean))return'hls';
-  if(/\.mpd(?:[?#]|$)/.test(clean))return'dash';
-  return'direct';
-}
 async function readLimited(response){
   const reader=response.body?.getReader?.();
   if(!reader)return(await response.text()).slice(0,MAX_BODY_BYTES);
@@ -72,16 +66,17 @@ async function readLimited(response){
   for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.length;}
   return new TextDecoder().decode(merged);
 }
-function classifyBody(type,text='',contentType=''){
+function mediaProbeResult(type,text='',contentType=''){
   const body=String(text||'');
   const ct=String(contentType||'').toLowerCase();
-  const hls=body.trimStart().startsWith('#EXTM3U')&&(body.includes('#EXT-X-')||ct.includes('mpegurl'));
-  const dash=/<MPD\b/i.test(body)||(ct.includes('dash+xml'));
+  const classified=classifySourceBody({body,contentType:ct});
+  const media=classified.mediaFormatId;
   const drm=/widevine|playready|contentprotection|urn:uuid:/i.test(body);
-  if(type==='hls'&&!hls)return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not a valid HLS manifest'};
-  if(type==='dash'&&!dash)return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not a valid DASH manifest'};
-  if(type==='direct'&&!(hls||dash||ct.startsWith('video/')||ct.startsWith('audio/')||ct.includes('octet-stream')))return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not recognized as playable media'};
-  return{ok:true,mediaType:hls?'hls':dash?'dash':ct.split(';')[0]||type,drmDetected:drm,reason:''};
+  if(type==='hls'&&media!=='hls')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not a valid HLS manifest'};
+  if(type==='dash'&&media!=='dash')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not a valid DASH manifest'};
+  if((type==='direct'||type==='header-aware')&&media==='unknown')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not recognized as playable media'};
+  const mediaType=media==='hls'?'hls':media==='dash'?'dash':ct.split(';')[0]||type;
+  return{ok:true,mediaType,drmDetected:drm,reason:''};
 }
 function isRedirectStatus(status){return[301,302,303,307,308].includes(status);}
 async function fetchWithRedirectDiagnostics(target,headers,signal){
@@ -105,8 +100,9 @@ async function verifyOne(input={}){
   const started=now();
   const candidateId=String(input.candidateId||'');
   const sourceUrl=String(input.sourceUrl||'').trim();
-  const type=inferredType(sourceUrl,input.sourceType);
-  if(type==='strm'||type==='m3u')return{candidateId,status:'UNRESOLVED',verified:false,startupMs:0,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:'Resolve container/reference before verification',redirects:[],finalTarget:null,finalResponseHeaders:null};
+  const format=detectSourceFormat({sourceUrl,explicitType:input.sourceType});
+  const type=toLegacySourceType(format);
+  if(format.verificationMode==='resolve-first'||type==='strm'||type==='m3u')return{candidateId,status:'UNRESOLVED',verified:false,startupMs:0,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:'Resolve container/reference before verification',redirects:[],finalTarget:null,finalResponseHeaders:null};
   let target;
   try{target=safeHttpUrl(sourceUrl);}catch(error){return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error.message,redirects:[],finalTarget:null,finalResponseHeaders:null};}
   const controller=new AbortController();
@@ -124,7 +120,7 @@ async function verifyOne(input={}){
       return{candidateId,status:mapped,verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:'',drmDetected:false,detail:`Upstream HTTP ${status}`,redirects,finalTarget,finalResponseHeaders};
     }
     const text=await readLimited(response);
-    const classified=classifyBody(type,text,response.headers.get('content-type')||'');
+    const classified=mediaProbeResult(type,text,response.headers.get('content-type')||'');
     if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:true,detail:'DRM markers detected',redirects,finalTarget,finalResponseHeaders};
     if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:classified.reason,redirects,finalTarget,finalResponseHeaders};
     return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget,finalResponseHeaders};
