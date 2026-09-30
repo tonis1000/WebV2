@@ -42,3 +42,9 @@ Consequence: the shared parser may expose a neutral source line and structural m
 Hard rule: **shared parser parses; caller decides.**
 Non-goal: this decision does not move STRM resolution or Enigma2 parsing into the M3U core.
 Reconsider when: only if a later explicit architecture phase proves that a policy itself has one canonical owner and parity is preserved.
+
+## DEC-012 Mixed-case EXTINF is always a structural boundary
+Decision: the shared M3U core recognizes `#EXTINF` case-insensitively as a structural entry boundary, even when a caller such as Channel Catalog keeps a stricter uppercase-only policy for accepting that entry.
+Reason: one entry must never consume a source structurally belonging to the next entry. The old Catalog/frontend line loops could accidentally let an uppercase entry steal a URL from a following lowercase `#extinf` entry because their boundary check was case-sensitive.
+Consequence: caller acceptance policy remains unchanged, but cross-entry source stealing from malformed/mixed-case input is explicitly not preserved.
+Evidence: `tests/channel-catalog-m3u-parity.test.mjs` freezes the no-steal rule; the E2 design already requires mixed-case structural coverage and says behavior differences must be explicit rather than silent.
