@@ -5,8 +5,8 @@ const source=fs.readFileSync(new URL('../workers/source-huntatonisworkersdev.js'
 
 assert.match(source,/function\s+classifyEntry\s*\(/,'Hunt-specific channel filtering must remain local');
 assert.match(source,/function\s+isLiveUrl\s*\(/,'Hunt live HLS\/DASH filtering must remain local');
-assert.match(source,/function\s+isStrm\s*\(/,'STRM recognition must remain local in E2');
-assert.match(source,/async\s+function\s+resolveStrm\s*\(/,'STRM resolution must remain local in E2');
+assert.match(source,/strm-core\.js/,'E3a STRM recognition must come from the shared STRM core');
+assert.match(source,/async\s+function\s+resolveStrm\s*\(/,'STRM network resolution adapter must remain local to Hunt');
 assert.match(source,/function\s+rank\s*\(/,'Hunt ranking must remain local');
 
 assert.match(source,/m3u-container\.js/,'Source Hunt Worker must import the shared M3U container core');
