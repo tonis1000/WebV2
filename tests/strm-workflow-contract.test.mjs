@@ -6,9 +6,12 @@ const frontend = read('.github/workflows/validate-frontend.yml');
 const discovery = read('.github/workflows/deploy-source-discovery.yml');
 const hunt = read('.github/workflows/deploy-source-hunt.yml');
 
-for (const [name, text] of [['frontend', frontend], ['discovery', discovery], ['hunt', hunt]]) {
-  assert.match(text, /src\/core\/strm-core\.js/, `${name} workflow must watch or validate shared STRM core`);
-}
+assert.match(frontend, /src\/\*\*\/\*\.js/,
+  'frontend workflow must keep watching all src JavaScript, including shared STRM core');
+assert.match(discovery, /src\/core\/strm-core\.js/,
+  'Discovery deploy must explicitly watch shared STRM core');
+assert.match(hunt, /src\/core\/strm-core\.js/,
+  'Hunt deploy must explicitly watch shared STRM core');
 
 assert.match(frontend, /node tests\/strm-core\.test\.mjs/);
 assert.match(frontend, /node tests\/strm-resolver-parity\.test\.mjs/);
