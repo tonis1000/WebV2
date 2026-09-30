@@ -11,10 +11,13 @@ on:
       - 'src/core/channel-identity-gr.js'
       - 'src/core/m3u-container.js'
       - 'src/core/strm-core.js'
+      - 'src/core/enigma2-core.js'
       - 'tests/channel-identity-core.test.mjs'
       - 'tests/m3u-container-core.test.mjs'
       - 'tests/strm-core.test.mjs'
+      - 'tests/enigma2-core.test.mjs'
       - 'tests/source-discovery-m3u-parity.test.mjs'
+      - 'tests/source-discovery-enigma2-parity.test.mjs'
       - 'tests/*discovery*.test.mjs'
       - 'tests/*provider.test.mjs'
       - 'tests/curated-remote-feeds.test.mjs'
@@ -47,6 +50,7 @@ jobs:
           node --check src/core/channel-identity-gr.js
           node --check src/core/m3u-container.js
           node --check src/core/strm-core.js
+          node --check src/core/enigma2-core.js
           while IFS= read -r file; do node --check "$file"; done < <(find workers/source-discovery -type f -name '*.js' | sort)
 
       - name: Run discovery regression tests
@@ -54,7 +58,9 @@ jobs:
           node tests/channel-identity-core.test.mjs
           node tests/m3u-container-core.test.mjs
           node tests/strm-core.test.mjs
+          node tests/enigma2-core.test.mjs
           node tests/source-discovery-m3u-parity.test.mjs
+          node tests/source-discovery-enigma2-parity.test.mjs
           node tests/discovery-external.test.mjs
           node tests/source-discovery-worker.test.mjs
           node tests/curated-remote-feeds.test.mjs
