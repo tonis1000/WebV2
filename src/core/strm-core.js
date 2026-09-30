@@ -57,11 +57,13 @@ export function parseStrmDocument(text = '') {
   let licenseKey = '';
   const directives = [];
   const valueLines = [];
+  const lines = [];
 
   for (const rawLine of String(text || '').replace(/\r/g, '').split('\n')) {
     const line = rawLine.trim();
     if (!line) continue;
     if (line.startsWith('#')) {
+      lines.push({ kind: 'directive', value: line });
       directives.push(line);
       const prop = line.match(/^#KODIPROP:([^=]+)=(.*)$/i);
       if (prop) {
@@ -72,6 +74,7 @@ export function parseStrmDocument(text = '') {
       }
       continue;
     }
+    lines.push({ kind: 'value', value: line });
     valueLines.push(line);
     if (!mediaUrl && /^https?:\/\//i.test(line)) mediaUrl = line;
   }
@@ -86,5 +89,6 @@ export function parseStrmDocument(text = '') {
     },
     directives,
     valueLines,
+    lines,
   };
 }
