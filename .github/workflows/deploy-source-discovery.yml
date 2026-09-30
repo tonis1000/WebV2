@@ -61,6 +61,7 @@ jobs:
           node tests/github-public-playlists-provider.test.mjs
           node tests/recent-web-search-provider.test.mjs
           node tests/strm-specific-discovery-provider.test.mjs
+          node tests/source-discovery-smart-strm-parity.test.mjs
           node tests/official-provider-lane.test.mjs
           node tests/official-api-resolver-provider.test.mjs
 
