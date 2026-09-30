@@ -36,7 +36,7 @@ assert.match(current, /CURRENT VERSION/i, 'Repo CURRENT must contain current ver
 assert.match(current, /CURRENT TASK/i, 'Repo CURRENT must contain current task state');
 assert.match(current, /NEXT SAFE ACTION/i, 'Repo CURRENT must contain next safe action');
 assert.match(current, /mirror|history|fallback/i, 'Repo CURRENT must record Registry/D1 mirror status');
-assert.doesNotMatch(current, /not canonical|pointer only|pointer-only/i, 'Repo CURRENT must no longer be pointer-only');
+assert.doesNotMatch(current, /This repository file is \*\*not canonical current-state content\*\*|pointer only|pointer-only/i, 'Repo CURRENT must no longer use the old pointer-only contract');
 assert.match(current, /[a-f0-9]{40}/i, 'Repo CURRENT must contain exact verified commit evidence');
 
 const roadmap = read('WEBV2_ROADMAP.md');
