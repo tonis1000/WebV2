@@ -99,6 +99,20 @@ export class UnifiedSearchState {
     return true;
   }
 
+  replaceCandidate(searchId, candidate = {}) {
+    if (!this.#isCurrent(searchId) || this.current.status !== 'running') return false;
+    const id = String(candidate?.candidateId || '').trim();
+    if (!id) return false;
+    const index = this.current.candidates.findIndex(item => String(item?.candidateId || '') === id);
+    if (index < 0) return false;
+    this.current.candidates = [
+      ...this.current.candidates.slice(0,index),
+      candidate,
+      ...this.current.candidates.slice(index+1),
+    ];
+    return true;
+  }
+
   snapshot() {
     const lanes = {};
     for (const [key, value] of Object.entries(this.current.lanes || {})) lanes[key] = freezeLane(value);
