@@ -10,9 +10,10 @@ const run=runUnifiedSearch({
   sources:[{id:'fixture',label:'Fixture',type:'fixture',enabled:true}],
   resolveAdapter:()=>adapter,
   onUpdate:update=>updates.push(update),
-  verifyBatch:async(candidates,{onResult})=>{
+  verifyBatch:async(candidates,{onStart,onResult})=>{
     verificationStarted=true;
     assert.equal(candidates[0].verificationStatus,'UNVERIFIED');
+    onStart(candidates[0]);
     const verified={...candidates[0],verified:true,verificationStatus:'VERIFIED',lastHttpStatus:200,resolvedMediaFormatId:'hls',browserPlayable:true};
     onResult(verified);
     return [verified];
