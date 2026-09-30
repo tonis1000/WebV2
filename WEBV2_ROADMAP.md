@@ -32,10 +32,11 @@ Problem: source format/type recognition duplicated across frontend Discovery and
 Outcome: canonical extensible Source Format Registry, transport-vs-media distinction, legacy compatibility mapping, worker deployment dependency, future-format test.
 Non-goals preserved: no Player rewrite, no M3U parser migration, no STRM/Enigma2 migration.
 
-## Current bootstrap
-### Project Brain — IN PROGRESS
-Problem: project knowledge is spread across conversations, historical docs, and stale current state.
-Proof: Manual/Current pointer/Roadmap/Architecture/Playbooks/Tooling/Decisions/Lessons/Cleanup exist, are contract-tested, and live canonical Current is reconciled or explicitly blocked.
+### Project Brain — DONE
+Bootstrap merges: PR #67 + scoped-route correction PR #68, current verified main `fdf91d3274087237578a090fbb55402bef96141d`.
+Problem: project knowledge was spread across conversations, historical docs, and stale current state.
+Outcome: Manual/Current pointer/Roadmap/Architecture/Playbooks/Tooling/Decisions/Lessons/Cleanup now have explicit ownership and CI contract coverage; canonical Current is reconciled; routine checkpoint reads use least-privilege project-agent routes.
+Future follow-up: every solved problem must enrich the appropriate Brain owner before task closure.
 
 ## Next runtime phase
 ### Phase E2 shared M3U/container parsing — NOT STARTED
