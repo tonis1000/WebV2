@@ -2,6 +2,7 @@ import { runUnifiedSearch } from './search-orchestrator.js';
 import { listUnifiedSearchLanes, getUnifiedSearchRuntimeAdapter } from './search-runtime.js';
 import { verifySearchCandidates } from './search-verification.js';
 import { UnifiedNowPlayingState } from './now-playing-state.js';
+import { safePublicActionUrl } from './public-url-policy.js';
 import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay } from '../discovery/candidate-model.js';
@@ -65,8 +66,13 @@ function createUi(){
 }
 
 function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
-function safeText(value=''){return String(value??'').trim();}
-function formatSource(value=''){try{const url=new URL(value);return `${url.hostname}${url.pathname}`;}catch{return String(value||'');}}
+function formatSource(value=''){
+  const safe=safePublicActionUrl(value);
+  try{
+    const url=new URL(safe||String(value||''));
+    return safe?`${url.hostname}${url.pathname}`:`${url.hostname}/[protected URL]`;
+  }catch{return safe?'source':'[protected URL]';}
+}
 function headersForPlayback(headers={}){const params=new URLSearchParams();for(const [key,value] of Object.entries(headers||{}))if(value)params.set(key,value);return params.toString();}
 function playbackValue(candidate={}){const suffix=headersForPlayback(candidate.requiredHeaders);return `${candidate.sourceUrl||''}${suffix?`|${suffix}`:''}`;}
 function playableCandidate(candidate={}){return candidate.browserPlayable===true&&/^https?:\/\//i.test(String(candidate.sourceUrl||''));}
@@ -89,8 +95,7 @@ function sourceLinks(candidate={}){
   const sources=Array.isArray(candidate.provenanceSources)&&candidate.provenanceSources.length?candidate.provenanceSources:[{label:candidate.sourceOriginLabel||candidate.sourceOrigin,url:candidate.sourceOriginUrl,provider:candidate.discoveryProvider}];
   const wrap=document.createElement('div');wrap.className='unified-provenance';
   for(const item of sources){
-    if(!item?.url)continue;
-    let safe='';try{const url=new URL(item.url);if(/^https?:$/.test(url.protocol)&&!url.username&&!url.password)safe=url.href;}catch{}
+    const safe=safePublicActionUrl(item?.url||'');
     if(!safe)continue;
     const link=document.createElement('a');link.className='unified-source-link';link.href=safe;link.target='_blank';link.rel='noopener noreferrer';link.textContent=`Open source ↗${item.label?` · ${item.label}`:''}`;wrap.appendChild(link);
   }
@@ -110,7 +115,7 @@ function candidateRow(raw,channelName){
   title.append(source,capability);
   const meta=document.createElement('div');meta.className='unified-candidate-meta';
   for(const text of [`${candidate.inputFormatId||candidate.sourceType||'unknown'} → ${candidate.resolvedMediaFormatId||'unknown'}`,`Verifier: ${candidate.verificationStatus||'UNVERIFIED'}`,`Via: ${candidate.discoveryProvider||'unknown'}`]){const span=document.createElement('span');span.textContent=text;meta.appendChild(span);}
-  const url=document.createElement('code');url.className='unified-candidate-url';url.textContent=formatSource(candidate.sourceUrl);
+  const url=document.createElement('code');url.className='unified-candidate-url';url.textContent=formatSource(raw.sourceUrl);
   const details=document.createElement('details');details.className='unified-details';
   const detailSummary=document.createElement('summary');detailSummary.textContent='Details';
   const grid=document.createElement('div');grid.className='unified-detail-grid';
@@ -122,8 +127,8 @@ function candidateRow(raw,channelName){
   const actions=document.createElement('div');actions.className='unified-candidate-actions';
   const play=document.createElement('button');play.type='button';play.className='button';play.textContent='Play';play.disabled=!playableCandidate(raw);play.title=play.disabled?'This resolved format is not playable by the current browser Player':'Play this candidate';
   play.addEventListener('click',()=>playCandidate(raw,channelName,play));actions.appendChild(play);
-  const safeOrigin=candidate.sourceOriginUrl;if(safeOrigin){const link=document.createElement('a');link.className='button ghost';link.href=safeOrigin;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Open source ↗';actions.appendChild(link);}
-  if(/^https?:\/\//i.test(String(raw.sourceUrl||''))&&!raw.xtreamContext){const copy=document.createElement('button');copy.type='button';copy.className='button ghost';copy.textContent='Copy URL';copy.addEventListener('click',()=>navigator.clipboard?.writeText?.(raw.sourceUrl));actions.appendChild(copy);}
+  const safeOrigin=safePublicActionUrl(candidate.sourceOriginUrl);if(safeOrigin){const link=document.createElement('a');link.className='button ghost';link.href=safeOrigin;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Open source ↗';actions.appendChild(link);}
+  const copyUrl=safePublicActionUrl(raw.sourceUrl);if(copyUrl&&!raw.xtreamContext){const copy=document.createElement('button');copy.type='button';copy.className='button ghost';copy.textContent='Copy URL';copy.addEventListener('click',()=>navigator.clipboard?.writeText?.(copyUrl));actions.appendChild(copy);}
   row.append(main,actions);return row;
 }
 
