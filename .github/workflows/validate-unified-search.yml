@@ -1,0 +1,90 @@
+name: Validate Unified Search
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'unified-search.css'
+      - 'src/search/**'
+      - 'src/discovery/candidate-model.js'
+      - 'src/discovery/external-discovery-client.js'
+      - 'workers/webtv-source-discovery.js'
+      - 'tests/search-*.test.mjs'
+      - 'tests/unified-*.test.mjs'
+      - 'tests/discovery-candidate-provenance.test.mjs'
+      - 'tests/discovery-external-provenance.test.mjs'
+      - 'tests/curated-remote-feeds.test.mjs'
+      - 'tests/source-discovery-m3u-parity.test.mjs'
+      - 'tests/source-discovery-enigma2-parity.test.mjs'
+      - '.github/workflows/deploy-source-discovery.yml'
+      - '.github/workflows/validate-unified-search.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'unified-search.css'
+      - 'src/search/**'
+      - 'src/discovery/candidate-model.js'
+      - 'src/discovery/external-discovery-client.js'
+      - 'workers/webtv-source-discovery.js'
+      - 'tests/search-*.test.mjs'
+      - 'tests/unified-*.test.mjs'
+      - 'tests/discovery-candidate-provenance.test.mjs'
+      - 'tests/discovery-external-provenance.test.mjs'
+      - 'tests/curated-remote-feeds.test.mjs'
+      - 'tests/source-discovery-m3u-parity.test.mjs'
+      - 'tests/source-discovery-enigma2-parity.test.mjs'
+      - '.github/workflows/deploy-source-discovery.yml'
+      - '.github/workflows/validate-unified-search.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-unified-search-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate Unified Search and curated Worker syntax
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do node --check "$file"; done < <(find src/search -type f -name '*.js' | sort)
+          node --check src/discovery/candidate-model.js
+          node --check src/discovery/external-discovery-client.js
+          node --check src/search/curated-source-catalog.js
+          node --input-type=module --check < workers/webtv-source-discovery.js
+      - name: Run Unified Search contracts
+        run: |
+          set -euo pipefail
+          node tests/search-intent.test.mjs
+          node tests/search-group-catalog.test.mjs
+          node tests/search-state.test.mjs
+          node tests/search-state-completion.test.mjs
+          node tests/search-now-playing-state.test.mjs
+          node tests/unified-source-registry.test.mjs
+          node tests/search-source-addition-ergonomics.test.mjs
+          node tests/search-adapter-contract.test.mjs
+          node tests/search-provider-adapters.test.mjs
+          node tests/search-runtime.test.mjs
+          node tests/search-result-grouper.test.mjs
+          node tests/discovery-candidate-provenance.test.mjs
+          node tests/discovery-external-provenance.test.mjs
+          node tests/search-reporter.test.mjs
+          node tests/search-verification.test.mjs
+          node tests/search-orchestrator.test.mjs
+          node tests/search-orchestrator-verification.test.mjs
+          node tests/unified-search-ui-contract.test.mjs
+          node tests/unified-search-page-wiring.test.mjs
+          node tests/unified-search-oneclick-parity.test.mjs
+      - name: Run curated parser regressions
+        run: |
+          set -euo pipefail
+          node tests/curated-remote-feeds.test.mjs
+          node tests/source-discovery-m3u-parity.test.mjs
+          node tests/source-discovery-enigma2-parity.test.mjs
