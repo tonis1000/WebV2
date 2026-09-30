@@ -1,6 +1,7 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js';
 import { resolveChannelProfile } from './core/channel-profile-gr.js';
+import { promoteImportedChannel } from './core/import-promotion-policy.js';
 import { HealthStore } from './core/health-store.js';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
 import { EpgService } from './core/epg.js';
@@ -9,7 +10,7 @@ import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 
-const BUILD_ID = '20260929-startup-nonblocking-sources';
+const BUILD_ID = '20260930-import-promotion-d';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const DEBUG_FLAGS = new Set((new URLSearchParams(location.search).get('debug') || '').split(',').map(v => v.trim()).filter(Boolean));
@@ -234,7 +235,7 @@ window.WebTVPlaylistAPI={
   getCount:()=>channels.length,
   getCatalogMode:()=>catalogMode,
   getChannelById:id=>channels.find(channel=>String(channel.id)===String(id))||null,
-  getSelectedChannel:()=>selected?{...selected,directUrls:[...(selected.directUrls||[])]}:null,
+  getSelectedChannel:()=>selected?(catalogMode==='temporary'?promoteImportedChannel(selected):{...selected,directUrls:[...(selected.directUrls||[])]}):null,
   getChannels:()=>channels.map(c=>({...c,directUrls:[...(c.directUrls||[])]}))
 };
 

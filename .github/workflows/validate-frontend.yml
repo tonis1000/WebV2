@@ -124,6 +124,8 @@ jobs:
         run: node tests/new-xtream-preview.test.mjs
       - name: Run explicit Discovery promotion regression test
         run: node tests/discovery-promotion.test.mjs
+      - name: Run Phase D import promotion contract
+        run: node tests/import-promotion-contract.test.mjs
       - name: Run Discovery candidate/state regression test
         run: node tests/discovery-candidate.test.mjs
       - name: Run Discovery local-source regression test
