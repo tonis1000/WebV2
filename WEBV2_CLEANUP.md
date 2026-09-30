@@ -32,8 +32,8 @@ Deletion SHA: not applicable. E2 removed duplicated traversal in place rather th
 Current STRM consumers found by E3a audit: browser `StrmResolver`, Source Discovery STRM-specific provider, Source Discovery smart curated pre-resolver, Source Hunt Worker, plus route-tooltip presentation detection. Enigma2 parsing remains active in Discovery/frontend paths and is intentionally outside E3a.
 Replacement for STRM: pure `src/core/strm-core.js` plus caller-owned adapters/policy. The shared core owns reference/document/header/DRM structure only; network/security/budgets/ranking/playback stay local.
 Required STRM proof: RED parity fixtures, browser/Discovery smart/Discovery provider/Hunt migrations, repo-wide permanent duplicate-parser audit, full frontend regressions, exact-SHA frontend/Pages and affected Worker deploy/live proof including real ERT1 STRM resolution and Source Hunt live verification.
-Status: STRM IMPLEMENTED + PARITY/AUDIT CLEAN ON PR #73 BRANCH, **PENDING MERGE/PRODUCTION VERIFICATION**. Do not mark STRM RESOLVED until exact-SHA live proof succeeds. Enigma2 remains PENDING / Phase E3b.
-Deletion SHA: not applicable yet. E3a removes duplicate parser ownership in place rather than deleting a single obsolete file.
+Status: **STRM RESOLVED by Phase E3a / PR #73, runtime merge `35c3f7641221b3ad24b3533269e72218d729e241`.** Permanent duplicate-parser audit passed; Frontend #619, Source Discovery #58, Source Hunt #6, Registry #92 and Pages #451 succeeded on the exact runtime SHA; Discovery live verification exercised real ERT1 STRM resolution and Source Hunt live verification passed. **Enigma2 remains PENDING / Phase E3b.**
+Deletion SHA: not applicable. E3a removed duplicate parser ownership in place rather than deleting a single obsolete file.
 
 ## CLEAN-005 Compatibility facades
 Current consumers: must be enumerated before removal.
