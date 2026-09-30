@@ -1,0 +1,25 @@
+name: Validate Unified Search Branch
+
+on:
+  push:
+    branches:
+      - design/hunt-discovery-unified-search
+    paths:
+      - 'src/search/**'
+      - 'tests/search-*.test.mjs'
+      - '.github/workflows/validate-unified-search-branch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unified-search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run unified search intent contract
+        run: node tests/search-intent.test.mjs
+      - name: Run unified search state contract
+        run: node tests/search-state.test.mjs
