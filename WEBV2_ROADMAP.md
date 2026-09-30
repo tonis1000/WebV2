@@ -32,17 +32,18 @@ Problem: source format/type recognition duplicated across frontend Discovery and
 Outcome: canonical extensible Source Format Registry, transport-vs-media distinction, legacy compatibility mapping, worker deployment dependency, future-format test.
 Non-goals preserved: no Player rewrite, no M3U parser migration, no STRM/Enigma2 migration.
 
-## Current bootstrap
-### Project Brain — IN PROGRESS
-Problem: project knowledge is spread across conversations, historical docs, and stale current state.
-Proof: Manual/Current pointer/Roadmap/Architecture/Playbooks/Tooling/Decisions/Lessons/Cleanup exist, are contract-tested, and live canonical Current is reconciled or explicitly blocked.
+### Project Brain — DONE
+Problem: project knowledge was spread across conversations, historical docs, and stale current state.
+Outcome: Manual/Current pointer/Roadmap/Architecture/Playbooks/Tooling/Decisions/Lessons/Cleanup exist, are contract-tested, and the live canonical Current was reconciled.
+Production merge after route-scope correction: `fdf91d3274087237578a090fbb55402bef96141d`.
 
-## Next runtime phase
-### Phase E2 shared M3U/container parsing — NOT STARTED
-Problem: M3U/container parsing and extraction remain duplicated across active paths.
-Scope: shared parsing primitives with RED parity first.
-Non-goals: no STRM/Enigma2 migration in E2; no playback/promotion behavior change.
-Proof: current accepted fixtures reproduced; callers migrated one concern at a time; frontend/startup/browser regressions green; relevant deploy/live verification successful.
+## Current runtime phase
+### Phase E2 shared M3U/container parsing — IN PROGRESS
+Problem: M3U structural parsing was duplicated across Channel Catalog, Source Discovery, Source Hunt Worker, and frontend Source Hunt.
+Scope: one pure policy-free `src/core/m3u-container.js`; callers retain their matching/filtering/trust/ranking/resolution/playback policies.
+Current implementation: shared core plus caller-by-caller migrations are on PR #69 / branch `phase-e2/m3u-container`; RED→GREEN parity gates have been exercised for core, Catalog, Discovery, Worker Hunt, frontend Hunt, deploy dependency wiring, and browser cache-busting.
+Non-goals: no STRM/Enigma2 migration; no playback/promotion/verifier behavior redesign.
+Proof required before DONE: final branch validation, duplicate-parser audit, code review, merge SHA, exact-SHA Frontend + Source Discovery + Source Hunt + Pages deployment/live verification, Brain closure, canonical Current CAS update.
 
 ### Phase E3 STRM / Enigma2 normalization — FUTURE
 Problem: STRM and Enigma2 parsing/resolution primitives remain duplicated.
