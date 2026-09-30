@@ -1,0 +1,20 @@
+name: Phase E3b Enigma2 RED
+
+on:
+  pull_request:
+    paths:
+      - 'src/core/enigma2-core.js'
+      - 'tests/enigma2-core.test.mjs'
+      - '.github/workflows/e3b-enigma2-red.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  enigma2-red:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Enigma2 core contract
+        run: node tests/enigma2-core.test.mjs
