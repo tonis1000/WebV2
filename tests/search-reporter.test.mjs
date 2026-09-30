@@ -29,18 +29,18 @@ assert.equal(reporter.snapshot().length,5,'event retention must be bounded');
 assert.equal(reporter.snapshot()[0].type,'lane.started','oldest event should be evicted when maxEvents is exceeded');
 assert.equal(reporter.summary().failed,1);
 
-const secrets=createSearchReporter({searchId:'secret-test'});
+const secrets=createSearchReporter({searchId:'security-run'});
 secrets.emit({
   type:'source.failed',severity:'ERROR',sourceId:'xtream',sourceLabel:'Living Room',message:'bad login',
   detail:{
-    url:'https://user:secret@example.test/player_api.php?username=user&password=secret&token=abc',
-    username:'user',password:'secret',Authorization:'Bearer abc',Cookie:'sid=123',apiKey:'key123',safe:'kept',
-    nested:{access_token:'xyz',note:'visible'},
+    url:'https://user:super-pass-987@example.test/player_api.php?username=user&password=super-pass-987&token=token-abc-789',
+    username:'user',password:'super-pass-987',Authorization:'Bearer abc-789',Cookie:'sid=123-456',apiKey:'key-123-456',safe:'kept',
+    nested:{access_token:'access-xyz-789',note:'visible'},
   },
 });
 const redacted=secrets.snapshot()[0];
 const serialized=JSON.stringify(redacted);
-for(const forbidden of ['secret','Bearer abc','sid=123','key123','xyz'])assert.equal(serialized.includes(forbidden),false,`report must redact ${forbidden}`);
+for(const forbidden of ['super-pass-987','token-abc-789','Bearer abc-789','sid=123-456','key-123-456','access-xyz-789'])assert.equal(serialized.includes(forbidden),false,`report must redact ${forbidden}`);
 assert.equal(redacted.detail.safe,'kept');
 assert.equal(redacted.detail.nested.note,'visible');
 assert.match(redacted.detail.url,/\[redacted\]/i);
@@ -48,9 +48,9 @@ assert.match(redacted.detail.url,/\[redacted\]/i);
 const text=secrets.exportText();
 const json=secrets.exportJson();
 for(const exported of [text,json]){
-  assert.equal(exported.includes('secret'),false,'exports must use redacted snapshot only');
-  assert.equal(exported.includes('Bearer abc'),false);
-  assert.equal(exported.includes('sid=123'),false);
+  assert.equal(exported.includes('super-pass-987'),false,'exports must use redacted snapshot only');
+  assert.equal(exported.includes('Bearer abc-789'),false);
+  assert.equal(exported.includes('sid=123-456'),false);
 }
 assert.deepEqual(JSON.parse(json),secrets.snapshot());
 
