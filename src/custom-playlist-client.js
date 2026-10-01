@@ -55,6 +55,10 @@ export async function createCustomPlaylist({name=''}){
   const json=await requestJson('/api/playlists',{method:'POST',write:true,body:{name:clean(name)||'Custom Playlist',kind:'custom'}});
   return json.playlist||null;
 }
+export async function deleteCustomPlaylist(playlistId){
+  const id=clean(playlistId);if(!id)throw new Error('Custom playlist ID is required');
+  return requestJson(`/api/playlists/${encodeURIComponent(id)}`,{method:'DELETE',write:true});
+}
 export async function getCustomPlaylistChannels(playlistId,{signal=null}={}){
   const id=clean(playlistId);if(!id)throw new Error('Custom playlist ID is required');
   const json=await requestJson(`/api/playlists/${encodeURIComponent(id)}/channels`,{signal});
