@@ -9,7 +9,8 @@ Reconsider when: only if a replacement persistence model is explicitly designed 
 Decision: after successful cloud read, D1 wins; localStorage is offline fallback.
 
 ## DEC-003 Browser Resolver retired
-Decision: retire Browser Resolver/browser-resolved-official path; retain `official-api-resolver` and official-provider lane.
+Decision: retire Browser Resolver/browser-resolved-official path.
+Historical note: this decision originally retained `official-api-resolver` and the official-provider lane. That retained Official path was later explicitly retired by DEC-015 after the Unified Search consolidation and Discovery cleanup audit.
 
 ## DEC-004 Identity and Profile are separate
 Decision: Channel Identity owns ids/names/aliases/rejects/official refs; Channel Profile owns canonical metadata/presentation/EPG mapping state.
@@ -73,3 +74,24 @@ Consequences:
 - Enigma2 remains a separate E3b problem.
 Hard rule: **shared STRM structure; caller-owned network/security/product policy.**
 Reconsider when: only if a later explicit design proves one network-resolution service should own all callers and preserves security/playback parity.
+
+## DEC-015 Official broadcaster discovery/resolution retired
+Decision: retire the legacy Official broadcaster discovery/resolution runtime and do not reintroduce an `official` automatic-discovery lane into Unified Search by default.
+Reason: for the WebV2 use case, locating an official broadcaster page/stream manually is comparatively easy, while keeping the automated Official path required broadcaster-specific registries, resolver logic, verifier coupling, tests and deployment checks.
+Retained capabilities and why they remain:
+- Curated feeds reduce repeated manual source inspection.
+- GitHub playlists surface public playlist sources that are not obvious to locate by hand.
+- Recent Web finds fresh leads outside the fixed catalog.
+- STRM discovery/resolution resolves technical indirection into actual media targets.
+- Authorized Xtream searches explicit user-authorized accounts without exposing credentials.
+- Hunt exploration covers wider non-obvious leads.
+- New Xtream preview provides temporary inspection before persistence.
+- Promotion policy protects the boundary between temporary findings and permanent saved state.
+- Local scan remains background intelligence for dedupe and known-source awareness rather than a visible lane.
+Consequences:
+- Unified Search keeps its explicit `official` provider rejection guard;
+- retiring Official does not authorize deleting or weakening the retained discovery capabilities above;
+- Official-site lookup remains a manual user action when needed rather than a dedicated maintained discovery subsystem;
+- this decision does not change Player, Verifier, D1 save semantics, Xtream credential protections, or Search/Now Playing isolation.
+Evidence: PR #82 runtime merge `92dd5411427a06cc501e924df60f7dc2a80be1c1`; Validate Unified Search #43, Validate WebTV Frontend #709, Validate Enigma2 Ownership #52, Deploy Source Discovery Worker #62, Deploy WebTV Registry Worker #100 and GitHub Pages #458 all succeeded; the Source Discovery deployment's `Verify live Worker and retained external providers` step also succeeded.
+Reconsider when: only if a new bounded problem proves that automated Official discovery adds material value that manual lookup plus retained discovery paths cannot provide, with explicit maintenance cost and live acceptance proof.
