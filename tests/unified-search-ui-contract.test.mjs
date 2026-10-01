@@ -30,6 +30,9 @@ assert.ok(/verifyBatch\s*:\s*verifySearchCandidates/.test(js),'UI must pass prog
 assert.ok(/UnifiedNowPlayingState/.test(js),'UI must use independent Now Playing state');
 assert.ok(/setCandidate\(/.test(js),'successful candidate playback must own the Now Playing label');
 assert.ok(/sidebarChanged\(/.test(js),'explicit sidebar changes must clear candidate playback ownership');
+assert.ok(/syncSearchQueryToSidebarSelection/.test(js),'sidebar channel changes must synchronize the Unified Search query');
+assert.ok(/unified-search-query/.test(js)&&/\.value\s*=/.test(js),'sidebar synchronization must write the selected channel into the Search field');
+assert.equal(/unified-search-query[^\n]*addEventListener\(['"]input['"][^\n]*syncSearchQueryToSidebarSelection/.test(js),false,'manual Search typing must remain free and must not be overwritten by an input listener');
 assert.ok(js.includes('reporter?.exportText?.()')||js.includes('reporter.exportText()'),'Copy report must use redacted reporter export');
 assert.ok(js.includes('reporter?.exportJson?.()')||js.includes('reporter.exportJson()'),'JSON export must use redacted reporter export');
 
