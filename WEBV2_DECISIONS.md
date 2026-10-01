@@ -95,3 +95,28 @@ Consequences:
 - this decision does not change Player, Verifier, D1 save semantics, Xtream credential protections, or Search/Now Playing isolation.
 Evidence: PR #82 runtime merge `92dd5411427a06cc501e924df60f7dc2a80be1c1`; Validate Unified Search #43, Validate WebTV Frontend #709, Validate Enigma2 Ownership #52, Deploy Source Discovery Worker #62, Deploy WebTV Registry Worker #100 and GitHub Pages #458 all succeeded; the Source Discovery deployment's `Verify live Worker and retained external providers` step also succeeded.
 Reconsider when: only if a new bounded problem proves that automated Official discovery adds material value that manual lookup plus retained discovery paths cannot provide, with explicit maintenance cost and live acceptance proof.
+
+## DEC-016 Xtream preview is owned by account management; custom playlists own mixed-source membership
+Decision: New Xtream onboarding is owned by Playlist Manager / Xtream account management, not Unified Search or the legacy Discovery UI. Test / Preview is temporary and non-persistent; durable state is created only by explicit verified Save Channel or Save Full Account actions.
+
+Custom Saved Playlists are first-class user-owned mixed-source collections. D1 normalized membership is their truth. Channel/source ownership is scoped by `(playlist, channel)` so the same canonical channel may have different source sets in different custom playlists. My Playlist keeps its existing independent persistence model.
+
+Source-save rules:
+- `Selected source` is the default channel-save scope.
+- `All known sources` is an explicit snapshot of already-known eligible sources only; it MUST NOT invoke Unified Search, Hunt or network discovery at save time.
+- Custom playlists never own raw Xtream credentials or preview tokens.
+- A durable saved Xtream channel source is materialized through secure Xtream storage and may be referenced by My Playlist or Custom Playlists.
+- Full Xtream Account save stays account-backed and preserves provider catalog/category/EPG provenance rather than flattening the provider catalog into thousands of D1 playlist membership rows.
+- Large account UI rendering remains bounded; current production ownership renders at most 100 catalog rows at once.
+- Player ownership remains independent; preview/save flows do not change playback unless an explicit Play action is invoked elsewhere.
+
+Reason: the previous safe preview/promotion machinery survived the Discovery cleanup but lost a normal production UI owner. At the same time, the Library needed a first-class way to create user-curated playlists containing channels from different providers without duplicating credentials, collapsing source ownership into My Playlist, or turning Unified Search into a save-time side effect.
+
+Evidence:
+- PR #93 merge `9588e191fd354b42d20ae87ab16d3a2989041df4` implemented the architecture, including custom D1 membership/source rows, production Test / Preview ownership, explicit destinations, reference-safe cleanup, full-account markers and 50/500/5000 scalable mock coverage.
+- PR #95 merge `9f08d898b8209ffa4d32aa11424802df367f63e1` restored the Project Agent least-privilege auth boundary after Registry integration exposed an unrelated route-dispatch regression.
+- PR #97 merge `bf0b6a70e0c7840c19b0e08c7f2f04396aa22b7a` fixed All-known identity matching for unprofiled channels by considering preserved `originalId` / `tvgId` identities as well as normalized local ids.
+- PR #98 merge `de62fca10c7e452c836d168f2c373b437c936a93` fixed save-dialog interaction ownership so the Playlist Manager stays open during save.
+- Production Playwright verification against GitHub Pages and the deployed authorized mock provider passed for 50, 500 and 5000 channels, bounded rendering, filtering, Selected / All-known save, Custom Playlist creation, Full Account save, Player independence and zero page/console errors.
+
+Reconsider when: only if a later architecture phase replaces D1 Library ownership or proves a different single owner for Xtream onboarding/custom collections while preserving credential isolation, explicit-save semantics, Player/Search separation and migration compatibility.
