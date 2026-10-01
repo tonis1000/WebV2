@@ -5,6 +5,9 @@ const { default: worker } = await import('../workers/webtv-registry-entry.js?pro
 const env = {
   ADMIN_TOKEN: 'test-admin-token',
   PIN_AUTH_DISABLED: '1',
+  // The live Registry always has a D1 binding. No DB method should be reached
+  // for an unauthenticated Project Agent request because auth fails first.
+  DB: {},
 };
 
 const request = new Request('https://registry.example/api/project-agent/checkpoints/WEBV2_CURRENT.md', {
