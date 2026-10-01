@@ -1,0 +1,28 @@
+name: Validate Xtream Large Catalog
+
+on:
+  pull_request:
+    paths:
+      - 'workers/webtv-xtream-mock.js'
+      - 'src/xtream-catalog-view.js'
+      - 'tests/xtream-mock-deploy-contract.test.mjs'
+      - 'tests/xtream-large-catalog.test.mjs'
+      - '.github/workflows/deploy-webtv-xtream-mock.yml'
+      - '.github/workflows/validate-xtream-large-catalog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate mock syntax
+        run: node --input-type=module --check < workers/webtv-xtream-mock.js
+      - name: Run scalable mock deploy contract
+        run: node tests/xtream-mock-deploy-contract.test.mjs
+      - name: Run large catalog regression
+        run: node tests/xtream-large-catalog.test.mjs
