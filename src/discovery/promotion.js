@@ -1,5 +1,16 @@
 import { saveBestSourceToCurrent } from '../source-save-policy.js';
-import { listXtreamAccounts, saveXtreamAccountFromPreview, saveXtreamChannelFromPreview } from '../xtream-client.js';
+import {
+  listXtreamAccounts,
+  saveXtreamAccountFromPreview,
+  saveXtreamChannelFromPreview,
+  deleteXtreamChannelSource,
+  deleteXtreamAccount,
+} from '../xtream-client.js';
+import {
+  previewChoiceBlockReason as neutralPreviewChoiceBlockReason,
+  materializePreviewChannel,
+  materializePreviewAccount,
+} from '../xtream-preview-policy.js';
 
 function clean(value=''){return String(value??'').trim();}
 function normalize(value=''){
@@ -11,12 +22,6 @@ function sameChannel(a={},b={}){
   return right.some(value=>left.has(value));
 }
 function headerCount(candidate={}){return Object.keys(candidate.requiredHeaders||{}).length;}
-function previewExpired(candidate={}){
-  const raw=clean(candidate.xtreamPreviewExpiresAt);
-  if(!raw)return false;
-  const stamp=Date.parse(raw);
-  return Number.isFinite(stamp) && stamp<=Date.now();
-}
 
 export function promotionBlockReason(candidate={},expectedChannel=null,currentChannel=null){
   if(!candidate||typeof candidate!=='object')return 'Candidate is required';
@@ -32,14 +37,7 @@ export function promotionBlockReason(candidate={},expectedChannel=null,currentCh
 }
 
 export function previewChoiceBlockReason(candidate={},expectedChannel=null,currentChannel=null){
-  if(!candidate||typeof candidate!=='object')return 'Candidate is required';
-  if(String(candidate.sourceType||'')!=='xtream-preview')return 'Xtream preview candidate required';
-  if(candidate.verificationStatus!=='VERIFIED'||candidate.verified!==true)return 'Only VERIFIED Xtream previews can be saved';
-  if(!clean(candidate.xtreamPreviewToken))return 'Xtream preview token is missing';
-  if(!clean(candidate.xtreamStreamId))return 'Xtream stream ID is missing';
-  if(previewExpired(candidate))return 'Xtream preview expired. Test the account again';
-  if(expectedChannel&&currentChannel&&!sameChannel(expectedChannel,currentChannel))return 'Selected channel changed. Re-open Discovery for the current channel before saving';
-  return '';
+  return neutralPreviewChoiceBlockReason(candidate,{expectedChannel,currentChannel});
 }
 
 export async function promoteCandidate(candidate,{expectedChannel=null,getCurrentChannel=()=>window.WebTVPlaylistAPI?.getSelectedChannel?.()||null,saveSource=saveBestSourceToCurrent}={}){
@@ -55,26 +53,39 @@ export async function promotePreviewXtreamChannel(candidate,{
   getCurrentChannel=()=>window.WebTVPlaylistAPI?.getSelectedChannel?.()||null,
   saveChannel=saveXtreamChannelFromPreview,
   saveSource=saveBestSourceToCurrent,
+  deleteChannelSource=deleteXtreamChannelSource,
 }={}){
   const current=getCurrentChannel?.()||null;
-  const reason=previewChoiceBlockReason(candidate,expectedChannel,current);
-  if(reason)throw new Error(reason);
-  const source=await saveChannel(candidate.xtreamPreviewToken,candidate.xtreamStreamId,{name:candidate.channelName||''});
-  const playbackUrl=clean(source?.playbackUrl);
-  if(!/^https?:\/\//i.test(playbackUrl))throw new Error('Xtream bridge did not return a permanent channel playback URL');
-  const result=await saveSource(playbackUrl,{maxSources:3});
-  return {kind:'xtream-channel',candidateId:String(candidate.candidateId||''),source:{id:clean(source?.id),streamId:clean(source?.streamId),server:clean(source?.server),playbackUrl},result};
+  const materialized=await materializePreviewChannel(candidate,{
+    expectedChannel,
+    currentChannel:current,
+    saveChannel,
+    deleteChannelSource,
+    writeDestination:async source=>saveSource(source.playbackUrl,{maxSources:3}),
+  });
+  const source=materialized.source;
+  return {
+    kind:'xtream-channel',
+    candidateId:String(candidate.candidateId||''),
+    source:{id:clean(source?.id),streamId:clean(source?.streamId),server:clean(source?.server),playbackUrl:clean(source?.playbackUrl)},
+    result:materialized.result,
+  };
 }
 
 export async function saveFullXtreamAccountFromCandidate(candidate,{
   expectedChannel=null,
   getCurrentChannel=()=>window.WebTVPlaylistAPI?.getSelectedChannel?.()||null,
   saveAccount=saveXtreamAccountFromPreview,
+  deleteAccount=deleteXtreamAccount,
 }={}){
   const current=getCurrentChannel?.()||null;
-  const reason=previewChoiceBlockReason(candidate,expectedChannel,current);
-  if(reason)throw new Error(reason);
-  const account=await saveAccount(candidate.xtreamPreviewToken,{name:''});
+  const materialized=await materializePreviewAccount(candidate,{
+    expectedChannel,
+    currentChannel:current,
+    saveAccount,
+    deleteAccount,
+  });
+  const account=materialized.account;
   return {kind:'xtream-account',state:'saved',account:{id:clean(account?.id),name:clean(account?.name),server:clean(account?.server)}};
 }
 
