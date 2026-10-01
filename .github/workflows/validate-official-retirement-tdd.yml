@@ -26,14 +26,22 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
       - name: Apply bounded Official retirement patch
-        run: node scripts/apply-official-retirement.mjs
-      - name: Commit bounded patch to feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f workers/source-discovery/official-provider-lane.js ]]; then
+            node scripts/apply-official-retirement.mjs
+          else
+            echo "Official runtime patch is already applied."
+          fi
+          git restore --staged --worktree .github/workflows/validate-frontend.yml .github/workflows/deploy-source-discovery.yml || true
+      - name: Commit bounded runtime patch to feature branch
         shell: bash
         run: |
           set -euo pipefail
           git add -A
           if git diff --cached --quiet; then
-            echo "No patch changes to commit."
+            echo "No runtime patch changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
