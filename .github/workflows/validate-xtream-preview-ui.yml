@@ -1,0 +1,34 @@
+name: Validate Xtream Preview UI
+
+on:
+  pull_request:
+    paths:
+      - 'src/xtream-ui.js'
+      - 'src/xtream-catalog-view.js'
+      - 'src/xtream-client.js'
+      - 'tests/xtream-ui-preview-contract.test.mjs'
+      - 'tests/xtream-catalog-view.test.mjs'
+      - '.github/workflows/validate-xtream-preview-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-xtream-preview-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate UI syntax
+        run: node --check src/xtream-ui.js
+      - name: Run bounded catalog view regression
+        run: node tests/xtream-catalog-view.test.mjs
+      - name: Run production preview ownership contract
+        run: node tests/xtream-ui-preview-contract.test.mjs
+      - name: Run Discovery isolation compatibility
+        run: node tests/discovery-isolation.test.mjs

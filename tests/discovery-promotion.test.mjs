@@ -4,6 +4,9 @@ import fs from 'node:fs';
 globalThis.window={};
 globalThis.localStorage={getItem:()=>'',setItem(){},removeItem(){}};
 
+const neutralPolicy=await import('../src/xtream-preview-policy.js');
+assert.equal(typeof neutralPolicy.previewChoiceBlockReason,'function','Discovery promotion must share the neutral Xtream preview policy owner');
+
 const { promotionBlockReason, previewChoiceBlockReason, promoteCandidate, keepXtreamAccount, promotePreviewXtreamChannel, saveFullXtreamAccountFromCandidate, canPromoteCandidate, canChoosePreviewXtream } = await import('../src/discovery/promotion.js');
 let importPromotionPolicy=null;
 try{importPromotionPolicy=await import('../src/core/import-promotion-policy.js');}catch{}
@@ -101,6 +104,7 @@ assert.equal(/\busername\b/i.test(source),false,'promotion layer must never hand
 assert.match(source,/saveBestSourceToCurrent/);
 assert.match(source,/saveXtreamChannelFromPreview/);
 assert.match(source,/saveXtreamAccountFromPreview/);
+assert.match(source,/xtream-preview-policy/,'Discovery promotion must delegate preview policy to the neutral owner');
 
 const mainSource=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 assert.match(mainSource,/catalogMode\s*===\s*['"]temporary['"]\s*\?\s*promoteImportedChannel\(selected\)/,'temporary channels must cross Phase D policy before persistence APIs receive them');

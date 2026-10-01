@@ -1,0 +1,34 @@
+name: Validate Xtream Save Destination
+
+on:
+  pull_request:
+    paths:
+      - 'src/known-source-collector.js'
+      - 'src/xtream-save-destination.js'
+      - 'src/custom-playlist-client.js'
+      - 'src/playlist-manager.js'
+      - 'src/xtream-ui.js'
+      - 'tests/known-source-collector.test.mjs'
+      - 'tests/xtream-save-destination.test.mjs'
+      - '.github/workflows/validate-xtream-save-destination.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-xtream-save-destination-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run known-source collector regression
+        run: node tests/known-source-collector.test.mjs
+      - name: Run Xtream destination save regression
+        run: node tests/xtream-save-destination.test.mjs
+      - name: Run Phase D import promotion contract
+        run: node tests/import-promotion-contract.test.mjs

@@ -92,12 +92,12 @@ export async function saveXtreamAccount({ id = '', name = '', server = '', usern
   return result.account;
 }
 
-export async function previewXtreamAccount({ name = '', server = '', username = '', password = '' } = {}) {
+export async function previewXtreamAccount({ name = '', server = '', username = '', password = '' } = {}, { signal = null } = {}) {
   if (!server || !username || !password) throw new Error('Server, username and password are required');
   const result = await bridgeFetch('/api/preview', {
     method: 'POST',
     body: JSON.stringify({ name, server, username, password }),
-  }, { timeoutMs: 30000, json: true });
+  }, { timeoutMs: 30000, json: true, signal });
   return {
     previewToken: String(result.previewToken || ''),
     expiresAt: String(result.expiresAt || ''),

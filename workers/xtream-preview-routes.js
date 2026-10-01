@@ -140,6 +140,16 @@ async function saveChannelOnly(requestUrl,env,payload,streamId,name=''){
   return{id,name:sourceName,server:payload.server,streamId,playbackUrl:await channelPlaybackUrl(requestUrl,env,id,streamId)};
 }
 
+async function countCustomPlaylistReferences(env,needle){
+  try{
+    const row=await env.DB.prepare(`SELECT COUNT(*) AS n FROM playlist_channel_sources WHERE instr(url, ?) > 0`).bind(needle).first();
+    return Math.max(0,Number(row?.n||0));
+  }catch(error){
+    const message=String(error?.message||error).toLowerCase();
+    if(message.includes('no such table')||message.includes('playlist_channel_sources'))return 0;
+    throw error;
+  }
+}
 async function deleteChannelOnly(env,sourceId){
   await ensureTables(env);
   const id=clean(sourceId);
@@ -148,7 +158,9 @@ async function deleteChannelOnly(env,sourceId){
   if(!existing)return{id,deleted:false,reason:'not-found',references:0};
   const needle=`/channel-stream/${id}/`;
   const referenceRow=await env.DB.prepare(`SELECT COUNT(*) AS n FROM channel_sources s JOIN my_playlist m ON m.channel_id=s.channel_id WHERE s.enabled=1 AND instr(s.url, ?) > 0`).bind(needle).first();
-  const references=Math.max(0,Number(referenceRow?.n||0));
+  const myReferences=Math.max(0,Number(referenceRow?.n||0));
+  const customReferences=await countCustomPlaylistReferences(env,needle);
+  const references=myReferences+customReferences;
   if(references>0)return{id,deleted:false,reason:'still-referenced',references};
   await env.DB.prepare(`DELETE FROM xtream_channel_sources WHERE id=?`).bind(id).run();
   return{id,deleted:true,reason:'deleted',references:0};

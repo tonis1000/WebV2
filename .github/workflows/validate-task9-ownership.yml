@@ -1,0 +1,28 @@
+name: Validate Legacy New Xtream Ownership Retirement
+
+on:
+  pull_request:
+    paths:
+      - 'src/discovery/discovery-ui.js'
+      - 'src/xtream-ui.js'
+      - 'tests/discovery-entrypoint-ownership.test.mjs'
+      - '.github/workflows/validate-task9-ownership.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run ownership contract
+        run: node tests/discovery-entrypoint-ownership.test.mjs
+      - name: Run Discovery isolation compatibility
+        run: node tests/discovery-isolation.test.mjs
+      - name: Run New Xtream core compatibility
+        run: node tests/new-xtream-preview.test.mjs
+      - name: Run promotion compatibility
+        run: node tests/discovery-promotion.test.mjs

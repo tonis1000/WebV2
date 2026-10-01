@@ -7,6 +7,8 @@ try{
 // Xtream/source management UIs are loaded here so index.html does not need another entry point.
 // Automatic discovery is owned by Unified Search; this module also keeps startup recovery wiring.
 import './xtream-ui.js?v=20260925-xtream6';
+import './xtream-save-destination-ui.js?v=20261001-xtream-save-destination1';
+import './xtream-full-account-ui.js?v=20261001-xtream-full-account1';
 import './xtream-preview-actions.js?v=20260925-xtream-click1';
 import './xtream-enhancements.js?v=20260925-xtream-enh2';
 import './source-order-controls.js?v=20260928-cloud-health2';
