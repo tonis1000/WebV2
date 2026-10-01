@@ -12,6 +12,7 @@ on:
       - 'WEBV2_*.md'
       - 'workers/webtv-registry.js'
       - 'workers/webtv-registry-entry.js'
+      - 'workers/custom-playlist-routes.js'
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-xtream-router.js'
       - 'workers/xtream-preview-routes.js'
@@ -37,6 +38,7 @@ on:
       - 'WEBV2_*.md'
       - 'workers/webtv-registry.js'
       - 'workers/webtv-registry-entry.js'
+      - 'workers/custom-playlist-routes.js'
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-xtream-router.js'
       - 'workers/xtream-preview-routes.js'
@@ -77,6 +79,7 @@ jobs:
         run: |
           node --input-type=module --check < workers/webtv-registry.js
           node --input-type=module --check < workers/webtv-registry-entry.js
+          node --check workers/custom-playlist-routes.js
       - name: Validate Xtream Worker syntax
         shell: bash
         run: |
@@ -102,6 +105,8 @@ jobs:
         run: node tests/project-brain-docs.test.mjs
       - name: Run Registry project checkpoint write API regression test
         run: node tests/project-checkpoint-write-api.test.mjs
+      - name: Run custom playlist Registry regression test
+        run: node tests/custom-playlist-registry.test.mjs
       - name: Run project agent auth regression test
         run: node tests/project-agent-auth.test.mjs
       - name: Run project agent pairing admin regression test
