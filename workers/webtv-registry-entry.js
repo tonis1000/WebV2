@@ -151,8 +151,10 @@ export default{
     if(path===START_PATH&&request.method==='POST')return startPairingInBrowser(request,env,ctx);
     if(path===FINISH_PATH&&(request.method==='GET'||request.method==='POST'))return finishPairingInBrowser(request,env,ctx);
     if(path===CURRENT_EDIT_PATH&&(request.method==='GET'||request.method==='POST'))return currentEditor(request,env,ctx);
-    const customResponse=await handleCustomPlaylistRoute(adminBypassRequest(request,env),env,registryWorker);
-    if(customResponse)return customResponse;
+    if(path==='/api/playlists'||path.startsWith('/api/playlists/')){
+      const customResponse=await handleCustomPlaylistRoute(adminBypassRequest(request,env),env,registryWorker);
+      if(customResponse)return customResponse;
+    }
     return registryFetch(request,env,ctx);
   }
 };
