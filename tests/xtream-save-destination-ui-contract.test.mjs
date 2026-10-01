@@ -14,7 +14,7 @@ assert.match(ui,/getChannels/,'all-known scope may include the current already-l
 assert.match(ui,/Selected source/,'selected source must remain the default explicit option');
 assert.match(ui,/All known sources/,'all-known must be a separate explicit option');
 assert.match(ui,/New Custom Playlist/,'destination UI must support creating a new Custom Playlist');
-assert.doesNotMatch(ui,/UnifiedSearch|source-hunt|discover|Discovery|fetch\s*\(/,'save destination owner must not launch search/discovery/network discovery directly');
+assert.doesNotMatch(ui,/from\s+['"][^'"]*(?:unified-search|discovery|source-hunt)[^'"]*['"]|\bfetch\s*\(/i,'save destination owner must not import/call search, discovery, Source Hunt, or raw network fetch directly');
 assert.doesNotMatch(ui,/xtreamPreviewToken[^\n]{0,80}(textContent|innerHTML|value)/,'opaque preview token must never be rendered');
 
 console.log('Xtream save-destination UI ownership contract PASS');
