@@ -130,6 +130,8 @@ jobs:
         run: node tests/discovery-promotion.test.mjs
       - name: Run Discovery entrypoint ownership contract
         run: node tests/discovery-entrypoint-ownership.test.mjs
+      - name: Run Official discovery retirement contract
+        run: node tests/official-discovery-retirement.test.mjs
       - name: Run Phase D import promotion contract
         run: node tests/import-promotion-contract.test.mjs
       - name: Run Phase E1 source format registry contract
