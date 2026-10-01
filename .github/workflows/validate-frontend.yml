@@ -107,6 +107,10 @@ jobs:
         run: node tests/project-checkpoint-write-api.test.mjs
       - name: Run custom playlist Registry regression test
         run: node tests/custom-playlist-registry.test.mjs
+      - name: Run custom playlist client regression test
+        run: node tests/custom-playlist-client.test.mjs
+      - name: Run custom playlist cache regression test
+        run: node tests/custom-playlist-cache.test.mjs
       - name: Run project agent auth regression test
         run: node tests/project-agent-auth.test.mjs
       - name: Run project agent pairing admin regression test
