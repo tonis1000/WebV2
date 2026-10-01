@@ -114,5 +114,5 @@ jobs:
             echo "Waiting for Worker/provider availability ($attempt/12)…"
             sleep 5
           done
-          echo "::error::Source Discovery v1.8 live verification failed. Check retained providers and Official-provider absence."
+          echo "::error::Source Discovery v1.8 live verification failed. Check retained providers, BRAVE_API_KEY for Recent Web, and Official-provider absence."
           exit 1
