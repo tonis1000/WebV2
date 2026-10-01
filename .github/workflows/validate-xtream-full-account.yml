@@ -1,0 +1,25 @@
+name: Validate Xtream Full Account Save
+
+on:
+  pull_request:
+    paths:
+      - 'src/xtream-full-account-save.js'
+      - 'src/xtream-enhancements.js'
+      - 'src/xtream-ui.js'
+      - 'tests/xtream-full-account-save.test.mjs'
+      - '.github/workflows/validate-xtream-full-account.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate module syntax
+        run: node --check src/xtream-full-account-save.js
+      - name: Run explicit full-account save regression
+        run: node tests/xtream-full-account-save.test.mjs
