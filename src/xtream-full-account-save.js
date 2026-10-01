@@ -18,7 +18,10 @@ export function buildXtreamLibraryMarker({account={},preview={},name=''}={}){
   const accountId=clean(account.id);
   if(!accountId)throw new Error('Saved Xtream account ID is required');
   const channels=Array.isArray(preview?.channels)?preview.channels:[];
-  const groupCount=new Set(channels.map(channel=>clean(channel?.group||channel?.categoryName)).filter(Boolean)).size;
+  const countedGroups=new Set(channels.map(channel=>clean(channel?.group||channel?.categoryName)).filter(Boolean)).size;
+  const channelCount=Number.isFinite(Number(preview?.channelCount))?Number(preview.channelCount):channels.length;
+  const groupCount=Number.isFinite(Number(preview?.groupCount))?Number(preview.groupCount):countedGroups;
+  const sample=channels[0]||preview?.selected||{};
   const libraryName=clean(name)||`Xtream · ${clean(account.name||account.server)||'Account'}`;
   const rawM3u=`#EXTM3U\n#EXT-X-WEBTV-XTREAM-ACCOUNT:${accountId}\n#EXTINF:-1 group-title="WebTV System",Xtream account reference\nhttps://webtv.invalid/xtream/${encodeURIComponent(accountId)}\n`;
   return{
@@ -27,9 +30,9 @@ export function buildXtreamLibraryMarker({account={},preview={},name=''}={}){
     kind:'xtream',
     sourceUrl:`xtream:${accountId}`,
     rawM3u,
-    channelCount:channels.length,
+    channelCount,
     groupCount,
-    sampleMetadata:safeSampleMetadata(channels[0]||{}),
+    sampleMetadata:safeSampleMetadata(sample),
   };
 }
 
