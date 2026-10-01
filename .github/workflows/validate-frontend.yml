@@ -130,6 +130,8 @@ jobs:
         run: node tests/discovery-promotion.test.mjs
       - name: Run Discovery entrypoint ownership contract
         run: node tests/discovery-entrypoint-ownership.test.mjs
+      - name: Run Official discovery retirement contract
+        run: node tests/official-discovery-retirement.test.mjs
       - name: Run Phase D import promotion contract
         run: node tests/import-promotion-contract.test.mjs
       - name: Run Phase E1 source format registry contract
@@ -178,8 +180,6 @@ jobs:
         run: node tests/recent-web-search-provider.test.mjs
       - name: Run STRM-specific discovery provider regression test
         run: node tests/strm-specific-discovery-provider.test.mjs
-      - name: Run official provider lane regression test
-        run: node tests/official-provider-lane.test.mjs
       - name: Run Discovery Phase 4 isolation regression test
         run: node tests/discovery-isolation.test.mjs
       - name: Run Discovery Phase 5 browser smoke test
