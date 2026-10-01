@@ -20,10 +20,7 @@ async function registryWrite(entry){
   const response=await fetch(`${registryUrl()}/api/playlists`,{
     method:'POST',cache:'no-store',
     headers:{'content-type':'application/json',authorization:`Bearer ${token()}`},
-    body:JSON.stringify({
-      id:entry.id,name:entry.name,kind:'xtream',sourceUrl:entry.sourceUrl,rawM3u:entry.rawM3u,
-      channelCount:entry.channelCount,groupCount:entry.groupCount,
-    }),
+    body:JSON.stringify({id:entry.id,name:entry.name,kind:'xtream',sourceUrl:entry.sourceUrl,rawM3u:entry.rawM3u,channelCount:entry.channelCount,groupCount:entry.groupCount}),
   });
   let json={};try{json=await response.json();}catch{}
   if(!response.ok)throw new Error(json.error||`Registry HTTP ${response.status}`);
@@ -32,10 +29,7 @@ async function registryWrite(entry){
 function openDb(){return new Promise((resolve,reject)=>{const q=indexedDB.open(DB_NAME,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(STORE))q.result.createObjectStore(STORE,{keyPath:'id'});};q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});}
 async function putLocal(entry){
   const db=await openDb();
-  const item={
-    id:entry.id,name:entry.name,type:'xtream',url:entry.sourceUrl,text:entry.rawM3u,
-    channelCount:entry.channelCount,groupCount:entry.groupCount,createdAt:Date.now(),updatedAt:Date.now(),
-  };
+  const item={id:entry.id,name:entry.name,type:'xtream',url:entry.sourceUrl,text:entry.rawM3u,channelCount:entry.channelCount,groupCount:entry.groupCount,createdAt:Date.now(),updatedAt:Date.now()};
   return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(item);tx.oncomplete=()=>resolve(item);tx.onerror=()=>reject(tx.error);});
 }
 async function writeLibraryEntry(entry){
@@ -60,8 +54,17 @@ export async function handleFullAccountSaveRequest(detail={},deps={}){
   const chosen=askName(suggested);
   if(chosen===null)return null;
   const name=clean(chosen)||suggested;
+  const previewSummary=window.WebTVXtream?.getPreview?.()||{};
+  const groupCount=document.querySelectorAll('#xtream-preview-group option').length>0?Math.max(0,document.querySelectorAll('#xtream-preview-group option').length-1):0;
+  const preview={
+    account,
+    channelCount:Number(previewSummary.channelCount||0),
+    groupCount,
+    selected:channel||previewSummary.selected||null,
+    channels:Array.isArray(detail.channels)?detail.channels:[],
+  };
   setStatus('Saving verified Xtream account securely…','busy');
-  const result=await saveVerifiedFullXtreamAccount({candidate,expectedChannel:identity,currentChannel:identity,preview:{account,channels:Array.isArray(detail.channels)?detail.channels:(window.WebTVXtream?.getPreview?.()?.channels||[])},name},{
+  const result=await saveVerifiedFullXtreamAccount({candidate,expectedChannel:identity,currentChannel:identity,preview,name},{
     saveAccount:deps.saveAccount||saveXtreamAccountFromPreview,
     writeLibraryEntry:deps.writeLibraryEntry||writeLibraryEntry,
     deleteAccount:deps.deleteAccount||deleteXtreamAccount,
