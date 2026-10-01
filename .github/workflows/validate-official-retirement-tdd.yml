@@ -1,0 +1,25 @@
+name: Validate Official Retirement TDD
+
+on:
+  pull_request:
+    paths:
+      - 'tests/official-discovery-retirement.test.mjs'
+      - 'workers/webtv-source-discovery.js'
+      - 'workers/source-discovery/**'
+      - 'src/discovery/**'
+      - 'src/search/adapters/discovery-provider-adapter.js'
+      - '.github/workflows/deploy-source-discovery.yml'
+      - '.github/workflows/validate-official-retirement-tdd.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retirement-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Official discovery retirement contract
+        run: node tests/official-discovery-retirement.test.mjs
