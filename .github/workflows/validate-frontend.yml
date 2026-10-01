@@ -111,6 +111,8 @@ jobs:
         run: node tests/custom-playlist-client.test.mjs
       - name: Run custom playlist cache regression test
         run: node tests/custom-playlist-cache.test.mjs
+      - name: Run playlist manager escaping regression test
+        run: node tests/playlist-manager-html-escape.test.mjs
       - name: Run project agent auth regression test
         run: node tests/project-agent-auth.test.mjs
       - name: Run project agent pairing admin regression test
