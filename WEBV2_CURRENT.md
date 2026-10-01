@@ -1,16 +1,26 @@
 # WEBV2 CURRENT STATE
 
-Updated: 2026-09-30
+Updated: 2026-10-01
 Repository: `tonis1000/WebV2`
 Canonical source: GitHub `main/WEBV2_CURRENT.md`.
 
 ## CURRENT VERSION
+Unified Search Hunt / Discovery consolidation runtime merge SHA: `d6c7e67ca2a3e7203dd00fbf4d83df31b9b779c8` via PR #78.
+Unified Search sidebar-selection sync follow-up merge SHA: `90c6d80b7295cc0f17a1f8e976e7b6876e20a604` via PR #79.
 Phase E3b Enigma2 normalization runtime merge SHA: `cc7e2128e9257cc431a95abf08f2f286e93d2235` via PR #75.
 Phase E3a STRM normalization runtime merge SHA: `35c3f7641221b3ad24b3533269e72218d729e241` via PR #73.
 GitHub-canonical CURRENT ownership merge SHA: `c7cb5bda983e405d53190ce4ea8858155b1c4a88`.
 Phase E2 runtime merge SHA: `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`.
 
-Verified Phase E3b production evidence at exact runtime merge SHA `cc7e2128e9257cc431a95abf08f2f286e93d2235`:
+Verified Unified Search production evidence at exact latest runtime merge SHA `90c6d80b7295cc0f17a1f8e976e7b6876e20a604`:
+- Validate Unified Search #33 SUCCESS
+- Validate WebTV Frontend #690 SUCCESS
+- Deploy WebTV Registry Worker #97 SUCCESS for the same GitHub head
+- GitHub Pages #456 SUCCESS for the same GitHub head
+- user live-browser verification after deployment SUCCESS: sidebar channel selection auto-fills the Unified Search field, manual free-text editing remains available, and Search remains independent from playback until explicit Play
+- PR #78 established the consolidated Unified Search runtime; PR #79 added the bounded sidebar-selection query sync without changing the Player/Search isolation contract
+
+Verified Phase E3b production evidence remains:
 - Validate Enigma2 Ownership #15 SUCCESS
 - Validate WebTV Frontend #655 SUCCESS
 - Deploy Source Discovery Worker #59 SUCCESS
@@ -34,7 +44,8 @@ Verified Phase E2 evidence remains:
 - GitHub Pages #447 SUCCESS
 
 ## CURRENT TASK
-Phase E3b Enigma2 normalization: DONE.
+Hunt / Discovery consolidation into Unified Search: DONE.
+Unified Search sidebar-selection sync follow-up: DONE.
 
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
@@ -43,25 +54,28 @@ Current ownership:
 - Component-specific workflow/live evidence = deployment truth for that component.
 
 ## CURRENT VERIFIED OUTCOME
-Phase E3b shared Enigma2 structural normalization: DONE.
-CLEAN-004 duplicate STRM / Enigma2 parsing primitives: RESOLVED.
+Unified Search Hunt / Discovery consolidation: DONE.
 
-Phase E3b established:
-- canonical pure structural core `src/core/enigma2-core.js`;
-- shared neutral Enigma2 bouquet/service structure including bouquet name, service type, raw/decoded reference facts, inline name, DESCRIPTION association, ordered line metadata, embedded stream-reference facts and compact/nonstandard service preservation needed for caller parity;
-- Source Discovery migrated while preserving its service-type acceptance, one-pass decoding, raw DESCRIPTION matching, URL/public-target validation, channel matching and candidate policy;
-- frontend Source Hunt migrated while preserving embedded-scheme discovery, two-pass decoding behavior, Kodi header parsing/allowlisting, private-target blocking, format classification, candidate construction and UI/orchestration policy;
-- `workers/source-hunt-bouquet-proxy.js` remains transport/security-only and retains HTTPS/allowlist/timeout/max-body/raw-bouquet responsibilities;
-- permanent repo-wide Enigma2 duplicate-parser audit found no remaining active independent structural parser in audited `src`/`workers` scope;
-- permanent proxy-boundary and workflow-wiring contracts protect ownership and redeploy dependencies;
-- browser top-level cache key updated atomically for the migrated frontend module;
-- temporary RED/probe/patch workflows were removed or closed without merge after serving their verification purpose.
+The production search surface now has:
+- one user-facing Unified Search instead of parallel automatic Hunt and Discovery result universes;
+- independent Search and Now Playing state, so search does not own playback state;
+- explicit Play as the only Search action that changes the Player;
+- channel, group/subgroup and free-text intent handling through shared search context;
+- progressive, cancellable, bounded lane orchestration with stale-run protection;
+- normalized candidate aggregation grouped by channel;
+- Source Registry / shared adapter architecture using the existing Source Format Registry and shared M3U / STRM / Enigma2 cores;
+- preserved unique Hunt exploration intelligence through the normalized lead/candidate path instead of a second UI universe;
+- provenance and safe `Open source` handling, including protected Xtream credential behavior;
+- Official discovery excluded from the new Unified Search UX while legacy Official code remains outside this migration boundary;
+- Manual Source Test retained as the explicit manual testing surface;
+- sidebar channel selection now synchronizes the Unified Search query while the field remains freely editable for another channel, group or free-text query.
 
-Important E3b implementation lessons are recorded in `WEBV2_LESSONS.md`, especially preserving raw/one-pass/full neutral decode facts when callers historically differ and validating nonstandard structural parity before migration closure.
+The live acceptance scenario is verified by the user in production after Pages deployment: selecting channels updates the Search field, manual Search text can still be entered, and Search remains isolated from current playback until explicit Play.
 
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
-Fresh unauthenticated preflight could reach `/api/project-status` but did not expose usable PIN-protected checkpoint metadata; no mirror claim is inferred from that limitation.
+During this 2026-10-01 closure, the available web tool could not read `/api/project-status` or `/api/project-checkpoints`, so no fresh direct checkpoint SHA or direct Registry status body is claimed.
+The exact GitHub head `90c6d80b7295cc0f17a1f8e976e7b6876e20a604` did complete Deploy WebTV Registry Worker #97 successfully, but direct endpoint readback was not independently available through the current tool.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
@@ -77,11 +91,13 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - GitHub-canonical CURRENT ownership migration: DONE, merge `c7cb5bda983e405d53190ce4ea8858155b1c4a88`
 - Phase E3a STRM normalization: DONE, runtime merge `35c3f7641221b3ad24b3533269e72218d729e241`
 - Phase E3b Enigma2 normalization: DONE, runtime merge `cc7e2128e9257cc431a95abf08f2f286e93d2235`
+- Hunt / Discovery consolidation into Unified Search: DONE, runtime merge `d6c7e67ca2a3e7203dd00fbf4d83df31b9b779c8`
+- Unified Search sidebar-selection sync follow-up: DONE, merge `90c6d80b7295cc0f17a1f8e976e7b6876e20a604`
 
 ## NEXT SAFE ACTION
-Next runtime phase: Hunt / Discovery consolidation.
+No new large runtime change is implied by this closure.
 
-Before implementation, run the normal `WEBV2_MANUAL.md` preflight, then audit duplicated search/scanning/orchestration between broad Source Hunt lead generation and normalized Source Discovery candidate production. Define the exact problem, ownership boundary, non-goals and proof before code changes. Do not change Player/Verifier/save semantics merely to simplify Hunt/Discovery code.
+Before the next major change, define the exact production problem first and the concrete evidence that will prove it solved. Prefer bounded follow-ups driven by observed live behavior over speculative search/player refactors. Preserve the Unified Search ownership boundary and do not change Player, Verifier or save semantics unless a separate problem statement and proof require it.
 
 ## DO NOT BREAK
 - D1-primary My Playlist
@@ -94,9 +110,12 @@ Before implementation, run the normal `WEBV2_MANUAL.md` preflight, then audit du
 - Phase E2 shared M3U structural ownership and caller-owned policy
 - Phase E3a shared STRM structural ownership and caller-owned network/security/product policy
 - Phase E3b shared Enigma2 structural ownership with caller-owned matching/header/security/UI policy
+- Unified Search as the single automatic discovery surface
+- Search / Now Playing independence and explicit-Play-only ownership of Player changes
+- Unified Search progressive cancellation, stale-run protection, provenance and credential-redaction behavior
 - bouquet proxy transport/security ownership
 - Source Verifier security/status semantics
-- Existing Player/Discovery/Source Hunt/Xtream behavior unless a bounded change proves necessity
+- Existing Player/Xtream behavior unless a bounded change proves necessity
 - Project-agent least-privilege route separation
 - Existing Registry checkpoint/history infrastructure
 - Existing PIN implementation while temporary `PIN_AUTH_DISABLED=1` maintenance mode is active
