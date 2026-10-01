@@ -7,7 +7,8 @@ const { handleXtreamPreviewRoute } = await import('../workers/xtream-preview-rou
 
 const sourceId='xch_cleanupfixture1234';
 const channelRows=new Map([[sourceId,{id:sourceId}]]);
-let activeReferences=1;
+let myReferences=1;
+let customReferences=0;
 
 const DB={
   prepare(sql){
@@ -16,7 +17,8 @@ const DB={
       bind(...args){
         return{
           async first(){
-            if(/JOIN my_playlist/i.test(text)&&/instr\(s\.url, \?\)/i.test(text))return{n:activeReferences};
+            if(/JOIN my_playlist/i.test(text)&&/instr\(s\.url, \?\)/i.test(text))return{n:myReferences};
+            if(/FROM playlist_channel_sources/i.test(text)&&/instr\(url, \?\)/i.test(text))return{n:customReferences};
             if(/SELECT id FROM xtream_channel_sources WHERE id=\?/i.test(text))return channelRows.get(args[0])||null;
             return null;
           },
@@ -43,15 +45,33 @@ const denied=await handleXtreamPreviewRoute(new Request(`https://webtv-xtream.ex
 assert.equal(denied.status,401);
 assert.equal(channelRows.has(sourceId),true);
 
-const retainedResponse=await handleXtreamPreviewRoute(new Request(`https://webtv-xtream.example/api/channel-sources/${sourceId}`,{method:'DELETE',headers:trusted}),env);
+let retainedResponse=await handleXtreamPreviewRoute(new Request(`https://webtv-xtream.example/api/channel-sources/${sourceId}`,{method:'DELETE',headers:trusted}),env);
 assert.equal(retainedResponse.status,200);
-const retained=await retainedResponse.json();
+let retained=await retainedResponse.json();
 assert.equal(retained.deleted,false);
 assert.equal(retained.reason,'still-referenced');
 assert.equal(retained.references,1);
 assert.equal(channelRows.has(sourceId),true);
 
-activeReferences=0;
+myReferences=0;
+customReferences=1;
+retainedResponse=await handleXtreamPreviewRoute(new Request(`https://webtv-xtream.example/api/channel-sources/${sourceId}`,{method:'DELETE',headers:trusted}),env);
+assert.equal(retainedResponse.status,200);
+retained=await retainedResponse.json();
+assert.equal(retained.deleted,false,'custom playlist reference must retain encrypted Xtream source');
+assert.equal(retained.reason,'still-referenced');
+assert.equal(retained.references,1);
+assert.equal(channelRows.has(sourceId),true);
+
+myReferences=1;
+customReferences=1;
+retainedResponse=await handleXtreamPreviewRoute(new Request(`https://webtv-xtream.example/api/channel-sources/${sourceId}`,{method:'DELETE',headers:trusted}),env);
+retained=await retainedResponse.json();
+assert.equal(retained.references,2,'My Playlist and Custom Playlist references must be summed');
+assert.equal(channelRows.has(sourceId),true);
+
+myReferences=0;
+customReferences=0;
 const deletedResponse=await handleXtreamPreviewRoute(new Request(`https://webtv-xtream.example/api/channel-sources/${sourceId}`,{method:'DELETE',headers:trusted}),env);
 assert.equal(deletedResponse.status,200);
 const deleted=await deletedResponse.json();
