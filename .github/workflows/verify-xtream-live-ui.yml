@@ -47,11 +47,15 @@ jobs:
           from pathlib import Path
           p=Path('tests/xtream-live-browser-proof.mjs')
           s=p.read_text()
-          old="await page.waitForSelector('#playlist-manager-toggle', { timeout: 20_000 });"
-          new="await page.waitForSelector('#playlist-manager-toggle', { state: 'attached', timeout: 20_000 });"
-          if old not in s:
-              raise SystemExit('expected browser-proof visibility line not found')
-          p.write_text(s.replace(old,new,1))
+          replacements=[
+            ("await page.waitForSelector('#playlist-manager-toggle', { timeout: 20_000 });", "await page.waitForSelector('#playlist-manager-toggle', { state: 'attached', timeout: 20_000 });"),
+            ("await page.evaluate(() => document.documentElement.classList.add('admin-unlocked'));", "await page.evaluate(() => { document.documentElement.classList.remove('admin-locked'); document.documentElement.classList.add('admin-unlocked'); });"),
+          ]
+          for old,new in replacements:
+              if old not in s:
+                  raise SystemExit('expected browser-proof harness line not found: '+old)
+              s=s.replace(old,new,1)
+          p.write_text(s)
           PY
           node tests/xtream-live-browser-proof.mjs
 
