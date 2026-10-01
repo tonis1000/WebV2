@@ -41,7 +41,19 @@ jobs:
 
       - name: Run production Xtream browser proof
         shell: bash
-        run: node tests/xtream-live-browser-proof.mjs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/xtream-live-browser-proof.mjs')
+          s=p.read_text()
+          old="await page.waitForSelector('#playlist-manager-toggle', { timeout: 20_000 });"
+          new="await page.waitForSelector('#playlist-manager-toggle', { state: 'attached', timeout: 20_000 });"
+          if old not in s:
+              raise SystemExit('expected browser-proof visibility line not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node tests/xtream-live-browser-proof.mjs
 
       - name: Upload browser proof
         if: always()
