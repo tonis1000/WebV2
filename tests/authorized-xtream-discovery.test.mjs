@@ -22,10 +22,14 @@ const accounts=[
   {id:'xt_d',name:'Provider D',server:'https://provider-d.invalid'},
 ];
 const calls=[];
+const signalController=new AbortController();
+let listSignal=null;
+const loadSignals=[];
 const result=await discoverAuthorizedXtream({name:'MEGA',id:'mega'}, {
-  listAccounts:async()=>accounts,
-  loadChannels:async accountId=>{
-    calls.push(accountId);
+  signal:signalController.signal,
+  listAccounts:async options=>{listSignal=options?.signal;return accounts;},
+  loadChannels:async (accountId,options)=>{
+    calls.push(accountId);loadSignals.push(options?.signal);
     return {
       account:{id:accountId,server:`https://${accountId}.invalid`},
       channels:[
@@ -36,6 +40,8 @@ const result=await discoverAuthorizedXtream({name:'MEGA',id:'mega'}, {
   },
 });
 
+assert.equal(listSignal,signalController.signal,'account listing must receive the Unified Search abort signal');
+assert.ok(loadSignals.every(signal=>signal===signalController.signal),'channel expansion must receive the Unified Search abort signal');
 assert.deepEqual(calls,['xt_a','xt_b','xt_c'],'account expansion must be capped at three authorized accounts');
 assert.equal(result.provider,AUTHORIZED_XTREAM_DISCOVERY_PROVIDER);
 assert.equal(result.candidates.length,3);

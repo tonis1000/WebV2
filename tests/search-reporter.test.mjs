@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import { createSearchReporter } from '../src/search/search-reporter.js';
+
+const reporter=createSearchReporter({searchId:'search_42',maxEvents:5});
+reporter.emit({type:'search.started',severity:'INFO',message:'ERT search started'});
+reporter.emit({type:'lane.started',severity:'INFO',laneId:'github',sourceId:'github-search',sourceLabel:'GitHub'});
+reporter.emit({type:'candidate.found',severity:'OK',laneId:'github',sourceId:'github-search',sourceLabel:'GitHub',candidateId:'c1',channelName:'ERT1',detail:{sourceUrl:'https://stream.test/ert1.m3u8'}});
+reporter.emit({type:'verification.completed',severity:'OK',candidateId:'c1',channelName:'ERT1',detail:{status:'VERIFIED'}});
+reporter.emit({type:'lane.timeout',severity:'TIMEOUT',laneId:'web',sourceId:'web-search',sourceLabel:'Recent Web',message:'timeout'});
+
+const firstSnapshot=reporter.snapshot();
+assert.equal(firstSnapshot.length,5);
+assert.equal(firstSnapshot[0].type,'search.started');
+assert.ok(firstSnapshot.every((event,index)=>index===0 || event.at>=firstSnapshot[index-1].at),'events must be chronological');
+assert.throws(()=>{firstSnapshot[0].message='mutated';},TypeError,'events must be immutable');
+
+const summary=reporter.summary();
+assert.equal(summary.timeouts,1);
+assert.equal(summary.candidates,1);
+assert.equal(summary.verified,1);
+assert.equal(summary.warnings,0);
+assert.equal(summary.status,'running');
+
+assert.deepEqual(reporter.filterBySource('github-search').map(event=>event.type),['lane.started','candidate.found']);
+assert.deepEqual(reporter.filterByCandidate('c1').map(event=>event.type),['candidate.found','verification.completed']);
+
+reporter.emit({type:'lane.failed',severity:'ERROR',laneId:'forum',sourceId:'forum',message:'HTTP 403'});
+assert.equal(reporter.snapshot().length,5,'event retention must be bounded');
+assert.equal(reporter.snapshot()[0].type,'lane.started','oldest event should be evicted when maxEvents is exceeded');
+assert.equal(reporter.summary().failed,1);
+
+const secrets=createSearchReporter({searchId:'security-run'});
+secrets.emit({
+  type:'source.failed',severity:'ERROR',sourceId:'xtream',sourceLabel:'Living Room',message:'bad login',
+  detail:{
+    url:'https://user:super-pass-987@example.test/player_api.php?username=user&password=super-pass-987&token=token-abc-789',
+    username:'user',password:'super-pass-987',Authorization:'Bearer abc-789',Cookie:'sid=123-456',apiKey:'key-123-456',safe:'kept',
+    nested:{access_token:'access-xyz-789',note:'visible'},
+  },
+});
+const redacted=secrets.snapshot()[0];
+const serialized=JSON.stringify(redacted);
+for(const forbidden of ['super-pass-987','token-abc-789','Bearer abc-789','sid=123-456','key-123-456','access-xyz-789'])assert.equal(serialized.includes(forbidden),false,`report must redact ${forbidden}`);
+assert.equal(redacted.detail.safe,'kept');
+assert.equal(redacted.detail.nested.note,'visible');
+assert.match(redacted.detail.url,/\[redacted\]/i);
+
+const topLevel=createSearchReporter({searchId:'top-level-security'});
+topLevel.emit({
+  type:'search.started',severity:'INFO',
+  message:'query https://demo.test/live/user/pass/100.ts?token=top-token-123 and password=plain-pass-456',
+  sourceLabel:'source https://demo.test/list.m3u?username=joe&password=label-pass-789',
+  channelName:'https://demo.test/player_api.php?username=joe&password=channel-pass-000',
+});
+const topSerialized=JSON.stringify(topLevel.snapshot()[0]);
+for(const forbidden of ['top-token-123','plain-pass-456','label-pass-789','channel-pass-000'])assert.equal(topSerialized.includes(forbidden),false,`top-level report fields must redact ${forbidden}`);
+assert.match(topSerialized,/\[redacted\]/i);
+
+const text=secrets.exportText();
+const json=secrets.exportJson();
+for(const exported of [text,json]){
+  assert.equal(exported.includes('super-pass-987'),false,'exports must use redacted snapshot only');
+  assert.equal(exported.includes('Bearer abc-789'),false);
+  assert.equal(exported.includes('sid=123-456'),false);
+}
+assert.deepEqual(JSON.parse(json),secrets.snapshot());
+
+secrets.emit({type:'search.cancelled',severity:'WARN',message:'superseded'});
+assert.equal(secrets.summary().status,'cancelled');
+assert.equal(secrets.summary().warnings,1);
+
+const complete=createSearchReporter({searchId:'done'});
+complete.emit({type:'search.started',severity:'INFO'});
+complete.emit({type:'search.completed',severity:'OK'});
+assert.equal(complete.summary().status,'completed');
+
+console.log('unified search reporter contract PASS');

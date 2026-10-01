@@ -39,6 +39,20 @@ function normalizeCandidate(provider,item,channel){
 }
 function isAbort(error){return error?.name==='AbortError'||error?.name==='TimeoutError';}
 function restrictionType(result){return String(result?.reports?.restriction?.type||'');}
+function publicChannelRequest(channel={}){
+  const request={
+    id:String(channel.id||''),
+    originalId:String(channel.originalId||''),
+    name:String(channel.name||''),
+    tvgId:String(channel.tvgId||''),
+  };
+  if(channel.familyQuery===true){
+    request.familyQuery=true;
+    const aliases=Array.isArray(channel.familyAliases)?channel.familyAliases.map(value=>String(value||'').trim()).filter(Boolean).slice(0,12):[];
+    if(aliases.length)request.familyAliases=aliases;
+  }
+  return request;
+}
 
 async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOVERY_ENDPOINT,fetchImpl=fetch,signal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS}={}){
   if(!PROVIDER_FLAGS[provider])return {provider,disabled:true,candidates:[],reports:[]};
@@ -47,7 +61,7 @@ async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOV
   try{
     const response=await fetchImpl(`${String(endpoint).replace(/\/$/,'')}/discover`,{
       method:'POST',headers:{'content-type':'application/json'},signal:timed.signal,
-      body:JSON.stringify({provider,freshness,channel:{id:String(channel.id||''),originalId:String(channel.originalId||''),name:String(channel.name||''),tvgId:String(channel.tvgId||'')}}),
+      body:JSON.stringify({provider,freshness,channel:publicChannelRequest(channel)}),
     });
     const payload=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(payload?.error||`Discovery HTTP ${response.status}`);
@@ -91,4 +105,4 @@ export async function discoverOfficialProvider(channel,options={}){
   return aggregateOfficialResult(page,stages,channel);
 }
 
-export { normalizeCandidate, aggregateOfficialResult, restrictionType };
+export { normalizeCandidate, aggregateOfficialResult, restrictionType, publicChannelRequest };

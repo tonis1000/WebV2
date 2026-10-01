@@ -51,18 +51,26 @@ for (const file of jsFiles) {
   }
 }
 
-const enginePos = index.indexOf('./src/source-hunt-engine.js');
-const webPos = index.indexOf('./src/source-hunt-web.js');
-const oneClickPos = index.indexOf('./src/source-hunt-oneclick.js');
-assert.ok(enginePos >= 0 && webPos > enginePos && oneClickPos > webPos, 'Source Hunt modules must load engine → external discovery → one-click');
+const unifiedSearchPos = index.indexOf('./src/search/search-ui.js');
+assert.ok(unifiedSearchPos >= 0, 'Unified Search UI must be loaded by index.html');
+for (const legacy of ['./src/source-hunt-engine.js','./src/source-hunt-web.js','./src/source-hunt-enigma2.js','./src/source-hunt-oneclick.js','./src/source-hunt-playlist-provenance.js']) {
+  assert.equal(index.indexOf(legacy), -1, `legacy automatic Hunt module must not load from index.html: ${legacy}`);
+}
+assert.match(index, /Manual Source Test/, 'manual candidate testing must remain available after automatic Hunt retirement');
 
 const oneClick = read('src/source-hunt-oneclick.js');
-assert.match(oneClick, /collectCandidateUrls\(\)/, 'One-click stream candidate collector should exist');
+assert.match(oneClick, /collectCandidateUrls\(\)/, 'retained legacy One-click file should preserve its historical stream candidate collector until deletion is separately proven safe');
 assert.doesNotMatch(oneClick, /#hunt-official-results\s+code/, 'Official fallback results must never enter stream auto-test/auto-save candidate collection');
-assert.match(oneClick, /officialFallbackFor/, 'One-click should know about verified official fallback availability');
-assert.match(oneClick, /WebTVPlaybackAPI/, 'One-click must call the playback service API');
-assert.doesNotMatch(oneClick, /waitForPlayback\(/, 'One-click must not infer playback success by observing diagnostics DOM');
-assert.doesNotMatch(oneClick, /testButton\.click\(/, 'One-click must not simulate the manual Test button');
+assert.match(oneClick, /officialFallbackFor/, 'retained legacy One-click file should preserve verified official fallback handling until deletion is separately proven safe');
+assert.match(oneClick, /WebTVPlaybackAPI/, 'retained legacy One-click file must use the playback service API if invoked directly');
+assert.doesNotMatch(oneClick, /waitForPlayback\(/, 'legacy One-click must not infer playback success by observing diagnostics DOM');
+assert.doesNotMatch(oneClick, /testButton\.click\(/, 'legacy One-click must not simulate the manual Test button');
+
+const unifiedSearch = read('src/search/search-ui.js');
+assert.match(unifiedSearch, /runUnifiedSearch/, 'Unified Search UI must call the unified orchestrator');
+assert.match(unifiedSearch, /WebTVPlaybackAPI/, 'Unified Search Play action must use the narrow playback API bridge');
+assert.match(unifiedSearch, /verifySearchCandidates/, 'Unified Search must use the canonical verifier bridge');
+assert.match(unifiedSearch, /Search Report/, 'Unified Search UI must expose the structured Search Report');
 
 const main = read('src/main.js');
 assert.match(main, /window\.WebTVPlaybackAPI/, 'main.js should expose the narrow playback API bridge');
@@ -84,8 +92,8 @@ assert.doesNotMatch(savePolicy, /function routeHealthScore/, 'Source save policy
 assert.match(index, /Content-Security-Policy/, 'index.html should define a CSP boundary');
 
 const engine = read('src/source-hunt-engine.js');
-assert.doesNotMatch(engine, /Official Fallback Discovery|officialDiscoveryLinks/, 'Source Hunt should not render the removed external search links');
-assert.doesNotMatch(index, /id="hunt-links"/, 'Source Hunt should not render manual search cards');
+assert.doesNotMatch(engine, /Official Fallback Discovery|officialDiscoveryLinks/, 'retained Source Hunt file should not render removed external search links');
+assert.doesNotMatch(index, /id="hunt-links"/, 'page must not render manual search cards');
 
 const tvCacheWorkflow = read('.github/workflows/deploy-tv-cache.yml');
 assert.doesNotMatch(tvCacheWorkflow, /- 'src\/core\/player\.js'/, 'Frontend-only player changes should not trigger TV Cache deploy');

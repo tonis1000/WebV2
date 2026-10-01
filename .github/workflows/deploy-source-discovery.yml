@@ -8,6 +8,8 @@ on:
       - 'workers/webtv-source-discovery.js'
       - 'workers/webtv-source-discovery-smart.js'
       - 'workers/source-discovery/**/*.js'
+      - 'src/search/curated-source-catalog.js'
+      - 'src/search/family-matching.js'
       - 'src/core/channel-identity-gr.js'
       - 'src/core/m3u-container.js'
       - 'src/core/strm-core.js'
@@ -21,6 +23,8 @@ on:
       - 'tests/*discovery*.test.mjs'
       - 'tests/*provider.test.mjs'
       - 'tests/curated-remote-feeds.test.mjs'
+      - 'tests/search-source-addition-ergonomics.test.mjs'
+      - 'tests/search-family-query.test.mjs'
       - '.github/workflows/deploy-source-discovery.yml'
 
 permissions:
@@ -47,6 +51,8 @@ jobs:
         run: |
           node --input-type=module --check < workers/webtv-source-discovery.js
           node --input-type=module --check < workers/webtv-source-discovery-smart.js
+          node --check src/search/curated-source-catalog.js
+          node --check src/search/family-matching.js
           node --check src/core/channel-identity-gr.js
           node --check src/core/m3u-container.js
           node --check src/core/strm-core.js
@@ -64,6 +70,8 @@ jobs:
           node tests/discovery-external.test.mjs
           node tests/source-discovery-worker.test.mjs
           node tests/curated-remote-feeds.test.mjs
+          node tests/search-source-addition-ergonomics.test.mjs
+          node tests/search-family-query.test.mjs
           node tests/github-public-playlists-provider.test.mjs
           node tests/recent-web-search-provider.test.mjs
           node tests/strm-specific-discovery-provider.test.mjs

@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="./quality-of-life.css?v=20260924-stabilization">
   <link rel="stylesheet" href="./admin-gate.css?v=20260928-admin-gate">
   <link rel="stylesheet" href="./diagnostics-overlay.css?v=20260929-diagnostics-overlay">
+  <link rel="stylesheet" href="./unified-search.css?v=20260930-unified-search-a" data-unified-search-style="1">
   <script type="importmap">
   {
     "imports": {
@@ -43,13 +44,13 @@
   <div class="app-shell">
     <header class="topbar">
       <div><button id="admin-unlock-trigger" class="admin-brand" type="button" aria-label="Unlock TONI'S WEBTV controls" aria-expanded="false">TONI'S WEBTV</button></div>
-      <div class="topbar-actions"><span id="clock" class="clock" aria-live="polite"></span><button id="playlist-manager-toggle" class="button playlists" type="button">Playlists ☰</button><button id="source-hunt-toggle" class="button hunt" type="button" hidden>Source Hunt 🔎</button><button id="diagnostics-toggle" class="button ghost" type="button">Diagnostics</button></div>
+      <div class="topbar-actions"><span id="clock" class="clock" aria-live="polite"></span><button id="playlist-manager-toggle" class="button playlists" type="button">Playlists ☰</button><button id="source-hunt-toggle" class="button hunt" type="button" hidden>Manual Test</button><button id="diagnostics-toggle" class="button ghost" type="button">Diagnostics</button></div>
     </header>
     <main class="layout">
       <aside class="sidebar panel" aria-label="Κανάλια"><div class="toolbar"><input id="search" type="search" placeholder="Αναζήτηση καναλιού" autocomplete="off"><select id="group-filter" aria-label="Κατηγορία"><option value="all">Όλες οι κατηγορίες</option></select></div><div id="channel-summary" class="muted small"></div><div id="channel-list" class="channel-list" role="list"></div></aside>
       <section class="viewer">
         <section class="player-card panel"><div class="channel-header"><div class="channel-identity"><img id="channel-logo" class="channel-logo" alt="" hidden><div><p id="channel-group" class="eyebrow">WEBTV</p><h2 id="channel-name">Επίλεξε κανάλι</h2></div></div><div class="channel-actions"><a id="official-live" class="button official-live" href="#" target="_blank" rel="noopener noreferrer" hidden>Official Live ↗</a><div id="playback-status" class="status-pill idle">Idle</div></div></div><div class="player-stage"><video id="video" controls playsinline webkit-playsinline preload="metadata" x-webkit-airplay="allow" hidden></video><iframe id="iframe" title="Embedded stream" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen hidden></iframe><div id="empty-state" class="empty-state"><strong>WebTV V2</strong><span>Διάλεξε ένα κανάλι από αριστερά.</span></div></div><div class="now-playing"><div><p class="eyebrow">ΤΩΡΑ</p><h3 id="program-title">Δεν υπάρχουν δεδομένα προγράμματος</h3><p id="program-description" class="muted"></p></div><div id="program-time" class="program-time"></div></div><div id="epg-progress" class="progress" hidden><span></span></div><div id="next-programs" class="next-programs"></div></section>
-        <section id="source-hunt" class="source-hunt panel" hidden><div class="section-heading"><div><p class="eyebrow">DISCOVERY</p><h2>Source Hunt · <span id="hunt-channel">-</span></h2></div><span class="freshness-badge">Fresh 30d</span></div><p class="muted small hunt-intro">Automatic stream discovery. Test candidates before saving.</p><div class="candidate-tester"><label for="candidate-url">Test candidate URL</label><div class="inline-form"><input id="candidate-url" type="url" placeholder="https://example.com/live/playlist.m3u8"><button id="test-candidate" class="button" type="button">Test</button></div><p class="muted small">Manual Test ελέγχει stream πηγές. Header-dependent playback μπορεί να δοκιμαστεί προσωρινά μέσω Worker, αλλά δεν αποθηκεύεται στη D1 χωρίς ρητό persistent header schema. </p></div></section>
+        <section id="source-hunt" class="source-hunt panel" hidden><div class="section-heading"><div><p class="eyebrow">TOOLS</p><h2>Manual Source Test · <span id="hunt-channel">-</span></h2></div></div><p class="muted small hunt-intro">Paste a candidate URL and test it explicitly. Unified Search is the only automatic discovery surface.</p><div class="candidate-tester"><label for="candidate-url">Test candidate URL</label><div class="inline-form"><input id="candidate-url" type="url" placeholder="https://example.com/live/playlist.m3u8"><button id="test-candidate" class="button" type="button">Test</button></div><p class="muted small">Manual Test ελέγχει stream πηγές. Header-dependent playback μπορεί να δοκιμαστεί προσωρινά μέσω Worker, αλλά δεν αποθηκεύεται στη D1 χωρίς ρητό persistent header schema.</p></div></section>
         <section id="diagnostics" class="diagnostics panel" hidden><div class="section-heading"><div><p class="eyebrow">ADMIN</p><h2>Diagnostics</h2></div><button id="clear-health" class="button danger" type="button">Reset health data</button></div><div class="diagnostic-grid"><div class="metric"><span>Source</span><strong id="diag-source">-</strong></div><div class="metric"><span>Route</span><strong id="diag-route">-</strong></div><div class="metric"><span>Player</span><strong id="diag-player">-</strong></div><div class="metric"><span>Startup</span><strong id="diag-startup">-</strong></div></div><pre id="diagnostic-log" class="diagnostic-log" aria-live="polite"></pre></section>
       </section>
     </main>
@@ -126,6 +127,7 @@
   <script type="module" src="./src/runtime-performance-guards.js?v=20260924-stabilization"></script>
   <script type="module" src="./src/browser-state-cleanup.js?v=20260924-stabilization"></script>
   <script type="module" src="./src/main.js?v=20260930-import-promotion-d"></script>
+  <script type="module" src="./src/search/search-ui.js?v=20260930-unified-search-a"></script>
   <script type="module" src="./src/sidebar-now.js?v=20260924-stabilization"></script>
   <script type="module" src="./src/registry-default.js?v=20260928-cloud-health2"></script>
   <script type="module" src="./src/cloud-read-sync.js?v=20260929-saved-playlist-reconcile"></script>
@@ -133,11 +135,6 @@
   <script type="module" src="./src/admin-gate.js?v=20260928-admin-gate"></script>
   <script type="module" src="./src/playlist-manager.js?v=20260929-reuse-main-playlist"></script>
   <script type="module" src="./src/saved-sources-ui.js?v=20260928-cloud-health2"></script>
-  <script type="module" src="./src/source-hunt-engine.js?v=20260930-m3u-container-e2"></script>
-  <script type="module" src="./src/source-hunt-web.js?v=20260928-qa-strm"></script>
-  <script type="module" src="./src/source-hunt-enigma2.js?v=20260930-enigma2-e3b"></script>
-  <script type="module" src="./src/source-hunt-oneclick.js?v=20260928-qa-strm"></script>
-  <script type="module" src="./src/source-hunt-playlist-provenance.js?v=20260929-enigma2-lane"></script>
   <script type="module" src="./src/source-health-ui.js?v=20260928-cloud-health2"></script>
   <script type="module" src="./src/favorites-ui.js?v=20260929-single-favorites-read"></script>
 </body>

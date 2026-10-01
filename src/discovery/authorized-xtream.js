@@ -1,4 +1,5 @@
 import { listXtreamAccounts, loadXtreamChannels } from '../xtream-client.js';
+import { familySignalsMatch } from '../search/family-matching.js';
 import { createCandidate, normalizeChannelName } from './candidate-model.js';
 
 export const AUTHORIZED_XTREAM_DISCOVERY_PROVIDER='authorized-xtream-expansion';
@@ -14,6 +15,7 @@ function identityKeys(channel={}){
 }
 
 export function matchesAuthorizedXtreamChannel(selected={},candidate={}){
+  if(selected?.familyQuery===true)return familySignalsMatch([candidate.name,candidate.id,candidate.originalId,candidate.tvgId],selected);
   const wanted=new Set(identityKeys(selected));
   if(!wanted.size)return false;
   return identityKeys(candidate).some(key=>wanted.has(key));
@@ -25,12 +27,13 @@ export async function discoverAuthorizedXtream(selected={}, {
   loadChannels=loadXtreamChannels,
 }={}){
   if(signal?.aborted)throw signal.reason||new DOMException('Authorized Xtream discovery cancelled','AbortError');
-  const accounts=(await listAccounts()).slice(0,AUTHORIZED_XTREAM_MAX_ACCOUNTS);
+  const accounts=(await listAccounts({signal})).slice(0,AUTHORIZED_XTREAM_MAX_ACCOUNTS);
   const candidates=[];const reports=[];
   for(const account of accounts){
     if(signal?.aborted)throw signal.reason||new DOMException('Authorized Xtream discovery cancelled','AbortError');
     try{
-      const loaded=await loadChannels(account.id);
+      const loaded=await loadChannels(account.id,{signal});
+      if(signal?.aborted)throw signal.reason||new DOMException('Authorized Xtream discovery cancelled','AbortError');
       const rows=(Array.isArray(loaded?.channels)?loaded.channels:[]).slice(0,AUTHORIZED_XTREAM_MAX_STREAMS_PER_ACCOUNT);
       let matches=0;
       for(const channel of rows){
@@ -39,8 +42,9 @@ export async function discoverAuthorizedXtream(selected={}, {
         const playbackUrl=String(channel.playbackUrl||'').trim();
         if(!streamId||!/^https?:\/\//i.test(playbackUrl))continue;
         matches+=1;
+        const matchedName=String(channel.name||channel.originalId||channel.tvgId||selected.name||selected.originalId||selected.id||'').trim();
         candidates.push(createCandidate({
-          channelName:selected.name||selected.originalId||selected.id||'',
+          channelName:selected.familyQuery===true?matchedName:(selected.name||selected.originalId||selected.id||matchedName),
           sourceType:'xtream',
           sourceUrl:playbackUrl,
           sourceOrigin:`Xtream · ${account.name||account.server||account.id||'Authorized account'}`,
@@ -57,6 +61,7 @@ export async function discoverAuthorizedXtream(selected={}, {
       }
       reports.push({accountRef:String(account.id||''),accountName:String(account.name||''),status:'OK',streamsScanned:rows.length,matches});
     }catch(error){
+      if(error?.name==='AbortError'||signal?.aborted)throw signal?.reason||error;
       reports.push({accountRef:String(account.id||''),accountName:String(account.name||''),status:'ERROR',streamsScanned:0,matches:0,error:error?.message||String(error)});
     }
     if(candidates.length>=AUTHORIZED_XTREAM_MAX_CANDIDATES)break;

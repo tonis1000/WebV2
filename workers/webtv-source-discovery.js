@@ -6,6 +6,8 @@ import { OFFICIAL_API_RESOLVER_PROVIDER, discoverOfficialApi } from './source-di
 import { channelSignalsMatch, normalizeChannelText } from '../src/core/channel-identity-gr.js';
 import { parseM3uContainer } from '../src/core/m3u-container.js';
 import { parseEnigma2Bouquet } from '../src/core/enigma2-core.js';
+import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
+import { familySignalsMatch } from '../src/search/family-matching.js';
 
 const VERSION='1.7';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
@@ -15,19 +17,7 @@ const MAX_CONCURRENCY=4;
 const MAX_RESULTS=12;
 const FALLBACK_TRIGGER_COUNT=3;
 const ALLOWED_FRESHNESS=new Set(['24h','7d','30d']);
-
-const FEEDS=Object.freeze([
-  Object.freeze({name:'hitnickgr/iptv',url:'https://raw.githubusercontent.com/hitnickgr/iptv/refs/heads/main/GreekChannels',format:'m3u',tier:'primary'}),
-  Object.freeze({name:'jimgate07/grtv',url:'https://raw.githubusercontent.com/jimgate07/grtv/refs/heads/master/android.m3u',format:'m3u',tier:'primary'}),
-  Object.freeze({name:'Michatec/Greek-IPTV',url:'https://raw.githubusercontent.com/Michatec/Greek-IPTV/refs/heads/main/greek-iptv.m3u8',format:'m3u',tier:'primary'}),
-  Object.freeze({name:'Don24crk',url:'https://raw.githubusercontent.com/don24crk/Don24crk-Repository/refs/heads/master/android.m3u',format:'m3u',tier:'primary'}),
-  Object.freeze({name:'iptv-org Greece',url:'https://iptv-org.github.io/iptv/countries/gr.m3u',format:'m3u',tier:'primary'}),
-  Object.freeze({name:'HansSettings Greece',url:'https://gitlab.openpli.org/openpli/hanssettings/-/raw/master/e2_hanssettings_9e_13e_19e_23e_28e_AND_rotating/userbouquet.stream_griekenland__gr_.tv?ref_type=heads',format:'enigma2',tier:'primary'}),
-  Object.freeze({name:'HansSettings Sport',url:'https://gitlab.openpli.org/openpli/hanssettings/-/raw/master/e2_hanssettings_9e_13e_19e_23e_28e_AND_rotating/userbouquet.stream_sport.tv?ref_type=heads',format:'enigma2',tier:'primary'}),
-  Object.freeze({name:'Ciefp IPTV Mix',url:'https://raw.githubusercontent.com/ciefp/ciefpsettings-enigma2/master/ciefp-E2-1sat-19E/userbouquet.ciefpsettings_iptv_mix.tv',format:'enigma2',tier:'fallback'}),
-  Object.freeze({name:'Free-TV/IPTV',url:'https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8',format:'m3u',tier:'fallback'}),
-  Object.freeze({name:'b2og iptv-org All',url:'https://iptv.b2og.com/o_all.m3u',format:'m3u',tier:'fallback'}),
-]);
+const FEEDS=CURATED_SOURCE_FEEDS;
 
 function cors(){return {'access-control-allow-origin':'*','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'};}
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{...cors(),'content-type':'application/json;charset=utf-8','cache-control':'no-store'}});}
@@ -46,8 +36,11 @@ function attr(line='',name=''){
   return match?.[1]?.trim()||'';
 }
 function titleOf(line=''){const index=String(line).lastIndexOf(',');return index>=0?String(line).slice(index+1).trim():'';}
+function signalsMatch(signals=[],channel={}){
+  return channel?.familyQuery===true?familySignalsMatch(signals,channel):channelSignalsMatch(signals,channel,'exact');
+}
 function candidateMatches(extinf='',channel={}){
-  return channelSignalsMatch([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')],channel,'exact');
+  return signalsMatch([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')],channel);
 }
 function typeOf(url=''){
   const clean=String(url).split('|')[0].trim();
@@ -85,7 +78,9 @@ function parseM3u(text='',channel={},feed={}){
     if(entry.sourceOffset===null||entry.sourceOffset>=10)continue;
     const sourceUrl=entry.sourceLine;
     if(!validPublicUrl(sourceUrl))continue;
-    results.push(makeCandidate({channel:{...channel,name:channel.name||titleOf(extinf)},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
+    const matchedName=titleOf(extinf)||attr(extinf,'tvg-name')||attr(extinf,'tvg-id')||channel.name||'';
+    const resultName=channel.familyQuery===true?matchedName:(channel.name||matchedName);
+    results.push(makeCandidate({channel:{...channel,name:resultName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
   }
   return results;
 }
@@ -98,8 +93,10 @@ function parseEnigma2(text='',channel={},feed={}){
     const inlineName=service.inlineNameDecodedOnce;
     const description=service.rawDescription;
     if(!validPublicUrl(sourceUrl))continue;
-    if(!channelSignalsMatch([inlineName,description],channel,'exact'))continue;
-    results.push(makeCandidate({channel:{...channel,name:channel.name||description||inlineName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
+    if(!signalsMatch([inlineName,description],channel))continue;
+    const matchedName=description||inlineName||channel.name||'';
+    const resultName=channel.familyQuery===true?matchedName:(channel.name||matchedName);
+    results.push(makeCandidate({channel:{...channel,name:resultName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
   }
   return results;
 }
@@ -127,13 +124,14 @@ async function mapBounded(items,limit,task){
 }
 function dedupe(candidates=[]){
   const seen=new Set();const out=[];
-  for(const item of candidates){const key=String(item.sourceUrl||'').trim();if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=MAX_RESULTS)break;}
+  for(const item of candidates){const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=MAX_RESULTS)break;}
   return out;
 }
 async function discoverCurated(channel,freshness,env={}){
   if(String(env.DISABLE_CURATED_REMOTE_FEEDS||'')==='1')return json({error:'Provider disabled',provider:CURATED_REMOTE_FEEDS_PROVIDER},503);
-  const primaryFeeds=FEEDS.filter(feed=>(feed.tier||'primary')==='primary');
-  const fallbackFeeds=FEEDS.filter(feed=>feed.tier==='fallback');
+  const enabledFeeds=FEEDS.filter(feed=>feed.enabled!==false);
+  const primaryFeeds=enabledFeeds.filter(feed=>(feed.tier||'primary')==='primary');
+  const fallbackFeeds=enabledFeeds.filter(feed=>feed.tier==='fallback');
   const primaryReports=await mapBounded(primaryFeeds,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
   let reports=[...primaryReports];
   let candidates=dedupe(primaryReports.flatMap(report=>report.candidates||[]));
@@ -145,7 +143,7 @@ async function discoverCurated(channel,freshness,env={}){
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
     freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Curated feeds are checked live. Primary Greek-focused feeds run first; broad fallback feeds run only when fewer than three matches are found.',
-    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT},
+    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT},
     candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>({feed,tier,format,status,elapsedMs,count:candidates?.length||0,error:error||''})),
   });
 }
@@ -174,7 +172,7 @@ async function discover(request,env={}){
   if(provider===STRM_SPECIFIC_DISCOVERY_PROVIDER){
     if(String(env.DISABLE_STRM_SPECIFIC_DISCOVERY||'')==='1')return json({error:'Provider disabled',provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},503);
     try{
-      const result=await discoverStrmSpecific({channel,freshness,parseM3u,feeds:FEEDS.filter(feed=>feed.format!=='enigma2')});
+      const result=await discoverStrmSpecific({channel,freshness,parseM3u,feeds:FEEDS.filter(feed=>feed.enabled!==false&&feed.format!=='enigma2')});
       return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});
     }catch(error){return json({error:error?.message||String(error),provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},502);}
   }
@@ -206,7 +204,7 @@ export default {
       [STRM_SPECIFIC_DISCOVERY_PROVIDER]:String(env?.DISABLE_STRM_SPECIFIC_DISCOVERY||'')!=='1',
       [OFFICIAL_PROVIDER_LANE]:String(env?.DISABLE_OFFICIAL_PROVIDER_LANE||'')!=='1',
       [OFFICIAL_API_RESOLVER_PROVIDER]:String(env?.DISABLE_OFFICIAL_API_RESOLVER||'')!=='1',
-    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT}});
+    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.filter(feed=>feed.enabled!==false).length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT}});
     if(request.method==='POST'&&url.pathname==='/discover')return discover(request,env);
     return json({error:'Not found'},404);
   }
