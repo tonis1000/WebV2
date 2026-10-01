@@ -7,11 +7,13 @@ on:
       - 'index.html'
       - 'unified-search.css'
       - 'src/search/**'
+      - 'src/registry-default.js'
       - 'src/discovery/candidate-model.js'
       - 'src/discovery/external-discovery-client.js'
       - 'workers/webtv-source-discovery.js'
       - 'tests/search-*.test.mjs'
       - 'tests/unified-*.test.mjs'
+      - 'tests/discovery-entrypoint-ownership.test.mjs'
       - 'tests/discovery-candidate-provenance.test.mjs'
       - 'tests/discovery-external-provenance.test.mjs'
       - 'tests/curated-remote-feeds.test.mjs'
@@ -24,11 +26,13 @@ on:
       - 'index.html'
       - 'unified-search.css'
       - 'src/search/**'
+      - 'src/registry-default.js'
       - 'src/discovery/candidate-model.js'
       - 'src/discovery/external-discovery-client.js'
       - 'workers/webtv-source-discovery.js'
       - 'tests/search-*.test.mjs'
       - 'tests/unified-*.test.mjs'
+      - 'tests/discovery-entrypoint-ownership.test.mjs'
       - 'tests/discovery-candidate-provenance.test.mjs'
       - 'tests/discovery-external-provenance.test.mjs'
       - 'tests/curated-remote-feeds.test.mjs'
@@ -83,6 +87,7 @@ jobs:
           node tests/search-orchestrator-verification.test.mjs
           node tests/unified-search-ui-contract.test.mjs
           node tests/unified-search-page-wiring.test.mjs
+          node tests/discovery-entrypoint-ownership.test.mjs
           node tests/unified-search-oneclick-parity.test.mjs
       - name: Run curated parser regressions
         run: |
