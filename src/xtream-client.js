@@ -43,10 +43,14 @@ async function ensureTrustedSession() {
   return token;
 }
 
-async function bridgeFetch(path, options = {}, { timeoutMs = 15000, requireAuth = true, json = false } = {}) {
+async function bridgeFetch(path, options = {}, { timeoutMs = 15000, requireAuth = true, json = false, signal = null } = {}) {
+  if (signal?.aborted) throw signal.reason || new DOMException('Xtream request cancelled','AbortError');
   const token = requireAuth ? await ensureTrustedSession() : '';
+  if (signal?.aborted) throw signal.reason || new DOMException('Xtream request cancelled','AbortError');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const abortFromParent = () => controller.abort(signal?.reason || new DOMException('Xtream request cancelled','AbortError'));
+  if (signal) signal.addEventListener('abort', abortFromParent, { once: true });
+  const timer = setTimeout(() => controller.abort(new DOMException('Xtream request timed out','TimeoutError')), timeoutMs);
   try {
     const headers = new Headers(options.headers || {});
     if (json && !headers.has('content-type')) headers.set('content-type', 'application/json');
@@ -70,11 +74,12 @@ async function bridgeFetch(path, options = {}, { timeoutMs = 15000, requireAuth 
     return body;
   } finally {
     clearTimeout(timer);
+    if (signal) signal.removeEventListener('abort', abortFromParent);
   }
 }
 
-export async function listXtreamAccounts() {
-  const result = await bridgeFetch('/api/accounts');
+export async function listXtreamAccounts({ signal = null } = {}) {
+  const result = await bridgeFetch('/api/accounts', {}, { signal });
   return Array.isArray(result.accounts) ? result.accounts : [];
 }
 
@@ -136,9 +141,9 @@ export async function deleteXtreamAccount(id) {
   await bridgeFetch(`/api/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
-export async function loadXtreamChannels(accountId) {
+export async function loadXtreamChannels(accountId, { signal = null } = {}) {
   if (!accountId) throw new Error('Choose an Xtream account');
-  const result = await bridgeFetch(`/api/accounts/${encodeURIComponent(accountId)}/channels`, {}, { timeoutMs: 25000 });
+  const result = await bridgeFetch(`/api/accounts/${encodeURIComponent(accountId)}/channels`, {}, { timeoutMs: 25000, signal });
   return {
     account: result.account || null,
     channels: Array.isArray(result.channels) ? result.channels : [],
