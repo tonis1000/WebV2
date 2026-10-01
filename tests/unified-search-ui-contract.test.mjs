@@ -22,6 +22,8 @@ assert.ok(/safePublicActionUrl/.test(js),'all public source/copy actions must us
 assert.equal(/writeText\?\.\(raw\.sourceUrl\)|writeText\(raw\.sourceUrl\)/.test(js),false,'UI must never copy a raw candidate URL directly');
 assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play action must use the existing playback boundary');
 assert.ok(/groupCandidatesByChannel/.test(js),'results must render grouped by channel');
+assert.ok(/snapshot\.leads|renderLeads/.test(js),'exploration leads must remain visible after legacy Hunt UI retirement');
+assert.ok(/activeRun\s*!==\s*run|run\s*!==\s*activeRun/.test(js),'superseded search completion must not overwrite the active run UI');
 assert.ok(/buildSearchContext/.test(js),'search intent must use the group-aware context');
 assert.ok(/verifySearchCandidates/.test(js),'UI must use the canonical Unified Search verifier bridge');
 assert.ok(/verifyBatch\s*:\s*verifySearchCandidates/.test(js),'UI must pass progressive verification into the search orchestrator');
