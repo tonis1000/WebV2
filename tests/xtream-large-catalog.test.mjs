@@ -30,7 +30,7 @@ assert.equal(legacy.body.length,4,'legacy test_user fixture must remain 4 channe
 assert.equal(legacy.body[3].name,'MEGA');
 assert.equal(legacy.body[3].stream_id,1101);
 
-const playback=await worker.fetch(new Request('/live/test_5000/test_pass/5000001.m3u8','https://mock.test'));
+const playback=await worker.fetch(new Request('https://mock.test/live/test_5000/test_pass/5000001.m3u8'));
 assert.equal(playback.status,302,'generated stream must redirect to sample HLS');
 assert.match(playback.headers.get('location')||'',/test-streams\.mux\.dev/);
 
