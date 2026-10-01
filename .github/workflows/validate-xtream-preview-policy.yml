@@ -1,0 +1,32 @@
+name: Validate Xtream Preview Policy
+
+on:
+  pull_request:
+    paths:
+      - 'src/xtream-preview-policy.js'
+      - 'src/discovery/promotion.js'
+      - 'src/xtream-client.js'
+      - 'tests/xtream-preview-policy.test.mjs'
+      - 'tests/discovery-promotion.test.mjs'
+      - '.github/workflows/validate-xtream-preview-policy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-xtream-preview-policy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate policy syntax
+        run: node --check src/xtream-preview-policy.js
+      - name: Run neutral Xtream preview policy regression
+        run: node tests/xtream-preview-policy.test.mjs
+      - name: Run Discovery promotion compatibility regression
+        run: node tests/discovery-promotion.test.mjs
