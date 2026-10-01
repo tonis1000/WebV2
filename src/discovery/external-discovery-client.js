@@ -40,14 +40,18 @@ function normalizeCandidate(provider,item,channel){
 function isAbort(error){return error?.name==='AbortError'||error?.name==='TimeoutError';}
 function restrictionType(result){return String(result?.reports?.restriction?.type||'');}
 function publicChannelRequest(channel={}){
-  return {
+  const request={
     id:String(channel.id||''),
     originalId:String(channel.originalId||''),
     name:String(channel.name||''),
     tvgId:String(channel.tvgId||''),
-    familyQuery:channel.familyQuery===true,
-    familyAliases:Array.isArray(channel.familyAliases)?channel.familyAliases.map(value=>String(value||'').trim()).filter(Boolean).slice(0,12):[],
   };
+  if(channel.familyQuery===true){
+    request.familyQuery=true;
+    const aliases=Array.isArray(channel.familyAliases)?channel.familyAliases.map(value=>String(value||'').trim()).filter(Boolean).slice(0,12):[];
+    if(aliases.length)request.familyAliases=aliases;
+  }
+  return request;
 }
 
 async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOVERY_ENDPOINT,fetchImpl=fetch,signal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS}={}){
