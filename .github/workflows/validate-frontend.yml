@@ -16,6 +16,7 @@ on:
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-xtream-router.js'
       - 'workers/xtream-preview-routes.js'
+      - 'workers/webtv-xtream-mock.js'
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
@@ -25,6 +26,7 @@ on:
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-registry.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
+      - '.github/workflows/deploy-webtv-xtream-mock.yml'
       - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
       - '.github/workflows/deploy-source-hunt.yml'
@@ -42,6 +44,7 @@ on:
       - 'workers/webtv-xtream.js'
       - 'workers/webtv-xtream-router.js'
       - 'workers/xtream-preview-routes.js'
+      - 'workers/webtv-xtream-mock.js'
       - 'workers/webtv-source-verifier.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
@@ -51,6 +54,7 @@ on:
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-registry.yml'
       - '.github/workflows/deploy-webtv-xtream.yml'
+      - '.github/workflows/deploy-webtv-xtream-mock.yml'
       - '.github/workflows/deploy-source-verifier.yml'
       - '.github/workflows/deploy-source-discovery.yml'
       - '.github/workflows/deploy-source-hunt.yml'
@@ -86,6 +90,7 @@ jobs:
           node --input-type=module --check < workers/webtv-xtream.js
           node --check workers/xtream-preview-routes.js
           node --check workers/webtv-xtream-router.js
+          node --input-type=module --check < workers/webtv-xtream-mock.js
       - name: Validate Source Verifier Worker syntax
         run: node --input-type=module --check < workers/webtv-source-verifier.js
       - name: Validate Source Discovery Worker syntax
@@ -127,6 +132,10 @@ jobs:
         run: node tests/epg-parity.test.mjs
       - name: Run Xtream source regression test
         run: node tests/xtream-client.test.mjs
+      - name: Run Xtream mock deploy contract
+        run: node tests/xtream-mock-deploy-contract.test.mjs
+      - name: Run Xtream large catalog regression test
+        run: node tests/xtream-large-catalog.test.mjs
       - name: Run Xtream preview route encryption regression test
         run: node tests/xtream-preview-routes.test.mjs
       - name: Run Xtream channel cleanup route regression test
