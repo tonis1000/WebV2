@@ -27,12 +27,13 @@ export async function discoverAuthorizedXtream(selected={}, {
   loadChannels=loadXtreamChannels,
 }={}){
   if(signal?.aborted)throw signal.reason||new DOMException('Authorized Xtream discovery cancelled','AbortError');
-  const accounts=(await listAccounts()).slice(0,AUTHORIZED_XTREAM_MAX_ACCOUNTS);
+  const accounts=(await listAccounts({signal})).slice(0,AUTHORIZED_XTREAM_MAX_ACCOUNTS);
   const candidates=[];const reports=[];
   for(const account of accounts){
     if(signal?.aborted)throw signal.reason||new DOMException('Authorized Xtream discovery cancelled','AbortError');
     try{
-      const loaded=await loadChannels(account.id);
+      const loaded=await loadChannels(account.id,{signal});
+      if(signal?.aborted)throw signal.reason||new DOMException('Authorized Xtream discovery cancelled','AbortError');
       const rows=(Array.isArray(loaded?.channels)?loaded.channels:[]).slice(0,AUTHORIZED_XTREAM_MAX_STREAMS_PER_ACCOUNT);
       let matches=0;
       for(const channel of rows){
@@ -60,6 +61,7 @@ export async function discoverAuthorizedXtream(selected={}, {
       }
       reports.push({accountRef:String(account.id||''),accountName:String(account.name||''),status:'OK',streamsScanned:rows.length,matches});
     }catch(error){
+      if(error?.name==='AbortError'||signal?.aborted)throw signal?.reason||error;
       reports.push({accountRef:String(account.id||''),accountName:String(account.name||''),status:'ERROR',streamsScanned:0,matches:0,error:error?.message||String(error)});
     }
     if(candidates.length>=AUTHORIZED_XTREAM_MAX_CANDIDATES)break;
