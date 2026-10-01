@@ -1,0 +1,53 @@
+name: Verify Xtream Live UI Performance
+
+on:
+  pull_request:
+    paths:
+      - 'tests/xtream-live-browser-proof.mjs'
+      - '.github/workflows/verify-xtream-live-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      XTREAM_MOCK_URL: https://webtv-xtream-mock.atonis.workers.dev
+      ARTIFACT_DIR: artifacts/xtream-live-ui-proof
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify production page and live authorized mock provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location "$WEBV2_URL" -o /tmp/webv2-live.html
+          grep -q '<title>WebTV V2</title>' /tmp/webv2-live.html
+          curl --fail --silent --show-error "$XTREAM_MOCK_URL/api/status?verify=$GITHUB_SHA" -o /tmp/xtream-mock-status.json
+          node -e "const j=require('/tmp/xtream-mock-status.json');if(j.version!=='1.2'||j.service!=='WebTV Xtream Test Provider')process.exit(1);console.log('Live mock provider v1.2 ready')"
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production Xtream browser proof
+        shell: bash
+        run: node tests/xtream-live-browser-proof.mjs
+
+      - name: Upload browser proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xtream-live-ui-proof-${{ github.sha }}
+          path: artifacts/xtream-live-ui-proof
+          if-no-files-found: warn
+          retention-days: 14
