@@ -12,6 +12,21 @@ function canonicalKey(channel={}){
   try{return clean(promoteImportedChannel(channel)?.id);}
   catch{return clean(channel.id||channel.originalId||channel.tvgId||channel.name).toLowerCase();}
 }
+function identityKeys(channel={}){
+  if(!channel||typeof channel!=='object')return new Set();
+  const out=new Set();
+  const canonical=clean(canonicalKey(channel)).toLowerCase();
+  if(canonical)out.add(canonical);
+  const explicit=[channel.id,channel.originalId,channel.tvgId]
+    .map(value=>clean(value).toLowerCase())
+    .filter(Boolean);
+  for(const value of explicit)out.add(value);
+  if(!explicit.length){
+    const name=clean(channel.name).toLowerCase();
+    if(name)out.add(name);
+  }
+  return out;
+}
 function sourceObject(input,origin='known'){
   const raw=typeof input==='string'?{url:input}:input||{};
   const url=permanentHttpUrl(raw.url);
@@ -32,7 +47,13 @@ function addSources(out,seen,items=[],origin='known'){
     seen.add(source.url);out.push(source);
   }
 }
-function sameChannel(target,row){return Boolean(target&&row&&canonicalKey(target)&&canonicalKey(target)===canonicalKey(row));}
+function sameChannel(target,row){
+  if(!target||!row)return false;
+  const targetKeys=identityKeys(target);
+  if(!targetKeys.size)return false;
+  for(const key of identityKeys(row))if(targetKeys.has(key))return true;
+  return false;
+}
 
 export function collectKnownSources(channel={}, {
   myPlaylist=[],
