@@ -162,6 +162,9 @@ async function runSync(reason='manual', { force=false }={}){
 window.WebTVSavedPlaylistsReadAPI=Object.freeze({
   getAllCached: async () => (await allSavedCached()).map(item => ({ ...item })),
 });
+window.WebTVCloudReadSync=Object.freeze({
+  run: runSync,
+});
 
 function startInitialSync(){
   if(window.WebTVPlaylistAPI?.ready){
