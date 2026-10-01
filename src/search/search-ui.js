@@ -28,6 +28,11 @@ function sidebarNowPlayingName(){return String($('channel-name')?.textContent||'
 function displayNowPlayingName(){return nowPlayingState.value(sidebarNowPlayingName());}
 function playlistChannels(){try{return window.WebTVPlaylistAPI?.getChannels?.()||[];}catch{return[];}}
 function searchContext(){return buildSearchContext(playlistChannels());}
+function syncSearchQueryToSidebarSelection(){
+  const query=$('unified-search-query');if(!query)return;
+  let selectedChannel=null;try{selectedChannel=window.WebTVPlaylistAPI?.getSelectedChannel?.()||null;}catch{}
+  const selectedName=String(selectedChannel?.name||'').trim();if(selectedName)query.value=selectedName;
+}
 
 function createUi(){
   if($('unified-search-panel'))return $('unified-search-panel');
@@ -65,7 +70,7 @@ function createUi(){
   return panel;
 }
 
-function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[ch]));}
 function formatSource(value=''){
   const safe=safePublicActionUrl(value);
   try{
@@ -203,7 +208,7 @@ function exportJson(){const json=activeRun?.reporter?.exportJson?.();if(!json)re
 
 function bind(){const form=$('unified-search-form');if(!form||form.dataset.bound==='1')return;form.dataset.bound='1';form.addEventListener('submit',startSearch);$('unified-search-cancel')?.addEventListener('click',()=>activeRun?.cancel?.('user'));$('unified-search-report-copy')?.addEventListener('click',()=>copyReport().catch(()=>{}));$('unified-search-report-json')?.addEventListener('click',exportJson);$('unified-search-report-source')?.addEventListener('change',()=>renderReport(activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[],activeRun?.reporter?.summary?.()||latestUpdate?.summary||{}));}
 
-export function installUnifiedSearchUI(){if(installed)return true;ensureStylesheet();const panel=createUi();if(!panel)return false;installed=true;bind();const name=$('channel-name');if(name)new MutationObserver(()=>{nowPlayingState.sidebarChanged();const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();}).observe(name,{childList:true,subtree:true,characterData:true});console.info(`[WebTV] Unified Search UI loaded · ${BUILD_ID}`);return true;}
+export function installUnifiedSearchUI(){if(installed)return true;ensureStylesheet();const panel=createUi();if(!panel)return false;installed=true;bind();syncSearchQueryToSidebarSelection();const name=$('channel-name');if(name)new MutationObserver(()=>{nowPlayingState.sidebarChanged();syncSearchQueryToSidebarSelection();const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();}).observe(name,{childList:true,subtree:true,characterData:true});console.info(`[WebTV] Unified Search UI loaded · ${BUILD_ID}`);return true;}
 
 function bootInstall(){if(installUnifiedSearchUI())return;window.addEventListener('webtv:ready',()=>installUnifiedSearchUI(),{once:true});setTimeout(()=>installUnifiedSearchUI(),1200);}
 
