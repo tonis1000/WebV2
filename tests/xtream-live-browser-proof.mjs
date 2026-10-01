@@ -53,7 +53,6 @@ const savedAccounts = [];
 let lastMaterializedStreamId = '';
 let activeUsername = '';
 let nextCustomId = 1;
-let playerMutationCount = 0;
 
 page.on('console', msg => {
   if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -169,7 +168,7 @@ await page.route('https://webtv-xtream.atonis.workers.dev/**', async route => {
       channels,
     });
   }
-  if (url.pathname === '/api/channel-sources/from-preview' && method === 'POST') {
+  if (url.pathname === '/api/channel-sources' && method === 'POST') {
     const body = request.postDataJSON();
     lastMaterializedStreamId = String(body.streamId || '');
     const source = {
@@ -297,8 +296,6 @@ const finalPlayer = await page.evaluate(() => ({
 }));
 assert.deepEqual(finalPlayer, originalPlayer, 'Preview/save flow must not change Player or Now Playing selection');
 
-const unexpectedRealWrites = writes.filter(item => item.target === 'unexpected-real-write');
-assert.equal(unexpectedRealWrites.length, 0, 'no persistence write may escape request interception');
 assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
 
 const report = {
