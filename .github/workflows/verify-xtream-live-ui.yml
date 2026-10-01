@@ -29,6 +29,9 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL" -o /tmp/webv2-live.html
           grep -q '<title>WebTV V2</title>' /tmp/webv2-live.html
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/known-source-collector.js?proof=$GITHUB_SHA" -o /tmp/known-source-live.js
+          grep -q 'function identityKeys' /tmp/known-source-live.js
+          echo 'Live Pages serves identityKeys collector fix'
           curl --fail --silent --show-error "$XTREAM_MOCK_URL/api/status?verify=$GITHUB_SHA" -o /tmp/xtream-mock-status.json
           node -e "const j=require('/tmp/xtream-mock-status.json');if(j.version!=='1.2'||j.service!=='WebTV Xtream Test Provider')process.exit(1);console.log('Live mock provider v1.2 ready')"
 
@@ -53,7 +56,8 @@ jobs:
             ("await page.evaluate(() => document.documentElement.classList.add('admin-unlocked'));", "await page.evaluate(() => { document.documentElement.classList.remove('admin-locked'); document.documentElement.classList.add('admin-unlocked'); });"),
             ("return json(route, { status: 'VERIFIED', verified: true, detail: 'CI browser proof verified mock preview' });", "return json(route, { results: [{ status: 'VERIFIED', verified: true, detail: 'CI browser proof verified mock preview' }] });"),
             ("await page.waitForFunction(() => document.getElementById('xtream-status')?.textContent?.includes('selected source'), null, { timeout: 10_000 });", "await page.waitForFunction(() => document.getElementById('xtream-status')?.textContent?.includes('selected source'), null, { timeout: 10_000 });\nassert.equal(await page.locator('#playlist-manager').evaluate(el => el.hidden), false, 'Playlist Manager must remain open after selected-source save');"),
-            ("await page.waitForFunction(() => document.getElementById('xtream-status')?.textContent?.includes('all known sources'), null, { timeout: 10_000 });", "await page.waitForFunction(() => document.getElementById('xtream-status')?.textContent?.includes('all known sources'), null, { timeout: 10_000 });\nassert.equal(await page.locator('#playlist-manager').evaluate(el => el.hidden), false, 'Playlist Manager must remain open after all-known save');"),
+            ("await page.locator('input[name=\"xtream-save-source-scope\"][value=\"all-known\"]').check();", "await page.locator('input[name=\"xtream-save-source-scope\"][value=\"all-known\"]').check();\nconst debugBeforeAll = await page.evaluate(async () => ({\n  my: await window.WebTVMyPlaylistAPI?.getMyPlaylist?.(),\n  preview: window.WebTVXtream?.getPreview?.(),\n  loaded: (window.WebTVPlaylistAPI?.getChannels?.() || []).slice(0, 3),\n}));\nconsole.log('ALL_KNOWN_CONTEXT '+JSON.stringify(debugBeforeAll));"),
+            ("await page.waitForFunction(() => document.getElementById('xtream-status')?.textContent?.includes('all known sources'), null, { timeout: 10_000 });", "await page.waitForFunction(() => document.getElementById('xtream-status')?.textContent?.includes('all known sources'), null, { timeout: 10_000 });\nassert.equal(await page.locator('#playlist-manager').evaluate(el => el.hidden), false, 'Playlist Manager must remain open after all-known save');\nconst allKnownWrite = [...writes].reverse().find(item => item.target === 'custom-channel');\nconsole.log('ALL_KNOWN_WRITE '+JSON.stringify(allKnownWrite));"),
           ]
           for old,new in replacements:
               if old not in s:
