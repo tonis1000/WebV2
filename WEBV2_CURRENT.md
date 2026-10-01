@@ -5,12 +5,25 @@ Repository: `tonis1000/WebV2`
 Canonical source: GitHub `main/WEBV2_CURRENT.md`.
 
 ## CURRENT VERSION
+Official discovery/resolution retirement runtime merge SHA: `92dd5411427a06cc501e924df60f7dc2a80be1c1` via PR #82.
+Legacy Discovery Beta production-entry cleanup merge SHA: `53467ff29cfcb7b71cae4e4a74fd9a4cde33e713` via PR #81.
 Unified Search Hunt / Discovery consolidation runtime merge SHA: `d6c7e67ca2a3e7203dd00fbf4d83df31b9b779c8` via PR #78.
 Unified Search sidebar-selection sync follow-up merge SHA: `90c6d80b7295cc0f17a1f8e976e7b6876e20a604` via PR #79.
 Phase E3b Enigma2 normalization runtime merge SHA: `cc7e2128e9257cc431a95abf08f2f286e93d2235` via PR #75.
 Phase E3a STRM normalization runtime merge SHA: `35c3f7641221b3ad24b3533269e72218d729e241` via PR #73.
 GitHub-canonical CURRENT ownership merge SHA: `c7cb5bda983e405d53190ce4ea8858155b1c4a88`.
 Phase E2 runtime merge SHA: `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`.
+
+Verified Official discovery retirement production evidence at exact runtime merge SHA `92dd5411427a06cc501e924df60f7dc2a80be1c1`:
+- Validate Unified Search #43 SUCCESS
+- Validate WebTV Frontend #709 SUCCESS
+- Validate Enigma2 Ownership #52 SUCCESS
+- Deploy Source Discovery Worker #62 SUCCESS
+- Source Discovery deploy step `Verify live Worker and retained external providers` SUCCESS
+- Deploy WebTV Registry Worker #100 SUCCESS
+- GitHub Pages #458 SUCCESS
+- retained discovery capabilities remain covered: Curated, GitHub, Recent Web, STRM, Authorized Xtream, Hunt exploration, New Xtream preview, Local intelligence and Promotion policy
+- Unified Search keeps its permanent `official` provider rejection guard
 
 Verified Unified Search production evidence at exact latest runtime merge SHA `90c6d80b7295cc0f17a1f8e976e7b6876e20a604`:
 - Validate Unified Search #33 SUCCESS
@@ -44,6 +57,10 @@ Verified Phase E2 evidence remains:
 - GitHub Pages #447 SUCCESS
 
 ## CURRENT TASK
+WebV2 System Audit & UX Consolidation: ACTIVE.
+Discovery / Unified Search cleanup: current bounded phase.
+Legacy Discovery Beta production entrypoint cleanup: DONE.
+Official discovery/resolution retirement: DONE.
 Hunt / Discovery consolidation into Unified Search: DONE.
 Unified Search sidebar-selection sync follow-up: DONE.
 
@@ -54,7 +71,22 @@ Current ownership:
 - Component-specific workflow/live evidence = deployment truth for that component.
 
 ## CURRENT VERIFIED OUTCOME
-Unified Search Hunt / Discovery consolidation: DONE.
+Official broadcaster discovery/resolution retirement: DONE.
+
+The bounded PR #82 cleanup removed the legacy Official broadcaster discovery/resolution paths because manual official-site lookup is easy enough for this use case while the feature carried broadcaster-specific registry, resolver, verifier, test and deployment maintenance cost.
+
+Retained discovery capabilities stay because they solve harder or safety-critical problems:
+- Curated feeds reduce repeated manual source inspection.
+- GitHub playlists surface public playlist sources that are not obvious to locate by hand.
+- Recent Web finds fresh leads outside the fixed catalog.
+- STRM discovery/resolution resolves technical indirection into actual media targets.
+- Authorized Xtream searches explicit user-authorized accounts without exposing credentials.
+- Hunt exploration covers wider non-obvious leads.
+- New Xtream preview provides temporary inspection before persistence.
+- Promotion policy protects the boundary between temporary findings and permanent saved state.
+- Local scan remains background intelligence for dedupe and known-source awareness, not a visible lane.
+
+Unified Search Hunt / Discovery consolidation remains DONE.
 
 The production search surface now has:
 - one user-facing Unified Search instead of parallel automatic Hunt and Discovery result universes;
@@ -66,16 +98,16 @@ The production search surface now has:
 - Source Registry / shared adapter architecture using the existing Source Format Registry and shared M3U / STRM / Enigma2 cores;
 - preserved unique Hunt exploration intelligence through the normalized lead/candidate path instead of a second UI universe;
 - provenance and safe `Open source` handling, including protected Xtream credential behavior;
-- Official discovery excluded from the new Unified Search UX while legacy Official code remains outside this migration boundary;
+- Official discovery/resolution retired from the runtime while Unified Search continues to reject `official` providers;
 - Manual Source Test retained as the explicit manual testing surface;
-- sidebar channel selection now synchronizes the Unified Search query while the field remains freely editable for another channel, group or free-text query.
+- sidebar channel selection synchronizes the Unified Search query while the field remains freely editable for another channel, group or free-text query.
 
-The live acceptance scenario is verified by the user in production after Pages deployment: selecting channels updates the Search field, manual Search text can still be entered, and Search remains isolated from current playback until explicit Play.
+The live Unified Search acceptance scenario remains verified by the user in production after Pages deployment: selecting channels updates the Search field, manual Search text can still be entered, and Search remains isolated from current playback until explicit Play.
 
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
-During this 2026-10-01 closure, the available web tool could not read `/api/project-status` or `/api/project-checkpoints`, so no fresh direct checkpoint SHA or direct Registry status body is claimed.
-The exact GitHub head `90c6d80b7295cc0f17a1f8e976e7b6876e20a604` did complete Deploy WebTV Registry Worker #97 successfully, but direct endpoint readback was not independently available through the current tool.
+During the 2026-10-01 PR #82 closure preflight, the available fetch tool reached both `/api/project-status` and `/api/project-checkpoints` but returned no usable response body, so no fresh direct Registry deployed SHA or checkpoint SHA equality is claimed.
+The exact GitHub runtime head `92dd5411427a06cc501e924df60f7dc2a80be1c1` completed Deploy WebTV Registry Worker #100 successfully, and the Source Discovery Worker #62 live verification gate succeeded, but direct Registry endpoint readback was not independently available through the current tool.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
@@ -93,11 +125,17 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Phase E3b Enigma2 normalization: DONE, runtime merge `cc7e2128e9257cc431a95abf08f2f286e93d2235`
 - Hunt / Discovery consolidation into Unified Search: DONE, runtime merge `d6c7e67ca2a3e7203dd00fbf4d83df31b9b779c8`
 - Unified Search sidebar-selection sync follow-up: DONE, merge `90c6d80b7295cc0f17a1f8e976e7b6876e20a604`
+- Legacy Discovery Beta production entrypoint cleanup: DONE, merge `53467ff29cfcb7b71cae4e4a74fd9a4cde33e713`
+- Official broadcaster discovery/resolution retirement: DONE, runtime merge `92dd5411427a06cc501e924df60f7dc2a80be1c1`
 
 ## NEXT SAFE ACTION
-No new large runtime change is implied by this closure.
+Continue the Discovery cleanup audit without broad runtime redesign:
+1. audit New Xtream preview against Playlist Manager / Xtream account management ownership;
+2. audit Promotion policy and preserve its save-safety boundary;
+3. audit Local scan as background intelligence and confirm its canonical owner;
+4. only after those ownership decisions, move to the Playlist / Library / Xtream management phase of the wider System Audit & UX Consolidation workstream.
 
-Before the next major change, define the exact production problem first and the concrete evidence that will prove it solved. Prefer bounded follow-ups driven by observed live behavior over speculative search/player refactors. Preserve the Unified Search ownership boundary and do not change Player, Verifier or save semantics unless a separate problem statement and proof require it.
+Do not change Player, Verifier, D1 persistence semantics or final visual layout as part of those audits unless a separate bounded problem statement and proof require it.
 
 ## DO NOT BREAK
 - D1-primary My Playlist
@@ -111,8 +149,13 @@ Before the next major change, define the exact production problem first and the 
 - Phase E3a shared STRM structural ownership and caller-owned network/security/product policy
 - Phase E3b shared Enigma2 structural ownership with caller-owned matching/header/security/UI policy
 - Unified Search as the single automatic discovery surface
+- Unified Search permanent rejection of `official` providers after Official runtime retirement
 - Search / Now Playing independence and explicit-Play-only ownership of Player changes
 - Unified Search progressive cancellation, stale-run protection, provenance and credential-redaction behavior
+- retained Curated / GitHub / Recent Web / STRM / Authorized Xtream / Hunt exploration discovery capabilities
+- New Xtream preview temporary-before-persistence behavior until its ownership audit is complete
+- Promotion safety boundary between temporary findings and permanent saved state
+- Local scan background intelligence for dedupe and known-source awareness until its ownership audit is complete
 - bouquet proxy transport/security ownership
 - Source Verifier security/status semantics
 - Existing Player/Xtream behavior unless a bounded change proves necessity
@@ -121,7 +164,7 @@ Before the next major change, define the exact production problem first and the 
 - Existing PIN implementation while temporary `PIN_AUTH_DISABLED=1` maintenance mode is active
 
 ## OPERATIONAL NOTES
-- Branch copies of `WEBV2_CURRENT.md` are proposed state; only the copy merged to `main` is canonical.
+- Branch copies of `WEBV2_CURRENT.md` are proposed state; only the copy merged to GitHub `main` is canonical.
 - GitHub CURRENT documents verified reality but does not make GitHub `main` automatically equal production.
 - Always compare CURRENT claims with `/api/project-status`, relevant CI/deploy workflows, and component-specific live evidence.
 - Registry/D1 CURRENT is mirror/history/fallback; its CAS-protected write/editor path remains available for mirror synchronization and historical maintenance.

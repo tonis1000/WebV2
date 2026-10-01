@@ -49,3 +49,10 @@ Current consumers: humans/agents may still reference old docs.
 Replacement: Brain index + owner documents + canonical GitHub `main/WEBV2_CURRENT.md`; Registry/D1 CURRENT remains mirror/history/fallback rather than replacement authority.
 Required proof: unique knowledge migrated, no active workflow/instruction dependency, explicit migration note.
 Status: PENDING MIGRATION AUDIT.
+
+## CLEAN-007 Legacy Official broadcaster discovery/resolution
+Current consumers before retirement: legacy Official broadcaster discovery provider/resolver paths, their verifier/deployment checks, and historical tests/workflows that existed outside the consolidated Unified Search ownership boundary.
+Replacement: no dedicated automatic Official subsystem. Manual official-site lookup is sufficient for this use case; retained discovery continues through Curated, GitHub, Recent Web, STRM, Authorized Xtream and Hunt exploration, with New Xtream preview, Local intelligence and Promotion policy preserved for their distinct roles.
+Required proof: explicit retirement contract, no accidental removal of retained discovery paths, permanent Unified Search rejection of `official` providers, frontend/search regressions, exact-SHA Source Discovery/Registry/Pages deployment, and live Source Discovery verification after deployment.
+Status: **RESOLVED** by PR #82, runtime merge `92dd5411427a06cc501e924df60f7dc2a80be1c1`. Validate Unified Search #43, Validate WebTV Frontend #709, Validate Enigma2 Ownership #52, Deploy Source Discovery Worker #62, Deploy WebTV Registry Worker #100 and GitHub Pages #458 succeeded. The Source Discovery deploy step `Verify live Worker and retained external providers` succeeded, providing live evidence that the retained external provider surface still worked after the retirement.
+Deletion SHA: runtime retirement merged at `92dd5411427a06cc501e924df60f7dc2a80be1c1`. Historical rationale/spec/plan/ledger documents remain evidence and are not automatically deleted by this cleanup item.
