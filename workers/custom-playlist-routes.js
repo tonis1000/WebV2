@@ -39,6 +39,10 @@ export async function ensureCustomPlaylistTables(env){
   )`).run();
 }
 
+function updateParentCountsStatement(env,playlistId){
+  return env.DB.prepare(`UPDATE playlists SET channel_count=(SELECT COUNT(*) FROM playlist_channels WHERE playlist_id=?), group_count=(SELECT COUNT(DISTINCT group_name) FROM playlist_channels WHERE playlist_id=?), updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(playlistId,playlistId,playlistId);
+}
+
 async function requireRegistryWrite(request,env,registryWorker){
   const sessionRequest=new Request(new URL('/api/session',request.url),{headers:{authorization:request.headers.get('authorization')||''}});
   const response=await registryWorker.fetch(sessionRequest,env);
@@ -114,6 +118,7 @@ export async function handleCustomPlaylistRoute(request,env,registryWorker){
       const statements=[env.DB.prepare(`INSERT INTO playlist_channels(playlist_id,channel_id,name,tvg_id,logo,group_name,position,provider_epg_id,provider_category,provider_origin,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(playlist_id,channel_id) DO UPDATE SET name=excluded.name,tvg_id=excluded.tvg_id,logo=excluded.logo,group_name=excluded.group_name,position=excluded.position,provider_epg_id=excluded.provider_epg_id,provider_category=excluded.provider_category,provider_origin=excluded.provider_origin,updated_at=CURRENT_TIMESTAMP`).bind(playlistId,channelId,name,clean(body.tvgId||body.originalId||channelId),clean(body.logo),clean(body.groupName||body.group)||'Other',Number.isFinite(Number(body.position))?Number(body.position):999999,clean(body.providerEpgId),clean(body.providerCategory),clean(body.providerOrigin))];
       if(body.replaceSources)statements.push(env.DB.prepare(`DELETE FROM playlist_channel_sources WHERE playlist_id=? AND channel_id=?`).bind(playlistId,channelId));
       for(const source of sources)statements.push(env.DB.prepare(`INSERT INTO playlist_channel_sources(playlist_id,channel_id,url,origin,priority,provider_account_id,provider_epg_id,provider_category,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(playlist_id,channel_id,url) DO UPDATE SET origin=excluded.origin,priority=excluded.priority,provider_account_id=excluded.provider_account_id,provider_epg_id=excluded.provider_epg_id,provider_category=excluded.provider_category,updated_at=CURRENT_TIMESTAMP`).bind(playlistId,channelId,source.url,clean(source.origin),source.priority,clean(source.providerAccountId),clean(source.providerEpgId),clean(source.providerCategory)));
+      statements.push(updateParentCountsStatement(env,playlistId));
       await env.DB.batch(statements);
       return json({ok:true,channel:{playlistId,channelId,name,sources:sources.map(source=>source.url)}},200,origin);
     }
@@ -121,7 +126,7 @@ export async function handleCustomPlaylistRoute(request,env,registryWorker){
     if(segment==='channels'&&parts.length===3&&request.method==='DELETE'){
       if(!await requireRegistryWrite(request,env,registryWorker))return json({error:'Locked. Enter the 6-digit PIN.'},401,origin);
       const parent=await requireCustomParent(env,playlistId);if(parent.error)return json({error:parent.error},parent.status,origin);const channelId=normalizeId(channelIdRaw);if(!channelId)return json({error:'Invalid channel ID'},400,origin);
-      await ensureCustomPlaylistTables(env);await env.DB.batch([env.DB.prepare(`DELETE FROM playlist_channel_sources WHERE playlist_id=? AND channel_id=?`).bind(playlistId,channelId),env.DB.prepare(`DELETE FROM playlist_channels WHERE playlist_id=? AND channel_id=?`).bind(playlistId,channelId)]);
+      await ensureCustomPlaylistTables(env);await env.DB.batch([env.DB.prepare(`DELETE FROM playlist_channel_sources WHERE playlist_id=? AND channel_id=?`).bind(playlistId,channelId),env.DB.prepare(`DELETE FROM playlist_channels WHERE playlist_id=? AND channel_id=?`).bind(playlistId,channelId),updateParentCountsStatement(env,playlistId)]);
       return json({ok:true,playlistId,channelId},200,origin);
     }
 
