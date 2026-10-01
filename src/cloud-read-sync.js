@@ -1,4 +1,6 @@
-const BUILD_ID = '20260929-saved-playlist-reconcile';
+import { savedPlaylistCacheItem } from './saved-playlist-cache-policy.js';
+
+const BUILD_ID = '20261001-custom-playlist-cache-shell';
 const DB_NAME = 'webtv-v2-playlists';
 const STORE = 'playlists';
 const URL_KEY = 'webtv_v2_registry_url';
@@ -86,12 +88,6 @@ async function fetchJson(path){
   }
 }
 
-function countM3U(text=''){
-  const channels=(String(text).match(/^#EXTINF:/gm)||[]).length;
-  const groups=new Set([...String(text).matchAll(/group-title="([^"]*)"/g)].map(m=>m[1]||'Other')).size;
-  return {channels,groups};
-}
-
 function staleLocalPlaylistIds(localRows=[],remoteRows=[],syncStartedAt=Date.now()){
   const remoteIds=new Set((Array.isArray(remoteRows)?remoteRows:[]).map(row=>String(row?.id||'')).filter(Boolean));
   return (Array.isArray(localRows)?localRows:[])
@@ -120,7 +116,8 @@ async function syncSavedPlaylists(){
 
       const detailJson = await fetchJson(`/api/playlists/${encodeURIComponent(meta.id)}`);
       const detail = detailJson.playlist;
-      if(!detail?.rawM3u) continue;
+      if(!detail) continue;
+      if(detail.kind!=='custom' && !detail.rawM3u) continue;
 
       const remoteUpdatedAt = Date.parse(detail.updatedAt) || 0;
       if(local && (local.updatedAt || 0) > remoteUpdatedAt && remoteUpdatedAt > 0){
@@ -128,18 +125,7 @@ async function syncSavedPlaylists(){
         continue;
       }
 
-      const summary = countM3U(detail.rawM3u);
-      await putSaved({
-        id: detail.id,
-        name: detail.name,
-        type: detail.kind || 'saved',
-        url: detail.sourceUrl || '',
-        text: detail.rawM3u,
-        channelCount: detail.channelCount || summary.channels,
-        groupCount: detail.groupCount || summary.groups,
-        createdAt: Date.parse(detail.createdAt) || local?.createdAt || Date.now(),
-        updatedAt: remoteUpdatedAt || Date.now(),
-      });
+      await putSaved(savedPlaylistCacheItem(detail,local));
       pulled += 1;
     }catch(error){
       console.warn('[WebTV] Saved playlist read skipped', meta?.id, error);
@@ -193,4 +179,4 @@ document.getElementById('playlist-manager-toggle')?.addEventListener('click', ()
   runSync('open-playlists');
 }, { capture: true });
 
-console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · D1-authoritative saved playlist cache reconciliation · initial sync after webtv:ready · 15m background sync; 5m open/visible throttle`);
+console.info(`[WebTV] Cloud read sync loaded · build ${BUILD_ID} · D1-authoritative saved playlist metadata cache; custom child state stays D1-only · initial sync after webtv:ready · 15m background sync; 5m open/visible throttle`);
