@@ -1,0 +1,21 @@
+name: Validate Playlist Manager Xtream Dialog Ownership
+
+on:
+  pull_request:
+    paths:
+      - 'src/playlist-manager.js'
+      - 'tests/playlist-manager-dialog-ownership.test.mjs'
+      - '.github/workflows/validate-playlist-manager-dialog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Playlist Manager Xtream dialog ownership regression
+        run: node tests/playlist-manager-dialog-ownership.test.mjs
