@@ -1,0 +1,27 @@
+name: Validate Xtream Save Destination UI
+
+on:
+  pull_request:
+    paths:
+      - 'src/xtream-save-destination-ui.js'
+      - 'src/xtream-save-destination.js'
+      - 'src/registry-default.js'
+      - 'tests/xtream-save-destination-ui-contract.test.mjs'
+      - '.github/workflows/validate-xtream-save-destination-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run production destination UI ownership contract
+        run: node tests/xtream-save-destination-ui-contract.test.mjs
+      - name: Run destination orchestration regression
+        run: node tests/xtream-save-destination.test.mjs
+      - name: Run known-source collector regression
+        run: node tests/known-source-collector.test.mjs
