@@ -46,6 +46,7 @@ function ensureDialog(){
       </div>
     </form>`;
   document.body.appendChild(dialog);
+  dialog.addEventListener('pointerdown',event=>event.stopPropagation());
   $('xtream-save-destination-select')?.addEventListener('change',syncNewNameVisibility);
   $('xtream-save-destination-cancel')?.addEventListener('click',closeDialog);
   $('xtream-save-destination-confirm')?.addEventListener('click',persistSelection);
