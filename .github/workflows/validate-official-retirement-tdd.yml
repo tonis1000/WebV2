@@ -9,11 +9,12 @@ on:
       - 'src/discovery/**'
       - 'src/search/adapters/discovery-provider-adapter.js'
       - '.github/workflows/deploy-source-discovery.yml'
+      - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/validate-official-retirement-tdd.yml'
-  workflow_dispatch:
+      - 'scripts/apply-official-retirement.mjs'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   retirement-contract:
@@ -21,5 +22,23 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Apply bounded Official retirement patch
+        run: node scripts/apply-official-retirement.mjs
+      - name: Commit bounded patch to feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No patch changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "refactor: retire official discovery providers"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
       - name: Run Official discovery retirement contract
         run: node tests/official-discovery-retirement.test.mjs
