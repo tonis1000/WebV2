@@ -85,6 +85,7 @@ function renderProgress(snapshot={},summary={}){
   add(status==='running'?'Searching…':status==='completed'?'Search complete':status==='cancelled'?'Search cancelled':'Ready',status==='completed'?'ok':status==='cancelled'?'warn':'');
   if(snapshot.intent?.type)add(`Intent: ${snapshot.intent.type}`);
   add(`Candidates: ${snapshot.candidates?.length||0}`,(snapshot.candidates?.length||0)>0?'ok':'');
+  if(snapshot.leads?.length)add(`Leads: ${snapshot.leads.length}`,'warn');
   if(summary.timeouts)add(`Timeouts: ${summary.timeouts}`,'warn');
   if(summary.failed)add(`Errors: ${summary.failed}`,'error');
   const lanes=Object.values(snapshot.lanes||{});const done=lanes.filter(item=>item.status==='done').length;
@@ -132,11 +133,38 @@ function candidateRow(raw,channelName){
   row.append(main,actions);return row;
 }
 
+function renderLeads(leads=[]){
+  if(!Array.isArray(leads)||!leads.length)return null;
+  const card=document.createElement('article');card.className='unified-channel-card';
+  const head=document.createElement('div');head.className='unified-channel-head';
+  const name=document.createElement('strong');name.textContent='Exploration leads';
+  const count=document.createElement('span');count.className='unified-channel-count';count.textContent=`${leads.length} lead${leads.length===1?'':'s'}`;
+  head.append(name,count);
+  const list=document.createElement('div');list.className='unified-candidate-list';
+  for(const lead of leads){
+    const row=document.createElement('div');row.className='unified-candidate-row';
+    const main=document.createElement('div');main.className='unified-candidate-main';
+    const title=document.createElement('div');title.className='unified-candidate-title';
+    const label=document.createElement('span');label.textContent=lead.title||lead.sourceOriginLabel||'Inspectable lead';
+    const status=document.createElement('span');status.className='unified-unplayable';status.textContent=lead.leadStatus||'Needs inspection';
+    title.append(label,status);
+    const meta=document.createElement('div');meta.className='unified-candidate-meta';
+    const via=document.createElement('span');via.textContent=`Via: ${lead.discoveryProvider||'hunt-exploration'}`;meta.appendChild(via);
+    if(lead.snippet){const snippet=document.createElement('span');snippet.textContent=lead.snippet;meta.appendChild(snippet);}
+    main.append(title,meta);
+    const actions=document.createElement('div');actions.className='unified-candidate-actions';
+    const safe=safePublicActionUrl(lead.sourceOriginUrl||lead.sourceUrl);if(safe){const link=document.createElement('a');link.className='button ghost';link.href=safe;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Open source ↗';actions.appendChild(link);}
+    row.append(main,actions);list.appendChild(row);
+  }
+  card.append(head,list);return card;
+}
+
 function renderResults(snapshot={}){
   const root=$('unified-search-results');if(!root)return;
-  const grouped=groupCandidatesByChannel(snapshot.candidates||[],snapshot.intent||latestIntent||{});root.replaceChildren();
-  if(!grouped.length){const empty=document.createElement('div');empty.className='unified-search-empty';empty.textContent=snapshot.status==='running'?'Searching sources… results will appear here as lanes finish.':snapshot.status==='completed'?'No candidates found for this search.':'Search for a channel or group.';root.appendChild(empty);return;}
+  const grouped=groupCandidatesByChannel(snapshot.candidates||[],snapshot.intent||latestIntent||{});const leads=Array.isArray(snapshot.leads)?snapshot.leads:[];root.replaceChildren();
+  if(!grouped.length&&!leads.length){const empty=document.createElement('div');empty.className='unified-search-empty';empty.textContent=snapshot.status==='running'?'Searching sources… results will appear here as lanes finish.':snapshot.status==='completed'?'No candidates or leads found for this search.':'Search for a channel or group.';root.appendChild(empty);return;}
   for(const group of grouped){const card=document.createElement('article');card.className='unified-channel-card';const head=document.createElement('div');head.className='unified-channel-head';const name=document.createElement('strong');name.textContent=group.channelName;const count=document.createElement('span');count.className='unified-channel-count';count.textContent=`${group.candidates.length} source${group.candidates.length===1?'':'s'}`;head.append(name,count);const list=document.createElement('div');list.className='unified-candidate-list';for(const candidate of group.candidates)list.appendChild(candidateRow(candidate,group.channelName));card.append(head,list);root.appendChild(card);}
+  const leadCard=renderLeads(leads);if(leadCard)root.appendChild(leadCard);
 }
 
 function reportEventRow(event={}){const row=document.createElement('div');row.className='unified-report-event';row.dataset.severity=event.severity||'INFO';const time=document.createElement('time');time.textContent=String(event.at||'').slice(11,19);const severity=document.createElement('strong');severity.textContent=event.severity||'INFO';const message=document.createElement('div');message.className='unified-report-message';const scope=[event.type,event.sourceLabel||event.sourceId,event.channelName,event.message].filter(Boolean).join(' · ');message.textContent=scope;row.append(time,severity,message);return row;}
@@ -162,7 +190,13 @@ async function playCandidate(candidate,channelName,button){
   finally{setTimeout(()=>{button.disabled=!playableCandidate(candidate);button.textContent=old;button.classList.remove('danger');const report=activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[];renderReport(report,activeRun?.reporter?.summary?.()||latestUpdate?.summary||{});},1200);}
 }
 
-function startSearch(event){event?.preventDefault?.();const query=$('unified-search-query')?.value.trim();if(!query)return;activeRun?.cancel?.('superseded');const context=searchContext();activeRun=runUnifiedSearch({query,context,sources:listUnifiedSearchLanes(),resolveAdapter:getUnifiedSearchRuntimeAdapter,verifyBatch:verifySearchCandidates,concurrency:3,laneTimeoutMs:10000,onUpdate:renderUpdate});latestIntent=null;activeRun.done.then(result=>renderUpdate({snapshot:result.snapshot,report:result.report,summary:result.summary})).catch(error=>{renderProgress({status:'cancelled',candidates:[],lanes:{}},{failed:1});console.error('[WebTV] Unified Search failed',error);});}
+function startSearch(event){
+  event?.preventDefault?.();const query=$('unified-search-query')?.value.trim();if(!query)return;
+  activeRun?.cancel?.('superseded');const context=searchContext();
+  const run=runUnifiedSearch({query,context,sources:listUnifiedSearchLanes(),resolveAdapter:getUnifiedSearchRuntimeAdapter,verifyBatch:verifySearchCandidates,concurrency:3,laneTimeoutMs:10000,onUpdate:update=>{if(activeRun===run)renderUpdate(update);}});
+  activeRun=run;latestIntent=null;
+  run.done.then(result=>{if(activeRun!==run)return;renderUpdate({snapshot:result.snapshot,report:result.report,summary:result.summary});}).catch(error=>{if(activeRun!==run)return;renderProgress({status:'cancelled',candidates:[],lanes:{}},{failed:1});console.error('[WebTV] Unified Search failed',error);});
+}
 
 async function copyReport(){const text=activeRun?.reporter?.exportText?.()||'';if(!text)return;await navigator.clipboard?.writeText?.(text);}
 function exportJson(){const json=activeRun?.reporter?.exportJson?.();if(!json)return;const blob=new Blob([json],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`webtv-search-report-${activeRun.searchId||'run'}.json`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
