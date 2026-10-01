@@ -3,7 +3,9 @@ import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { listSearchSources } from '../src/search/source-registry.js';
 import { FEEDS } from '../workers/webtv-source-discovery.js';
 
-assert.ok(CURATED_SOURCE_FEEDS.length>=10,'shared curated source catalog must own the current feed set');
+assert.ok(CURATED_SOURCE_FEEDS.length>=12,'shared curated source catalog must own the full migrated feed set');
+assert.ok(CURATED_SOURCE_FEEDS.some(feed=>feed.id==='musics300-total'),'legacy Hunt seed musics300/total must survive migration through the canonical catalog');
+assert.ok(CURATED_SOURCE_FEEDS.some(feed=>feed.id==='gdiolitsis-greek-iptv'),'legacy Hunt seed gdiolitsis/greek-iptv must survive migration through the canonical catalog');
 assert.deepEqual(FEEDS,CURATED_SOURCE_FEEDS,'Discovery Worker must consume the same canonical curated source catalog');
 
 const registry=listSearchSources();
