@@ -520,3 +520,26 @@ Evidence:
 
 Reconsider when: measured production recall remains insufficient and a new approach can preserve credential, hard request-budget, shared identity/parser and ownership boundaries with fresh regression, deployment and live-verification evidence.
 
+## DEC-032 Xtream maintenance-mode trusted-session handoff
+Decision: preserve the Xtream Worker trusted-session boundary while allowing temporary Registry maintenance mode to bootstrap a signed browser session that is valid only while `PIN_AUTH_DISABLED` remains enabled.
+
+Hard rules:
+- the deployed Xtream Worker continues to require `x-webtv-session` / Bearer trusted-session auth for account and channel APIs;
+- do not make Xtream account APIs anonymous merely because Registry PIN auth is temporarily bypassed;
+- maintenance mode may mint only a scoped signed session, never expose or return `ADMIN_TOKEN`;
+- maintenance-scoped sessions use a short lifetime (one hour) and are rejected immediately when `PIN_AUTH_DISABLED` is disabled, even if their timestamp has not expired;
+- normal PIN-auth mode and normal trusted-device sessions remain unchanged;
+- Authorized Xtream discovery remains read-only discovery over already authorized/saved accounts and keeps its existing account/stream/candidate caps;
+- this change does not alter Xtream persistence, Preview → Verify → Save boundaries, Player ownership, Unified Search ownership or account credentials.
+
+Reason: live Unified Search diagnostics showed `authorized-xtream` failed before any Xtream network request with `Trusted-device session is required`. Browser Local Storage confirmed no Registry token existed. Registry maintenance access considered the browser permitted without a token, but the Xtream client and deployed Xtream Worker correctly required one. Weakening the Xtream Worker would have broadened access unnecessarily, so the fix was made at the Registry/browser session handoff instead.
+
+Evidence:
+- RED head `8ffc4e9801eb30c68d035e750bab7d285e75920f`; Frontend run `37057207021` failed exactly on the missing maintenance-session contract;
+- exact GREEN implementation head `90973614eadecad3d705fad5cbd949a2c19d485f`; Validate Registry Project Agent Boundary run `37057361178` SUCCESS and Validate WebTV Frontend run `37057361051` SUCCESS;
+- runtime merge `1d2026de2a96588c7ae67ffe0b3d2ade2af90735` via PR #154; post-merge Frontend, Registry deployment and Pages workflows succeeded, including the new live Registry maintenance-session mint/validate gate;
+- Registry `/api/project-status` reported exact runtime SHA `1d2026de2a96588c7ae67ffe0b3d2ade2af90735`, deployed at 2026-10-02 19:58:23;
+- verification-only PR #155 closed unmerged after live workflow `37057737827` SUCCESS: deployed Xtream `/api/accounts` accepted the scoped maintenance session and returned 8 saved accounts; read-only expansion of the first account returned 4 channels; no writes were performed.
+
+Reconsider when: temporary maintenance bypass is removed permanently, or a future auth model replaces Registry-issued browser sessions. Any replacement must preserve cross-Worker least privilege and must not expose long-lived admin secrets to the browser.
+
