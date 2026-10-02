@@ -144,3 +144,32 @@ Reason: the legacy Discovery Local Scan contained useful Saved M3U coverage, but
 Evidence: PR #100 merge `35306d1161899a8f58801363bd3b1947881db9b2`; RED-first known-source and save-destination ownership tests; exact-SHA Validate WebTV Frontend #813, Deploy WebTV Registry Worker #109 and GitHub Pages #467 SUCCESS.
 
 Reconsider when: only if a later architecture phase replaces the Library/cache model or proves a different single local-intelligence owner while preserving no-search-at-save, source identity, dedupe and startup boundaries.
+
+
+## DEC-018 Xtream persistence has one verified entry and Playlist Manager owns Saved Xtream cards
+Decision: durable Xtream persistence is owned only by the verified Preview flows. Full account persistence is `Test / Preview → Verify → Save Full Xtream Account`. Channel persistence is `Test / Preview → Verify → Save Channel…`, including My Playlist through the narrow `WebTVMyPlaylistAPI.upsertChannel(..., {reason:'xtream-preview-save'})` contract.
+
+Saved Xtream Library rows are account references, not ordinary M3U playlists. Playlist Manager directly owns their presentation and loading:
+- typed `kind/type='xtream'` plus `xtream:<accountId>` identity;
+- Xtream/person icon;
+- `Load live` through `WebTVXtream.loadAccountById(accountId)`;
+- no Export of the synthetic marker M3U.
+
+Hard rules:
+- the retired `Save Xtream Playlist` button/path must not return;
+- the retired Xtream → My Playlist merge overlay must not return;
+- loaded Xtream account channels must not use generic Add/Source mutation as a second persistence path;
+- normal Saved Playlist URL/paste/custom behavior remains Playlist Manager-owned and unchanged;
+- no credentials or preview tokens enter Saved Playlist markers;
+- account loading is read/load behavior and must not persist by itself.
+
+Reason: `src/xtream-enhancements.js` duplicated full-account persistence, channel-to-My-Playlist persistence and Library presentation through DOM interception and MutationObserver patching. Consolidating these responsibilities removes competing owners and preserves a single explicit verification boundary.
+
+Evidence:
+- PR #102 runtime merge `44dc1b777b222b232f3a9aa4c4e4a4a9dcda6b4f` removed `src/xtream-enhancements.js`, added the shared account loader and moved Xtream Library card ownership into Playlist Manager.
+- PR #103 follow-up `f01a422065ff18c0b29841440ba529bdf6df9151` closed the generic My Playlist persistence gap and exposed the verified-only upsert contract.
+- PR #106 follow-up `3fb730f01efa370a1ed7d166978b178868a8dc06` fixed overlapping preview persistence hit areas found by live Playwright acceptance.
+- Exact-SHA Frontend #849, Registry #113 and Pages #471 succeeded at PR #106 runtime SHA.
+- Verification-only PR #105 was closed unmerged after live production run #11 succeeded with the authorized `test_50` mock: legacy save/merge UI absent, exactly one verified My Playlist write, Full Account account-backed card with 👤 / Load live / no Export, Load live with no extra persistence, generic loaded-Xtream Add blocked, and zero page/console errors.
+
+Reconsider when: only if a later explicit architecture replaces Playlist Manager or the Preview verification boundary while preserving single-owner persistence, credential isolation, backward-compatible account markers and live acceptance proof.
