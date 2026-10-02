@@ -4,10 +4,26 @@ import {
   isM3uContainer,
   parseM3uAttributes,
   parseM3uContainer,
+  splitM3uSourceAlternatives,
 } from '../src/core/m3u-container.js';
 
 assert.equal(isM3uContainer('#EXTM3U\n#EXTINF:-1,MEGA\nhttps://cdn.test/mega.m3u8\n'), true);
 assert.equal(isM3uContainer('plain text\nhttps://cdn.test/mega.m3u8\n'), false);
+
+assert.deepEqual(
+  splitM3uSourceAlternatives('https://one.test/a.m3u8 | https://two.test/b.m3u8|User-Agent=Roku%2FDVP-14.6&x-roku-reserved-dev-id=device-1 | https://three.test/live.mpd'),
+  [
+    'https://one.test/a.m3u8',
+    'https://two.test/b.m3u8|User-Agent=Roku%2FDVP-14.6&x-roku-reserved-dev-id=device-1',
+    'https://three.test/live.mpd',
+  ],
+  'spaced pipe separates source alternatives while inline IPTV header pipe stays attached'
+);
+assert.deepEqual(
+  splitM3uSourceAlternatives('https://one.test/a.m3u8|User-Agent=UA'),
+  ['https://one.test/a.m3u8|User-Agent=UA'],
+  'header-only IPTV source must remain one source'
+);
 
 const attrs = parseM3uAttributes('#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA TV" tvg-logo="https://img.test/mega.png" group-title="General",MEGA');
 assert.deepEqual(attrs, {
