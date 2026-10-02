@@ -5,8 +5,6 @@ const files=[
   '../src/discovery/discovery-ui.js',
   '../src/discovery/discovery-state.js',
   '../src/discovery/candidate-model.js',
-  '../src/discovery/local-data-reader.js',
-  '../src/discovery/local-candidates.js',
   '../src/discovery/verifier-client.js',
   '../src/discovery/external-discovery-client.js',
 ];
@@ -35,7 +33,9 @@ assert.equal(combined.includes('api.search.brave.com'),false,'Browser Discovery 
 assert.equal(combined.includes('BRAVE_API_KEY'),false,'Brave credentials must never enter browser Discovery modules');
 assert.equal(combined.includes('localStorage'),false,'Discovery results must not persist in localStorage');
 assert.equal(combined.includes('sessionStorage'),false,'Discovery results must not persist in sessionStorage');
-assert.equal(combined.includes('WebTVSavedPlaylistsReadAPI'),true,'Saved Playlist cache must be read through its owner API');
+assert.equal(combined.includes('WebTVSavedPlaylistsReadAPI'),false,'retired legacy Discovery must not read Saved Playlist cache after Local lane deletion');
+assert.equal(fs.existsSync(new URL('../src/discovery/local-data-reader.js',import.meta.url)),false,'legacy Local data reader must remain deleted');
+assert.equal(fs.existsSync(new URL('../src/discovery/local-candidates.js',import.meta.url)),false,'legacy Local candidate builder must remain deleted');
 assert.equal(ui.includes('WebTVPlaylistAPI?.getSelectedChannel'),true,'Discovery may read selected channel through read-only public API');
 assert.equal(/(?:^|[^A-Za-z])play\s*\(/m.test(ui),false,'Discovery shell must not trigger direct play() calls');
 assert.equal(ui.includes('Save Source'),false,'Phase 4 must not expose source persistence');
