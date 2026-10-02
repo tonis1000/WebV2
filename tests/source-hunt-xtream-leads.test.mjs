@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildQueries, safeXtreamProviderLeadUrl, xtreamProviderEvidence } from '../workers/source-huntatonisworkersdev.js';
+import { buildQueries, rank, safeXtreamProviderLeadUrl, xtreamProviderEvidence } from '../workers/source-huntatonisworkersdev.js';
 
 const megaQueries=buildQueries('MEGA');
 assert.equal(megaQueries.length,3,'Source Hunt query budget stays at three Brave searches');
@@ -23,5 +23,11 @@ const provider=safeXtreamProviderLeadUrl('https://provider.example/greek-iptv/fr
 assert.equal(provider,'https://provider.example/greek-iptv/free-trial');
 assert.equal(safeXtreamProviderLeadUrl('https://provider.example/get.php?username=demo&password=secret&type=m3u'),'','credential-bearing Xtream URLs must never become provider leads');
 assert.equal(safeXtreamProviderLeadUrl('https://demo:secret@provider.example/player_api.php'),'','embedded credentials must never become provider leads');
+
+const fourMonthsAgo=new Date(Date.now()-120*86400000).toISOString();
+const providerRank=rank({_kind:'xtream',title:'Greek IPTV Xtream Codes free trial',description:'Greek channels including MEGA and ANT1',url:'https://provider.example/greek-iptv',page_age:fourMonthsAgo},'MEGA');
+assert.ok(providerRank>0,'Xtream provider results up to one year old must remain rankable');
+const webRank=rank({_kind:'web',title:'MEGA IPTV playlist',description:'MEGA stream',url:'https://example.test/mega',page_age:fourMonthsAgo},'MEGA');
+assert.equal(webRank,-100,'ordinary web stream results stay on the 30-day freshness rule');
 
 console.log('Source Hunt Xtream provider/trial lead contract PASS');
