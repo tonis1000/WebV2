@@ -421,3 +421,25 @@ Evidence:
 
 Reconsider when: only if a concrete future product requirement cannot be satisfied by Unified Search, Manual Source Test, active shared cores and Workers, and a new bounded owner is explicitly justified and production-verified.
 
+## DEC-029 Zero-consumer saveDiscoveredChannel API retired
+Decision: retire the narrow `WebTVMyPlaylistAPI.saveDiscoveredChannel` surface and its `saveDiscoveredMyChannel` implementation after the legacy Source Hunt frontend chain was deleted and recursive proof showed no remaining active frontend consumer.
+
+Hard rules:
+- `saveDiscoveredChannel` and `saveDiscoveredMyChannel` remain absent unless a future concrete product flow justifies a new bounded persistence API;
+- Playlist Manager remains the My Playlist persistence boundary;
+- verified Xtream channel persistence continues through `upsertChannel(...,{reason:'xtream-preview-save'})`;
+- Playback Inspector source persistence continues through `addSourceToCurrent` and `replaceSourcesForCurrent`;
+- generic My Playlist operations retain `assertGenericMyMutationAllowed` and the loaded-Xtream mutation guard;
+- retiring this orphan surface must not weaken Favorites scope, Saved/Custom playlist semantics, Unified Search, Manual Source Test, Player, EPG or diagnostics/discovery behavior.
+
+Reason: after DEC-028 retired the entire zero-consumer Source Hunt frontend chain, the special Source Hunt discovered-channel save API had no caller but still preserved a second historical persistence surface. Keeping an uncallable public API created unnecessary future regression risk.
+
+Evidence:
+- audit-only PR #142 exact audit head `e62a339ce583fb6ed8502cb922cf7fc8ef88748a`: 78 frontend JS files scanned, one self-export hit, active consumers = 0;
+- RED Frontend #982 failed because the orphan surface still existed;
+- PR #143 exact GREEN head `8c7203c339aa9d4bdddea192cdda393535527daf`: Frontend #984 76/76 SUCCESS, Xtream Save Destination #74 SUCCESS, Playlist Manager ownership #24 SUCCESS;
+- runtime merge `0c6360f6d3cfdab0ca629a59c1500deee88f13fa`; post-merge Frontend #985, Registry #135 and Pages #493 SUCCESS, with Registry reporting the same deployed SHA;
+- verification-only PR #144 closed unmerged after live proof #1 SUCCESS and Frontend #986 SUCCESS. Retired API absent live, active persistence APIs/guards retained, durable writes/page errors/console errors all zero. Artifact `11242903026`, digest `sha256:688bc68bce73841b122a1ec778d2a9af2f4e3318de7838ef71ef0486f12448b7`.
+
+Reconsider when: only if a new active product flow requires discovered-channel persistence that cannot use the existing canonical My Playlist APIs, with explicit caller ownership, regression coverage, deployment and live verification.
+
