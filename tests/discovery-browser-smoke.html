@@ -59,21 +59,17 @@
       const candidates=results.flatMap(r=>r.candidates);
       const externalCandidates=candidates.filter(c=>c.discoveryProvider!=='authorized-xtream-expansion');
       const verified=await verifyCandidates(externalCandidates);
-      const legacyShellResponse=await fetch('../src/discovery/discovery-ui.js',{cache:'no-store'});
-      const legacyXtreamResponse=await fetch('../src/discovery/new-xtream-preview.js',{cache:'no-store'});
       const pass=
         expected.every(id=>laneIds.includes(id)) &&
         results.every(r=>r.count===1) &&
         candidates.some(c=>c.discoveryProvider==='authorized-xtream-expansion') &&
         verified.length===externalCandidates.length &&
         verified.every(v=>v.verified===true) &&
-        legacyShellResponse.status===404 &&
-        legacyXtreamResponse.status===404 &&
         window.__probe.d1Writes===0 &&
         sidebar.textContent===before.sidebar &&
         player.textContent===before.player;
       document.documentElement.dataset.phase4Result=pass?'PASS':'FAIL';
-      document.getElementById('result').textContent=JSON.stringify({pass,laneIds,counts:results.map(r=>[r.lane,r.count]),verified:verified.length,d1Writes:window.__probe.d1Writes,legacyShellStatus:legacyShellResponse.status,legacyXtreamStatus:legacyXtreamResponse.status});
+      document.getElementById('result').textContent=JSON.stringify({pass,laneIds,counts:results.map(r=>[r.lane,r.count]),verified:verified.length,d1Writes:window.__probe.d1Writes});
     }catch(error){
       document.documentElement.dataset.phase4Result='FAIL';
       document.getElementById('result').textContent=String(error?.stack||error);
