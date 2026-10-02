@@ -203,7 +203,27 @@ jobs:
           fi
           grep -q 'WEBV2_CURRENT.md' /tmp/webtv-checkpoint-list-unauth.json
           grep -q 'WEBV2 CURRENT STATE' /tmp/webtv-checkpoint-get-unauth.md
-          echo 'Verified temporary PIN bypass for Registry admin checkpoint reads.'
+
+          maintenance_status=$(curl --silent --show-error --output /tmp/webtv-maintenance-session.json --write-out '%{http_code}' \
+            -X POST \
+            -H 'Cache-Control: no-cache' \
+            "$REGISTRY_URL/api/session/maintenance?verify=$GITHUB_SHA" || true)
+          if [ "$maintenance_status" != 200 ]; then
+            echo "::error::Maintenance session mint failed · status=$maintenance_status"
+            cat /tmp/webtv-maintenance-session.json 2>/dev/null || true
+            exit 1
+          fi
+          maintenance_token=$(node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-maintenance-session.json','utf8'));if(!j.ok||!j.maintenance||!j.token)process.exit(1);process.stdout.write(j.token)")
+          session_status=$(curl --silent --show-error --output /tmp/webtv-maintenance-session-validate.json --write-out '%{http_code}' \
+            -H 'Cache-Control: no-cache' \
+            -H "authorization: Bearer $maintenance_token" \
+            "$REGISTRY_URL/api/session?verify=$GITHUB_SHA" || true)
+          if [ "$session_status" != 200 ]; then
+            echo "::error::Maintenance session validation failed · status=$session_status"
+            cat /tmp/webtv-maintenance-session-validate.json 2>/dev/null || true
+            exit 1
+          fi
+          echo 'Verified temporary PIN bypass and scoped maintenance-session handoff.'
 
       - name: Verify project agent auth boundary
         shell: bash
