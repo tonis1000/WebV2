@@ -24,6 +24,7 @@ GitHub Discovery v2 runtime merge SHA: `62569795f436c497ad3b271200ab9332098d809f
 Xtream maintenance-session handoff runtime SHA: `1d2026de2a96588c7ae67ffe0b3d2ade2af90735` via PR #154.
 Unified Search visible run-state UX runtime SHA: `5be9889c49de825051907e2c58a60e6648b82012` via PR #157.
 Discovery quality v3 final runtime SHA: `daa73919623f47946f7a36ba6c055c4ad2cbbf00` via PR #163, built through PRs #158-#163.
+Header-aware IPTV compatibility runtime SHA: `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7` via PR #165; live-gate topology follow-ups through PR #167, current deployed closure SHA `2e6a34b207b903eea6b5cb10695afc5ef60998fd`.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -335,6 +336,17 @@ Verified Discovery quality v3 evidence:
 - Final post-merge Source Hunt run `37067230801` SUCCESS, Validate WebTV Frontend run `37067230803` SUCCESS, GitHub Pages run `37067229745` SUCCESS and Registry run `37067230725` SUCCESS. Registry `/api/project-status` reported exact final runtime SHA `daa73919623f47946f7a36ba6c055c4ad2cbbf00`, deployed at 2026-10-02 21:31:36.
 - Final live `MEGA` Source Hunt acceptance with `debug=1` completed at `subrequestsUsed:14/16`, `freshSearchesRun:1`, `resultsScanned:4` and surfaced four safe `Xtream provider / trial` web leads, including a Greek IPTV / Xtream setup provider advertising a free trial. No credentials were collected, stored or auto-imported.
 
+Verified header-aware IPTV compatibility evidence:
+- Live jimgate07/grtv research found current MEGA sources using both `|User-Agent=...&x-roku-reserved-dev-id=...` and `|stream_headers={User-Agent=..., x-roku-reserved-dev-id=...}`. The same repository was actively editing those forms on 2026-10-02.
+- Root cause in WebV2: `src/core/utils.js` allowed only User-Agent / Referer / Origin, Source Verifier did not split raw IPTV URL options before probing, and tv-cache used the same narrower header allowlist.
+- PR #165 added allowlisted `X-Roku-Reserved-Dev-Id`, nested `stream_headers={...}` parsing, Source Verifier canonicalization through `parseIptvUrl()`, and tv-cache propagation to HLS child resources. Arbitrary/sensitive headers remain rejected.
+- RED head `dbea2eabf5b501efdacc41a82973e95f5254d402`: Validate WebTV Frontend run `37071016126` failed exactly because the Roku header was absent from parsed headers.
+- Runtime implementation head `1ba1d47b3b2d1fd1bc1e6efdd18ab990277057e2`: Validate WebTV Frontend run `37071084359` SUCCESS, including header-aware proxy and Source Verifier regressions.
+- PR #165 runtime merge: `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7`. Initial same-Worker and cross-Worker synthetic live gates produced false-negative topology failures after successful deployment, so PRs #166-#167 changed only verification topology; runtime parser/verifier/proxy semantics were not weakened.
+- Final closure SHA `2e6a34b207b903eea6b5cb10695afc5ef60998fd`: Validate WebTV Frontend `37072104574`, Source Verifier deploy `37072104439`, TV Cache deploy `37072104518`, Registry deploy `37072104495` and Pages `37072103654` all SUCCESS. Direct deployed header-aware fixtures accepted the approved Roku headers.
+- Verification-only PR #168 stayed unmerged and tested the real current jimgate MEGA source `http://15.235.41.196/hls/mega.m3u8` with the repository's exact Roku User-Agent and device id. A direct GitHub runner request returned HTTP 403 from nginx/1.24.0; deployed Source Verifier returned HTTP 403; deployed tv-cache returned HTTP 403. Therefore this specific source remains upstream-restricted/unavailable to external requests even after WebV2's header transport gap was fixed.
+- The generalized compatibility slice is DONE because implemented, deployed and verified. The specific jimgate MEGA IP source is NOT a verified playable source and must not be promoted solely because its metadata format is now supported.
+
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
@@ -381,12 +393,13 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Xtream maintenance-mode trusted-session handoff: DONE / VERIFIED, runtime merge `1d2026de2a96588c7ae67ffe0b3d2ade2af90735` via PR #154; verification-only PR #155 closed unmerged
 - Unified Search visible Searching / Finished UX: DONE / VERIFIED, runtime merge `5be9889c49de825051907e2c58a60e6648b82012` via PR #157
 - Discovery quality v3: DONE / VERIFIED, final runtime `daa73919623f47946f7a36ba6c055c4ad2cbbf00` via PR #163; Curated + Recent Web runtime started in PR #158, safe Xtream provider/trial lead quality completed through PRs #159-#163
+- Header-aware IPTV compatibility: DONE / DEPLOYED / VERIFIED for parser + verifier + HLS proxy transport, runtime `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7` via PR #165 with live-gate closure `2e6a34b207b903eea6b5cb10695afc5ef60998fd` via PR #167; verification-only PR #168 closed unmerged after the real jimgate MEGA upstream still returned HTTP 403 even outside Cloudflare
 
 ## NEXT SAFE ACTION
 The WebV2 System Audit & UX Consolidation is closed for the approved ownership-consolidation scope.
 
 For future work:
-1. treat the current ownership map and DEC-001…DEC-034 as the baseline; do not reopen a closed owner without new concrete evidence;
+1. treat the current ownership map and DEC-001…DEC-035 as the baseline; do not reopen a closed owner without new concrete evidence;
 2. before any new major feature or architectural change, define the exact problem and the production proof that will demonstrate it is solved;
 3. use a new bounded slice for any future Player, Sidebar, EPG, Playlist/My Playlist, Favorites, Xtream, Unified Search / discovery, diagnostics or persistence change;
 4. preserve the existing RED → implementation → exact-SHA deploy → live verification → canonical docs closure discipline.
@@ -443,6 +456,8 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - Local intelligence remains background/read-only for dedupe and known-source awareness; it must not become a Unified Search lane or start save-time network discovery
 - bouquet proxy transport/security ownership
 - Source Verifier security/status semantics
+- Header-aware IPTV URLs use the shared `parseIptvUrl()` contract. Approved request metadata is allowlisted only: `User-Agent`, `Referer`, `Origin`, and `X-Roku-Reserved-Dev-Id`; unknown/sensitive headers remain dropped. Both direct Kodi-style options and `stream_headers={...}` may feed the same normalized approved-header map.
+- Source Verifier must parse raw IPTV URL options before format detection and upstream probing. tv-cache must preserve approved header context across HLS master playlists, child manifests, keys and segments.
 - Production playback/fallback orchestration remains owned by `main.js` + one `PlayerController`; Manual Test / Unified Search use the narrow `WebTVPlaybackAPI` bridge
 - Retired `src/source-hunt-oneclick.js` and its legacy One-click control/orchestration must not return without a separate bounded architecture decision and proof
 - Existing Player behavior unless a bounded change proves necessity
