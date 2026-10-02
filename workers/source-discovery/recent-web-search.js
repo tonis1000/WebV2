@@ -1,3 +1,4 @@
+import { greekChannelAliases, normalizeChannelText } from '../../src/core/channel-identity-gr.js';
 export const RECENT_WEB_SEARCH_PROVIDER='recent-web-search';
 export const WEB_SEARCH_TIMEOUT_MS=6000;
 export const WEB_MAX_SEARCHES=2;
@@ -8,8 +9,9 @@ export const WEB_MAX_SUBREQUESTS=8;
 const BRAVE_FRESHNESS=Object.freeze({'24h':'pd','7d':'pw','30d':'pm'});
 const BLOCKED_HOSTS=/^(?:x\.com|twitter\.com|tiktok\.com|www\.tiktok\.com|facebook\.com|www\.facebook\.com|instagram\.com|www\.instagram\.com|youtube\.com|www\.youtube\.com|youtu\.be)$/i;
 const LIVE_URL=/https?:\/\/[^\s"'<>]+?\.(?:m3u8|mpd)(?:\?[^\s"'<>]*)?/gi;
+const TRUSTED_STREAM_HOST_HINT=/(?:^|\.)(?:siliconweb\.com|antennaplus\.gr|broadpeak-aas\.com|msvdn\.net|smart-tv-data\.com|streams\.ovh|crystalweb\.net|gwebstream\.eu)$/i;
 
-function normalize(value=''){return String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9α-ω]+/gi,' ').replace(/\s+/g,' ').trim();}
+function normalize(value=''){return normalizeChannelText(value);}
 function channelRelevant(text='',channel={}){
   const hay=normalize(text);if(!hay)return false;
   const identities=[channel.name,channel.id,channel.originalId,channel.tvgId].map(normalize).filter(Boolean);
@@ -37,8 +39,14 @@ function unique(items=[],keyFn=item=>item?.sourceUrl){const seen=new Set(),out=[
 function extractLive(text=''){return [...new Set((String(text).match(LIVE_URL)||[]).map(value=>value.replace(/&amp;/g,'&').replace(/[),.;]+$/g,'')))];}
 function resultDate(result={}){for(const value of [result.page_age,result.age,result.published,result.updatedAt]){if(!value)continue;const t=Date.parse(value);if(Number.isFinite(t))return new Date(t).toISOString();}return null;}
 function searchesFor(channel={}){
-  const name=String(channel.name||'').trim();
-  return [`"${name}" m3u8 IPTV Greece`,`"${name}" live stream playlist m3u8`].slice(0,WEB_MAX_SEARCHES);
+  const name=String(channel.name||channel.originalId||channel.tvgId||channel.id||'').trim();
+  const aliases=[...new Set([name,...greekChannelAliases(name),channel.originalId,channel.tvgId].map(value=>String(value||'').trim()).filter(Boolean))];
+  const technical=aliases[0]||name;
+  const greekish=aliases.find(value=>/[Α-Ωα-ωΆΈΉΊΌΎΏάέήίόύώ]/.test(value))||aliases.find((value,index)=>index>0&&/\s/.test(value))||technical;
+  return [
+    {query:`"${technical}" m3u8 mpd Greece`,language:'en'},
+    {query:`"${greekish}" ζωντανά τηλεόραση m3u8`,language:'el'},
+  ].slice(0,WEB_MAX_SEARCHES);
 }
 function braveError(body={}){
   const error=body?.error;
@@ -47,11 +55,13 @@ function braveError(body={}){
 }
 class Budget{constructor(limit=WEB_MAX_SUBREQUESTS){this.limit=limit;this.used=0;}take(){if(this.used>=this.limit)throw new Error('Recent web provider subrequest budget exhausted');this.used++;}remaining(){return Math.max(0,this.limit-this.used);}}
 async function timedFetch(url,options={}){const c=new AbortController(),timer=setTimeout(()=>c.abort(new DOMException('timeout','AbortError')),WEB_SEARCH_TIMEOUT_MS);try{return await fetch(url,{...options,signal:c.signal,redirect:'follow'});}finally{clearTimeout(timer);}}
-async function braveSearch(env,query,freshness,budget){
+async function braveSearch(env,searchSpec,freshness,budget){
+  const query=String(searchSpec?.query||searchSpec||'');
+  const language=String(searchSpec?.language||'en');
   if(!env?.BRAVE_API_KEY)throw new Error('BRAVE_API_KEY is not configured for Source Discovery');
   budget.take();const started=Date.now();
   const url=new URL('https://api.search.brave.com/res/v1/web/search');
-  url.searchParams.set('q',query);url.searchParams.set('count','8');url.searchParams.set('freshness',BRAVE_FRESHNESS[freshness]||'pw');url.searchParams.set('text_decorations','false');url.searchParams.set('search_lang','en');
+  url.searchParams.set('q',query);url.searchParams.set('count','8');url.searchParams.set('freshness',BRAVE_FRESHNESS[freshness]||'pw');url.searchParams.set('text_decorations','false');url.searchParams.set('search_lang',language);
   try{
     const response=await timedFetch(url,{headers:{Accept:'application/json','X-Subscription-Token':env.BRAVE_API_KEY}});
     const body=await response.json().catch(()=>({}));
@@ -68,16 +78,17 @@ async function fetchPage(raw,budget){
   }catch(error){return {ok:false,status:error?.name==='AbortError'?408:0,elapsedMs:Date.now()-started,text:'',type:'',error:error?.message||String(error)};}
 }
 function directCandidate(url,channel,result,freshness){return {channelName:String(channel.name||''),sourceType:typeOf(url),sourceUrl:url,sourceOrigin:`web:${new URL(result.url).hostname}`,discoveryProvider:RECENT_WEB_SEARCH_PROVIDER,discoveredAt:new Date().toISOString(),freshness:resultDate(result)?`result-date:${resultDate(result)}`:`brave-window:${freshness}`,matchConfidence:'MEDIUM'};}
+function resultScore(result={},channel={}){const text=`${result.title||''} ${result.description||''} ${result.url||''}`;let score=channelRelevant(text,channel)?10:0;try{if(TRUSTED_STREAM_HOST_HINT.test(new URL(String(result.url||'')).hostname))score+=5;}catch{}if(/m3u8|mpd|hls|dash|live stream|ζωνταν/i.test(text))score+=3;if(/playlist|iptv|television|tv/i.test(text))score+=1;return score;}
 
 export async function discoverRecentWebSearch({channel,freshness='7d',env={},parseM3u}={}){
   if(typeof parseM3u!=='function')throw new Error('parseM3u dependency is required');
   const braveFreshness=BRAVE_FRESHNESS[freshness]||'pw';const budget=new Budget();const searchReports=[];const pageReports=[];const candidates=[];const resultPool=[];
-  for(const query of searchesFor(channel)){
-    const search=await braveSearch(env,query,freshness,budget);
-    searchReports.push({query,status:search.status,elapsedMs:search.elapsedMs,count:search.results.length,error:search.error||''});
+  for(const spec of searchesFor(channel)){
+    const search=await braveSearch(env,spec,freshness,budget);
+    searchReports.push({query:spec.query,language:spec.language,status:search.status,elapsedMs:search.elapsedMs,count:search.results.length,error:search.error||''});
     if(search.ok)resultPool.push(...search.results);
   }
-  const relevant=unique(resultPool.filter(result=>channelRelevant(`${result.title||''} ${result.description||''} ${result.url||''}`,channel)),item=>item?.url).slice(0,WEB_MAX_PAGE_SCANS);
+  const relevant=unique(resultPool.filter(result=>channelRelevant(`${result.title||''} ${result.description||''} ${result.url||''}`,channel)),item=>item?.url).sort((a,b)=>resultScore(b,channel)-resultScore(a,channel)).slice(0,WEB_MAX_PAGE_SCANS);
   for(const result of relevant){
     if(budget.remaining()<=0)break;
     const resultUrl=String(result.url||'');
