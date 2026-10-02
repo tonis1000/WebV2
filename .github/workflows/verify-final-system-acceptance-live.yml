@@ -1,0 +1,86 @@
+name: Verify Final System Acceptance Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/final-system-acceptance-live-proof.mjs'
+      - '.github/workflows/verify-final-system-acceptance-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 3fd863325511a332268dc6238a08a236341f3cf0
+      ARTIFACT_DIR: artifacts/final-system-acceptance-live
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify exact deployed runtime and retired surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA")"
+          node -e "const j=JSON.parse(process.argv[1]);if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)" "$status"
+
+          for file in             cloud-auto-sync.js             d1-sync-addon.js             core/official-fallbacks.js             discovery/discovery-ui.js             discovery/new-xtream-preview.js
+          do
+            code="$(curl -L -s -o /tmp/retired.out -w '%{http_code}' -H 'Cache-Control: no-cache' "$WEBV2_URL/src/$file?proof=$GITHUB_SHA")"
+            test "$code" = "404"
+            echo "$file -> 404"
+          done
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/core/player.js?proof=$GITHUB_SHA" -o /tmp/player-live.js
+          grep -q 'OFFICIAL_FALLBACKS' /tmp/player-live.js
+          grep -q 'officialFallbackFor' /tmp/player-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/core/enigma2-core.js?proof=$GITHUB_SHA" -o /tmp/enigma-live.js
+          grep -q 'parseEnigma2Bouquet' /tmp/enigma-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/playlist-manager.js?proof=$GITHUB_SHA" -o /tmp/playlist-live.js
+          ! grep -q 'saveDiscoveredChannel' /tmp/playlist-live.js
+          grep -q 'upsertChannel' /tmp/playlist-live.js
+          grep -q 'addSourceToCurrent' /tmp/playlist-live.js
+          grep -q 'replaceSourcesForCurrent' /tmp/playlist-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/right-rail-preview.js?proof=$GITHUB_SHA" -o /tmp/rail-live.js
+          ! grep -q 'findDiscoveryButton' /tmp/rail-live.js
+          ! grep -qi 'Discovery Beta' /tmp/rail-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/custom-playlist-client.js?proof=$GITHUB_SHA" -o /tmp/custom-live.js
+          grep -q 'listCustomPlaylists' /tmp/custom-live.js
+          grep -q 'createCustomPlaylist' /tmp/custom-live.js
+          grep -q 'upsertCustomPlaylistChannel' /tmp/custom-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/search/search-runtime.js?proof=$GITHUB_SHA" -o /tmp/search-live.js
+          grep -q 'curated-remote-feeds' /tmp/search-live.js
+          grep -q 'github-public-playlists' /tmp/search-live.js
+          grep -q 'recent-web-search' /tmp/search-live.js
+          grep -q 'strm-specific-discovery' /tmp/search-live.js
+          grep -q 'authorized-xtream' /tmp/search-live.js
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run final production browser acceptance
+        run: node tests/final-system-acceptance-live-proof.mjs
+
+      - name: Upload final acceptance proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-system-acceptance-live-${{ github.sha }}
+          path: artifacts/final-system-acceptance-live
+          if-no-files-found: warn
+          retention-days: 30
