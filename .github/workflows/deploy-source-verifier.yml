@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'src/core/source-format-registry.js'
+      - 'src/core/utils.js'
       - 'workers/webtv-source-verifier.js'
       - 'tests/source-format-registry.test.mjs'
       - 'tests/discovery-verifier.test.mjs'
@@ -36,6 +37,7 @@ jobs:
         shell: bash
         run: |
           node --check src/core/source-format-registry.js
+          node --check src/core/utils.js
           node --input-type=module --check < workers/webtv-source-verifier.js
 
       - name: Run verifier regression tests
@@ -77,9 +79,10 @@ jobs:
 
               GOOD=$(curl --fail --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"good\",\"sourceType\":\"hls\",\"sourceUrl\":\"$GOOD_URL\"}}" || true)
               DEAD=$(curl --fail --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"dead\",\"sourceType\":\"hls\",\"sourceUrl\":\"$DEAD_URL\"}}" || true)
+              HEADER_AWARE=$(curl --fail --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"header-aware\",\"sourceType\":\"hls\",\"sourceUrl\":\"$WORKER_URL/fixture/header-aware.m3u8|User-Agent=Roku%2FDVP-14.6&x-roku-reserved-dev-id=device-123\"}}" || true)
 
-              if node -e "try{const good=JSON.parse(process.argv[1]),dead=JSON.parse(process.argv[2]);if(good.results?.[0]?.status!=='VERIFIED'||dead.results?.[0]?.status!=='HTTP 404')process.exit(1);console.log(JSON.stringify({good:good.results[0],dead:dead.results[0]},null,2));}catch{process.exit(1)}" "$GOOD" "$DEAD"; then
-                echo "Source Verifier v1.0 is live and external controlled good/dead probes passed."
+              if node -e "try{const good=JSON.parse(process.argv[1]),dead=JSON.parse(process.argv[2]),headerAware=JSON.parse(process.argv[3]);if(good.results?.[0]?.status!=='VERIFIED'||dead.results?.[0]?.status!=='HTTP 404'||headerAware.results?.[0]?.status!=='VERIFIED')process.exit(1);console.log(JSON.stringify({good:good.results[0],dead:dead.results[0],headerAware:headerAware.results[0]},null,2));}catch{process.exit(1)}" "$GOOD" "$DEAD" "$HEADER_AWARE"; then
+                echo "Source Verifier v1.0 is live and controlled good/dead/header-aware probes passed."
                 exit 0
               fi
             fi
