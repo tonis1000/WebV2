@@ -295,3 +295,25 @@ Evidence:
 - Verification-only PR #120 remained unmerged and was closed after Verify My Playlist Action Ownership Live #4 SUCCESS against real production Pages with Registry mutations mocked: My Playlist Favorites worked; temporary catalog Favorites were hidden/inert and did not affect rows; canonical Source Hunt save produced exactly one My Playlist write with source-hunt provenance/position; loaded-Xtream Source Hunt save was blocked before persistence; page/console errors were zero. Artifact ID `11227811674`.
 
 Reconsider when: if the product deliberately adds cross-playlist Favorites, or if a future single persistence owner replaces Playlist Manager while preserving D1-primary My Playlist, Xtream verification boundaries and live acceptance proof.
+
+
+## DEC-024 main.js and one PlayerController own active playback/fallback orchestration
+Decision: production playback and fallback orchestration has one active owner chain: `main.js` creates one `PlayerController`, and UI/search consumers reach it through the narrow `WebTVPlaybackAPI` bridge. The retired legacy `src/source-hunt-oneclick.js` orchestration owner is deleted after zero-consumer proof and must not return.
+
+Hard rules:
+- `main.js` instantiates exactly one active `PlayerController`;
+- `main.js` exposes the one production `WebTVPlaybackAPI` bridge for candidate test, selected-channel replay and stop;
+- Manual Source Test and Unified Search candidate playback delegate through that bridge rather than controlling media elements directly;
+- `PlayerController` owns actual HLS / DASH / native-video attempts, media reset/stop behavior and official fallback loading;
+- `src/source-hunt-oneclick.js` remains deleted and its legacy One-click control/orchestration must not be reintroduced;
+- dormant historical orchestration must not survive in the repo merely because it is no longer imported; zero-consumer proof is required before deletion and a new bounded architecture decision is required before revival;
+- this decision does not alter route ranking, health scoring, fallback policy, diagnostics semantics, EPG behavior or Sidebar behavior.
+
+Reason: the audit found that active production ownership was already singular, but an orphaned legacy One-click module still contained a complete second search/playback/fallback orchestration path. Keeping a dormant second owner created a future regression path even though it was not currently loaded.
+
+Evidence:
+- RED Validate WebTV Frontend #914 proved zero `src/**/*.js` consumers and no production entrypoint reference, then failed only because the legacy file still existed.
+- PR #122 runtime merge `258bc39cc4a4f26c94c7d4933772ca9a3e3ff1c7`; exact-head Frontend #915 and post-merge Frontend #916, Registry #124 and Pages #482 SUCCESS.
+- Verification-only PR #123 remained unmerged and was closed after Verify Player Ownership Live #1 SUCCESS against real production Pages: legacy file HTTP 404, exactly one live PlayerController construction and one WebTVPlaybackAPI bridge, official fallback still PlayerController-owned, Manual Test + Unified Search retained, legacy One-click control absent, stop/idle state coherent, page/console errors zero. Artifact ID `11230147095`.
+
+Reconsider when: only if a future playback architecture intentionally replaces the `main.js` + `PlayerController` owner chain, with an explicit migration plan, regression proof and production live verification.
