@@ -150,6 +150,8 @@ jobs:
         run: node tests/legacy-local-discovery-retirement.test.mjs
       - name: Run legacy Source Hunt frontend chain retirement regression test
         run: node tests/legacy-source-hunt-chain-retirement.test.mjs
+      - name: Run final dormant frontend retirement regression test
+        run: node tests/final-dormant-frontend-retirement.test.mjs
       - name: Run Diagnostics structured-state ownership regression test
         run: node tests/diagnostics-structured-state-ownership.test.mjs
       - name: Run Source Health route ownership regression test
