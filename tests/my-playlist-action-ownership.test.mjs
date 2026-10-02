@@ -2,18 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const manager=fs.readFileSync(new URL('../src/playlist-manager.js',import.meta.url),'utf8');
-const hunt=fs.readFileSync(new URL('../src/source-hunt-save-destination.js',import.meta.url),'utf8');
+const retiredHunt=new URL('../src/source-hunt-save-destination.js',import.meta.url);
 const favorites=fs.readFileSync(new URL('../src/favorites-ui.js',import.meta.url),'utf8');
 
-assert.doesNotMatch(
-  hunt,
-  /['"]\/api\/my-playlist\/channel['"]/,
-  'Source Hunt must not own a direct My Playlist Registry writer'
-);
-assert.match(
-  hunt,
-  /saveDiscoveredChannel\s*\(/,
-  'Source Hunt must delegate discovered-channel persistence to canonical My Playlist API'
+assert.equal(
+  fs.existsSync(retiredHunt),
+  false,
+  'retired Source Hunt save-destination caller must remain deleted after zero-consumer proof'
 );
 assert.match(
   manager,
