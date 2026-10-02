@@ -164,6 +164,9 @@ window.WebTVMyPlaylistAPI={
   getMyPlaylist:async()=>fetchMyPlaylist(),
   reload:()=>refreshPrimary({forceSidebar:true,reason:'api-reload'})
 };
+window.WebTVSavedPlaylistsReadAPI=Object.freeze({
+  getAllCached:()=>allSaved()
+});
 
 bind();ensureMyUi();window.addEventListener('webtv:ready',()=>startup().catch(error=>setStatus(`Startup failed · ${error.message}`,'error')),{once:true});if(window.WebTVPlaylistAPI?.ready)startup().catch(()=>{});
 log(`Playlist Manager loaded · build ${BUILD_ID} · D1 My Playlist is primary · custom Saved Playlist child state loads on demand`);
