@@ -158,6 +158,8 @@ jobs:
         run: node tests/player-ownership-retirement.test.mjs
       - name: Run My Playlist action ownership regression test
         run: node tests/my-playlist-action-ownership.test.mjs
+      - name: Run saveDiscoveredChannel retirement regression test
+        run: node tests/save-discovered-channel-retirement.test.mjs
       - name: Run Playback Inspector persistence boundary regression test
         run: node tests/playback-inspector-persistence-boundary.test.mjs
       - name: Run Xtream preview action layout ownership regression test
