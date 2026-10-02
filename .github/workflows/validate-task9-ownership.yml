@@ -22,7 +22,5 @@ jobs:
         run: node tests/discovery-entrypoint-ownership.test.mjs
       - name: Run Discovery isolation compatibility
         run: node tests/discovery-isolation.test.mjs
-      - name: Run New Xtream core compatibility
-        run: node tests/new-xtream-preview.test.mjs
       - name: Run promotion compatibility
         run: node tests/discovery-promotion.test.mjs

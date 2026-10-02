@@ -8,7 +8,7 @@ const read=relative=>fs.readFileSync(path.join(repoRoot,relative),'utf8');
 const registryDefault=read('src/registry-default.js');
 const searchRuntime=read('src/search/search-runtime.js');
 const discoveryAdapter=read('src/search/adapters/discovery-provider-adapter.js');
-const legacyDiscoveryUi=read('src/discovery/discovery-ui.js');
+const legacyDiscoveryUi=path.join(repoRoot,'src/discovery/discovery-ui.js');
 const xtreamUi=read('src/xtream-ui.js');
 
 assert.doesNotMatch(registryDefault,/discovery\/discovery-ui\.js/);
@@ -22,9 +22,8 @@ assert.match(discoveryAdapter,/external-discovery-client\.js/);
 assert.match(discoveryAdapter,/authorized-xtream\.js/);
 assert.match(discoveryAdapter,/BLOCKED_PROVIDER=\/official\/i/);
 
-assert.doesNotMatch(legacyDiscoveryUi,/discoverNewXtreamPreview|NEW_XTREAM_PREVIEW_PROVIDER/,'legacy Discovery shell must not own New Xtream preview calls');
-assert.doesNotMatch(legacyDiscoveryUi,/discovery-xtream-(?:name|server|username|password)|discovery-preview-xtream/,'legacy Discovery shell must not render or bind New Xtream credential/test controls');
-assert.doesNotMatch(legacyDiscoveryUi,/promotePreviewXtreamChannel|saveFullXtreamAccountFromCandidate/,'legacy Discovery shell must not own preview persistence actions');
+assert.equal(fs.existsSync(legacyDiscoveryUi),false,'legacy Discovery Beta shell must remain deleted');
+assert.equal(fs.existsSync(path.join(repoRoot,'src/discovery/new-xtream-preview.js')),false,'legacy New Xtream preview discovery helper must remain deleted');
 assert.match(xtreamUi,/previewXtreamAccount/,'production Xtream account management must own Test / Preview');
 assert.match(xtreamUi,/Test \/ Preview/,'production Xtream card must expose Test / Preview');
 assert.match(xtreamUi,/webtv:xtream-preview-save-channel-request/,'production Xtream card must own explicit channel-save request');

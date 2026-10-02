@@ -1,33 +1,19 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Legacy Discovery Ownership Browser Smoke</title><style>:root{--text:#fff;--muted:#999;--accent-2:#63b3ff;--line:#333}.button{padding:4px}.ghost{opacity:.9}</style></head>
+<head><meta charset="utf-8"><title>Unified Search Discovery Browser Smoke</title></head>
 <body>
-  <div class="topbar-actions"><button id="source-hunt-toggle" class="button">Source Hunt</button></div>
   <aside id="sidebar-sentinel">SIDEBAR-STABLE</aside>
   <section id="player-sentinel">PLAYER-STABLE</section>
   <pre id="result"></pre>
   <script>
     localStorage.setItem('webtv_v2_registry_token','fixture-session');
-    window.__probe={d1Writes:0,reloads:0,lastPayload:null};
+    window.__probe={d1Writes:0};
     window.WebTVRegistryAuth={ensureSession:async()=>true};
-    window.WebTVPlaylistAPI={
-      getSelectedChannel:()=>({id:'mega',originalId:'MEGA',tvgId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']}),
-      getCatalogMode:()=> 'cloud',
-      getChannels:()=>[{id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']}],
-    };
-    window.WebTVMyPlaylistAPI={
-      getMyPlaylist:async()=>[{id:'mega',originalId:'MEGA',name:'MEGA',group:'General',directUrls:['https://current.test/mega.m3u8']}],
-      replaceSourcesForCurrent:async directUrls=>{window.__probe.d1Writes++;window.__probe.reloads++;window.__probe.lastPayload={id:'mega',directUrls:[...(directUrls||[])]};return window.__probe.lastPayload;},
-      reload:async()=>{window.__probe.reloads++;}
-    };
-    window.WebTVSavedPlaylistsReadAPI={getAllCached:async()=>[{id:'saved-1',name:'Greek backup',type:'saved',text:'#EXTM3U\n#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA",MEGA\nhttps://backup.test/mega.mpd\n',updatedAt:Date.now()}]};
-    window.WebTVXtream={getLoaded:()=>({account:{id:'xt-1',name:'Provider A',server:'https://provider.test'},channels:[{id:'xtream:xt-1:42',streamId:'42',tvgId:'MEGA',name:'MEGA',group:'General',playbackUrl:'https://webtv-xtream.test/stream/xt-1/42.m3u8?s=signed'}]})};
-
     window.fetch=async(url,options={})=>{
       const target=String(url);
-      if(target.includes('webtv-registry.atonis.workers.dev/api/my-playlist/channel')){
-        window.__probe.d1Writes++;window.__probe.lastPayload=JSON.parse(options.body||'{}');
-        return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
+      const method=String(options.method||'GET').toUpperCase();
+      if(method!=='GET' && target.includes('webtv-registry.atonis.workers.dev')){
+        window.__probe.d1Writes++;
       }
       if(target.includes('webtv-xtream.atonis.workers.dev/api/accounts')){
         const headers=new Headers(options.headers||{});
@@ -37,44 +23,57 @@
       }
       if(target.includes('webtv-source-discovery')){
         const body=JSON.parse(options.body||'{}');
-        const github=body.provider==='github-public-playlists';const web=body.provider==='recent-web-search';const strm=body.provider==='strm-specific-discovery';
-        const sourceUrl=github?'https://github-external.test/mega.m3u8':web?'https://web-external.test/mega.m3u8':strm?'https://strm-resolved.test/mega.m3u8':'https://external.test/mega.m3u8';
-        const sourceOrigin=github?'github:fixture/recent/playlist.m3u':web?'web:fixture.test':strm?'strm:fixture-feed':'fixture-feed';
-        return new Response(JSON.stringify({service:'WebTV Source Discovery',version:'1.6',provider:body.provider,recognized:true,available:true,freshnessRequested:body.freshness||'7d',freshnessApplied:github||web,candidates:[{channelName:'MEGA',sourceType:'hls',sourceUrl,sourceOrigin,discoveryProvider:body.provider,freshness:'fixture',matchConfidence:web?'MEDIUM':'HIGH',candidateKind:'media',trustClass:'',saveEligible:true}],reports:[]}),{status:200,headers:{'content-type':'application/json'}});
+        const provider=body.provider;
+        const urls={
+          'curated-remote-feeds':'https://curated.test/mega.m3u8',
+          'github-public-playlists':'https://github.test/mega.m3u8',
+          'recent-web-search':'https://web.test/mega.m3u8',
+          'strm-specific-discovery':'https://strm.test/mega.m3u8'
+        };
+        return new Response(JSON.stringify({provider,recognized:true,available:true,candidates:[{channelName:'MEGA',sourceType:'hls',sourceUrl:urls[provider]||'https://external.test/mega.m3u8',sourceOrigin:'fixture',discoveryProvider:provider,verificationStatus:'UNVERIFIED',matchConfidence:'HIGH',candidateKind:'media',saveEligible:true}],reports:[]}),{status:200,headers:{'content-type':'application/json'}});
       }
-      const body=JSON.parse(options.body||'{}');const candidate=body.candidates?.[0]||{};const dead=String(candidate.sourceUrl||'').includes('backup.test');
-      return new Response(JSON.stringify({results:[{candidateId:candidate.candidateId,status:dead?'HTTP 404':'VERIFIED',verified:!dead,startupMs:18,lastHttpStatus:dead?404:200,mediaType:dead?'':'hls',drmDetected:false,detail:dead?'Upstream HTTP 404':'Manifest/media probe succeeded'}]}),{status:200,headers:{'content-type':'application/json'}});
+      if(target.includes('webtv-source-verifier')){
+        const body=JSON.parse(options.body||'{}');
+        return new Response(JSON.stringify({results:(body.candidates||[]).map(candidate=>({candidateId:candidate.candidateId,status:'VERIFIED',verified:true,startupMs:18,lastHttpStatus:200,mediaType:'hls',drmDetected:false,detail:'Manifest/media probe succeeded'}))}),{status:200,headers:{'content-type':'application/json'}});
+      }
+      return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
     };
   </script>
   <script type="module">
-    const sidebar=document.getElementById('sidebar-sentinel');const player=document.getElementById('player-sentinel');const before={sidebar:sidebar.textContent,player:player.textContent};
+    const sidebar=document.getElementById('sidebar-sentinel');
+    const player=document.getElementById('player-sentinel');
+    const before={sidebar:sidebar.textContent,player:player.textContent};
     try{
-      await import('../src/discovery/discovery-ui.js');
-      const api=window.WebTVDiscovery;
-      api.open();const opened=api.snapshot();
-      const noLocalApi=!('scanLocal' in api);
-      const noLocalControl=!document.getElementById('discovery-scan-local');
-      await api.scanExternal();const curated=api.snapshot();
-      await api.scanGithub();const github=api.snapshot();
-      await api.scanRecentWeb();const web=api.snapshot();
-      await api.scanStrm();const strm=api.snapshot();
-      await api.scanAuthorizedXtream();const xtream=api.snapshot();
-      const noLegacyPreviewControls=!document.getElementById('discovery-preview-xtream')&&!document.getElementById('discovery-xtream-username')&&!document.getElementById('discovery-xtream-password');
-      const noLegacyPreviewApi=!('previewNewXtream' in api)&&!('promotePreviewXtreamChannel' in api)&&!('saveFullXtreamAccount' in api);
-      const cardCount=document.querySelectorAll('#discovery-results .discovery-card').length;
-      const writesBeforeVerify=window.__probe.d1Writes;
-      await api.verifyAll();const verified=api.snapshot();
-      const authorized=verified.candidates.find(x=>x.discoveryProvider==='authorized-xtream-expansion');
-      await api.promoteOne(authorized.candidateId);
-      const writesAfterPromote=window.__probe.d1Writes;
-      await api.keepXtreamAccount(authorized.candidateId);
-      const writesAfterKeep=window.__probe.d1Writes;
-      document.querySelector('[data-freshness="24h"]')?.click();const changed=api.snapshot();
-      api.close();const closed=api.snapshot();
-      const pass=Boolean(api&&opened.open===true&&opened.channel?.name==='MEGA'&&noLocalApi&&noLocalControl&&curated.lanes.curatedRemoteFeeds===1&&github.lanes.githubPublicPlaylists===1&&web.lanes.recentWebSearch===1&&strm.lanes.strmSpecific===1&&xtream.lanes.authorizedXtream===1&&xtream.lanes.newXtreamPreview===0&&xtream.candidates.length===5&&cardCount===5&&noLegacyPreviewControls&&noLegacyPreviewApi&&writesBeforeVerify===0&&verified.verifyStatus==='done'&&authorized?.verificationStatus==='VERIFIED'&&writesAfterPromote===1&&writesAfterKeep===1&&changed.freshness==='24h'&&closed.open===false&&document.getElementById('discovery-shell')?.hidden===true&&sidebar.textContent===before.sidebar&&player.textContent===before.player);
+      const {listUnifiedSearchLanes,getUnifiedSearchRuntimeAdapter}=await import('../src/search/search-runtime.js');
+      const {verifyCandidates}=await import('../src/discovery/verifier-client.js');
+      const target={id:'mega',originalId:'MEGA',tvgId:'MEGA',name:'MEGA'};
+      const lanes=listUnifiedSearchLanes().filter(l=>l.type==='discovery-provider');
+      const expected=['curated-remote-feeds','github-public-playlists','recent-web-search','strm-specific-discovery','authorized-xtream'];
+      const laneIds=lanes.map(l=>l.id);
+      const results=[];
+      for(const lane of lanes){
+        const adapter=getUnifiedSearchRuntimeAdapter(lane.type);
+        const result=await adapter.search({target,source:lane});
+        results.push({lane:lane.id,count:result.candidates.length,candidates:result.candidates});
+      }
+      const candidates=results.flatMap(r=>r.candidates);
+      const externalCandidates=candidates.filter(c=>c.discoveryProvider!=='authorized-xtream-expansion');
+      const verified=await verifyCandidates(externalCandidates);
+      const pass=
+        expected.every(id=>laneIds.includes(id)) &&
+        results.every(r=>r.count===1) &&
+        candidates.some(c=>c.discoveryProvider==='authorized-xtream-expansion') &&
+        verified.length===externalCandidates.length &&
+        verified.every(v=>v.verified===true) &&
+        window.__probe.d1Writes===0 &&
+        sidebar.textContent===before.sidebar &&
+        player.textContent===before.player;
       document.documentElement.dataset.phase4Result=pass?'PASS':'FAIL';
-      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,noLocalApi,noLocalControl,noLegacyPreviewControls,noLegacyPreviewApi,writesBeforeVerify,writesAfterPromote,writesAfterKeep,lanes:xtream.lanes});
-    }catch(error){document.documentElement.dataset.phase4Result='FAIL';document.getElementById('result').textContent=String(error?.stack||error);}
+      document.getElementById('result').textContent=JSON.stringify({pass,laneIds,counts:results.map(r=>[r.lane,r.count]),verified:verified.length,d1Writes:window.__probe.d1Writes});
+    }catch(error){
+      document.documentElement.dataset.phase4Result='FAIL';
+      document.getElementById('result').textContent=String(error?.stack||error);
+    }
   </script>
 </body>
 </html>

@@ -13,25 +13,22 @@ assert.equal(exists('tests/discovery-local-sources.test.mjs'),false,'legacy Loca
 
 const index=read('index.html');
 const registryDefault=read('src/registry-default.js');
-const legacyUi=read('src/discovery/discovery-ui.js');
+const searchRuntime=read('src/search/search-runtime.js');
+const discoveryAdapter=read('src/search/adapters/discovery-provider-adapter.js');
 const known=read('src/known-source-collector.js');
 const knownTest=read('tests/known-source-collector.test.mjs');
 
 assert.doesNotMatch(index,/discovery\/discovery-ui\.js/,'legacy Discovery shell must remain outside the production page entrypoint');
 assert.doesNotMatch(registryDefault,/discovery\/discovery-ui\.js/,'registry defaults must not load the legacy Discovery shell');
 
-assert.doesNotMatch(legacyUi,/local-data-reader\.js|local-candidates\.js/,'legacy Discovery shell must not import retired Local owners');
-assert.doesNotMatch(legacyUi,/readLocalSourceContext|collectLocalCandidates|scanLocalSources/,'legacy Discovery shell must not retain a hidden Local scan path');
-assert.doesNotMatch(legacyUi,/discovery-scan-local|Find Local Sources/,'legacy Discovery shell must not render Local scan controls');
-assert.doesNotMatch(legacyUi,/My Playlist',snapshot\.lanes\.myPlaylist|Saved Playlists',snapshot\.lanes\.savedPlaylists|Xtream loaded',snapshot\.lanes\.xtream/,'legacy Discovery shell must not present retired Local lanes');
-
-assert.match(legacyUi,/discoverCuratedRemoteFeeds/,'retained legacy shell must preserve curated external capability');
-assert.match(legacyUi,/discoverGithubPublicPlaylists/,'retained legacy shell must preserve GitHub external capability');
-assert.match(legacyUi,/discoverRecentWebSearch/,'retained legacy shell must preserve Recent Web capability');
-assert.match(legacyUi,/discoverStrmSpecific/,'retained legacy shell must preserve STRM capability');
-assert.match(legacyUi,/discoverAuthorizedXtream/,'retained legacy shell must preserve Authorized Xtream capability');
-assert.match(legacyUi,/verifyCandidates/,'retained legacy shell must preserve verifier capability');
-assert.match(legacyUi,/promoteCandidate/,'retained legacy shell must preserve generic verified-source promotion capability');
+assert.equal(exists('src/discovery/discovery-ui.js'),false,'legacy Discovery shell must remain deleted after Unified Search consolidation');
+assert.match(searchRuntime,/curated-remote-feeds/,'Unified Search must retain curated external capability');
+assert.match(searchRuntime,/github-public-playlists/,'Unified Search must retain GitHub external capability');
+assert.match(searchRuntime,/recent-web-search/,'Unified Search must retain Recent Web capability');
+assert.match(searchRuntime,/strm-specific-discovery/,'Unified Search must retain STRM capability');
+assert.match(searchRuntime,/authorized-xtream/,'Unified Search must retain Authorized Xtream capability');
+assert.match(discoveryAdapter,/external-discovery-client\.js/,'Unified Search discovery adapter must retain external discovery client');
+assert.match(discoveryAdapter,/authorized-xtream\.js/,'Unified Search discovery adapter must retain authorized Xtream capability');
 
 assert.match(known,/savedPlaylists/,'canonical known-source owner must retain Saved Playlist awareness');
 assert.match(known,/customPlaylists/,'canonical known-source owner must retain Custom Playlist awareness');

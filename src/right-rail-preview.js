@@ -66,9 +66,6 @@ if (!enabled) {
     return dock;
   }
 
-  function findDiscoveryButton() {
-    return [...document.querySelectorAll('button')].find(button => /discovery\s*beta/i.test(button.textContent || '')) || null;
-  }
 
   function moveControls() {
     if (!active) return;
@@ -81,20 +78,19 @@ if (!enabled) {
     const playlists = document.getElementById('playlist-manager-toggle');
     const catalog = ensureCatalogBadge();
     const hunt = document.getElementById('source-hunt-toggle');
-    const discovery = findDiscoveryButton();
     const diagnostics = document.getElementById('diagnostics-toggle');
     const favorite = document.getElementById('favorite-channel');
     const myAction = document.getElementById('my-playlist-channel-action');
 
     [brand,clock].filter(Boolean).forEach(node=>rememberAndMove(node,dock));
 
-    [myAction, playlists, catalog, hunt, discovery, diagnostics, favorite]
+    [myAction, playlists, catalog, hunt, diagnostics, favorite]
       .filter(Boolean)
       .forEach(node => rememberAndMove(node, target));
 
     if (brand) brand.classList.add('rail-brand');
     if (clock) clock.classList.add('rail-clock');
-    [myAction,playlists, catalog, hunt, discovery, diagnostics, favorite].forEach(node => node?.classList.add('rail-control'));
+    [myAction,playlists, catalog, hunt, diagnostics, favorite].forEach(node => node?.classList.add('rail-control'));
     if (favorite) favorite.classList.add('rail-favorite');
   }
 
