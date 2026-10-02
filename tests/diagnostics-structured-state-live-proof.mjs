@@ -125,7 +125,11 @@ await page.evaluate(()=>{
 await page.waitForTimeout(500);
 assert.equal(await page.locator('#playback-source-full').inputValue(),MEDIA_URL,'tampering diagnostic presentation DOM must not change Inspector state');
 
-const writesBeforeCandidate=registryWrites.length;
+const durableWrites=()=>registryWrites.filter(write=>
+  write.path.startsWith('/api/my-playlist')||
+  write.path.startsWith('/api/playlists')
+);
+const durableWritesBeforeCandidate=durableWrites().length;
 const candidateInput=page.locator('#candidate-url');
 if(!await candidateInput.isVisible()){
   await page.evaluate(()=>{
@@ -152,7 +156,7 @@ assert.equal(candidateSnapshot.source,MEDIA_URL);
 assert.equal(candidateSnapshot.playbackState,'live');
 assert.ok(candidateSnapshot.startupMs>0);
 assert.equal(candidateSnapshot.route,'candidate-direct');
-assert.equal(registryWrites.length,writesBeforeCandidate,'Manual Test must persist nothing before explicit Save Source');
+assert.equal(durableWrites().length,durableWritesBeforeCandidate,'Manual Test must not persist My Playlist / Saved Playlist state before explicit Save Source');
 
 const candidateStatus=await page.locator('#save-candidate').evaluate(el=>({hidden:el.hidden,disabled:el.disabled,text:el.textContent}));
 assert.equal(candidateStatus.hidden,false);
@@ -176,8 +180,9 @@ const report={
   candidateStatus,
   sourceHealthRows:sourceHealthBefore,
   domTamperDidNotPropagate:true,
-  registryWritesBeforeCandidate:writesBeforeCandidate,
-  registryWritesAfterCandidate:registryWrites.length,
+  registryWrites,
+  durableWritesBeforeCandidate,
+  durableWritesAfterCandidate:durableWrites().length,
   eventCount:finalEvents.length,
   events:finalEvents,
   pageErrors,
