@@ -114,7 +114,7 @@ const selectedBeforeTamper=await page.evaluate(()=> {
   };
 });
 
-assert.equal(selectedBeforeTamper.selectedId,'webv2-sidebar-qa');
+assert.equal(selectedBeforeTamper.selectedId,'webv2.sidebar.qa','canonical selected id must preserve the QA tvg-id');
 assert.equal(selectedBeforeTamper.activeId,selectedBeforeTamper.selectedId,'active row must match canonical selected channel');
 assert.ok(selectedBeforeTamper.events.some(e=>e.reason==='user-select'&&e.id===selectedBeforeTamper.selectedId),'user selection event must carry canonical id');
 assert.equal(selectedBeforeTamper.favorite.hidden,true,'Favorites action must remain hidden for temporary catalog');
