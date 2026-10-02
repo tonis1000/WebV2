@@ -204,20 +204,22 @@ window.WebTVMyPlaylistAPI={
   addCurrent:()=>{const c=selectedChannel();return c?addMyChannel(c):Promise.reject(new Error('No channel selected'));},
   upsertChannel:(channel,sources,options={})=>upsertMyChannel(channel,sources,options),
   addSourceToCurrent:async(url)=>{const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);myCache=await fetchMyPlaylist();myCacheLoaded=true;const key=normalize(c.id||c.originalId||c.name);let index=myCache.findIndex(x=>normalize(x.id||x.originalId||x.name)===key);let target;if(index<0){target={...c,directUrls:[...(c.directUrls||[])]};index=myCache.length;}else target={...myCache[index],directUrls:[...(myCache[index].directUrls||[])]};target.directUrls=[...new Set([...target.directUrls,url].filter(Boolean))];await putRegistryChannel(target,index,true);log(`MY PLAYLIST SOURCE SAVED · ${target.name} · ${url}`);await refreshPrimary({reason:'source-save'});return target;},
-  replaceSourcesForCurrent:async(urls,{reason='source-policy-save'}={})=>{
+  replaceSourcesForCurrent:async(urls,{reason='source-policy-save',allowEmpty=false}={})=>{
     const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);
     const cleanUrls=[...new Set((Array.isArray(urls)?urls:[]).map(v=>String(v||'').trim()).filter(v=>/^https?:\/\//i.test(v)))];
-    if(!cleanUrls.length)throw new Error('At least one valid source URL is required');
+    if(!cleanUrls.length&&!allowEmpty)throw new Error('At least one valid source URL is required');
     myCache=await fetchMyPlaylist();myCacheLoaded=true;
     const key=normalize(c.id||c.originalId||c.name);
     let index=myCache.findIndex(x=>normalize(x.id||x.originalId||x.name)===key);
     let target;
+    const previousUrls=index<0?[...(c.directUrls||[])]:[...(myCache[index].directUrls||[])];
     if(index<0){target={...c,directUrls:cleanUrls};index=myCache.length;}
     else target={...myCache[index],directUrls:cleanUrls};
     await putRegistryChannel(target,index,true);
     log(`MY PLAYLIST SOURCES REPLACED · ${target.name} · ${cleanUrls.length} source(s) · ${reason}`);
     try{await refreshPrimary({forceSidebar:true,reason});}
     catch(error){log(`MY PLAYLIST REFRESH WARNING · ${target.name} · ${error.message}`);}
+    await cleanupXtreamAfterSourceRemoval(previousUrls,cleanUrls,'SOURCE REPLACE API');
     return target;
   },
   getMyPlaylist:async()=>fetchMyPlaylist(),
