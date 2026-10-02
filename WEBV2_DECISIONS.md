@@ -173,3 +173,26 @@ Evidence:
 - Verification-only PR #105 was closed unmerged after live production run #11 succeeded with the authorized `test_50` mock: legacy save/merge UI absent, exactly one verified My Playlist write, Full Account account-backed card with 👤 / Load live / no Export, Load live with no extra persistence, generic loaded-Xtream Add blocked, and zero page/console errors.
 
 Reconsider when: only if a later explicit architecture replaces Playlist Manager or the Preview verification boundary while preserving single-owner persistence, credential isolation, backward-compatible account markers and live acceptance proof.
+
+
+## DEC-019 Playback Inspector is not a My Playlist persistence owner
+Decision: Playback Inspector is a diagnostic/management surface, not an independent persistence owner. Permanent My Playlist source mutations initiated from the Inspector must delegate to the canonical `WebTVMyPlaylistAPI`; the Inspector must not write `/api/my-playlist/channel` directly.
+
+Hard rules:
+- Inspector `Test edited URL` remains temporary playback/diagnostic behavior and persists nothing by itself;
+- Inspector Add source delegates to `WebTVMyPlaylistAPI.addSourceToCurrent`;
+- Inspector Edit/Delete delegate to `WebTVMyPlaylistAPI.replaceSourcesForCurrent`;
+- loaded Xtream account channels inherit `assertGenericMyMutationAllowed` and therefore cannot use Inspector Add/Edit/Delete as a second generic Xtream persistence path;
+- normal non-Xtream My Playlist Add/Edit/Delete behavior remains available, including explicit deletion of the last source;
+- Xtream orphan-source cleanup remains owned by Playlist Manager/canonical My Playlist mutation logic rather than the Inspector.
+
+Reason: the diagnostics audit found that `src/saved-sources-ui.js` had its own direct Registry PUT helper even after PR #103 had established a single loaded-Xtream persistence boundary in Playlist Manager. A diagnostic UI with its own writer could silently bypass that boundary.
+
+Evidence:
+- RED Validate WebTV Frontend #854 failed exactly on the new Inspector persistence-boundary regression.
+- PR #108 runtime merge `7fd58ee145884d09e19d4ef1321c18f0fdabc028`; exact-SHA Frontend #856, Registry #115 and Pages #473 SUCCESS.
+- Verification-only PR #109 remained unmerged and was closed after Verify Playback Inspector Boundary Live #8 SUCCESS against real production GitHub Pages and deployed authorized `test_50`: temporary Test caused zero persistence, normal Add/Edit/Delete all succeeded through the canonical path, loaded-Xtream Inspector Add caused no new write (3→3), top-level loaded-Xtream Add remained blocked, page errors = 0 and console errors = 0. Artifact ID `11220235679`.
+
+Non-goal: this decision does not yet consolidate Source Health route reconstruction or replace the current diagnostics DOM/MutationObserver coupling. Those remain separate bounded diagnostics-audit tasks.
+
+Reconsider when: only if a future architecture explicitly replaces `WebTVMyPlaylistAPI` with another single persistence owner while preserving loaded-Xtream verification boundaries, source cleanup and live acceptance proof.
