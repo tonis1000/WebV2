@@ -203,7 +203,14 @@ function renderChannels(){
 }
 function clearSelectedIfMissing(){
   if(!selected)return;
-  if(channels.some(c=>c.id===selected.id))return;
+  const replacement=channels.find(c=>String(c.id)===String(selected.id))||null;
+  if(replacement){
+    if(replacement!==selected){
+      selectionToken+=1;
+      selected=replacement;
+    }
+    return;
+  }
   selectionToken+=1;
   selected=null;
   els.channelName.textContent='Επίλεξε κανάλι';els.channelGroup.textContent='WEBTV';els.logo.hidden=true;
