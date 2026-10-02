@@ -64,6 +64,39 @@ for(const target of files){
 }
 const strongZeroInbound=zeroInbound.filter(f=>rawInbound[f].length===0);
 
+function walkSelected(dir,exts){
+  if(!fs.existsSync(dir)) return [];
+  const out=[];
+  for(const name of fs.readdirSync(dir)){
+    const full=path.join(dir,name);
+    const st=fs.statSync(full);
+    if(st.isDirectory()) out.push(...walkSelected(full,exts));
+    else if(exts.some(ext=>full.endsWith(ext))) out.push(full.replace(/\\/g,'/'));
+  }
+  return out;
+}
+const workerFiles=walkSelected('workers',['.js']);
+const testFiles=walkSelected('tests',['.js','.mjs']);
+const workflowFiles=walkSelected('.github/workflows',['.yml','.yaml']);
+const externalTexts=[
+  ...workerFiles.map(f=>({scope:'worker-runtime',file:f,text:fs.readFileSync(f,'utf8')})),
+  ...testFiles.map(f=>({scope:'tests-only',file:f,text:fs.readFileSync(f,'utf8')})),
+  ...workflowFiles.map(f=>({scope:'workflow',file:f,text:fs.readFileSync(f,'utf8')}))
+];
+const candidateScopeRefs={};
+for(const target of strongZeroInbound){
+  const rel=target.replace(/^src\//,'');
+  const base=path.posix.basename(target);
+  const probes=[target,'./'+target,rel,'./'+rel,base];
+  const refs=[];
+  for(const item of externalTexts){
+    const hit=probes.find(p=>item.text.includes(p));
+    if(hit) refs.push({scope:item.scope,file:item.file,spec:hit});
+  }
+  candidateScopeRefs[target]=refs;
+}
+const fullyUnreferenced=strongZeroInbound.filter(f=>candidateScopeRefs[f].length===0);
+
 const globalOwners={};
 for(const file of files){
   const text=texts.get(file);
@@ -117,6 +150,9 @@ const report={
   rawInboundForZero:Object.fromEntries(zeroInbound.map(f=>[f,rawInbound[f]])),
   strongZeroInbound,
   strongZeroInboundCount:strongZeroInbound.length,
+  candidateScopeRefs,
+  fullyUnreferenced,
+  fullyUnreferencedCount:fullyUnreferenced.length,
   duplicateGlobals,
   duplicateGlobalCount:Object.keys(duplicateGlobals).length,
   writers,
