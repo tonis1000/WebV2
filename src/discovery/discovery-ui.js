@@ -149,7 +149,7 @@ function openPanel(){ensureUi();state.setChannel(selectedChannelSnapshot());stat
 function closePanel(){cancelExternalDiscovery();cancelVerification();state.setOpen(false);state.setExternalIdle('');state.setVerificationMessage('','idle');render();}
 
 ensureUi();
-const api=Object.freeze({buildId:BUILD_ID,open:openPanel,close:closePanel,scanLocal:scanLocalSources,scanExternal:scanExternalSources,scanGithub:scanGithubSources,scanRecentWeb:scanRecentWebSources,scanStrm:scanStrmSources,scanAuthorizedXtream:scanAuthorizedXtreamSources,verifyOne,verifyAll,promoteOne,keepXtreamAccount:keepXtreamAccountOne,cancelExternalDiscovery,cancelVerification,snapshot:()=>state.snapshot()});
+const api=Object.freeze({buildId:BUILD_ID,open:openPanel,close:closePanel,scanExternal:scanExternalSources,scanGithub:scanGithubSources,scanRecentWeb:scanRecentWebSources,scanStrm:scanStrmSources,scanAuthorizedXtream:scanAuthorizedXtreamSources,verifyOne,verifyAll,promoteOne,keepXtreamAccount:keepXtreamAccountOne,cancelExternalDiscovery,cancelVerification,snapshot:()=>state.snapshot()});
 window.WebTVDiscovery=api;
 window.WebTVDiscoveryPhase1=api;
 console.info(`[WebTV] Legacy Discovery shell loaded · ${BUILD_ID} · New Xtream Test / Preview is owned by Xtream Account Management`);
