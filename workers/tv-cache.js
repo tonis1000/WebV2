@@ -48,7 +48,8 @@ export default {
     const ALLOWED_UPSTREAM_HEADERS = Object.freeze({
       "user-agent": "User-Agent",
       "referer": "Referer",
-      "origin": "Origin"
+      "origin": "Origin",
+      "x-roku-reserved-dev-id": "X-Roku-Reserved-Dev-Id"
     });
     const HEADER_CONTEXT_MAX_LENGTH = 8192;
     const HEADER_VALUE_MAX_LENGTH = 2048;
