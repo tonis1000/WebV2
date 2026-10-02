@@ -16,7 +16,7 @@ async function providerJson(action=''){
   url.searchParams.set('password','test_pass');
   if(action)url.searchParams.set('action',action);
   const response=await fetch(url,{headers:{'cache-control':'no-cache'}});
-  assert.ok(response.ok(),`mock provider ${action||'login'} HTTP ${response.status}`);
+  assert.ok(response.ok,`mock provider ${action||'login'} HTTP ${response.status}`);
   return response.json();
 }
 const [login,categories,streams]=await Promise.all([
