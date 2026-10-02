@@ -167,10 +167,7 @@ async function render(){
 
 ensureUi();
 window.addEventListener('webtv:ready', render);
-const channelName = $('channel-name');
-if(channelName) new MutationObserver(render).observe(channelName,{childList:true,characterData:true,subtree:true});
-const diagPlayer = $('diag-player');
-if(diagPlayer) new MutationObserver(render).observe(diagPlayer,{childList:true,characterData:true,subtree:true});
+window.addEventListener('webtv:diagnostics-updated', render);
 setInterval(render, 5000);
 render();
 console.info(`[WebTV] Source health UI loaded · build ${BUILD_ID} · resolved STRM + DRM visibility`);

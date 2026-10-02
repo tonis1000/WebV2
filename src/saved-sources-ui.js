@@ -8,11 +8,6 @@ const $ = id => document.getElementById(id);
 const candidateInput = $('candidate-url');
 const testButton = $('test-candidate');
 const channelName = $('channel-name');
-const playbackStatus = $('playback-status');
-const diagSource = $('diag-source');
-const diagRoute = $('diag-route');
-const diagPlayer = $('diag-player');
-const diagStartup = $('diag-startup');
 const diagLog = $('diagnostic-log');
 
 try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch {}
@@ -41,8 +36,10 @@ if (candidateInput && testButton && channelName) {
   function log(message){if(!diagLog)return;const stamp=new Date().toLocaleTimeString();diagLog.textContent=`[${stamp}] ${message}\n${diagLog.textContent}`.slice(0,18000);}
   function resetVerification(message=''){pending=null;verified=null;saveButton.hidden=true;saveButton.disabled=false;saveButton.textContent='Save Source';status.textContent=message;}
   function beginCandidateTracking(){
-    const parsed=parseIptvUrl(candidateInput.value.trim()),url=parsed.url,name=channelName.textContent.trim();
-    if(!url||!/^https?:\/\//i.test(url)||!name||name==='Επίλεξε κανάλι'){resetVerification();return;}
+    const parsed=parseIptvUrl(candidateInput.value.trim()),url=parsed.url;
+    const selected=window.WebTVPlaylistAPI?.getSelectedChannel?.();
+    const name=selected?.name||'';
+    if(!url||!/^https?:\/\//i.test(url)||!name){resetVerification();return;}
     pending={
       url,
       hasRequestHeaders:Object.keys(parsed.headers).length>0,
@@ -80,15 +77,15 @@ if (candidateInput && testButton && channelName) {
   }
   function enqueueVerified(snapshot){saveQueue=saveQueue.catch(()=>{}).then(()=>persistSnapshot(snapshot));return saveQueue;}
 
-  function inspectDiagnostics(){
+  function inspectDiagnostics(snapshot=window.WebTVDiagnosticsAPI?.getSnapshot?.()||{}){
     if(!pending||verified)return;
-    const player=diagPlayer?.textContent?.trim()||'-';
-    const source=cleanUrl(diagSource?.textContent?.trim()||'');
-    const startupMs=Number.parseInt(diagStartup?.textContent||'',10)||0;
-    const route=diagRoute?.textContent?.trim()||'';
+    const player=String(snapshot.player||'-').trim();
+    const source=cleanUrl(snapshot.source||'');
+    const startupMs=Number(snapshot.startupMs||0);
+    const route=String(snapshot.route||'').trim();
     if(!source||source!==pending.url)return;
 
-    if(player!=='-'&&player!=='failed'&&startupMs>0&&playbackStatus?.classList.contains('live')){
+    if(player!=='-'&&player!=='failed'&&startupMs>0&&snapshot.playbackState==='live'){
       const headerDependent=pending.hasRequestHeaders&&route.includes('headers');
       verified={...pending,route,player,startupMs,headerDependent,verifiedAt:new Date().toISOString()};
 
@@ -106,7 +103,7 @@ if (candidateInput && testButton && channelName) {
       return;
     }
 
-    if(player==='failed'&&playbackStatus?.classList.contains('error')){
+    if(player==='failed'&&snapshot.playbackState==='error'){
       const failed={...pending};
       pending=null;
       saveButton.hidden=true;
@@ -116,11 +113,7 @@ if (candidateInput && testButton && channelName) {
 
   testButton.addEventListener('click',beginCandidateTracking,true);
   candidateInput.addEventListener('input',()=>resetVerification());
-  const observer=new MutationObserver(inspectDiagnostics);
-  if(diagPlayer)observer.observe(diagPlayer,{childList:true,characterData:true,subtree:true});
-  if(diagSource)observer.observe(diagSource,{childList:true,characterData:true,subtree:true});
-  if(diagStartup)observer.observe(diagStartup,{childList:true,characterData:true,subtree:true});
-  if(playbackStatus)observer.observe(playbackStatus,{childList:true,characterData:true,subtree:true,attributes:true});
+  window.addEventListener('webtv:diagnostics-updated',event=>inspectDiagnostics(event.detail||{}));
 
   window.addEventListener('webtv:source-policy-saved',event=>{
     const detail=event.detail||{};
@@ -148,6 +141,7 @@ let catalogTrackingInstalled = false;
 let membershipTimer = null;
 let inspectorSelectedSource = '';
 let inspectorSelectedChannel = '';
+let inspectorPlaybackSnapshot = {source:'',route:'-',player:'',startupMs:0,playbackState:'idle',playbackLabel:'Idle'};
 
 function injectInspectorStyles(){
   if($('current-playback-inspector-styles'))return;
@@ -342,7 +336,7 @@ function ensurePlaybackInspector(){
 
   $('playback-source-save-edit')?.addEventListener('click',async()=>{
     const edited=cleanUrl($('playback-source-full')?.value||'');
-    const original=cleanUrl(inspectorSelectedSource||diagSource?.textContent||'');
+    const original=cleanUrl(inspectorSelectedSource||inspectorPlaybackSnapshot.source||'');
     if(!/^https?:\/\//i.test(edited)){setInspectorStatus('Enter a valid http/https source first.','error');return;}
     try{
       setInspectorStatus('Saving edited source…','busy');
@@ -365,7 +359,7 @@ function ensurePlaybackInspector(){
   });
 
   $('playback-source-delete')?.addEventListener('click',async()=>{
-    const url=cleanUrl(inspectorSelectedSource||diagSource?.textContent||$('playback-source-full')?.value||'');
+    const url=cleanUrl(inspectorSelectedSource||inspectorPlaybackSnapshot.source||$('playback-source-full')?.value||'');
     if(!url)return;
     try{
       const {index,target}=await getMyPlaylistTarget();
@@ -386,18 +380,19 @@ function ensurePlaybackInspector(){
   syncPlaybackInspector();
 }
 
-function syncPlaybackInspector(){
+function syncPlaybackInspector(snapshot=window.WebTVDiagnosticsAPI?.getSnapshot?.()||{}){
   const area=$('playback-source-full');
   if(!area)return;
+  inspectorPlaybackSnapshot={...inspectorPlaybackSnapshot,...snapshot};
   const channel=window.WebTVPlaylistAPI?.getSelectedChannel?.();
   const channelKey=normalizeId(channel?.id||channel?.originalId||channel?.name||'');
   if(inspectorSelectedChannel&&inspectorSelectedChannel!==channelKey){inspectorSelectedSource='';inspectorSelectedChannel='';}
   if(inspectorSelectedSource){scheduleMembershipRefresh();return;}
-  const source=diagSource?.textContent?.trim()||'';
-  const route=diagRoute?.textContent?.trim()||'-';
+  const source=String(inspectorPlaybackSnapshot.source||'').trim();
+  const route=String(inspectorPlaybackSnapshot.route||'-').trim()||'-';
   if(source&&source!=='-'&&document.activeElement!==area)area.value=source;
   if(!source||source==='-'){if(document.activeElement!==area)area.value='';setInspectorStatus('Play a channel to inspect and manage its exact source.','idle');}
-  const routeBox=$('playback-route-full');if(routeBox)routeBox.textContent=route||'-';
+  const routeBox=$('playback-route-full');if(routeBox)routeBox.textContent=route;
   scheduleMembershipRefresh();
 }
 
@@ -408,7 +403,7 @@ function scheduleMembershipRefresh(){
 async function refreshInspectorMembership(){
   const add=$('playback-source-add'),edit=$('playback-source-save-edit'),del=$('playback-source-delete');
   if(!add||!edit||!del)return;
-  const url=cleanUrl(inspectorSelectedSource||diagSource?.textContent||'');
+  const url=cleanUrl(inspectorSelectedSource||inspectorPlaybackSnapshot.source||'');
   const selected=window.WebTVPlaylistAPI?.getSelectedChannel?.();
   if(!selected||!url||url==='-'){
     add.disabled=true;edit.disabled=true;del.disabled=true;return;
@@ -440,12 +435,9 @@ function bootInspector(){
     setTimeout(()=>{installCatalogTracking();renderCatalogIdentity();},500);
   }
 
-  const observer=new MutationObserver(syncPlaybackInspector);
-  if(diagSource)observer.observe(diagSource,{childList:true,characterData:true,subtree:true});
-  if(diagRoute)observer.observe(diagRoute,{childList:true,characterData:true,subtree:true});
-  if(diagPlayer)observer.observe(diagPlayer,{childList:true,characterData:true,subtree:true});
-  if(channelName)observer.observe(channelName,{childList:true,characterData:true,subtree:true});
+  window.addEventListener('webtv:diagnostics-updated',event=>syncPlaybackInspector(event.detail||{}));
   window.addEventListener('webtv:catalog-changed',renderCatalogIdentity);
+  syncPlaybackInspector();
 }
 
 if(window.WebTVPlaylistAPI?.ready)bootInspector();
