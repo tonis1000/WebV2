@@ -27,11 +27,9 @@ async function saveCloud(set){
   }catch{return false;}
 }
 
-const list = $('channel-list');
 const toolbar = document.querySelector('.sidebar .toolbar');
 const channelActions = document.querySelector('.channel-actions');
 let favoritesOnly = localStorage.getItem(FILTER_KEY) === '1';
-let scheduled = false;
 
 function load(){
   try{return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]').map(String));}
@@ -47,6 +45,13 @@ function selectedId(){
   return channel?.id ? String(channel.id) : '';
 }
 function isFavorite(id){return load().has(String(id));}
+function presentationState(){
+  return {favorites:[...load()],favoritesOnly:isMyPlaylistCatalog()&&favoritesOnly};
+}
+function notifyPresentation(){
+  window.dispatchEvent(new CustomEvent('webtv:favorites-presentation-changed',{detail:presentationState()}));
+}
+window.WebTVFavoritesPresentationAPI={getState:presentationState};
 
 function ensureUi(){
   if(toolbar && !$('favorites-filter')){
@@ -65,7 +70,7 @@ function ensureUi(){
       try{localStorage.setItem(FILTER_KEY,favoritesOnly?'1':'0');}catch{}
       button.classList.toggle('active', favoritesOnly);
       button.textContent = favoritesOnly ? '★ Favorites only' : '☆ Favorites';
-      scheduleApply();
+      notifyPresentation();
     });
   }
 
@@ -85,7 +90,7 @@ function ensureUi(){
       save(set);
       await saveCloud(set);
       updateSelectedButton();
-      scheduleApply();
+      notifyPresentation();
     });
     channelActions.insertBefore(button, channelActions.firstChild);
   }
@@ -109,50 +114,17 @@ function updateSelectedButton(){
   button.title = fav ? 'Remove from favorites' : 'Pin as favorite';
 }
 
-function apply(){
-  scheduled = false;
-  if(!list) return;
+function syncUiScope(){
   const myPlaylist=isMyPlaylistCatalog();
   const filter=$('favorites-filter');
   if(filter)filter.hidden=!myPlaylist;
-  const set = load();
-  const items = [...list.querySelectorAll('.channel-item')];
-  if(!myPlaylist){
-    items.forEach(item=>{
-      item.classList.remove('favorite');
-      item.hidden = false;
-      item.title = '';
-    });
-    updateSelectedButton();
-    return;
-  }
-  const decorated = items.map((item,index)=>({item,index,fav:set.has(String(item.dataset.channelId || ''))}));
-  decorated.forEach(({item,fav})=>{
-    item.classList.toggle('favorite', fav);
-    item.hidden = favoritesOnly && !fav;
-    item.title = fav ? 'Favorite channel' : '';
-  });
-
-  const sorted = [...decorated].sort((a,b)=>Number(b.fav)-Number(a.fav) || a.index-b.index);
-  const changed = sorted.some((entry,index)=>entry.item !== items[index]);
-  if(changed){
-    const fragment = document.createDocumentFragment();
-    sorted.forEach(entry=>fragment.appendChild(entry.item));
-    list.appendChild(fragment);
-  }
   updateSelectedButton();
 }
 
-function scheduleApply(){
-  if(scheduled) return;
-  scheduled = true;
-  requestAnimationFrame(apply);
-}
-
 ensureUi();
-if(list) new MutationObserver(scheduleApply).observe(list,{childList:true,subtree:false});
-window.addEventListener('webtv:channel-selected',updateSelectedButton);
-window.addEventListener('webtv:ready',()=>{ensureUi();scheduleApply();});
-loadCloud().then(scheduleApply);
-scheduleApply();
+syncUiScope();
+window.addEventListener('webtv:channel-selected',()=>{syncUiScope();notifyPresentation();});
+window.addEventListener('webtv:ready',()=>{ensureUi();syncUiScope();notifyPresentation();});
+loadCloud().then(()=>{syncUiScope();notifyPresentation();});
+notifyPresentation();
 console.info(`[WebTV] Favorites UI loaded · build ${BUILD_ID} · D1-authoritative cloud favorites with local fallback`);
