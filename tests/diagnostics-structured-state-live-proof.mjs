@@ -6,8 +6,8 @@ import { chromium } from 'playwright';
 const WEBV2_URL=process.env.WEBV2_URL||'https://tonis1000.github.io/WebV2/';
 const RUNTIME_SHA=process.env.RUNTIME_SHA||'040e6be426a7367f8e0ccc6446f5908f82d8ff15';
 const ARTIFACT_DIR=process.env.ARTIFACT_DIR||'artifacts/diagnostics-structured-state-live';
-const MEDIA_URL='https://webv2-qa.invalid/diagnostics-state.mp4';
-const MEDIA_FILE='/tmp/webv2-diagnostics-qa.mp4';
+const MEDIA_URL='https://webv2-qa.invalid/diagnostics-state.webm';
+const MEDIA_FILE='/tmp/webv2-diagnostics-qa.webm';
 const FAKE_TOKEN='ci-diagnostics-state-proof';
 
 await fs.mkdir(ARTIFACT_DIR,{recursive:true});
@@ -27,12 +27,37 @@ page.on('pageerror',error=>pageErrors.push(error.message));
 page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text());});
 page.on('dialog',async dialog=>dialog.accept());
 
-await page.route('https://webv2-qa.invalid/**',route=>route.fulfill({
-  status:200,
-  contentType:'video/mp4',
-  headers:{'access-control-allow-origin':'*','cache-control':'no-store','accept-ranges':'bytes'},
-  body:media,
-}));
+await page.route('https://webv2-qa.invalid/**',route=>{
+  const range=route.request().headers()['range']||'';
+  const baseHeaders={
+    'access-control-allow-origin':'*',
+    'cache-control':'no-store',
+    'accept-ranges':'bytes',
+  };
+  if(range){
+    const match=/bytes=(\d+)-(\d*)/.exec(range);
+    const start=match?Number(match[1]):0;
+    const requestedEnd=match?.[2]?Number(match[2]):media.length-1;
+    const end=Math.min(requestedEnd,media.length-1);
+    const chunk=media.subarray(start,end+1);
+    return route.fulfill({
+      status:206,
+      contentType:'video/webm',
+      headers:{
+        ...baseHeaders,
+        'content-range':`bytes ${start}-${end}/${media.length}`,
+        'content-length':String(chunk.length),
+      },
+      body:chunk,
+    });
+  }
+  return route.fulfill({
+    status:200,
+    contentType:'video/webm',
+    headers:{...baseHeaders,'content-length':String(media.length)},
+    body:media,
+  });
+});
 
 const json=(route,body,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
 await page.route('https://webtv-registry.atonis.workers.dev/**',async route=>{
@@ -94,7 +119,7 @@ const sourceHealthBefore=await page.locator('#source-health .source-health-row c
 assert.ok(sourceHealthBefore.includes(MEDIA_URL),'Source Health must refresh for selected source');
 
 await page.evaluate(()=>{
-  document.getElementById('diag-source').textContent='https://fake.invalid/dom-state-should-not-propagate.mp4';
+  document.getElementById('diag-source').textContent='https://fake.invalid/dom-state-should-not-propagate.webm';
   document.getElementById('diag-route').textContent='fake-dom-route';
 });
 await page.waitForTimeout(500);
