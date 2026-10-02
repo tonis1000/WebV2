@@ -1,0 +1,77 @@
+name: Verify Sidebar Selection Ownership Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/sidebar-selection-ownership-live-proof.mjs'
+      - '.github/workflows/verify-sidebar-selection-ownership-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 8b6485fb8ad925319b974f0f565478bc507194d0
+      ARTIFACT_DIR: artifacts/sidebar-selection-ownership-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify exact production ownership is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA")"
+          node -e "const j=JSON.parse(process.argv[1]);if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)" "$status"
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/main.js?proof=$GITHUB_SHA" -o /tmp/main-live.js
+          grep -q 'webtv:channel-selected' /tmp/main-live.js
+          grep -q 'getSelectedChannel:selectedChannelSnapshot' /tmp/main-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/favorites-ui.js?proof=$GITHUB_SHA" -o /tmp/favorites-live.js
+          grep -q 'webtv:channel-selected' /tmp/favorites-live.js
+          ! grep -q "channelName) new MutationObserver(updateSelectedButton)" /tmp/favorites-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/playlist-manager.js?proof=$GITHUB_SHA" -o /tmp/manager-live.js
+          grep -q 'webtv:channel-selected' /tmp/manager-live.js
+          ! grep -q "channel-list')?.addEventListener('click',()=>setTimeout(()=>updateMyAction" /tmp/manager-live.js
+          ! grep -q "observer.observe(name" /tmp/manager-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/sidebar-now.js?proof=$GITHUB_SHA" -o /tmp/sidebar-live.js
+          grep -q 'WebTVPlaylistAPI?.getChannelById' /tmp/sidebar-live.js
+          ! grep -q "querySelector('strong')?.textContent" /tmp/sidebar-live.js
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Build deterministic QA media
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=320x180:r=25 -t 3 -c:v libvpx-vp9 -pix_fmt yuv420p -an /tmp/webv2-sidebar-qa.webm
+          test -s /tmp/webv2-sidebar-qa.webm
+
+      - name: Run production selection ownership proof
+        run: node tests/sidebar-selection-ownership-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidebar-selection-ownership-live-${{ github.sha }}
+          path: artifacts/sidebar-selection-ownership-live
+          if-no-files-found: warn
+          retention-days: 14
