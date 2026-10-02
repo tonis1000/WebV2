@@ -155,7 +155,8 @@ await page.waitForFunction(()=>window.WebTVXtream?.getPreview?.()?.candidate?.ve
 
 const saveButtonState=await page.locator('#xtream-preview-save-channel').evaluate(el=>{
   const rect=el.getBoundingClientRect(),style=getComputedStyle(el);
-  return{disabled:el.disabled,hidden:el.hidden,pointerEvents:style.pointerEvents,visibility:style.visibility,display:style.display,opacity:style.opacity,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}};
+  const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+  return{disabled:el.disabled,hidden:el.hidden,pointerEvents:style.pointerEvents,visibility:style.visibility,display:style.display,opacity:style.opacity,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hit:{tag:hit?.tagName||'',id:hit?.id||'',className:String(hit?.className||''),text:String(hit?.textContent||'').trim().slice(0,80)}};
 });
 console.log('SAVE_BUTTON_STATE '+JSON.stringify(saveButtonState));
 await page.locator('#xtream-preview-save-channel').click();
