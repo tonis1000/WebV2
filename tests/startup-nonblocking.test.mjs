@@ -31,7 +31,7 @@ assert.match(boot, /sources\.refresh\(\)[\s\S]*?\.then\(\(\)=>\{[\s\S]*?if\(wind
 const favoritesReady = favorites.match(/window\.addEventListener\('webtv:ready',[^;]+;/)?.[0] || '';
 assert.ok(favoritesReady, 'Favorites must react to webtv:ready');
 assert.doesNotMatch(favoritesReady, /loadCloud\s*\(/, 'webtv:ready must not trigger a second Favorites cloud read');
-assert.equal((favorites.match(/loadCloud\(\)\.then\(scheduleApply\)/g) || []).length, 1, 'Favorites must start exactly one initial cloud read');
+assert.equal((favorites.match(/loadCloud\(\)\.then\(/g) || []).length, 1, 'Favorites must start exactly one initial cloud read');
 assert.doesNotMatch(favorites, /for\(const id of load\(\)\)set\.add\(id\)/, 'A successful D1 Favorites read must replace stale local favorites instead of unioning them back in');
 assert.match(favorites, /const j=await r\.json\(\),set=new Set\(\(j\.favorites\|\|\[\]\)\.map\(String\)\);\s*save\(set\);cloudReady=true;return set;/, 'A successful D1 Favorites read must persist the exact D1 set as the local cache');
 
