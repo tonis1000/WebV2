@@ -15,7 +15,7 @@ Legacy Local Discovery retirement runtime SHA: `8ef91a32d898930dfd38d82220ebc370
 My Playlist action-ownership runtime SHA: `3adc057cd2f0186a1fab506c7c8e4d36ceea9973` via PR #119.
 Player ownership retirement runtime SHA: `258bc39cc4a4f26c94c7d4933772ca9a3e3ff1c7` via PR #122.
 EPG refresh-ownership runtime SHA: `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5` via PR #125.
-Sidebar selected-channel ownership runtime SHA: `8b6485fb8ad925319b974f0f565478bc507194d0` via PR #128.
+Sidebar selected-channel ownership runtime SHA: `8b6485fb8ad925319b974f0f565478bc507194d0` via PR #128; closure follow-up runtime SHA: `06e4d0cc0696b19c916f0f65007a3cf2572a0356` via PR #131.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -109,6 +109,9 @@ Verified Sidebar selected-channel ownership evidence:
 - Exact branch head `90cbd21c71b514be41ff9873b8266acc50d52d7a` completed Validate WebTV Frontend #929 SUCCESS. Playlist Manager Xtream Dialog Ownership #22 and Xtream Save Destination #72 also completed SUCCESS.
 - Exact-SHA post-merge proof at `8b6485fb8ad925319b974f0f565478bc507194d0`: Validate WebTV Frontend #930 SUCCESS, Deploy WebTV Registry Worker #128 SUCCESS and GitHub Pages #486 SUCCESS.
 - Verification-only PR #129 was closed unmerged after Verify Sidebar Selection Ownership Live #4 SUCCESS against real production Pages with deterministic in-memory QA media and zero persistence. Initial production Sidebar rendered 24 channel rows / 24 Now Playing rows / 18 current-EPG rows in that run. The temporary QA catalog emitted `catalog-import`; real row selection emitted `user-select`; canonical selected id equaled active row id (`webv2.sidebar.qa`). Deliberate mutation of rendered `#channel-name` changed neither canonical selection, active row, Favorite action nor My Playlist action. Registry writes = 0; page errors = 0; console errors = 0. Artifact ID: `11236071116`.
+- Closure review then found two remaining ownership defects: Unified Search still observed/read rendered `#channel-name`, and temporary catalog replacement could keep `selected` bound to an old same-ID channel object. RED Validate WebTV Frontend #936 failed exactly on the expanded ownership regression. PR #131 fixed only those bounded defects: Unified Search now consumes `webtv:channel-selected` plus `WebTVPlaylistAPI.getSelectedChannel()`, and `main.js` rebinds same-ID selection to the replacement channel object before publishing catalog reconciliation.
+- Exact follow-up head `5a3be5b13542bc5d04894bec01574569d84d74ea` completed Validate WebTV Frontend #938 SUCCESS and Validate Unified Search #63 SUCCESS. PR #131 merged at `06e4d0cc0696b19c916f0f65007a3cf2572a0356`; post-merge Validate WebTV Frontend #939, Deploy WebTV Registry Worker #129 and GitHub Pages #487 all completed SUCCESS.
+- Verification-only PR #132 remained unmerged and was closed after Verify Sidebar Selection Ownership Final Live #1 SUCCESS against production runtime `06e4d0cc0696b19c916f0f65007a3cf2572a0356`. Unified Search Now Playing/query followed canonical selection; deliberate `#channel-name` tampering changed no selection consumer; same-ID catalog replacement rebound canonical selected name/source and kept active row, Unified Search and Sidebar Now Playing synchronized; Registry writes = 0; page errors = 0; console errors = 0. Artifact ID: `11237980248`, digest `sha256:d4402f9e96cbc9886ed990e17f8a555a60db32ca73f21f6c4ad1d949a2541548`.
 
 Verified Local known-source ownership production evidence:
 - PR #100 merged at `35306d1161899a8f58801363bd3b1947881db9b2`.
@@ -239,7 +242,7 @@ Unified Search Hunt / Discovery consolidation remains DONE.
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
 Before the PR #108 runtime change, GitHub main and Registry deployed SHA were both `002f7215d6a5d3666fbef79c2b0eb98772de912b`; the D1 `WEBV2_CURRENT.md` checkpoint was independently read and remains stale at the older Project Brain bootstrap state from 2026-09-30. The stale mirror therefore does not equal current GitHub/runtime state and must not be treated as production truth.
-The exact latest verified runtime SHA `8b6485fb8ad925319b974f0f565478bc507194d0` completed Deploy WebTV Registry Worker #128 successfully, GitHub Pages #486 successfully and Validate WebTV Frontend #930 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #129 independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
+The exact latest verified runtime SHA `06e4d0cc0696b19c916f0f65007a3cf2572a0356` completed Deploy WebTV Registry Worker #129 successfully, GitHub Pages #487 successfully and Validate WebTV Frontend #939 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #132 independently required `/api/project-status` to report the same runtime SHA before final browser acceptance.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
@@ -269,7 +272,7 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Favorites / My Playlist action ownership: DONE, runtime merge `3adc057cd2f0186a1fab506c7c8e4d36ceea9973`
 - Player ownership audit / dormant One-click retirement: DONE / DELETED, runtime merge `258bc39cc4a4f26c94c7d4933772ca9a3e3ff1c7`
 - EPG refresh ownership audit: DONE, runtime merge `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5`
-- Sidebar selected-channel ownership audit: DONE, runtime merge `8b6485fb8ad925319b974f0f565478bc507194d0`
+- Sidebar selected-channel ownership audit: DONE, initial runtime merge `8b6485fb8ad925319b974f0f565478bc507194d0`, closure follow-up runtime `06e4d0cc0696b19c916f0f65007a3cf2572a0356`
 
 ## NEXT SAFE ACTION
 Continue the System Audit one bounded owner at a time:
@@ -303,8 +306,9 @@ Do not redesign final visual layout or change playback/EPG semantics merely for 
 - Phase C EPG identity/profile ownership and fail-closed ambiguity behavior
 - `src/core/epg.js` remains the sole frontend EPG feed/XMLTV/matching owner; EPG provider ids must not redefine WebV2 channel identity
 - `main.js` remains the sole frontend EPG refresh scheduler; Sidebar Now Playing must not call `epg.refresh()` or schedule EPG fetches
-- `main.js` owns selected-channel state; presentation consumers use `WebTVPlaylistAPI.getSelectedChannel()` plus `webtv:channel-selected`, never rendered `#channel-name` as a state bus
+- `main.js` owns selected-channel state; presentation consumers, including Unified Search, use `WebTVPlaylistAPI.getSelectedChannel()` plus `webtv:channel-selected`, never rendered `#channel-name` as a state bus
 - Sidebar row identity must come from `data-channel-id` resolved through `WebTVPlaylistAPI.getChannelById`; rendered channel text must not become an identity fallback again
+- catalog replacement/reload that retains a selected channel id must rebind selection to the replacement canonical channel object before publishing `webtv:channel-selected`
 - Phase D import/promotion boundary
 - Phase E1 Source Format Registry transport-vs-media distinction
 - Phase E2 shared M3U structural ownership and caller-owned policy
