@@ -153,6 +153,11 @@ await page.locator('#xtream-preview-catalog .xtream-preview-row').first().click(
 await page.locator('#xtream-preview-verify').click();
 await page.waitForFunction(()=>window.WebTVXtream?.getPreview?.()?.candidate?.verificationStatus==='VERIFIED',null,{timeout:10000});
 
+const saveButtonState=await page.locator('#xtream-preview-save-channel').evaluate(el=>{
+  const rect=el.getBoundingClientRect(),style=getComputedStyle(el);
+  return{disabled:el.disabled,hidden:el.hidden,pointerEvents:style.pointerEvents,visibility:style.visibility,display:style.display,opacity:style.opacity,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}};
+});
+console.log('SAVE_BUTTON_STATE '+JSON.stringify(saveButtonState));
 await page.locator('#xtream-preview-save-channel').click();
 await page.waitForTimeout(500);
 const saveDialogDebug=await page.evaluate(()=>({
