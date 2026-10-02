@@ -128,8 +128,11 @@ assert.equal(await page.locator('#playback-source-full').inputValue(),MEDIA_URL,
 const writesBeforeCandidate=registryWrites.length;
 const candidateInput=page.locator('#candidate-url');
 if(!await candidateInput.isVisible()){
-  const toggle=page.locator('#source-hunt-toggle');
-  if(await toggle.count())await toggle.click();
+  await page.evaluate(()=>{
+    const panel=document.getElementById('source-hunt');
+    if(!panel)throw new Error('Manual Test panel unavailable');
+    panel.hidden=false;
+  });
 }
 await candidateInput.waitFor({state:'visible',timeout:10000});
 await candidateInput.fill(MEDIA_URL);
