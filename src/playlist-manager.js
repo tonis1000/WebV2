@@ -189,7 +189,6 @@ async function upsertMyChannel(channel,sources=[],{replaceSources=false,reason='
 async function saveDiscoveredMyChannel(channel,sources=[],{reason=''}={}){
   if(reason!=='source-hunt-save')throw new Error('Source Hunt save reason is required');
   if(!channel)throw new Error('Discovered channel is required');
-  assertGenericMyMutationAllowed(channel);
   const cleanSources=(Array.isArray(sources)?sources:[]).map((source,index)=>{
     const input=typeof source==='string'?{url:source}:source||{};
     const url=String(input.url||'').trim();
@@ -203,10 +202,9 @@ async function saveDiscoveredMyChannel(channel,sources=[],{reason=''}={}){
   if(!cleanSources.length)throw new Error('At least one discovered source is required');
   myCache=await fetchMyPlaylist();
   myCacheLoaded=true;
-  const key=normalize(channel.id||channel.originalId||channel.tvgId||channel.name);
-  const existingIndex=myCache.findIndex(item=>normalize(item.id||item.originalId||item.name)===key);
   const target={...channel,directUrls:cleanSources.map(source=>source.url)};
-  await putRegistryChannel(target,existingIndex<0?999999:existingIndex,true,cleanSources);
+  assertGenericMyMutationAllowed(target);
+  await putRegistryChannel(target,999999,true,cleanSources);
   log(`MY PLAYLIST SOURCE HUNT SAVE · ${target.name} · ${cleanSources.length} source(s)`);
   await refreshPrimary({forceSidebar:true,reason});
   return target;
