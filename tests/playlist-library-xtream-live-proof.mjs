@@ -135,6 +135,16 @@ await page.locator('#xtream-preview-verify').click();
 await page.waitForFunction(()=>window.WebTVXtream?.getPreview?.()?.candidate?.verificationStatus==='VERIFIED',null,{timeout:10000});
 
 await page.locator('#xtream-preview-save-channel').click();
+await page.waitForTimeout(500);
+const saveDialogDebug=await page.evaluate(()=>({
+  status:document.getElementById('xtream-status')?.textContent||'',
+  dialogExists:Boolean(document.getElementById('xtream-save-destination-dialog')),
+  dialogOpen:Boolean(document.getElementById('xtream-save-destination-dialog')?.open),
+  managerHidden:Boolean(document.getElementById('playlist-manager')?.hidden),
+  saveApi:Boolean(window.WebTVXtreamSaveDestination?.open),
+  preview:window.WebTVXtream?.getPreview?.(),
+}));
+console.log('SAVE_DIALOG_DEBUG '+JSON.stringify(saveDialogDebug));
 await page.waitForSelector('#xtream-save-destination-dialog[open]',{timeout:5000});
 await page.locator('#xtream-save-destination-select').selectOption('my');
 await page.locator('#xtream-save-destination-confirm').click();
