@@ -338,3 +338,25 @@ Evidence:
 - Verification-only PR #126 remained unmerged and was closed after Verify EPG Refresh Ownership Live #1 SUCCESS against real production Pages: one startup EPG network request remained one after Sidebar-only presentation events; `lastRefreshAt` and the shared 229-programme store did not change; all 24 Sidebar rows retained Now Playing presentation with 18 current-EPG rows visible in that run; page/console errors were zero. Artifact ID `11231467495`.
 
 Reconsider when: only if a future architecture intentionally moves EPG refresh scheduling away from `main.js`, while preserving exactly one scheduler, the Phase C identity/profile/fail-closed contract and production live verification.
+
+
+## DEC-026 main.js owns selected-channel state; presentation consumes structured selection notifications
+Decision: `main.js` is the single owner of selected-channel state. `WebTVPlaylistAPI.getSelectedChannel()` is the canonical selected-channel snapshot, and `webtv:channel-selected` is the structured notification signal for presentation consumers. Rendered channel DOM is presentation only and must not become a second selection state or identity bus.
+
+Hard rules:
+- `main.js` owns the internal selected channel and active-row synchronization;
+- `WebTVPlaylistAPI.getSelectedChannel()` is the canonical read API for the selected channel;
+- `main.js` emits `webtv:channel-selected` after user selection and after catalog replacement/reload reconciles or clears selection;
+- event detail may carry a snapshot for observability, but consumers must treat the event as notification rather than an independent durable store;
+- Favorites and Playlist Manager must not infer selected-channel changes from rendered `#channel-name`, MutationObserver state, or generic channel-list click timing;
+- Sidebar Now Playing must not reconstruct channel identity from visible row text; row identity is `data-channel-id` resolved through `WebTVPlaylistAPI.getChannelById`;
+- active-row behavior, Favorites scope, My Playlist persistence rules, Player behavior, EPG semantics and final visual layout remain unchanged.
+
+Reason: the audit found that selected-channel truth was already singular in `main.js`, but presentation modules were using DOM mutations/click timing as a second notification/state channel, while Sidebar retained a rendered-text identity fallback. Those paths could drift from canonical selection and repeat the same DOM-as-state-bus architecture previously removed from Diagnostics.
+
+Evidence:
+- RED Validate WebTV Frontend #926 failed exactly on the missing structured selection-owner contract.
+- PR #128 runtime merge `8b6485fb8ad925319b974f0f565478bc507194d0`; exact-head Frontend #929, Playlist Manager Xtream Dialog Ownership #22 and Xtream Save Destination #72 SUCCESS; post-merge Frontend #930, Registry #128 and Pages #486 SUCCESS.
+- Verification-only PR #129 remained unmerged and was closed after Verify Sidebar Selection Ownership Live #4 SUCCESS against real production Pages. The production Sidebar rendered 24/24 Now Playing rows with 18 current EPG rows in that run. The QA selection emitted structured `catalog-import` then `user-select`; canonical selected id matched active row id. Tampering rendered `#channel-name` did not alter canonical selection, active row, Favorite action or My Playlist action; Registry writes and page/console errors were all zero. Artifact ID `11236071116`.
+
+Reconsider when: only if a future state architecture deliberately replaces `main.js` / `WebTVPlaylistAPI` as the single selection owner, with one explicit replacement state model, regression proof and production live verification.
