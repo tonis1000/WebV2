@@ -43,9 +43,20 @@ await context.setExtraHTTPHeaders({'cache-control':'no-cache',pragma:'no-cache'}
 await context.addInitScript(token=>{
   localStorage.setItem('webtv_v2_registry_token',token);
   window.__xtreamListenerAudit=[];
+  window.__xtreamListenerInvoked=[];
+  window.__xtreamDocumentClicks=[];
+  document.addEventListener('click',event=>{
+    const id=event.target?.id||event.target?.closest?.('[id]')?.id||'';
+    if(id.startsWith('xtream-preview-save-'))window.__xtreamDocumentClicks.push({id,phase:event.eventPhase});
+  },true);
   const original=EventTarget.prototype.addEventListener;
   EventTarget.prototype.addEventListener=function(type,listener,options){
-    if(type==='click'&&this?.id?.startsWith?.('xtream-preview-save-'))window.__xtreamListenerAudit.push({id:this.id,type});
+    if(type==='click'&&this?.id?.startsWith?.('xtream-preview-save-')){
+      const id=this.id;
+      window.__xtreamListenerAudit.push({id,type});
+      const wrapped=function(event){window.__xtreamListenerInvoked.push({id,phase:event.eventPhase});return listener.call(this,event);};
+      return original.call(this,type,wrapped,options);
+    }
     return original.call(this,type,listener,options);
   };
 },FAKE_TOKEN);
@@ -152,6 +163,8 @@ const saveDialogDebug=await page.evaluate(()=>({
   saveApi:Boolean(window.WebTVXtreamSaveDestination?.open),
   preview:window.WebTVXtream?.getPreview?.(),
   listenerAudit:window.__xtreamListenerAudit||[],
+  listenerInvoked:window.__xtreamListenerInvoked||[],
+  documentClicks:window.__xtreamDocumentClicks||[],
   saveButtonCount:document.querySelectorAll('#xtream-preview-save-channel').length,
   saveButtonConnected:document.getElementById('xtream-preview-save-channel')?.isConnected,
   pageErrors:window.__none||null,
