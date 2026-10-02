@@ -113,6 +113,13 @@ Verified Sidebar selected-channel ownership evidence:
 - Exact follow-up head `5a3be5b13542bc5d04894bec01574569d84d74ea` completed Validate WebTV Frontend #938 SUCCESS and Validate Unified Search #63 SUCCESS. PR #131 merged at `06e4d0cc0696b19c916f0f65007a3cf2572a0356`; post-merge Validate WebTV Frontend #939, Deploy WebTV Registry Worker #129 and GitHub Pages #487 all completed SUCCESS.
 - Verification-only PR #132 remained unmerged and was closed after Verify Sidebar Selection Ownership Final Live #1 SUCCESS against production runtime `06e4d0cc0696b19c916f0f65007a3cf2572a0356`. Unified Search Now Playing/query followed canonical selection; deliberate `#channel-name` tampering changed no selection consumer; same-ID catalog replacement rebound canonical selected name/source and kept active row, Unified Search and Sidebar Now Playing synchronized; Registry writes = 0; page errors = 0; console errors = 0. Artifact ID: `11237980248`, digest `sha256:d4402f9e96cbc9886ed990e17f8a555a60db32ca73f21f6c4ad1d949a2541548`.
 
+Verified Sidebar row-presentation ownership evidence:
+- The bounded audit found one concrete duplicate presentation owner: `main.js` rendered channel rows and summary, while `favorites-ui.js` subsequently hid, decorated, sorted and physically re-appended the same `.channel-item` nodes and observed list mutations. `sidebar-now.js` also writes row-subtree EPG presentation but did not own root ordering/visibility.
+- RED-first evidence: Validate WebTV Frontend #943 failed exactly on the new Sidebar row-presentation ownership regression while all earlier steps were green.
+- PR #133 merged at `f9f861641856bacdcc16b8be0b255dcfa318b692`. `main.js` now owns final channel-row order, root visibility, summary and Favorite class/title during rendering. `favorites-ui.js` exposes read-only presentation state through `WebTVFavoritesPresentationAPI.getState()` and notifies with `webtv:favorites-presentation-changed`; it no longer hides/reorders rows or observes channel-list child mutations. `sidebar-now.js` remains an EPG row-subtree decorator and does not own root row order/visibility.
+- Exact branch head `33c781b24f0e1f56e270d3cbd7899d65feb9b473` completed Validate WebTV Frontend #946 SUCCESS. Post-merge Validate WebTV Frontend #947, Deploy WebTV Registry Worker #131 and GitHub Pages #489 all completed SUCCESS.
+- Verification-only PR #134 remained unmerged and was closed after Verify Sidebar Row Presentation Live #9 SUCCESS against production runtime `f9f861641856bacdcc16b8be0b255dcfa318b692`; exact verification head Frontend #956 also succeeded. My Playlist rendered favorite-first rows with summary `3 / 3 κανάλια`; Favorites-only rendered exactly two Favorite rows with summary `2 / 3 κανάλια`; selected/active `qathree` survived the main-owned rerender; a temporary catalog ignored Favorites-only state and rendered `2 / 2 κανάλια`; every rendered row retained Sidebar Now Playing decoration. Favorites startup performed one cloud read, durable Registry user-data writes were zero, page errors = 0 and console errors = 0. The one mocked `PUT /api/health` was playback telemetry, not durable user data. Artifact ID: `11240030912`, digest `sha256:d313f41effbb8d599e73905dddb534f291421d8b22268931b97cec39bcfead0c`.
+
 Verified Local known-source ownership production evidence:
 - PR #100 merged at `35306d1161899a8f58801363bd3b1947881db9b2`.
 - `src/known-source-collector.js` is the canonical source aggregation owner for save-time already-known sources; it now includes source-backed Saved M3U snapshots in addition to My Playlist, Custom Playlists and the already-loaded catalog.
@@ -200,6 +207,7 @@ Favorites / My Playlist action ownership: DONE for the approved bounded scope.
 Player ownership audit: DONE for the approved bounded scope.
 EPG refresh-ownership audit: DONE for the approved bounded scope.
 Sidebar selected-channel ownership audit: DONE for the approved bounded scope.
+Sidebar row-presentation ownership audit: DONE for the approved bounded scope.
 
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
@@ -219,6 +227,7 @@ Favorites are scoped only to the D1 My Playlist catalog. Source Hunt My Playlist
 Production playback/fallback orchestration is owned by `main.js` + one `PlayerController`; consumers use the narrow `WebTVPlaybackAPI` bridge. The retired One-click orchestration owner is deleted after zero-consumer proof.
 EPG feed/XMLTV/matching ownership remains in `src/core/epg.js`; `main.js` is the sole frontend EPG refresh scheduler, while Sidebar Now Playing is a read-only EPG presentation consumer.
 Selected-channel state is owned by `main.js`; `WebTVPlaylistAPI.getSelectedChannel()` is the canonical snapshot and `webtv:channel-selected` is the structured notification consumed by presentation modules instead of rendered DOM state.
+Channel-row presentation ownership is also singular: `main.js` owns channel-row order, root visibility, summary and Favorite decoration. `favorites-ui.js` owns Favorite/filter state only through `WebTVFavoritesPresentationAPI.getState()` plus `webtv:favorites-presentation-changed`; `sidebar-now.js` may decorate existing row subtrees with EPG presentation but must not reorder or hide channel-root rows.
 
 Production Playlist / Library / Xtream ownership now has one full-account save path, one verified channel-save path and one Saved Playlist card owner. Full Xtream account persistence is only Preview → Verify → Save Full Xtream Account. Verified Xtream channel persistence is only Save Channel…; loaded-account channels cannot silently use the generic My Playlist Add path as a second persistence route. Playlist Manager directly owns account-backed Saved Xtream cards and delegates Load live through the shared Xtream account loader.
 
@@ -276,9 +285,9 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 
 ## NEXT SAFE ACTION
 Continue the System Audit one bounded owner at a time:
-1. continue the remaining Sidebar / Now Playing audit by proving whether channel-row presentation mutations/reordering/decorations have overlapping owners; do not change layout or semantics unless a concrete duplicate owner or drift is proven;
-2. keep selected-channel ownership, EPG refresh ownership and Player ownership closed unless new evidence shows a regression;
-3. then continue the remaining System Audit / UX Consolidation owners one bounded problem at a time.
+1. run a recursive zero-overlap sweep for any remaining Sidebar / Now Playing presentation owners outside the now-closed selected-channel, EPG-refresh and channel-row presentation slices; do not change code unless a concrete duplicate owner or drift is proven;
+2. keep selected-channel ownership, channel-row order/visibility ownership, EPG refresh ownership and Player ownership closed unless new evidence shows a regression;
+3. if the recursive sweep proves no remaining Sidebar ownership overlap, advance to the next unresolved System Audit / UX Consolidation owner rather than redesigning the Sidebar.
 
 Do not redesign final visual layout or change playback/EPG semantics merely for cleanup. Each slice requires a bounded problem statement, RED proof for any real bug, exact-SHA deployment and live verification.
 
