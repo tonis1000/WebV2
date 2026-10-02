@@ -623,3 +623,29 @@ Evidence:
 
 Reconsider when: a real verified source requires another request header or IPTV option syntax. Any expansion must be separately justified, explicitly allowlisted, regression-tested across parser/verifier/proxy, deployed and proven against a real source before becoming canonical.
 
+## DEC-036 Multi-source M3U alternative discovery
+Decision: treat spaced ` | ` separators inside a physical M3U source line as structural alternative-source delimiters while preserving inline IPTV option pipes attached directly to a URL.
+
+Hard rules:
+- shared structural ownership remains in `src/core/m3u-container.js`;
+- `splitM3uSourceAlternatives()` separates only spaced ` | ` delimiters;
+- inline IPTV request metadata such as `URL|User-Agent=...`, `URL|Referer=...`, and `URL|stream_headers={...}` remains attached to that URL and is never split by the multi-source structural parser;
+- Source Discovery may emit multiple candidates from one M3U entry after channel identity matching;
+- invalid/non-public alternatives remain caller-filtered and are not promoted merely because they appear on a multi-source line;
+- existing `MAX_RESULTS`, global candidate dedupe, feed ordering, fallback triggering and channel-matching semantics remain authoritative;
+- duplicate URLs discovered from multiple feeds may retain the earlier feed origin after global dedupe. This is expected;
+- the richer `jimgate07/grtv/griptv.m3u` remains an additional primary/high curated feed; the simpler `android.m3u` is retained for compatibility and resilience;
+- do not replace this generalized structural rule with channel-specific hardcoded IP sources.
+
+Reason: active curated repositories encode multiple valid playback fallbacks on one source line. The previous Source Discovery path consumed only `entry.sourceLine` as one opaque source, causing later HLS/DASH/header-aware fallbacks to be missed. A naïve split on every `|` would break the established IPTV header syntax, so the separator contract must remain narrow.
+
+Evidence:
+- RED head `276c6faa0052375aaa4751b25fc763d1ba7cafc3`: Validate WebTV Frontend `37074879958` failed because the shared splitter did not yet exist; Validate Unified Search `37074879972` failed because the rich jimgate curated feed was absent;
+- implementation head `accf550d8adf85f8f7d3302edd89e8d084aecd74`: Validate Unified Search `37074931744`, Validate Enigma2 Ownership `37074931846`, and Validate WebTV Frontend `37074931727` all SUCCESS;
+- runtime merge PR #170: `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf`;
+- post-merge Source Discovery `37075027677`, Source Hunt `37075027716`, Unified Search `37075027689`, Enigma2 Ownership `37075027742`, Frontend `37075027653`, Registry `37075027648`, and Pages `37075026936` all succeeded;
+- verification-only PR #171 remained unmerged. Final live run `37075286990` against the deployed Source Discovery Worker and real current `jimgate07/grtv/griptv.m3u` reported MEGA=3, ALPHA=5 and ERT3=4 candidates pre-dedupe from the multi-source feed and ended with `LIVE_MULTI_SOURCE_ACCEPTANCE=PASS`;
+- the live MEGA final candidate set contained both a Roku header-bearing HLS route and the smart-tv-data DASH fallback. Identical URLs may appear under earlier feed origins after global dedupe.
+
+Reconsider when: a real curated source uses a different unambiguous multi-source separator convention, or measured production evidence shows the spaced-pipe rule causes false splits. Any broader grammar must preserve inline IPTV option syntax and shared M3U ownership.
+
