@@ -57,6 +57,9 @@ for (const legacy of ['./src/source-hunt-engine.js','./src/source-hunt-web.js','
   assert.equal(index.indexOf(legacy), -1, `legacy automatic Hunt module must not load from index.html: ${legacy}`);
 }
 assert.match(index, /Manual Source Test/, 'manual candidate testing must remain available after automatic Hunt retirement');
+const registryDefault=read('src/registry-default.js');
+assert.doesNotMatch(registryDefault,/xtream-enhancements\.js/,'legacy Xtream enhancements must not return to the production entrypoint');
+assert.equal(existsSync(path.join(ROOT,'src/xtream-enhancements.js')),false,'legacy Xtream enhancements file should be deleted after ownership migration');
 
 const oneClick = read('src/source-hunt-oneclick.js');
 assert.match(oneClick, /collectCandidateUrls\(\)/, 'retained legacy One-click file should preserve its historical stream candidate collector until deletion is separately proven safe');

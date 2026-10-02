@@ -270,22 +270,28 @@ function requestPreviewPersistence(kind){
   setStatus(kind==='channel'?'Verified channel ready for destination selection':'Verified preview ready for explicit full-account save','ok');
 }
 
+async function loadAccountById(accountId) {
+  const id=String(accountId||'').trim();
+  if(!id)throw new Error('Xtream account ID is required');
+  await ensureUiSession();
+  setStatus('Loading saved Xtream live channels into temporary sidebar…', 'busy');
+  loaded = await loadXtreamChannels(id);
+  if (!loaded.channels.length) throw new Error('No live channels returned by this Xtream account');
+  const text = xtreamChannelsToM3U(loaded.channels, loaded.account || {});
+  const bridge = window.WebTVPlaylistAPI;
+  if (!bridge?.applyText) throw new Error('WebTV playlist bridge is not ready');
+  const label = `Xtream · ${loaded.account?.name || loaded.account?.server || id}`;
+  const result = bridge.applyText(text, { mode: selectedMode(), label });
+  renderLoadedAccountPreview(loaded.channels, loaded.account);
+  setStatus(`${result.imported} saved-account channels loaded temporarily · ${selectedMode()}`, 'ok');
+  return loaded;
+}
+
 async function loadSelectedAccount() {
   const accountId = $('xtream-account-select')?.value || '';
   if (!accountId) {setStatus('Choose an Xtream account first', 'error');return;}
-  try {
-    await ensureUiSession();
-    setStatus('Loading saved Xtream live channels into temporary sidebar…', 'busy');
-    loaded = await loadXtreamChannels(accountId);
-    if (!loaded.channels.length) throw new Error('No live channels returned by this Xtream account');
-    const text = xtreamChannelsToM3U(loaded.channels, loaded.account || {});
-    const bridge = window.WebTVPlaylistAPI;
-    if (!bridge?.applyText) throw new Error('WebTV playlist bridge is not ready');
-    const label = `Xtream · ${loaded.account?.name || loaded.account?.server || accountId}`;
-    const result = bridge.applyText(text, { mode: selectedMode(), label });
-    renderLoadedAccountPreview(loaded.channels, loaded.account);
-    setStatus(`${result.imported} saved-account channels loaded temporarily · ${selectedMode()}`, 'ok');
-  } catch (error) {setStatus(error.message, 'error');}
+  try {return await loadAccountById(accountId);}
+  catch (error) {setStatus(error.message, 'error');}
 }
 
 async function removeSelectedAccount() {
@@ -365,6 +371,7 @@ else injectUi();
 
 window.WebTVXtream = {
   refreshAccounts,
+  loadAccountById,
   loadSelectedAccount,
   runAuthDiagnostics,
   cancelPreview:clearPreviewState,

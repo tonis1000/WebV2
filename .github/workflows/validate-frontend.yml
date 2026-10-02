@@ -132,6 +132,12 @@ jobs:
         run: node tests/epg-parity.test.mjs
       - name: Run Xtream source regression test
         run: node tests/xtream-client.test.mjs
+      - name: Run Xtream account load ownership regression test
+        run: node tests/xtream-account-load-ownership.test.mjs
+      - name: Run Playlist Manager Xtream Library ownership regression test
+        run: node tests/playlist-manager-xtream-library.test.mjs
+      - name: Run Xtream legacy enhancements retirement regression test
+        run: node tests/xtream-legacy-enhancements-retirement.test.mjs
       - name: Run Xtream mock deploy contract
         run: node tests/xtream-mock-deploy-contract.test.mjs
       - name: Run Xtream large catalog regression test
