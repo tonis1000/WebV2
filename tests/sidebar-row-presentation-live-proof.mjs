@@ -22,6 +22,7 @@ const favoriteIds=['qaone','qathree'];
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1100}});
 await context.addInitScript(({token})=>{
+  if(window.top!==window.self)return;
   window.__qaStorageWrites=[];
   const originalSet=Storage.prototype.setItem;
   const originalRemove=Storage.prototype.removeItem;
