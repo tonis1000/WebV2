@@ -15,6 +15,7 @@ Legacy Local Discovery retirement runtime SHA: `8ef91a32d898930dfd38d82220ebc370
 My Playlist action-ownership runtime SHA: `3adc057cd2f0186a1fab506c7c8e4d36ceea9973` via PR #119.
 Player ownership retirement runtime SHA: `258bc39cc4a4f26c94c7d4933772ca9a3e3ff1c7` via PR #122.
 EPG refresh-ownership runtime SHA: `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5` via PR #125.
+Sidebar selected-channel ownership runtime SHA: `8b6485fb8ad925319b974f0f565478bc507194d0` via PR #128.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -98,6 +99,16 @@ Verified EPG refresh-ownership evidence:
 - Exact branch head `78c2a333f0b806efaf7e39e57b92f8ea73b1a642` completed Validate WebTV Frontend #921 SUCCESS, including EPG refresh ownership, Phase C parity, EPG deploy contract, browser smoke, non-blocking startup and frontend integration audit.
 - Exact-SHA post-merge proof at `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5`: Validate WebTV Frontend #922 SUCCESS, Deploy WebTV Registry Worker #126 SUCCESS and GitHub Pages #484 SUCCESS.
 - Verification-only PR #126 was closed unmerged after Verify EPG Refresh Ownership Live #1 SUCCESS against real production GitHub Pages and the live EPG proxy status endpoint. Production issued one startup EPG request and remained at one after Sidebar-only presentation events; `lastRefreshAt` and the 229-programme store were unchanged; all 24 channel rows retained Sidebar Now Playing presentation with 18 current-EPG rows visible in that run; page errors = 0; console errors = 0. Artifact ID: `11231467495`.
+
+Verified Sidebar selected-channel ownership evidence:
+- The Sidebar / Now Playing ownership audit confirmed canonical selected-channel state already lived in `main.js` and `WebTVPlaylistAPI.getSelectedChannel()`, but three presentation paths still treated rendered DOM as a secondary state/identity source.
+- Playlist Manager listened to generic `#channel-list` clicks and observed rendered `#channel-name`; Favorites observed `#channel-name`; Sidebar Now Playing could fall back to reconstructing a synthetic channel identity from rendered row text when canonical id lookup failed.
+- RED-first evidence: Validate WebTV Frontend #926 failed exactly on the new Sidebar selected-channel ownership regression because no structured canonical selection event existed while the DOM-derived paths remained.
+- PR #128 merged at `8b6485fb8ad925319b974f0f565478bc507194d0`. `main.js` now owns `selectedChannelSnapshot()` and emits `webtv:channel-selected` for user selection and catalog-selection reconciliation. The event is notification only; consumers continue reading truth through `WebTVPlaylistAPI.getSelectedChannel()`.
+- Favorites and Playlist Manager consume the structured event and no longer infer selected-channel state from rendered `#channel-name` or generic channel-list clicks. Sidebar Now Playing resolves row identity only through `data-channel-id` + `WebTVPlaylistAPI.getChannelById`; rendered channel text is no longer an identity fallback.
+- Exact branch head `90cbd21c71b514be41ff9873b8266acc50d52d7a` completed Validate WebTV Frontend #929 SUCCESS. Playlist Manager Xtream Dialog Ownership #22 and Xtream Save Destination #72 also completed SUCCESS.
+- Exact-SHA post-merge proof at `8b6485fb8ad925319b974f0f565478bc507194d0`: Validate WebTV Frontend #930 SUCCESS, Deploy WebTV Registry Worker #128 SUCCESS and GitHub Pages #486 SUCCESS.
+- Verification-only PR #129 was closed unmerged after Verify Sidebar Selection Ownership Live #4 SUCCESS against real production Pages with deterministic in-memory QA media and zero persistence. Initial production Sidebar rendered 24 channel rows / 24 Now Playing rows / 18 current-EPG rows in that run. The temporary QA catalog emitted `catalog-import`; real row selection emitted `user-select`; canonical selected id equaled active row id (`webv2.sidebar.qa`). Deliberate mutation of rendered `#channel-name` changed neither canonical selection, active row, Favorite action nor My Playlist action. Registry writes = 0; page errors = 0; console errors = 0. Artifact ID: `11236071116`.
 
 Verified Local known-source ownership production evidence:
 - PR #100 merged at `35306d1161899a8f58801363bd3b1947881db9b2`.
@@ -185,6 +196,7 @@ Legacy Local Discovery zero-consumer retirement: DONE / deleted.
 Favorites / My Playlist action ownership: DONE for the approved bounded scope.
 Player ownership audit: DONE for the approved bounded scope.
 EPG refresh-ownership audit: DONE for the approved bounded scope.
+Sidebar selected-channel ownership audit: DONE for the approved bounded scope.
 
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
@@ -203,6 +215,7 @@ Legacy Local Discovery owner files and Local shell bindings are deleted after ze
 Favorites are scoped only to the D1 My Playlist catalog. Source Hunt My Playlist persistence is Playlist Manager-owned through the narrow discovered-channel API and inherits the loaded-Xtream generic-mutation guard.
 Production playback/fallback orchestration is owned by `main.js` + one `PlayerController`; consumers use the narrow `WebTVPlaybackAPI` bridge. The retired One-click orchestration owner is deleted after zero-consumer proof.
 EPG feed/XMLTV/matching ownership remains in `src/core/epg.js`; `main.js` is the sole frontend EPG refresh scheduler, while Sidebar Now Playing is a read-only EPG presentation consumer.
+Selected-channel state is owned by `main.js`; `WebTVPlaylistAPI.getSelectedChannel()` is the canonical snapshot and `webtv:channel-selected` is the structured notification consumed by presentation modules instead of rendered DOM state.
 
 Production Playlist / Library / Xtream ownership now has one full-account save path, one verified channel-save path and one Saved Playlist card owner. Full Xtream account persistence is only Preview → Verify → Save Full Xtream Account. Verified Xtream channel persistence is only Save Channel…; loaded-account channels cannot silently use the generic My Playlist Add path as a second persistence route. Playlist Manager directly owns account-backed Saved Xtream cards and delegates Load live through the shared Xtream account loader.
 
@@ -226,7 +239,7 @@ Unified Search Hunt / Discovery consolidation remains DONE.
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
 Before the PR #108 runtime change, GitHub main and Registry deployed SHA were both `002f7215d6a5d3666fbef79c2b0eb98772de912b`; the D1 `WEBV2_CURRENT.md` checkpoint was independently read and remains stale at the older Project Brain bootstrap state from 2026-09-30. The stale mirror therefore does not equal current GitHub/runtime state and must not be treated as production truth.
-The exact latest verified runtime SHA `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5` completed Deploy WebTV Registry Worker #126 successfully, GitHub Pages #484 successfully and Validate WebTV Frontend #922 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #126 independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
+The exact latest verified runtime SHA `8b6485fb8ad925319b974f0f565478bc507194d0` completed Deploy WebTV Registry Worker #128 successfully, GitHub Pages #486 successfully and Validate WebTV Frontend #930 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #129 independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
@@ -256,11 +269,12 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Favorites / My Playlist action ownership: DONE, runtime merge `3adc057cd2f0186a1fab506c7c8e4d36ceea9973`
 - Player ownership audit / dormant One-click retirement: DONE / DELETED, runtime merge `258bc39cc4a4f26c94c7d4933772ca9a3e3ff1c7`
 - EPG refresh ownership audit: DONE, runtime merge `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5`
+- Sidebar selected-channel ownership audit: DONE, runtime merge `8b6485fb8ad925319b974f0f565478bc507194d0`
 
 ## NEXT SAFE ACTION
 Continue the System Audit one bounded owner at a time:
-1. audit Sidebar / Now Playing presentation ownership for duplicate selected-channel / row / presentation state owners without redesigning the layout or changing Player/EPG semantics;
-2. keep EPG refresh ownership closed unless new evidence shows a regression;
+1. continue the remaining Sidebar / Now Playing audit by proving whether channel-row presentation mutations/reordering/decorations have overlapping owners; do not change layout or semantics unless a concrete duplicate owner or drift is proven;
+2. keep selected-channel ownership, EPG refresh ownership and Player ownership closed unless new evidence shows a regression;
 3. then continue the remaining System Audit / UX Consolidation owners one bounded problem at a time.
 
 Do not redesign final visual layout or change playback/EPG semantics merely for cleanup. Each slice requires a bounded problem statement, RED proof for any real bug, exact-SHA deployment and live verification.
@@ -289,6 +303,8 @@ Do not redesign final visual layout or change playback/EPG semantics merely for 
 - Phase C EPG identity/profile ownership and fail-closed ambiguity behavior
 - `src/core/epg.js` remains the sole frontend EPG feed/XMLTV/matching owner; EPG provider ids must not redefine WebV2 channel identity
 - `main.js` remains the sole frontend EPG refresh scheduler; Sidebar Now Playing must not call `epg.refresh()` or schedule EPG fetches
+- `main.js` owns selected-channel state; presentation consumers use `WebTVPlaylistAPI.getSelectedChannel()` plus `webtv:channel-selected`, never rendered `#channel-name` as a state bus
+- Sidebar row identity must come from `data-channel-id` resolved through `WebTVPlaylistAPI.getChannelById`; rendered channel text must not become an identity fallback again
 - Phase D import/promotion boundary
 - Phase E1 Source Format Registry transport-vs-media distinction
 - Phase E2 shared M3U structural ownership and caller-owned policy
