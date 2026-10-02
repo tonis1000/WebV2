@@ -196,3 +196,27 @@ Evidence:
 Non-goal: this decision does not yet consolidate Source Health route reconstruction or replace the current diagnostics DOM/MutationObserver coupling. Those remain separate bounded diagnostics-audit tasks.
 
 Reconsider when: only if a future architecture explicitly replaces `WebTVMyPlaylistAPI` with another single persistence owner while preserving loaded-Xtream verification boundaries, source cleanup and live acceptance proof.
+
+
+## DEC-020 SourceRegistry owns Source Health route diagnostics
+Decision: `SourceRegistry` is the canonical owner of curated playback route semantics used by Source Health. Source Health is a presentation/health-metric consumer and must not independently reconstruct direct / worker / worker+headers / STRM routes.
+
+Hard rules:
+- `SourceRegistry.getCuratedRouteDiagnostics(channel)` owns curated diagnostic route rows;
+- `WebTVDiagnosticsAPI.getSourceHealthRows` delegates to the active SourceRegistry instance;
+- Source Health must not import route-building/classification helpers for its own route model, construct worker URLs, or instantiate a second STRM resolver;
+- Source Health may join canonical route rows with health entries and presentation state;
+- HTTPS HLS, header HLS, HTTP HLS, DASH and video route identities must remain aligned with SourceRegistry playback semantics;
+- generic HTTPS transport is not enough to advertise a playback route: non-media URLs remain excluded;
+- this ownership change must not alter Player route order, health scoring/cooldown, remote-source behavior or STRM playback/security policy.
+
+Reason: the diagnostics audit found that Source Health duplicated route construction already owned by SourceRegistry. That second model could drift from the routes the Player actually considered, including treating generic HTTPS as a direct route even when SourceRegistry would not classify it as playable media.
+
+Evidence:
+- RED Validate WebTV Frontend #867 failed exactly on the new Source Health route-ownership regression.
+- PR #111 runtime merge `367421d007c79cd6e7d54e61278c56dc62a910d6`; exact-SHA Frontend #871, Registry #117 and Pages #475 SUCCESS.
+- Verification-only PR #112 remained unmerged and was closed after Verify Source Health Route Ownership Live #1 SUCCESS against real production GitHub Pages: canonical rows and the actual playback plan both reported direct + worker for the selected curated HLS source; Source Health rendered the same DIRECT + WORKER rows; route-contract coverage for headers / HTTP / DASH / video / non-media passed; page errors = 0 and console errors = 0. Artifact ID `11222443409`.
+
+Non-goal: this decision does not replace the remaining diagnostics DOM / MutationObserver state propagation. That coupling remains a separate bounded diagnostics-audit task.
+
+Reconsider when: only if a future architecture replaces SourceRegistry as the single playback-route owner while preserving exact route semantics, health behavior and live acceptance proof.
