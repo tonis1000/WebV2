@@ -1,0 +1,5 @@
+ALPHA Greece escaped candidate
+https://cdn.example.test/alpha/live.m3u8?dpssid=x\u0026amp;sid=y\u0026amp;ndvc=1\u003c/a\u003e\
+
+ALPHA Cyprus candidate that must be rejected for Greece
+https://l2.cloudskep.com/alphacyp/acy/playlist.m3u8
