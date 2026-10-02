@@ -103,11 +103,7 @@ function ensureStyle(){
 
 function channelFromButton(button){
   const id=button.dataset?.channelId||'';
-  const real=window.WebTVPlaylistAPI?.getChannelById?.(id);
-  if(real) return real;
-  const meta=button.children?.[1];
-  const name=meta?.querySelector('strong')?.textContent?.trim()||'';
-  return name?{id:name,originalId:name,name}:null;
+  return id ? (window.WebTVPlaylistAPI?.getChannelById?.(id)||null) : null;
 }
 
 function render(){
