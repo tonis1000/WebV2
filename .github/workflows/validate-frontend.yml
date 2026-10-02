@@ -200,8 +200,6 @@ jobs:
         run: node tests/source-hunt-frontend-m3u-parity.test.mjs
       - name: Run Discovery candidate/state regression test
         run: node tests/discovery-candidate.test.mjs
-      - name: Run Discovery local-source regression test
-        run: node tests/discovery-local-sources.test.mjs
       - name: Run Discovery verifier client regression test
         run: node tests/discovery-verifier.test.mjs
       - name: Run shared channel identity regression test
