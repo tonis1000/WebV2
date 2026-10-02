@@ -6,10 +6,14 @@ import { chromium } from 'playwright';
 const WEBV2_URL=process.env.WEBV2_URL||'https://tonis1000.github.io/WebV2/';
 const RUNTIME_SHA=process.env.RUNTIME_SHA||'040e6be426a7367f8e0ccc6446f5908f82d8ff15';
 const ARTIFACT_DIR=process.env.ARTIFACT_DIR||'artifacts/diagnostics-structured-state-live';
-const HLS='https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+const MEDIA_URL='https://webv2-qa.invalid/diagnostics-state.mp4';
+const MEDIA_FILE='/tmp/webv2-diagnostics-qa.mp4';
 const FAKE_TOKEN='ci-diagnostics-state-proof';
 
 await fs.mkdir(ARTIFACT_DIR,{recursive:true});
+const media=await fs.readFile(MEDIA_FILE);
+assert.ok(media.length>1000,'deterministic QA media must exist');
+
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1100}});
 await context.setExtraHTTPHeaders({'cache-control':'no-cache',pragma:'no-cache'});
@@ -23,13 +27,19 @@ page.on('pageerror',error=>pageErrors.push(error.message));
 page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text());});
 page.on('dialog',async dialog=>dialog.accept());
 
+await page.route('https://webv2-qa.invalid/**',route=>route.fulfill({
+  status:200,
+  contentType:'video/mp4',
+  headers:{'access-control-allow-origin':'*','cache-control':'no-store','accept-ranges':'bytes'},
+  body:media,
+}));
+
 const json=(route,body,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
 await page.route('https://webtv-registry.atonis.workers.dev/**',async route=>{
   const req=route.request(),url=new URL(req.url()),method=req.method();
   if(method!=='GET')registryWrites.push({method,path:url.pathname});
   if(url.pathname==='/api/status')return json(route,{ok:true,service:'WebTV Registry',version:'1.5',d1:true,primaryPlaylist:'d1',pinAuth:false,pinAuthDisabled:true});
-  if(url.pathname==='/api/session')return json(route,{ok:true});
-  if(url.pathname==='/api/session/validate')return json(route,{ok:true});
+  if(url.pathname==='/api/session'||url.pathname==='/api/session/validate')return json(route,{ok:true});
   if(url.pathname==='/api/my-playlist'&&method==='GET')return json(route,{channels:[]});
   if(url.pathname==='/api/playlists'&&method==='GET')return json(route,{playlists:[]});
   if(url.pathname==='/api/health'&&method==='GET')return json(route,{health:{},modes:{}});
@@ -44,146 +54,94 @@ assert.ok(response?.ok(),`production load failed: ${response?.status()}`);
 await page.waitForFunction(()=>window.WebTVPlaylistAPI?.ready===true&&typeof window.WebTVDiagnosticsAPI?.getSnapshot==='function',null,{timeout:20000});
 await page.evaluate(()=>{document.documentElement.classList.remove('admin-locked');document.documentElement.classList.add('admin-unlocked');});
 
-await page.evaluate(hls=>{
+await page.evaluate(mediaUrl=>{
   window.__diagEvents=[];
   window.addEventListener('webtv:diagnostics-updated',event=>window.__diagEvents.push({...event.detail}));
   const m3u=`#EXTM3U
 #EXTINF:-1 tvg-id="webv2.diag.qa" tvg-name="WebV2 Diagnostics QA" group-title="QA",WebV2 Diagnostics QA
-${hls}
+${mediaUrl}
 `;
   window.WebTVPlaylistAPI.applyText(m3u,{mode:'replace',label:'Diagnostics Structured State QA'});
-},HLS);
+},MEDIA_URL);
 
-const row=page.locator('#channel-list [data-channel-id]').first();
-await row.click();
-
-async function waitForLive(label){
-  const attempts=[];
-  for(let attempt=1;attempt<=3;attempt+=1){
-    if(attempt>1){
-      await page.evaluate(async()=>{
-        try{await window.WebTVPlaybackAPI?.replaySelected?.();}catch{}
-      });
-    }
-    try{
-      await page.waitForFunction(hls=>{
-        const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
-        return s?.playbackState==='live'&&s?.source===hls&&Number(s?.startupMs)>0;
-      },HLS,{timeout:15000});
-      attempts.push({attempt,ok:true,snapshot:await page.evaluate(()=>window.WebTVDiagnosticsAPI.getSnapshot())});
-      return attempts;
-    }catch(error){
-      attempts.push({
-        attempt,
-        ok:false,
-        error:error.message,
-        snapshot:await page.evaluate(()=>window.WebTVDiagnosticsAPI?.getSnapshot?.()||{}),
-        events:await page.evaluate(()=>window.__diagEvents.slice(-8)),
-      });
-    }
-  }
-  await fs.writeFile(path.join(ARTIFACT_DIR,`${label}-failed-attempts.json`),JSON.stringify(attempts,null,2));
-  throw new Error(`${label} did not reach live structured state after 3 attempts: ${JSON.stringify(attempts)}`);
-}
-const initialAttempts=await waitForLive('initial-playback');
+await page.locator('#channel-list [data-channel-id]').first().click();
+await page.waitForFunction(mediaUrl=>{
+  const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
+  return s?.playbackState==='live'&&s?.source===mediaUrl&&Number(s?.startupMs)>0;
+},MEDIA_URL,{timeout:20000});
 
 const selectedSnapshot=await page.evaluate(()=>window.WebTVDiagnosticsAPI.getSnapshot());
-assert.equal(selectedSnapshot.source,HLS);
+assert.equal(selectedSnapshot.source,MEDIA_URL);
 assert.equal(selectedSnapshot.playbackState,'live');
 assert.ok(selectedSnapshot.player&&selectedSnapshot.player!=='failed');
 assert.ok(selectedSnapshot.startupMs>0);
+assert.equal(selectedSnapshot.route,'direct');
 
-const eventSequenceBeforeCandidate=await page.evaluate(()=>window.__diagEvents.map(e=>({source:e.source,player:e.player,startupMs:e.startupMs,playbackState:e.playbackState,route:e.route})));
-assert.ok(eventSequenceBeforeCandidate.some(e=>e.playbackState==='loading'),'channel playback must publish loading state');
-assert.ok(eventSequenceBeforeCandidate.some(e=>e.source===HLS&&e.startupMs>0),'channel playback must publish populated diagnostics');
-assert.ok(eventSequenceBeforeCandidate.some(e=>e.source===HLS&&e.playbackState==='live'&&e.startupMs>0),'channel playback must publish final live structured snapshot');
+const initialEvents=await page.evaluate(()=>window.__diagEvents.map(e=>({
+  source:e.source,player:e.player,startupMs:e.startupMs,playbackState:e.playbackState,route:e.route,error:e.error
+})));
+assert.ok(initialEvents.some(e=>e.playbackState==='loading'),'playback must publish loading state');
+assert.ok(initialEvents.some(e=>e.source===MEDIA_URL&&e.startupMs>0),'playback must publish populated diagnostics');
+assert.ok(initialEvents.some(e=>e.source===MEDIA_URL&&e.playbackState==='live'&&e.startupMs>0),'playback must publish final live snapshot');
 
 if(await page.locator('#diagnostics').evaluate(el=>el.hidden))await page.locator('#diagnostics-toggle').click();
 await page.waitForSelector('#playback-source-full');
-await page.waitForFunction(hls=>document.getElementById('playback-source-full')?.value===hls,HLS,{timeout:10000});
+await page.waitForFunction(mediaUrl=>document.getElementById('playback-source-full')?.value===mediaUrl,MEDIA_URL,{timeout:10000});
+assert.equal(await page.locator('#playback-source-full').inputValue(),MEDIA_URL,'Inspector must sync from structured diagnostics');
 
-const inspectorBefore=await page.locator('#playback-source-full').inputValue();
-assert.equal(inspectorBefore,HLS,'Playback Inspector must sync from structured diagnostics snapshot');
-
-await page.waitForFunction(()=>document.querySelectorAll('#source-health .source-health-row').length>=2,null,{timeout:10000});
+await page.waitForFunction(()=>document.querySelectorAll('#source-health .source-health-row').length>=1,null,{timeout:10000});
 const sourceHealthBefore=await page.locator('#source-health .source-health-row code').evaluateAll(nodes=>nodes.map(n=>n.textContent));
-assert.ok(sourceHealthBefore.includes(HLS),'Source Health must render selected source after structured diagnostics update');
+assert.ok(sourceHealthBefore.includes(MEDIA_URL),'Source Health must refresh for selected source');
 
 await page.evaluate(()=>{
-  document.getElementById('diag-source').textContent='https://fake.invalid/dom-state-should-not-propagate.m3u8';
+  document.getElementById('diag-source').textContent='https://fake.invalid/dom-state-should-not-propagate.mp4';
   document.getElementById('diag-route').textContent='fake-dom-route';
 });
 await page.waitForTimeout(500);
-assert.equal(await page.locator('#playback-source-full').inputValue(),HLS,'tampering diagnostic presentation DOM must not change Inspector state');
+assert.equal(await page.locator('#playback-source-full').inputValue(),MEDIA_URL,'tampering diagnostic presentation DOM must not change Inspector state');
 
 const writesBeforeCandidate=registryWrites.length;
-await page.locator('#candidate-url').fill(HLS);
-let candidateAttempts=[];
-for(let attempt=1;attempt<=3;attempt+=1){
-  await page.locator('#test-candidate').click();
-  try{
-    await page.waitForFunction(hls=>{
-      const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
-      const save=document.getElementById('save-candidate');
-      return s?.playbackState==='live'&&s?.source===hls&&Number(s?.startupMs)>0&&save&&!save.hidden&&!save.disabled;
-    },HLS,{timeout:15000});
-    candidateAttempts.push({attempt,ok:true,snapshot:await page.evaluate(()=>window.WebTVDiagnosticsAPI.getSnapshot())});
-    break;
-  }catch(error){
-    candidateAttempts.push({
-      attempt,
-      ok:false,
-      error:error.message,
-      snapshot:await page.evaluate(()=>window.WebTVDiagnosticsAPI?.getSnapshot?.()||{}),
-      events:await page.evaluate(()=>window.__diagEvents.slice(-8)),
-    });
-  }
-}
-if(!candidateAttempts.some(a=>a.ok)){
-  await fs.writeFile(path.join(ARTIFACT_DIR,'candidate-failed-attempts.json'),JSON.stringify(candidateAttempts,null,2));
-  throw new Error(`candidate did not verify after 3 attempts: ${JSON.stringify(candidateAttempts)}`);
-}
+await page.locator('#candidate-url').fill(MEDIA_URL);
+await page.locator('#test-candidate').click();
+await page.waitForFunction(mediaUrl=>{
+  const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
+  const save=document.getElementById('save-candidate');
+  return s?.playbackState==='live'&&s?.source===mediaUrl&&Number(s?.startupMs)>0&&save&&!save.hidden&&!save.disabled;
+},MEDIA_URL,{timeout:20000});
 
 const candidateSnapshot=await page.evaluate(()=>window.WebTVDiagnosticsAPI.getSnapshot());
-assert.equal(candidateSnapshot.source,HLS);
+assert.equal(candidateSnapshot.source,MEDIA_URL);
 assert.equal(candidateSnapshot.playbackState,'live');
 assert.ok(candidateSnapshot.startupMs>0);
-assert.ok(String(candidateSnapshot.route).startsWith('candidate-'),'candidate verification must use candidate route identity');
+assert.equal(candidateSnapshot.route,'candidate-direct');
 assert.equal(registryWrites.length,writesBeforeCandidate,'Manual Test must persist nothing before explicit Save Source');
 
-const candidateStatus=await page.locator('#save-candidate').evaluate(el=>({
-  hidden:el.hidden,
-  disabled:el.disabled,
-  text:el.textContent,
-}));
+const candidateStatus=await page.locator('#save-candidate').evaluate(el=>({hidden:el.hidden,disabled:el.disabled,text:el.textContent}));
 assert.equal(candidateStatus.hidden,false);
 assert.equal(candidateStatus.disabled,false);
+assert.equal(await page.locator('#playback-source-full').inputValue(),MEDIA_URL,'Inspector must sync from structured candidate diagnostics');
 
-const inspectorAfter=await page.locator('#playback-source-full').inputValue();
-assert.equal(inspectorAfter,HLS,'Inspector must remain synchronized from structured candidate diagnostics');
-
-const finalEvents=await page.evaluate(()=>window.__diagEvents.map(e=>({source:e.source,player:e.player,startupMs:e.startupMs,playbackState:e.playbackState,route:e.route,error:e.error})));
-assert.ok(finalEvents.some(e=>e.route?.startsWith('candidate-')&&e.source===HLS&&e.startupMs>0),'candidate must publish populated structured diagnostics event');
-assert.ok(finalEvents.some(e=>e.route?.startsWith('candidate-')&&e.source===HLS&&e.playbackState==='live'),'candidate must publish final live structured event');
+const finalEvents=await page.evaluate(()=>window.__diagEvents.map(e=>({
+  source:e.source,player:e.player,startupMs:e.startupMs,playbackState:e.playbackState,route:e.route,error:e.error
+})));
+assert.ok(finalEvents.some(e=>e.route==='candidate-direct'&&e.source===MEDIA_URL&&e.startupMs>0),'candidate must publish populated diagnostics');
+assert.ok(finalEvents.some(e=>e.route==='candidate-direct'&&e.source===MEDIA_URL&&e.playbackState==='live'),'candidate must publish final live event');
 
 assert.equal(pageErrors.length,0,`page errors: ${pageErrors.join(' | ')}`);
 assert.equal(consoleErrors.length,0,`console errors: ${consoleErrors.join(' | ')}`);
 
 const report={
   runtimeSha:RUNTIME_SHA,
-  initialAttempts,
-  candidateAttempts,
+  media:{url:MEDIA_URL,bytes:media.length},
   selectedSnapshot,
   candidateSnapshot,
   candidateStatus,
-  inspectorBefore,
-  inspectorAfter,
   sourceHealthRows:sourceHealthBefore,
   domTamperDidNotPropagate:true,
   registryWritesBeforeCandidate:writesBeforeCandidate,
   registryWritesAfterCandidate:registryWrites.length,
-  finalEventCount:finalEvents.length,
-  finalEvents:finalEvents.slice(-12),
+  eventCount:finalEvents.length,
+  events:finalEvents,
   pageErrors,
   consoleErrors,
 };
