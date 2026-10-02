@@ -26,6 +26,9 @@ function normalizedLead(item={},kind='lead'){
     snippet:String(item.snippet||item.description||''),
     updatedAt:item.updatedAt||null,
     leadStatus:String(item.leadStatus||''),
+    leadType:String(item.leadType||''),
+    xtreamTrial:item.xtreamTrial===true,
+    xtreamEvidence:item.xtreamEvidence&&typeof item.xtreamEvidence==='object'?Object.freeze({...item.xtreamEvidence}):null,
     discoveryProvider:'hunt-exploration',
   });
 }
