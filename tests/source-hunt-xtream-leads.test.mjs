@@ -6,8 +6,9 @@ assert.equal(megaQueries.length,3,'Source Hunt query budget stays at three Brave
 const xtream=megaQueries.find(item=>item.kind==='xtream');
 assert.ok(xtream,'Source Hunt must include one Xtream provider/trial query');
 assert.match(xtream.q,/Xtream Codes/i);
-assert.match(xtream.q,/free trial/i);
+assert.match(xtream.q,/trial/i);
 assert.match(xtream.q,/Greek IPTV/i);
+assert.equal(/MEGA|Mega Channel/i.test(xtream.q),false,'provider discovery must not require a provider page to mention the current channel');
 
 const evidence=xtreamProviderEvidence('Greek IPTV with MEGA, ANT1 and SKAI. M3U or Xtream Codes login. Free trial available.','MEGA');
 assert.equal(evidence.qualifies,true);
