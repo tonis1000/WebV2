@@ -52,7 +52,8 @@
       await import('../src/discovery/discovery-ui.js');
       const api=window.WebTVDiscovery;
       api.open();const opened=api.snapshot();
-      await api.scanLocal();const local=api.snapshot();
+      const noLocalApi=!('scanLocal' in api);
+      const noLocalControl=!document.getElementById('discovery-scan-local');
       await api.scanExternal();const curated=api.snapshot();
       await api.scanGithub();const github=api.snapshot();
       await api.scanRecentWeb();const web=api.snapshot();
@@ -70,9 +71,9 @@
       const writesAfterKeep=window.__probe.d1Writes;
       document.querySelector('[data-freshness="24h"]')?.click();const changed=api.snapshot();
       api.close();const closed=api.snapshot();
-      const pass=Boolean(api&&opened.open===true&&opened.channel?.name==='MEGA'&&local.scanStatus==='done'&&local.lanes.myPlaylist===1&&local.lanes.savedPlaylists===1&&local.lanes.xtream===1&&curated.lanes.curatedRemoteFeeds===1&&github.lanes.githubPublicPlaylists===1&&web.lanes.recentWebSearch===1&&strm.lanes.strmSpecific===1&&xtream.lanes.authorizedXtream===1&&xtream.lanes.newXtreamPreview===0&&xtream.candidates.length===8&&cardCount===8&&noLegacyPreviewControls&&noLegacyPreviewApi&&writesBeforeVerify===0&&verified.verifyStatus==='done'&&authorized?.verificationStatus==='VERIFIED'&&writesAfterPromote===1&&writesAfterKeep===1&&changed.freshness==='24h'&&closed.open===false&&document.getElementById('discovery-shell')?.hidden===true&&sidebar.textContent===before.sidebar&&player.textContent===before.player);
+      const pass=Boolean(api&&opened.open===true&&opened.channel?.name==='MEGA'&&noLocalApi&&noLocalControl&&curated.lanes.curatedRemoteFeeds===1&&github.lanes.githubPublicPlaylists===1&&web.lanes.recentWebSearch===1&&strm.lanes.strmSpecific===1&&xtream.lanes.authorizedXtream===1&&xtream.lanes.newXtreamPreview===0&&xtream.candidates.length===5&&cardCount===5&&noLegacyPreviewControls&&noLegacyPreviewApi&&writesBeforeVerify===0&&verified.verifyStatus==='done'&&authorized?.verificationStatus==='VERIFIED'&&writesAfterPromote===1&&writesAfterKeep===1&&changed.freshness==='24h'&&closed.open===false&&document.getElementById('discovery-shell')?.hidden===true&&sidebar.textContent===before.sidebar&&player.textContent===before.player);
       document.documentElement.dataset.phase4Result=pass?'PASS':'FAIL';
-      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,noLegacyPreviewControls,noLegacyPreviewApi,writesBeforeVerify,writesAfterPromote,writesAfterKeep,lanes:xtream.lanes});
+      document.getElementById('result').textContent=JSON.stringify({pass,cardCount,noLocalApi,noLocalControl,noLegacyPreviewControls,noLegacyPreviewApi,writesBeforeVerify,writesAfterPromote,writesAfterKeep,lanes:xtream.lanes});
     }catch(error){document.documentElement.dataset.phase4Result='FAIL';document.getElementById('result').textContent=String(error?.stack||error);}
   </script>
 </body>
