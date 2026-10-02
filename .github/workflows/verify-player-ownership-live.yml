@@ -1,0 +1,61 @@
+name: Verify Player Ownership Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/player-ownership-live-proof.mjs'
+      - '.github/workflows/verify-player-ownership-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 258bc39cc4a4f26c94c7d4933772ca9a3e3ff1c7
+      ARTIFACT_DIR: artifacts/player-ownership-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify exact production ownership is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA")"
+          node -e "const j=JSON.parse(process.argv[1]);if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)" "$status"
+
+          code="$(curl --silent --show-error --location -o /tmp/oneclick-live.js -w '%{http_code}' -H 'Cache-Control: no-cache' "$WEBV2_URL/src/source-hunt-oneclick.js?proof=$GITHUB_SHA")"
+          test "$code" = "404" || { echo "retired source-hunt-oneclick.js returned HTTP $code"; exit 1; }
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/main.js?proof=$GITHUB_SHA" -o /tmp/main-live.js
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/core/player.js?proof=$GITHUB_SHA" -o /tmp/player-live.js
+
+          test "$(grep -o 'new PlayerController' /tmp/main-live.js | wc -l | tr -d ' ')" = "1"
+          test "$(grep -o 'window.WebTVPlaybackAPI=' /tmp/main-live.js | wc -l | tr -d ' ')" = "1"
+          grep -q '#playOfficialFallback' /tmp/player-live.js
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production Player ownership proof
+        run: node tests/player-ownership-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-ownership-live-${{ github.sha }}
+          path: artifacts/player-ownership-live
+          if-no-files-found: warn
+          retention-days: 14
