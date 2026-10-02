@@ -22,6 +22,17 @@ const favoriteIds=['qaone','qathree'];
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1100}});
 await context.addInitScript(({token})=>{
+  window.__qaStorageWrites=[];
+  const originalSet=Storage.prototype.setItem;
+  const originalRemove=Storage.prototype.removeItem;
+  Storage.prototype.setItem=function(key,value){
+    if(String(key).includes('favorites'))window.__qaStorageWrites.push({op:'set',key:String(key),value:String(value),stack:new Error().stack||''});
+    return originalSet.call(this,key,value);
+  };
+  Storage.prototype.removeItem=function(key){
+    if(String(key).includes('favorites'))window.__qaStorageWrites.push({op:'remove',key:String(key),stack:new Error().stack||''});
+    return originalRemove.call(this,key);
+  };
   localStorage.setItem('webtv_v2_registry_token',token);
   localStorage.setItem('webtv_v2_favorites_filter_v1','0');
   localStorage.removeItem('webtv_v2_favorites_v1');
@@ -112,7 +123,9 @@ const postFilterDiagnostic=await page.evaluate(()=>({
   filterText:document.getElementById('favorites-filter')?.textContent?.trim()||'',
   rowCount:document.querySelectorAll('#channel-list .channel-item').length,
   nowCount:document.querySelectorAll('#channel-list .channel-now-inline').length,
-  summary:document.getElementById('channel-summary')?.textContent?.trim()||''
+  summary:document.getElementById('channel-summary')?.textContent?.trim()||'',
+  favoritesGets:favoritesGets,
+  storageWrites:window.__qaStorageWrites||[]
 }));
 assert.equal(postFilterDiagnostic.apiState?.favoritesOnly,true,`Favorites filter click must toggle canonical presentation state: ${JSON.stringify(postFilterDiagnostic)}`);
 assert.ok(postFilterDiagnostic.eventCount>=1,`Favorites filter click must emit presentation event: ${JSON.stringify(postFilterDiagnostic)}`);
