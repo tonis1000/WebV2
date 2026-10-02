@@ -25,6 +25,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          DIRECT_STATUS=$(curl --silent --show-error --max-time 12 --output /tmp/direct-body --write-out '%{http_code}'             -H "User-Agent: $ROKU_UA"             -H "X-Roku-Reserved-Dev-Id: $ROKU_ID"             "$TARGET_URL" || true)
+          echo "DIRECT_HTTP=$DIRECT_STATUS"
+          head -c 240 /tmp/direct-body 2>/dev/null | tr '\n' ' ' || true
+          echo
+
           RAW_SOURCE="$TARGET_URL|User-Agent=$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$ROKU_UA")&x-roku-reserved-dev-id=$ROKU_ID"
           VERIFY_JSON=$(node -e "process.stdout.write(JSON.stringify({candidate:{candidateId:'jimgate-mega-roku',sourceType:'hls',sourceUrl:process.argv[1]}}))" "$RAW_SOURCE")
 
