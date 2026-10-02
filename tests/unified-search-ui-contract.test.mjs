@@ -12,7 +12,7 @@ const css=fs.readFileSync(cssPath,'utf8');
 for(const required of [
   'unified-search-form','unified-search-query','unified-search-results','unified-search-report',
   'unified-search-report-summary','unified-search-report-timeline','unified-search-cancel',
-  'Copy report','Export JSON','Open source','Details','Play',
+  'Copy report','Export JSON','Open source','Details','Play','unified-search-status-banner','unified-search-submit',
 ])assert.ok(js.includes(required),`UI must include ${required}`);
 
 assert.equal(/Find Official|Official Sources|official-provider-lane|official-api-resolver/i.test(js),false,'Official discovery controls must not appear in Unified Search UI');
@@ -38,6 +38,12 @@ assert.ok(js.includes('reporter?.exportJson?.()')||js.includes('reporter.exportJ
 
 for(const requiredClass of ['.unified-search-panel','.unified-search-grid','.unified-channel-card','.unified-candidate-row','.unified-report'])assert.ok(css.includes(requiredClass),`stylesheet must define ${requiredClass}`);
 assert.ok(/@media/.test(css),'Unified Search must include responsive layout rules');
+assert.ok(/Searching…/.test(js),'running state must expose an obvious Searching label');
+assert.ok(/Finished/.test(js),'completed state must expose an obvious Finished label');
+assert.ok(/unified-search-status-banner/.test(css),'stylesheet must define a prominent search status banner');
+assert.ok(/unified-search-spinner/.test(css),'stylesheet must define a visible searching spinner');
+assert.ok(/disabled\s*=\s*status\s*===\s*['"]running['"]/.test(js)||/submit\.disabled\s*=\s*running/.test(js),'Search submit must be disabled while a search is running');
+assert.ok(/Lanes:\s*\$\{done\}\/\$\{lanes\.length\}/.test(js),'visible status must report lane completion progress');
 assert.equal(/<style|style\.textContent/.test(js),false,'search visual styling belongs in unified-search.css, not injected style blobs');
 
 console.log('polished unified search UI contract PASS');
