@@ -124,9 +124,9 @@ const postFilterDiagnostic=await page.evaluate(()=>({
   rowCount:document.querySelectorAll('#channel-list .channel-item').length,
   nowCount:document.querySelectorAll('#channel-list .channel-now-inline').length,
   summary:document.getElementById('channel-summary')?.textContent?.trim()||'',
-  favoritesGets:favoritesGets,
   storageWrites:window.__qaStorageWrites||[]
 }));
+postFilterDiagnostic.favoritesGets=favoritesGets;
 assert.equal(postFilterDiagnostic.apiState?.favoritesOnly,true,`Favorites filter click must toggle canonical presentation state: ${JSON.stringify(postFilterDiagnostic)}`);
 assert.ok(postFilterDiagnostic.eventCount>=1,`Favorites filter click must emit presentation event: ${JSON.stringify(postFilterDiagnostic)}`);
 assert.equal(postFilterDiagnostic.rowCount,2,`main renderer must consume Favorites presentation event: ${JSON.stringify(postFilterDiagnostic)}`);
