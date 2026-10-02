@@ -14,6 +14,13 @@ try{
   globalThis.fetch=async(url,options={})=>{
     const value=String(url);
     assert.equal(options.redirect,'manual');
+    if(value.includes('roku.test')){
+      const headers=new Headers(options.headers||{});
+      assert.equal(value,'http://roku.test/live.m3u8');
+      assert.equal(headers.get('user-agent'),'Roku/DVP-14.6');
+      assert.equal(headers.get('x-roku-reserved-dev-id'),'device-123');
+      return new Response('#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
+    }
     if(value.includes('good.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     if(value.includes('dead.test'))return new Response('gone',{status:404,headers:{'content-type':'text/plain'}});
     if(value.includes('drm.test'))return new Response('<?xml version="1.0"?><MPD><Period><ContentProtection schemeIdUri="urn:uuid:test"/></Period></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
@@ -31,6 +38,10 @@ try{
   const unresolvedBody=await unresolvedResponse.json();
   assert.equal(unresolvedBody.results[0].status,'UNRESOLVED');
   assert.equal(unresolvedBody.results[1].status,'UNRESOLVED');
+
+  const rokuResponse=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidate:{candidateId:'roku',sourceType:'hls',sourceUrl:'http://roku.test/live.m3u8|User-Agent=Roku%2FDVP-14.6&x-roku-reserved-dev-id=device-123'}})}),{});
+  const rokuBody=await rokuResponse.json();
+  assert.equal(rokuBody.results[0].status,'VERIFIED');
 
   const request=new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidates:[
     {candidateId:'good',sourceType:'hls',sourceUrl:'https://good.test/live.m3u8'},
