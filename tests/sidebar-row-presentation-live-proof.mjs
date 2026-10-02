@@ -124,6 +124,9 @@ await page.evaluate(()=>{
 await page.waitForTimeout(250);
 const postFilterDiagnostic=await page.evaluate(()=>({
   apiState:window.WebTVFavoritesPresentationAPI?.getState?.()||null,
+  apiSource:String(window.WebTVFavoritesPresentationAPI?.getState||''),
+  rawFavorites:localStorage.getItem('webtv_v2_favorites_v1'),
+  pageUrl:location.href,
   eventCount:window.__qaFavoritePresentationEvents||0,
   filterText:document.getElementById('favorites-filter')?.textContent?.trim()||'',
   rowCount:document.querySelectorAll('#channel-list .channel-item').length,
