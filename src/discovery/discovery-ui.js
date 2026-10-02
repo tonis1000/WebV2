@@ -1,7 +1,5 @@
 import { candidateForDisplay, withVerification } from './candidate-model.js';
 import { DiscoveryState, FRESHNESS_OPTIONS } from './discovery-state.js';
-import { readLocalSourceContext } from './local-data-reader.js';
-import { collectLocalCandidates } from './local-candidates.js';
 import { discoverAuthorizedXtream, AUTHORIZED_XTREAM_DISCOVERY_PROVIDER } from './authorized-xtream.js';
 import { discoverCuratedRemoteFeeds, discoverGithubPublicPlaylists, discoverRecentWebSearch, discoverStrmSpecific, CURATED_REMOTE_FEEDS_PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER } from './external-discovery-client.js';
 import { verifyCandidates, verifyWithConcurrency } from './verifier-client.js';
@@ -51,7 +49,7 @@ function ensureUi(){
   let panel=$('discovery-shell');
   if(!panel){
     panel=document.createElement('section');panel.id='discovery-shell';panel.className='discovery-shell';panel.hidden=true;panel.setAttribute('aria-label','Legacy Source Discovery');
-    panel.innerHTML=`<div class="discovery-shell-head"><div><div class="discovery-phase">DISCOVERY · LEGACY SHELL · READ/VERIFY</div><h2 id="discovery-channel">No channel selected</h2></div><button id="discovery-close" class="button ghost" type="button">Close</button></div><div class="discovery-note">Legacy Discovery remains isolated from playback. New Xtream Test / Preview is owned by Xtream Account Management. This shell retains local intelligence, retained external providers, Authorized Xtream checks, verification and generic verified-source promotion.</div><div class="discovery-controls" id="discovery-freshness" aria-label="Freshness window"></div><div class="discovery-actions"><button id="discovery-scan-local" class="button" type="button">Find Local Sources</button><button id="discovery-scan-curated" class="button" type="button">Find Curated Feeds</button><button id="discovery-scan-github" class="button" type="button">Search GitHub Playlists</button><button id="discovery-scan-web" class="button" type="button">Search Recent Web</button><button id="discovery-scan-strm" class="button" type="button">Resolve STRM Sources</button><button id="discovery-scan-xtream" class="button" type="button">Search Authorized Xtream</button><button id="discovery-cancel-external" class="button ghost" type="button" hidden>Cancel Search</button><button id="discovery-verify-all" class="button ghost" type="button">Verify All</button><button id="discovery-cancel-verify" class="button ghost" type="button" hidden>Cancel Verify</button></div><div id="discovery-scan-status" class="discovery-scan-status">Ready · no scan yet</div><div id="discovery-external-status" class="discovery-scan-status"></div><div id="discovery-verify-status" class="discovery-scan-status"></div><div id="discovery-lanes" class="discovery-lanes"></div><div id="discovery-results" class="discovery-results"></div>`;
+    panel.innerHTML=`<div class="discovery-shell-head"><div><div class="discovery-phase">DISCOVERY · LEGACY SHELL · READ/VERIFY</div><h2 id="discovery-channel">No channel selected</h2></div><button id="discovery-close" class="button ghost" type="button">Close</button></div><div class="discovery-note">Legacy Discovery remains isolated from playback. Local intelligence is owned by the canonical known-source path. New Xtream Test / Preview is owned by Xtream Account Management. This shell retains external providers, Authorized Xtream checks, verification and generic verified-source promotion.</div><div class="discovery-controls" id="discovery-freshness" aria-label="Freshness window"></div><div class="discovery-actions"><button id="discovery-scan-curated" class="button" type="button">Find Curated Feeds</button><button id="discovery-scan-github" class="button" type="button">Search GitHub Playlists</button><button id="discovery-scan-web" class="button" type="button">Search Recent Web</button><button id="discovery-scan-strm" class="button" type="button">Resolve STRM Sources</button><button id="discovery-scan-xtream" class="button" type="button">Search Authorized Xtream</button><button id="discovery-cancel-external" class="button ghost" type="button" hidden>Cancel Search</button><button id="discovery-verify-all" class="button ghost" type="button">Verify All</button><button id="discovery-cancel-verify" class="button ghost" type="button" hidden>Cancel Verify</button></div><div id="discovery-external-status" class="discovery-scan-status"></div><div id="discovery-verify-status" class="discovery-scan-status"></div><div id="discovery-lanes" class="discovery-lanes"></div><div id="discovery-results" class="discovery-results"></div>`;
     document.body.appendChild(panel);
   }
   const controls=$('discovery-freshness');
@@ -64,7 +62,6 @@ function ensureUi(){
     button.dataset.bound='1';
     button.addEventListener('click',openPanel);
     $('discovery-close')?.addEventListener('click',closePanel);
-    $('discovery-scan-local')?.addEventListener('click',scanLocalSources);
     $('discovery-scan-curated')?.addEventListener('click',()=>scanExternalProvider(CURATED_REMOTE_FEEDS_PROVIDER));
     $('discovery-scan-github')?.addEventListener('click',()=>scanExternalProvider(GITHUB_PUBLIC_PLAYLISTS_PROVIDER));
     $('discovery-scan-web')?.addEventListener('click',()=>scanExternalProvider(RECENT_WEB_SEARCH_PROVIDER));
@@ -79,7 +76,7 @@ function ensureUi(){
 
 function renderLanes(snapshot){
   const lanes=$('discovery-lanes');if(!lanes)return;lanes.replaceChildren();
-  const rows=[['My Playlist',snapshot.lanes.myPlaylist],['Saved Playlists',snapshot.lanes.savedPlaylists],['Xtream loaded',snapshot.lanes.xtream],['Curated feeds',snapshot.lanes.curatedRemoteFeeds],['GitHub recent',snapshot.lanes.githubPublicPlaylists],['Recent web',snapshot.lanes.recentWebSearch],['STRM resolved',snapshot.lanes.strmSpecific],['Authorized Xtream',snapshot.lanes.authorizedXtream],['Unique',snapshot.lanes.total]];
+  const rows=[['Curated feeds',snapshot.lanes.curatedRemoteFeeds],['GitHub recent',snapshot.lanes.githubPublicPlaylists],['Recent web',snapshot.lanes.recentWebSearch],['STRM resolved',snapshot.lanes.strmSpecific],['Authorized Xtream',snapshot.lanes.authorizedXtream],['Unique',snapshot.lanes.total]];
   for(const[label,count]of rows){const chip=document.createElement('span');chip.textContent=`${label}: ${count}`;lanes.appendChild(chip);}
 }
 function verificationSummary(snapshot){const counts={VERIFIED:0,FAILED:0,OTHER:0};for(const item of snapshot.candidates){if(item.verificationStatus==='VERIFIED')counts.VERIFIED++;else if(['FAILED','TIMEOUT','HTTP 403','HTTP 404','DRM','UNRESOLVED'].includes(item.verificationStatus))counts.FAILED++;else counts.OTHER++;}return counts;}
@@ -87,18 +84,17 @@ function verificationSummary(snapshot){const counts={VERIFIED:0,FAILED:0,OTHER:0
 function render(){
   const snapshot=state.snapshot();const panel=$('discovery-shell');if(!panel)return;panel.hidden=!snapshot.open;$('discovery-channel').textContent=snapshot.channel?.name||'No channel selected';
   document.querySelectorAll('#discovery-freshness [data-freshness]').forEach(control=>control.setAttribute('aria-pressed',String(control.dataset.freshness===snapshot.freshness)));
-  const verifyBusy=snapshot.verifyStatus==='loading';const externalBusy=snapshot.externalStatus==='loading';const localBusy=snapshot.scanStatus==='loading';const disabled=localBusy||externalBusy||verifyBusy||!snapshot.channel;
-  for(const id of['discovery-scan-local','discovery-scan-curated','discovery-scan-github','discovery-scan-web','discovery-scan-strm','discovery-scan-xtream']){const control=$(id);if(control)control.disabled=disabled;}
+  const verifyBusy=snapshot.verifyStatus==='loading';const externalBusy=snapshot.externalStatus==='loading';const disabled=externalBusy||verifyBusy||!snapshot.channel;
+  for(const id of['discovery-scan-curated','discovery-scan-github','discovery-scan-web','discovery-scan-strm','discovery-scan-xtream']){const control=$(id);if(control)control.disabled=disabled;}
   const cancelExternal=$('discovery-cancel-external');if(cancelExternal)cancelExternal.hidden=!externalBusy;
   const verifyAllBtn=$('discovery-verify-all');if(verifyAllBtn)verifyAllBtn.disabled=verifyBusy||externalBusy||localBusy||!snapshot.candidates.length;
   const cancel=$('discovery-cancel-verify');if(cancel)cancel.hidden=!verifyBusy;
-  const status=$('discovery-scan-status');if(status)status.textContent=snapshot.scanMessage||(snapshot.channel?'Local: ready':'Select a channel first');
   const externalStatus=$('discovery-external-status');if(externalStatus)externalStatus.textContent=snapshot.externalMessage||(snapshot.channel?'External: ready · Curated + GitHub + Recent Web + STRM + Authorized Xtream':'');
   const verifyStatus=$('discovery-verify-status');if(verifyStatus){const counts=verificationSummary(snapshot);verifyStatus.textContent=snapshot.verifyMessage||(snapshot.candidates.length?`Verified ${counts.VERIFIED} · failed ${counts.FAILED} · pending ${counts.OTHER}`:'');}
   renderLanes(snapshot);
   const results=$('discovery-results');results.replaceChildren();
   if(!snapshot.channel){const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent='Select a channel first. Opening Discovery never changes the current selection.';results.appendChild(empty);return;}
-  if(!snapshot.candidates.length&&(localBusy||externalBusy)){const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent=externalBusy?'Searching external provider…':'Reading local source snapshots…';results.appendChild(empty);return;}
+  if(!snapshot.candidates.length&&externalBusy){const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent='Searching external provider…';results.appendChild(empty);return;}
   if(!snapshot.candidates.length){const empty=document.createElement('div');empty.className='discovery-empty';empty.textContent='No matching candidate yet. Nothing was written or tested automatically.';results.appendChild(empty);return;}
   for(const raw of snapshot.candidates){
     const item=candidateForDisplay(raw);const card=document.createElement('article');card.className='discovery-card';card.dataset.candidateId=item.candidateId;
@@ -114,10 +110,6 @@ function render(){
   }
 }
 
-async function scanLocalSources(){
-  cancelVerification();const selected=syncSelectedChannel();if(!selected){render();return;}state.setScanning('Reading local source snapshots…');render();
-  try{const context=await readLocalSourceContext();const result=collectLocalCandidates(selected,context);const notes=[];if(!context.myPlaylistAvailable)notes.push('My Playlist snapshot skipped while temporary catalog is active');if(!context.loadedXtream)notes.push('Xtream loaded lane uses only an account already loaded in Playlist Manager');const base=`Local scan complete · ${result.candidates.length} unique local candidate${result.candidates.length===1?'':'s'}`;state.setScanResult({candidates:result.candidates,lanes:result.lanes,message:notes.length?`${base} · ${notes.join(' · ')}`:base});}catch(error){state.setScanError(error?.message||String(error));}render();
-}
 function cancelExternalDiscovery(){if(externalController&&!externalController.signal.aborted)externalController.abort(new DOMException('External discovery cancelled','AbortError'));externalController=null;}
 async function scanAuthorizedXtreamSources(){
   cancelVerification();cancelExternalDiscovery();const selected=syncSelectedChannel();if(!selected){render();return;}externalController=new AbortController();state.setExternalScanning('Searching saved authorized Xtream accounts…');render();
