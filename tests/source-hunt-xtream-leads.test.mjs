@@ -15,6 +15,8 @@ assert.equal(evidence.qualifies,true);
 assert.equal(evidence.xtream,true);
 assert.equal(evidence.greek,true);
 assert.equal(evidence.trial,true);
+const playerArticle=xtreamProviderEvidence('IPTV player supports English, Greek and Spanish. Xtream Codes supported. Free trial of the app.','MEGA');
+assert.equal(playerArticle.qualifies,false,'language support alone must not look like Greek-channel provider evidence');
 
 const provider=safeXtreamProviderLeadUrl('https://provider.example/greek-iptv/free-trial');
 assert.equal(provider,'https://provider.example/greek-iptv/free-trial');
