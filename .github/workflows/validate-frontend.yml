@@ -134,6 +134,8 @@ jobs:
         run: node tests/xtream-client.test.mjs
       - name: Run Xtream account load ownership regression test
         run: node tests/xtream-account-load-ownership.test.mjs
+      - name: Run Playlist Manager Xtream Library ownership regression test
+        run: node tests/playlist-manager-xtream-library.test.mjs
       - name: Run Xtream mock deploy contract
         run: node tests/xtream-mock-deploy-contract.test.mjs
       - name: Run Xtream large catalog regression test
