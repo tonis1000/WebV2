@@ -36,9 +36,21 @@ let catalogMode = 'cloud';
 let selectionToken = 0;
 const channelRows = new Map();
 
+let diagnosticsState={
+  source:'',
+  playbackUrl:'',
+  route:'',
+  player:'',
+  startupMs:0,
+  error:'',
+  fallback:false,
+  playbackState:'idle',
+  playbackLabel:'Idle',
+};
 window.WebTVDiagnosticsAPI={
   buildId:BUILD_ID,
   lastRoutePlan:[],
+  getSnapshot:()=>({...diagnosticsState}),
   getSourceHealthRows:channel=>sources.getCuratedRouteDiagnostics(channel),
   healthSummary:()=>({entries:Object.keys(health.map||{}).length,storageKey:health.storageKey})
 };
@@ -84,16 +96,42 @@ function renderSourceHunt(channel){
   els.sourceHuntToggle.hidden=false;
   els.huntChannel.textContent=channel.name;
 }
-function setPlaybackState(state,label){els.status.className=`status-pill ${state}`;els.status.textContent=label;}
-function clearDiagnostics(){els.diagSource.textContent='-';els.diagRoute.textContent='-';els.diagPlayer.textContent='-';els.diagStartup.textContent='-';}
+function publishDiagnostics(){
+  window.dispatchEvent(new CustomEvent('webtv:diagnostics-updated',{detail:{...diagnosticsState}}));
+}
+function setPlaybackState(state,label){
+  els.status.className=`status-pill ${state}`;
+  els.status.textContent=label;
+  diagnosticsState={...diagnosticsState,playbackState:state||'',playbackLabel:label||''};
+  publishDiagnostics();
+}
+function clearDiagnostics(){
+  els.diagSource.textContent='-';
+  els.diagRoute.textContent='-';
+  els.diagPlayer.textContent='-';
+  els.diagStartup.textContent='-';
+  diagnosticsState={...diagnosticsState,source:'',playbackUrl:'',route:'',player:'',startupMs:0,error:'',fallback:false};
+  publishDiagnostics();
+}
 function updateDiagnostics(info){
-  els.diagSource.textContent=info.source||'-';
-  els.diagRoute.textContent=info.route||'-';
-  els.diagPlayer.textContent=info.player||'-';
-  els.diagStartup.textContent=info.startupMs?`${info.startupMs} ms`:'-';
-  const source=sourceLabel(info.source);
-  if(info.error)log(`FAIL ${info.route} · ${source} · ${info.error}`);
-  else log(`${info.fallback?'FALLBACK':'OK'} ${info.player} via ${info.route} · ${source} · ${info.startupMs} ms`);
+  diagnosticsState={
+    ...diagnosticsState,
+    source:info.source||'',
+    playbackUrl:info.playbackUrl||'',
+    route:info.route||'',
+    player:info.player||'',
+    startupMs:Number(info.startupMs||0),
+    error:info.error||'',
+    fallback:Boolean(info.fallback),
+  };
+  els.diagSource.textContent=diagnosticsState.source||'-';
+  els.diagRoute.textContent=diagnosticsState.route||'-';
+  els.diagPlayer.textContent=diagnosticsState.player||'-';
+  els.diagStartup.textContent=diagnosticsState.startupMs?`${diagnosticsState.startupMs} ms`:'-';
+  publishDiagnostics();
+  const source=sourceLabel(diagnosticsState.source);
+  if(diagnosticsState.error)log(`FAIL ${diagnosticsState.route} · ${source} · ${diagnosticsState.error}`);
+  else log(`${diagnosticsState.fallback?'FALLBACK':'OK'} ${diagnosticsState.player} via ${diagnosticsState.route} · ${source} · ${diagnosticsState.startupMs} ms`);
 }
 function setOfficialLive(channel){
   const key=normalizeId(channel?.id||channel?.originalId||channel?.name||'');
