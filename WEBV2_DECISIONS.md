@@ -120,3 +120,27 @@ Evidence:
 - Production Playwright verification against GitHub Pages and the deployed authorized mock provider passed for 50, 500 and 5000 channels, bounded rendering, filtering, Selected / All-known save, Custom Playlist creation, Full Account save, Player independence and zero page/console errors.
 
 Reconsider when: only if a later architecture phase replaces D1 Library ownership or proves a different single owner for Xtream onboarding/custom collections while preserving credential isolation, explicit-save semantics, Player/Search separation and migration compatibility.
+
+
+## DEC-017 Local intelligence has one canonical known-source aggregation path
+Decision: save-time local intelligence is background/read-only data, not a Unified Search lane. `src/known-source-collector.js` owns channel/source matching and dedupe for already-known sources, while `src/cloud-read-sync.js` remains the single owner of reconciled Saved Playlist snapshot reads through `WebTVSavedPlaylistsReadAPI`.
+
+Known-source inputs may include:
+- My Playlist;
+- Custom Saved Playlists;
+- source-backed Saved M3U playlists already present in the reconciled local cache;
+- the already-loaded catalog;
+- the explicitly selected source.
+
+Hard rules:
+- no Unified Search, Hunt or network discovery is started by All known sources;
+- Local intelligence does not become a visible automatic-discovery lane;
+- source-backed Saved M3U matching must use the canonical known-source identity rules rather than the legacy Discovery-local identity implementation;
+- Saved Playlist read/cache ownership is not duplicated into Playlist Manager or another consumer;
+- legacy Discovery Local files are not deleted until a separate no-consumer/deletion proof succeeds.
+
+Reason: the legacy Discovery Local Scan contained useful Saved M3U coverage, but its production entrypoint had already been retired and it carried an independent identity path. Moving the missing Saved M3U coverage into the existing known-source collector preserves the useful capability while eliminating the need for two competing local-intelligence owners.
+
+Evidence: PR #100 merge `35306d1161899a8f58801363bd3b1947881db9b2`; RED-first known-source and save-destination ownership tests; exact-SHA Validate WebTV Frontend #813, Deploy WebTV Registry Worker #109 and GitHub Pages #467 SUCCESS.
+
+Reconsider when: only if a later architecture phase replaces the Library/cache model or proves a different single local-intelligence owner while preserving no-search-at-save, source identity, dedupe and startup boundaries.

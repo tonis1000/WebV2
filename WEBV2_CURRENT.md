@@ -1,10 +1,11 @@
 # WEBV2 CURRENT STATE
 
-Updated: 2026-10-01
+Updated: 2026-10-02
 Repository: `tonis1000/WebV2`
 Canonical source: GitHub `main/WEBV2_CURRENT.md`.
 
 ## CURRENT VERSION
+Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
 Xtream All-known unprofiled identity follow-up merge SHA: `bf0b6a70e0c7840c19b0e08c7f2f04396aa22b7a` via PR #97.
@@ -17,6 +18,15 @@ Phase E3b Enigma2 normalization runtime merge SHA: `cc7e2128e9257cc431a95abf08f2
 Phase E3a STRM normalization runtime merge SHA: `35c3f7641221b3ad24b3533269e72218d729e241` via PR #73.
 GitHub-canonical CURRENT ownership merge SHA: `c7cb5bda983e405d53190ce4ea8858155b1c4a88`.
 Phase E2 runtime merge SHA: `06383089b6fd7b4a31c468c46c7dd2c21ddfdb14`.
+
+Verified Local known-source ownership production evidence:
+- PR #100 merged at `35306d1161899a8f58801363bd3b1947881db9b2`.
+- `src/known-source-collector.js` is the canonical source aggregation owner for save-time already-known sources; it now includes source-backed Saved M3U snapshots in addition to My Playlist, Custom Playlists and the already-loaded catalog.
+- Saved Playlist snapshot reading remains owned by `src/cloud-read-sync.js` through `WebTVSavedPlaylistsReadAPI`; no second cache/read owner was introduced.
+- Saved M3U entries are parsed through the existing shared Channel Catalog/M3U path and matched with the canonical known-source identity rules, including preserved `originalId` / `tvgId` handling.
+- The save-time path performs no Unified Search, Hunt or network discovery and does not create a Local Search lane.
+- Legacy `src/discovery/local-data-reader.js` and `src/discovery/local-candidates.js` remain historical/legacy files pending a separate no-consumer deletion proof; PR #100 did not delete them.
+- Exact-SHA post-merge proof at `35306d1161899a8f58801363bd3b1947881db9b2`: Validate WebTV Frontend #813 SUCCESS, Deploy WebTV Registry Worker #109 SUCCESS and GitHub Pages #467 SUCCESS.
 
 Verified Xtream Preview / Custom Saved Playlists production evidence:
 - PR #93 merged at `9588e191fd354b42d20ae87ab16d3a2989041df4` with production ownership moved to Playlist Manager / Xtream account management.
@@ -86,7 +96,7 @@ Unified Search sidebar-selection sync follow-up: DONE.
 New Xtream Preview ownership audit + production migration: DONE.
 Custom Saved Playlists mixed-source foundation: DONE.
 Promotion safety audit for the Xtream preview persistence path: DONE and preserved.
-Local scan ownership audit: NEXT.
+Local scan ownership audit + canonical known-source migration: DONE.
 Playlist / Library / Xtream management consolidation: ACTIVE, with the Xtream preview/custom-playlist slice completed.
 
 Current ownership:
@@ -96,7 +106,10 @@ Current ownership:
 - Component-specific workflow/live evidence = deployment truth for that component.
 
 ## CURRENT VERIFIED OUTCOME
-Xtream Preview ownership and Custom Saved Playlists are DONE for the approved bounded scope.
+Local scan ownership and canonical known-source migration are DONE for the approved bounded scope.
+Xtream Preview ownership and Custom Saved Playlists remain DONE for their approved bounded scope.
+
+Production local intelligence now has one canonical save-time aggregation path: `cloud-read-sync` owns reconciled Saved Playlist snapshots, while `known-source-collector` owns channel/source matching and dedupe across My Playlist, Custom Playlists, source-backed Saved M3U playlists and the already-loaded catalog. This intelligence remains background/read-only and does not appear as a Unified Search lane or start network discovery.
 
 Production behavior now has:
 - a single production owner for New Xtream onboarding under Playlist Manager / Xtream account management instead of the retired legacy Discovery New-Xtream UI;
@@ -114,8 +127,8 @@ Unified Search Hunt / Discovery consolidation remains DONE.
 
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
-During this 2026-10-01 closure preflight, the available web tool could not access `/api/project-status` or `/api/project-checkpoints`, so no fresh direct checkpoint SHA / deployed SHA equality is claimed.
-The exact latest runtime main SHA `de62fca10c7e452c836d168f2c373b437c936a93` completed Deploy WebTV Registry Worker #107 successfully and GitHub Pages #465 successfully; Validate WebTV Frontend #800 completed SUCCESS on rerun attempt 2 at the same exact SHA.
+During this 2026-10-02 closure preflight, the available web tool could not access `/api/project-status` or `/api/project-checkpoints`, so no fresh direct checkpoint SHA / deployed SHA equality is claimed.
+The exact latest runtime main SHA `35306d1161899a8f58801363bd3b1947881db9b2` completed Deploy WebTV Registry Worker #109 successfully, GitHub Pages #467 successfully and Validate WebTV Frontend #813 successfully. The Registry workflow's live verification and deployment-status recording steps also completed successfully at that exact SHA.
 Because the direct Registry status/checkpoint endpoints were unavailable to the current tool, workflow/live evidence is recorded without pretending that checkpoint SHA, Registry deployed SHA and GitHub main SHA were independently read back as equal.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
@@ -137,14 +150,15 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Legacy Discovery Beta production entrypoint cleanup: DONE, merge `53467ff29cfcb7b71cae4e4a74fd9a4cde33e713`
 - Official broadcaster discovery/resolution retirement: DONE, runtime merge `92dd5411427a06cc501e924df60f7dc2a80be1c1`
 - Xtream Preview ownership + Custom Saved Playlists: DONE, runtime merge `9588e191fd354b42d20ae87ab16d3a2989041df4`, closure follow-ups `9f08d898b8209ffa4d32aa11424802df367f63e1`, `bf0b6a70e0c7840c19b0e08c7f2f04396aa22b7a`, `de62fca10c7e452c836d168f2c373b437c936a93`
+- Local scan ownership + canonical known-source migration: DONE, runtime merge `35306d1161899a8f58801363bd3b1947881db9b2`
 
 ## NEXT SAFE ACTION
 Continue the System Audit one bounded owner at a time:
-1. audit Local scan as background intelligence and confirm its canonical owner, dedupe inputs and no-user-facing-lane contract;
-2. then continue Playlist / Library / Xtream management consolidation beyond the completed Xtream preview/custom-playlist slice;
+1. continue Playlist / Library / Xtream management consolidation beyond the completed Xtream preview/custom-playlist and local-known-source slices;
+2. separately prove whether the remaining legacy Local Discovery files have zero active consumers before any deletion;
 3. afterward proceed to Manual Test / Diagnostics / Source Health / Playback Inspector overlap cleanup.
 
-Do not redesign Player, Verifier, EPG or final visual layout as part of the Local scan audit unless a separate bounded problem statement and proof require it.
+Do not delete legacy Local Discovery files merely because canonical ownership has moved. Deletion still requires explicit no-consumer proof, regression coverage and deployed verification. Do not redesign Player, Verifier, EPG or final visual layout as part of that cleanup unless a separate bounded problem statement and proof require it.
 
 ## DO NOT BREAK
 - D1-primary My Playlist
@@ -170,7 +184,7 @@ Do not redesign Player, Verifier, EPG or final visual layout as part of the Loca
 - Unified Search progressive cancellation, stale-run protection, provenance and credential-redaction behavior
 - retained Curated / GitHub / Recent Web / STRM / Authorized Xtream / Hunt exploration discovery capabilities
 - Promotion safety boundary between temporary findings and permanent saved state
-- Local scan background intelligence for dedupe and known-source awareness until its ownership audit is complete
+- Local intelligence remains background/read-only for dedupe and known-source awareness; it must not become a Unified Search lane or start save-time network discovery
 - bouquet proxy transport/security ownership
 - Source Verifier security/status semantics
 - Existing Player behavior unless a bounded change proves necessity
