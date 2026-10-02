@@ -317,3 +317,24 @@ Evidence:
 - Verification-only PR #123 remained unmerged and was closed after Verify Player Ownership Live #1 SUCCESS against real production Pages: legacy file HTTP 404, exactly one live PlayerController construction and one WebTVPlaybackAPI bridge, official fallback still PlayerController-owned, Manual Test + Unified Search retained, legacy One-click control absent, stop/idle state coherent, page/console errors zero. Artifact ID `11230147095`.
 
 Reconsider when: only if a future playback architecture intentionally replaces the `main.js` + `PlayerController` owner chain, with an explicit migration plan, regression proof and production live verification.
+
+
+## DEC-025 main.js owns EPG refresh scheduling; Sidebar is a read-only EPG consumer
+Decision: Phase C EPG semantic ownership remains in `src/core/epg.js`, while `main.js` is the sole frontend owner of EPG refresh scheduling. Sidebar Now Playing consumes the shared EPG singleton for presentation only and must not start or schedule EPG refreshes.
+
+Hard rules:
+- `src/core/epg.js` owns EPG feed URLs, XMLTV parsing, programme storage/indexing, Channel Identity/Profile-based resolution and fail-closed ambiguity behavior;
+- `main.js` owns the initial `epg.refresh()` and the periodic EPG refresh schedule;
+- `src/sidebar-now.js` may instantiate/read the shared singleton and call `epg.get(channel)`, but must not call `epg.refresh()`, consume `CONFIG.epgRefreshMs` or independently decide feed retry/refresh timing;
+- Sidebar presentation may update from `webtv:epg-updated`, channel-row mutations, `webtv:ready` and a presentation-only render tick;
+- provider XMLTV identifiers and aliases continue to flow through the preserved Phase C Identity/Profile contract and must not redefine stable WebV2 identity;
+- this ownership change must not alter current/next programme selection, progress calculation, time formatting, feed preference/fallback, Player behavior or final Sidebar layout.
+
+Reason: the audit found that Sidebar correctly shared the EPG singleton but still owned a second refresh function and timer. The singleton reduced duplicate requests in practice, yet two UI modules controlling refresh timing created an unnecessary second orchestration owner and future retry/timing drift risk.
+
+Evidence:
+- RED Validate WebTV Frontend #920 failed exactly on the ownership contract, reporting refresh owners `src/main.js` and `src/sidebar-now.js` instead of `src/main.js` alone.
+- PR #125 runtime merge `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5`; exact-head Frontend #921 and post-merge Frontend #922, Registry #126 and Pages #484 SUCCESS.
+- Verification-only PR #126 remained unmerged and was closed after Verify EPG Refresh Ownership Live #1 SUCCESS against real production Pages: one startup EPG network request remained one after Sidebar-only presentation events; `lastRefreshAt` and the shared 229-programme store did not change; all 24 Sidebar rows retained Now Playing presentation with 18 current-EPG rows visible in that run; page/console errors were zero. Artifact ID `11231467495`.
+
+Reconsider when: only if a future architecture intentionally moves EPG refresh scheduling away from `main.js`, while preserving exactly one scheduler, the Phase C identity/profile/fail-closed contract and production live verification.
