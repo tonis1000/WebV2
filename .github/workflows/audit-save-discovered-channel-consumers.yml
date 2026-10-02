@@ -1,0 +1,20 @@
+name: Audit saveDiscoveredChannel Consumers
+
+on:
+  pull_request:
+    paths:
+      - 'tests/save-discovered-channel-consumer-audit.mjs'
+      - '.github/workflows/audit-save-discovered-channel-consumers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Audit recursive consumers
+        run: node tests/save-discovered-channel-consumer-audit.mjs
