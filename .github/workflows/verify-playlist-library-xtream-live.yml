@@ -1,0 +1,61 @@
+name: Verify Playlist Library Xtream Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/playlist-library-xtream-live-proof.mjs'
+      - '.github/workflows/verify-playlist-library-xtream-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      XTREAM_MOCK_URL: https://webtv-xtream-mock.atonis.workers.dev
+      ARTIFACT_DIR: artifacts/playlist-library-xtream-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify exact production modules are live
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/playlist-manager.js?proof=$GITHUB_SHA" -o /tmp/playlist-manager-live.js
+          grep -q 'function xtreamAccountId' /tmp/playlist-manager-live.js
+          grep -q 'function isLoadedXtreamChannel' /tmp/playlist-manager-live.js
+          grep -q 'upsertChannel:' /tmp/playlist-manager-live.js
+          if grep -q 'Save Xtream Playlist' /tmp/playlist-manager-live.js; then
+            echo 'legacy Save Xtream Playlist unexpectedly present'
+            exit 1
+          fi
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/registry-default.js?proof=$GITHUB_SHA" -o /tmp/registry-default-live.js
+          if grep -q 'xtream-enhancements.js' /tmp/registry-default-live.js; then
+            echo 'legacy xtream-enhancements import unexpectedly present'
+            exit 1
+          fi
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production Playlist Library Xtream proof
+        run: node tests/playlist-library-xtream-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playlist-library-xtream-live-${{ github.sha }}
+          path: artifacts/playlist-library-xtream-live
+          if-no-files-found: warn
+          retention-days: 14
