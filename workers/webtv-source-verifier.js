@@ -145,6 +145,12 @@ export default{
     const url=new URL(request.url);
     if(request.method==='GET'&&url.pathname==='/')return json({ok:true,service:'WebTV Source Verifier',version:VERSION,timeoutMs:UPSTREAM_TIMEOUT_MS,maxBatch:MAX_BATCH,maxConcurrency:MAX_CONCURRENCY,maxRedirects:MAX_REDIRECTS});
     if(request.method==='GET'&&url.pathname==='/fixture/working.m3u8')return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:6,\nsegment1.ts\n',{status:200,headers:{...cors(),'content-type':'application/vnd.apple.mpegurl','cache-control':'no-store'}});
+    if(request.method==='GET'&&url.pathname==='/fixture/header-aware.m3u8'){
+      const ua=request.headers.get('user-agent')||'';
+      const roku=request.headers.get('x-roku-reserved-dev-id')||'';
+      if(ua!=='Roku/DVP-14.6'||roku!=='device-123')return new Response('forbidden',{status:403,headers:cors()});
+      return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:6,\nsegment1.ts\n',{status:200,headers:{...cors(),'content-type':'application/vnd.apple.mpegurl','cache-control':'no-store'}});
+    }
     if(request.method==='GET'&&url.pathname==='/fixture/dead')return new Response('gone',{status:404,headers:cors()});
     if(request.method==='POST'&&url.pathname==='/verify'){
       let body={};try{body=await request.json();}catch{return json({error:'Invalid JSON'},400);}
