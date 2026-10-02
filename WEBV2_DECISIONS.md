@@ -443,3 +443,41 @@ Evidence:
 
 Reconsider when: only if a new active product flow requires discovered-channel persistence that cannot use the existing canonical My Playlist APIs, with explicit caller ownership, regression coverage, deployment and live verification.
 
+## DEC-030 Final dormant frontend surfaces retired after cross-runtime zero-consumer proof
+Decision: close the final broad orphan / duplicate-owner sweep by deleting five frontend surfaces proven to have no production runtime consumer, removing the dead Discovery Beta right-rail compatibility lookup, and moving discovery browser acceptance to the active Unified Search owners. Keep shared Enigma2 normalization because it remains an active Worker dependency.
+
+Deleted/retired frontend surfaces:
+- `src/cloud-auto-sync.js`;
+- `src/d1-sync-addon.js`;
+- `src/core/official-fallbacks.js` (duplicate helper; active official fallback ownership remains in `src/core/player.js`);
+- `src/discovery/discovery-ui.js` (retired Discovery Beta shell);
+- `src/discovery/new-xtream-preview.js` (retired preview-discovery helper);
+- the `findDiscoveryButton()` / rendered-text Discovery Beta compatibility hook in `src/right-rail-preview.js`.
+
+Explicitly retained:
+- `src/core/enigma2-core.js`, because `workers/webtv-source-discovery.js` actively consumes it and deploy/validation workflows verify that path;
+- Player official fallback ownership in `src/core/player.js`;
+- Unified Search as the sole automatic discovery surface;
+- Manual Source Test as explicit candidate testing;
+- active Xtream Preview ownership and persistence boundaries;
+- canonical Favorites / My Playlist / Saved / Custom playlist, EPG and diagnostics ownership.
+
+Hard rules:
+- the five retired files and dead Discovery Beta rail lookup must not return as compatibility/reference code;
+- dormant code is not preserved merely for rollback or historical tests after zero-consumer proof;
+- tests must follow active canonical owners rather than force retired owners to remain;
+- `core/enigma2-core.js` must not be mistaken for browser-orphan code while it remains Worker-owned;
+- discovery browser smoke must exercise active Unified Search providers and verifier/isolation boundaries, not a retired Discovery shell;
+- no new cleanup slice is justified after this decision unless final end-to-end acceptance reveals a concrete defect.
+
+Reason: the final broad inventory found no duplicate global API owners and no unexpected persistence writers, but it did find five frontend files whose remaining references were absent or tests/workflow-only. Keeping them preserved obsolete state/discovery/fallback paths and future regression entrypoints despite no production role.
+
+Evidence:
+- audit-only PR #146 classified browser, Worker, workflow and tests references and proved the five dormant surfaces while explicitly retaining active Worker-owned Enigma2 core;
+- RED Frontend #992 failed exactly on the retirement contract;
+- PR #147 exact GREEN head `e1d5d1a8b53f1f135855c6e9a32cbaf3fbac4d97`: Frontend #1002 76/76 SUCCESS, Unified Search #71 SUCCESS and compatibility ownership workflow SUCCESS;
+- runtime merge `3fd863325511a332268dc6238a08a236341f3cf0`; post-merge Frontend #1003, Unified Search #72, Registry #137, Source Discovery #66 and Pages #495 SUCCESS, with Registry reporting the same deployed SHA;
+- verification-only PR #148 closed unmerged after Verify Final Dormant Frontend Retirement Live #1 SUCCESS and Frontend #1004 SUCCESS. Five retired URLs were 404; retained Player/Enigma2/Search/Manual Test owners were live; durable writes/page errors/console errors were zero. Artifact `11243288410`, digest `sha256:e645e0f5b914dbb6af219cbdca863db167d73ce6dd65808e59a6b795580d4e81`.
+
+Reconsider when: only when a concrete product requirement cannot be served by the retained canonical owners and a new bounded owner is justified with consumer proof, regression coverage, deployment and live verification.
+
