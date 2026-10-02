@@ -2,11 +2,11 @@ import { greekChannelAliases, normalizeChannelText } from '../../src/core/channe
 
 export const GITHUB_PUBLIC_PLAYLISTS_PROVIDER='github-public-playlists';
 export const GITHUB_SEARCH_TIMEOUT_MS=6000;
-export const GITHUB_MAX_SEARCHES=4;
+export const GITHUB_MAX_SEARCHES=3;
 export const GITHUB_MAX_REPOS=5;
 export const GITHUB_MAX_FILES_PER_REPO=2;
 export const GITHUB_MAX_RESULTS=12;
-export const GITHUB_MAX_SUBREQUESTS=18;
+export const GITHUB_MAX_SUBREQUESTS=10;
 
 const BASE_SEARCH_TERMS=Object.freeze(['greek iptv','greece m3u']);
 const FRESHNESS_DAYS=Object.freeze({'24h':1,'7d':7,'30d':30});
@@ -44,11 +44,10 @@ function quoteSearch(value=''){
 function searchTermsFor(channel={}){
   const aliases=channelAliases(channel);
   const primary=aliases[0]||String(channel.name||'').trim();
-  const alternate=aliases.find((value,index)=>index>0&&normalizeChannelText(value)!==normalizeChannelText(primary))||primary;
+  const descriptive=aliases.find(value=>/\s/.test(value)&&normalizeChannelText(value)!==normalizeChannelText(primary))||primary;
   return normalizedUnique([
     ...BASE_SEARCH_TERMS,
-    `${quoteSearch(primary)} greece iptv in:readme`,
-    `${quoteSearch(alternate)} greek tv playlist in:readme`,
+    `${quoteSearch(descriptive)} greek tv playlist in:readme`,
   ]).slice(0,GITHUB_MAX_SEARCHES);
 }
 function treeFileLooksUseful(item={}){
@@ -156,6 +155,7 @@ export async function discoverGithubPublicPlaylists({channel,freshness='7d',pars
       const found=parseM3u(raw.text,channel,{name:`github:${repo.full_name}/${file.path}`,provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER,freshness:`repo-pushed:${repo.pushed_at||'unknown'}`})
         .map(item=>({...item,discoveryProvider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER}));
       matches+=found.length;candidates.push(...found);
+      if(found.length)break;
     }
     repoReports.push({repo:repo.full_name,pushedAt:repo.pushed_at||null,status:listing.status,recursive:true,truncated:Boolean(listing.body?.truncated),files:filesFetched,matches,error:''});
   }
@@ -164,7 +164,7 @@ export async function discoverGithubPublicPlaylists({channel,freshness='7d',pars
     provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER,
     freshnessRequested:freshness,
     freshnessApplied:true,
-    freshnessNote:`GitHub repositories are filtered by pushed_at >= ${pushedSince}; up to four repository queries include channel-aware README discovery, and each selected repository is scanned recursively for playlist files before candidate matching.`,
+    freshnessNote:`GitHub repositories are filtered by pushed_at >= ${pushedSince}; three repository queries include channel-aware README discovery, and each selected repository is scanned recursively for playlist files before candidate matching.`,
     pushedSince,
     limits:{timeoutMs:GITHUB_SEARCH_TIMEOUT_MS,maxSearches:GITHUB_MAX_SEARCHES,maxRepos:GITHUB_MAX_REPOS,maxFilesPerRepo:GITHUB_MAX_FILES_PER_REPO,maxResults:GITHUB_MAX_RESULTS,maxSubrequests:GITHUB_MAX_SUBREQUESTS},
     candidates:uniqueCandidates(candidates),
