@@ -16,6 +16,7 @@ on:
       - 'tests/strm-core.test.mjs'
       - 'tests/source-hunt-m3u-parity.test.mjs'
       - 'tests/source-hunt-strm-parity.test.mjs'
+      - 'tests/source-hunt-xtream-leads.test.mjs'
       - '.github/workflows/deploy-source-hunt.yml'
 
 permissions:
@@ -50,6 +51,7 @@ jobs:
           node tests/strm-core.test.mjs
           node tests/source-hunt-m3u-parity.test.mjs
           node tests/source-hunt-strm-parity.test.mjs
+          node tests/source-hunt-xtream-leads.test.mjs
 
       - name: Build Wrangler config
         shell: bash
