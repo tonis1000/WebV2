@@ -41,7 +41,9 @@ function load(){
 function save(set){
   try{localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));}catch{}
 }
+function isMyPlaylistCatalog(){return window.WebTVPlaylistAPI?.getCatalogMode?.()==='cloud';}
 function selectedId(){
+  if(!isMyPlaylistCatalog())return '';
   const channel = window.WebTVPlaylistAPI?.getSelectedChannel?.();
   return channel?.id ? String(channel.id) : '';
 }
@@ -59,6 +61,7 @@ function ensureUi(){
     button.classList.toggle('active', favoritesOnly);
     button.textContent = favoritesOnly ? '★ Favorites only' : '☆ Favorites';
     button.addEventListener('click',()=>{
+      if(!isMyPlaylistCatalog())return;
       favoritesOnly = !favoritesOnly;
       try{localStorage.setItem(FILTER_KEY,favoritesOnly?'1':'0');}catch{}
       button.classList.toggle('active', favoritesOnly);
@@ -75,6 +78,7 @@ function ensureUi(){
     button.hidden = true;
     button.textContent = '☆ Favorite';
     button.addEventListener('click',async()=>{
+      if(!isMyPlaylistCatalog())return;
       const id = selectedId();
       if(!id) return;
       const set = load();
@@ -91,8 +95,9 @@ function ensureUi(){
 function updateSelectedButton(){
   const button = $('favorite-channel');
   if(!button) return;
+  const myPlaylist=isMyPlaylistCatalog();
   const id = selectedId();
-  button.hidden = !id;
+  button.hidden = !myPlaylist || !id;
   if(!id){
     button.textContent = '☆ Favorite';
     button.classList.remove('active');
@@ -108,8 +113,20 @@ function updateSelectedButton(){
 function apply(){
   scheduled = false;
   if(!list) return;
+  const myPlaylist=isMyPlaylistCatalog();
+  const filter=$('favorites-filter');
+  if(filter)filter.hidden=!myPlaylist;
   const set = load();
   const items = [...list.querySelectorAll('.channel-item')];
+  if(!myPlaylist){
+    items.forEach(item=>{
+      item.classList.remove('favorite');
+      item.hidden = false;
+      item.title = '';
+    });
+    updateSelectedButton();
+    return;
+  }
   const decorated = items.map((item,index)=>({item,index,fav:set.has(String(item.dataset.channelId || ''))}));
   decorated.forEach(({item,fav})=>{
     item.classList.toggle('favorite', fav);
