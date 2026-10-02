@@ -347,7 +347,7 @@ function injectUi() {
       <div id="xtream-preview-catalog" class="xtream-preview-catalog"></div>
       <div class="playlist-actions"><button id="xtream-preview-prev" class="button ghost mini" type="button">Previous</button><span id="xtream-preview-page-info" class="muted small"></span><button id="xtream-preview-next" class="button ghost mini" type="button">Next</button></div>
       <div id="xtream-preview-selection" class="playlist-manager-status">Select one channel to verify before saving.</div>
-      <div class="playlist-actions"><button id="xtream-preview-verify" class="button ghost" type="button" disabled>Verify selected channel</button><button id="xtream-preview-save-channel" class="button playlists" type="button" disabled>Save Channel…</button><button id="xtream-preview-save-account" class="button playlists" type="button" disabled>Save Full Xtream Account</button></div>
+      <div class="playlist-actions xtream-preview-save-actions"><button id="xtream-preview-verify" class="button ghost" type="button" disabled>Verify selected channel</button><button id="xtream-preview-save-channel" class="button playlists" type="button" disabled>Save Channel…</button><button id="xtream-preview-save-account" class="button playlists" type="button" disabled>Save Full Xtream Account</button></div>
     </section>
     <select id="xtream-account-select"><option value="">Choose saved account</option></select>
     <div class="playlist-actions"><button id="xtream-load" class="button" type="button">Load saved account channels</button><button id="xtream-delete" class="button danger" type="button">Delete account</button></div>
