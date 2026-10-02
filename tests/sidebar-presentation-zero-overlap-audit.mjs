@@ -86,7 +86,7 @@ for(const file of ['src/xtream-preview-actions.js','src/xtream-ui.js']){
 }
 {
   const text=fs.readFileSync('src/route-tooltip.js','utf8');
-  if(/channel-list/.test(text)||/appendChild\\s*\\(|insertBefore\\s*\\(|replaceChildren\\s*\\(|\\.hidden\\s*=/.test(text)){
+  if(text.includes('channel-list')||/appendChild\s*\(/.test(text)||/insertBefore\s*\(/.test(text)||/replaceChildren\s*\(/.test(text)||/\.hidden\s*=/.test(text)){
     throw new Error('route-tooltip.js must remain a read-only channel-row consumer');
   }
 }
