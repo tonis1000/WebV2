@@ -136,7 +136,11 @@ if(!await candidateInput.isVisible()){
 }
 await candidateInput.waitFor({state:'visible',timeout:10000});
 await candidateInput.fill(MEDIA_URL);
-await page.locator('#test-candidate').click();
+await page.evaluate(()=>{
+  const button=document.getElementById('test-candidate');
+  if(!button)throw new Error('Manual Test button unavailable');
+  button.click();
+});
 await page.waitForFunction(mediaUrl=>{
   const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
   const save=document.getElementById('save-candidate');
