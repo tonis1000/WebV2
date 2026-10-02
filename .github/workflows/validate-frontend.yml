@@ -204,6 +204,8 @@ jobs:
         run: node tests/source-discovery-m3u-parity.test.mjs
       - name: Run Source Hunt M3U parity
         run: node tests/source-hunt-m3u-parity.test.mjs
+      - name: Run candidate URL sanitizer contract
+        run: node tests/candidate-url-sanitizer.test.mjs
       - name: Run Source Hunt STRM parity
         run: node tests/source-hunt-strm-parity.test.mjs
       - name: Run Source Hunt Xtream provider lead contract
