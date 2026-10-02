@@ -19,6 +19,7 @@ Sidebar selected-channel ownership runtime SHA: `8b6485fb8ad925319b974f0f565478b
 Sidebar row-presentation ownership runtime SHA: `f9f861641856bacdcc16b8be0b255dcfa318b692` via PR #133.
 Legacy Source Hunt frontend-chain retirement runtime SHA: `b46f11bce380d03b565f65c22e96729dae60beb6` via PR #139.
 Orphan `saveDiscoveredChannel` API retirement runtime SHA: `0c6360f6d3cfdab0ca629a59c1500deee88f13fa` via PR #143.
+Final dormant frontend-surface retirement runtime SHA: `3fd863325511a332268dc6238a08a236341f3cf0` via PR #147.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -209,6 +210,16 @@ Verified orphan saveDiscoveredChannel API retirement evidence:
 - Verification-only PR #144 remained unmerged and was closed after Verify saveDiscoveredChannel Retirement Live #1 SUCCESS and verification-head Frontend #986 SUCCESS. Live `playlist-manager.js` and browser API exposed no retired discovered-channel surface; active `upsertChannel`, `addSourceToCurrent`, `replaceSourcesForCurrent` and `addCurrent` remained; Xtream reason gate and generic loaded-Xtream mutation guard remained; Unified Search + Manual Source Test remained; durable user-data writes = 0; page errors = 0; console errors = 0. Artifact ID `11242903026`, digest `sha256:688bc68bce73841b122a1ec778d2a9af2f4e3318de7838ef71ef0486f12448b7`.
 
 
+Verified final broad orphan / duplicate-owner retirement evidence:
+- Audit-only PR #146 scanned the frontend ownership surface and classified candidates across browser runtime, Worker runtime, workflows and tests. It found zero duplicate `window.WebTV*` global owners and no unexpected persistence writers.
+- Cross-runtime classification proved `src/core/enigma2-core.js` remains an active Source Discovery Worker dependency and therefore must stay. Five other frontend files had no production runtime consumer: `src/cloud-auto-sync.js`, `src/d1-sync-addon.js`, `src/core/official-fallbacks.js`, `src/discovery/discovery-ui.js`, and `src/discovery/new-xtream-preview.js`. The active right rail also retained one dead Discovery Beta compatibility lookup.
+- RED Validate WebTV Frontend #992 failed exactly because the five dormant files / compatibility surface still existed.
+- PR #147 retired only those five files plus the dead right-rail Discovery Beta hook. Historical tests were aligned to the active owners instead of preserving retired files. Discovery browser smoke was moved to the live Unified Search lanes: Curated, GitHub, Recent Web, STRM and Authorized Xtream, with verifier isolation and zero D1 writes.
+- Exact implementation head `e1d5d1a8b53f1f135855c6e9a32cbaf3fbac4d97`: Validate WebTV Frontend #1002 SUCCESS (76/76), Validate Unified Search #71 SUCCESS and the legacy/New-Xtream ownership compatibility workflow SUCCESS.
+- Runtime merge `3fd863325511a332268dc6238a08a236341f3cf0`; post-merge Frontend #1003, Unified Search #72, Registry #137, Source Discovery Worker #66 and Pages #495 all SUCCESS. Registry `/api/project-status` reported the exact runtime SHA, and Source Discovery live verification retained the external providers.
+- Verification-only PR #148 remained unmerged and was closed after Verify Final Dormant Frontend Retirement Live #1 SUCCESS plus verification-head Frontend #1004 SUCCESS (76/76). All five retired production URLs returned HTTP 404; the dead Discovery Beta rail hook was absent; Player official fallback ownership and shared Enigma2 core remained live; Unified Search and Manual Source Test remained present; retired scripts did not load; durable Registry user-data writes, page errors and console errors were all zero. Artifact ID `11243288410`, digest `sha256:e645e0f5b914dbb6af219cbdca863db167d73ce6dd65808e59a6b795580d4e81`.
+
+
 ## CURRENT TASK
 WebV2 System Audit & UX Consolidation: ACTIVE.
 Discovery / Unified Search cleanup remains the wider bounded workstream.
@@ -233,6 +244,7 @@ Sidebar row-presentation ownership audit: DONE for the approved bounded scope.
 Recursive Sidebar / Now Playing zero-overlap sweep: DONE / CLEAN across 84 frontend JavaScript files.
 Legacy Source Hunt frontend-chain zero-consumer retirement: DONE / DELETED for the approved bounded scope.
 Orphan `WebTVMyPlaylistAPI.saveDiscoveredChannel` retirement: DONE / DELETED after recursive zero-consumer proof.
+Final broad orphan / duplicate-owner sweep: DONE / CLEAN after retiring five proven dormant frontend surfaces; active Enigma2 Worker ownership retained.
 
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
@@ -256,6 +268,7 @@ Channel-row presentation ownership is also singular: `main.js` owns channel-row 
 The recursive Sidebar / Now Playing sweep is clean: `sidebar-now.js` is the sole `.channel-now-inline` writer, `main.js` is the sole channel-summary/root-row owner and sole EPG refresh scheduler, and remaining row consumers are read-only for their bounded roles.
 The legacy Source Hunt frontend chain is deleted after zero-consumer proof. Unified Search remains the sole automatic discovery surface; Manual Source Test remains explicit candidate testing. Shared M3U / STRM / Enigma2 cores plus Source Hunt / Source Discovery Workers remain active.
 The now-callerless `WebTVMyPlaylistAPI.saveDiscoveredChannel` surface and its `saveDiscoveredMyChannel` implementation are also retired after a 78-file recursive consumer audit proved zero active callers. Active My Playlist APIs, Playback Inspector source mutation APIs and the verified Xtream `upsertChannel(...,{reason:'xtream-preview-save'})` boundary remain intact.
+The final broad ownership inventory found zero duplicate `window.WebTV*` global owners and no unexpected persistence writers. Five additional dormant frontend files were retired: `cloud-auto-sync.js`, `d1-sync-addon.js`, duplicate `core/official-fallbacks.js`, legacy `discovery/discovery-ui.js`, and legacy `discovery/new-xtream-preview.js`. The dead Discovery Beta right-rail compatibility lookup was removed. `core/enigma2-core.js` was explicitly retained because it remains an active Source Discovery Worker dependency. Discovery browser smoke now exercises the active Unified Search providers rather than the retired shell.
 
 Production Playlist / Library / Xtream ownership now has one full-account save path, one verified channel-save path and one Saved Playlist card owner. Full Xtream account persistence is only Preview → Verify → Save Full Xtream Account. Verified Xtream channel persistence is only Save Channel…; loaded-account channels cannot silently use the generic My Playlist Add path as a second persistence route. Playlist Manager directly owns account-backed Saved Xtream cards and delegates Load live through the shared Xtream account loader.
 
@@ -314,21 +327,21 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Sidebar / Now Playing recursive zero-overlap sweep: DONE / CLEAN, audit-only PR #137, 84 `src/**/*.js` files, `zeroOverlap:true`
 - Legacy Source Hunt frontend chain: DONE / DELETED after zero-consumer proof, runtime merge `b46f11bce380d03b565f65c22e96729dae60beb6`
 - Orphan `saveDiscoveredChannel` API: DONE / DELETED after zero-consumer proof, runtime merge `0c6360f6d3cfdab0ca629a59c1500deee88f13fa`
+- Final broad orphan / duplicate-owner sweep: DONE / CLEAN; five dormant frontend surfaces DELETED, runtime merge `3fd863325511a332268dc6238a08a236341f3cf0`
 
 ## NEXT SAFE ACTION
-Continue the final System Audit closure path:
-1. run one broader recursive orphan / duplicate-owner sweep outside the already-closed Player, EPG, Sidebar, Diagnostics, Source Health, Favorites/My Playlist, Xtream and retired Source Hunt frontend scopes;
-2. do not change production code unless that sweep proves a concrete active duplicate owner, stale public API or zero-consumer runtime surface;
-3. if the broader sweep is clean, run the final end-to-end production acceptance across Player, Sidebar/Now Playing, Unified Search, Manual Source Test, My Playlist/Favorites, Saved/Custom playlists, Xtream, EPG and diagnostics/discovery boundaries;
-4. after final acceptance, close the System Audit & UX Consolidation in the canonical Project Brain with a final verified ownership map and frozen no-regression rules.
+Only two approved System Audit closure steps remain:
+1. run one final end-to-end production acceptance against the exact deployed SHA, covering the canonical Player, Sidebar / Now Playing, EPG, Unified Search, Manual Source Test, My Playlist / Favorites, Saved / Custom playlists, Xtream Preview, diagnostics / Playback Inspector / Source Health and retained discovery boundaries while proving retired legacy surfaces stay absent and no real user data is mutated;
+2. if that acceptance is clean, close WebV2 System Audit & UX Consolidation in the canonical Project Brain with the final ownership map, frozen no-regression rules and verified deployment evidence.
 
-Do not reopen completed ownership slices without new evidence. Do not redesign final visual layout or change playback/EPG/discovery semantics merely for cleanup.
+Do not start another cleanup slice unless final acceptance exposes a concrete new defect. Do not reopen completed ownership slices without new evidence.
 
 ## DO NOT BREAK
 - D1-primary My Playlist
 - D1-authoritative Favorites after successful cloud read
 - Favorites belong only to the D1 My Playlist catalog; do not expose/apply them to temporary, Saved/Custom, loaded Xtream or other catalogs without a separate future product decision
 - The retired legacy Source Hunt frontend chain must remain deleted; Unified Search is the sole automatic discovery surface and Manual Source Test remains explicit candidate testing. The zero-consumer `saveDiscoveredChannel` API must also remain retired. Any future discovered-channel My Playlist path requires a new bounded decision and must stay behind the canonical Playlist Manager persistence boundary and loaded-Xtream guard.
+- Final dormant frontend retirement must remain intact: `cloud-auto-sync.js`, `d1-sync-addon.js`, duplicate `core/official-fallbacks.js`, legacy `discovery/discovery-ui.js` and legacy `discovery/new-xtream-preview.js` stay deleted; the dead Discovery Beta rail lookup must not return. Active Player official fallback ownership remains in `core/player.js`, and shared `core/enigma2-core.js` remains available to the Source Discovery Worker.
 - Saved Playlist D1 truth + IndexedDB reconciliation
 - Custom Saved Playlist D1 truth with playlist-specific channel/source ownership
 - Custom Playlist source snapshots must never own raw Xtream credentials or preview tokens
