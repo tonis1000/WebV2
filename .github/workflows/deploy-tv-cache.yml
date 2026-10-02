@@ -22,6 +22,7 @@ env:
   CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
   WORKER_NAME: tv-cache
   WORKER_URL: https://tv-cache.atonis.workers.dev
+  HEADER_FIXTURE_URL: https://webtv-source-verifier.atonis.workers.dev/fixture/header-aware.m3u8
   TV_CACHE_NAMESPACE_ID: 555321f94d8f4ed7b86a77f231da0a30
 
 jobs:
@@ -71,7 +72,7 @@ jobs:
             curl --fail --silent --show-error "$WORKER_URL/channel-streams.json?verify=$GITHUB_SHA" -o /tmp/tv-cache-status.json || true
             if node -e "const fs=require('fs');try{JSON.parse(fs.readFileSync('/tmp/tv-cache-status.json','utf8'));process.exit(0)}catch{process.exit(1)}"; then
               HEADER_CONTEXT=$(node -e "process.stdout.write(Buffer.from(JSON.stringify({'User-Agent':'Roku/DVP-14.6','X-Roku-Reserved-Dev-Id':'device-123'}),'utf8').toString('base64url'))")
-              TARGET=$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$WORKER_URL/fixture/header-aware.m3u8")
+              TARGET=$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$HEADER_FIXTURE_URL")
               HEADER_STATUS=$(curl --silent --show-error --output /tmp/tv-cache-header-aware.m3u8 --write-out '%{http_code}' "$WORKER_URL/?h=$HEADER_CONTEXT&url=$TARGET" || true)
               if [ "$HEADER_STATUS" = "200" ] && grep -q '#EXTM3U' /tmp/tv-cache-header-aware.m3u8; then
                 echo "tv-cache is live, TV_CACHE is readable, and approved Roku headers survive proxy transport."
