@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const files=[
-  '../src/discovery/discovery-ui.js',
   '../src/discovery/discovery-state.js',
   '../src/discovery/candidate-model.js',
   '../src/discovery/verifier-client.js',
@@ -10,7 +9,6 @@ const files=[
 ];
 const text=Object.fromEntries(files.map(file=>[file,fs.readFileSync(new URL(file,import.meta.url),'utf8')]));
 const combined=Object.values(text).join('\n');
-const ui=text['../src/discovery/discovery-ui.js'];
 const verifier=text['../src/discovery/verifier-client.js'];
 const external=text['../src/discovery/external-discovery-client.js'];
 const nonNetwork=Object.entries(text).filter(([file])=>!file.endsWith('/verifier-client.js')&&!file.endsWith('/external-discovery-client.js')).map(([,value])=>value).join('\n');
@@ -36,8 +34,6 @@ assert.equal(combined.includes('sessionStorage'),false,'Discovery results must n
 assert.equal(combined.includes('WebTVSavedPlaylistsReadAPI'),false,'retired legacy Discovery must not read Saved Playlist cache after Local lane deletion');
 assert.equal(fs.existsSync(new URL('../src/discovery/local-data-reader.js',import.meta.url)),false,'legacy Local data reader must remain deleted');
 assert.equal(fs.existsSync(new URL('../src/discovery/local-candidates.js',import.meta.url)),false,'legacy Local candidate builder must remain deleted');
-assert.equal(ui.includes('WebTVPlaylistAPI?.getSelectedChannel'),true,'Discovery may read selected channel through read-only public API');
-assert.equal(/(?:^|[^A-Za-z])play\s*\(/m.test(ui),false,'Discovery shell must not trigger direct play() calls');
-assert.equal(ui.includes('Save Source'),false,'Phase 4 must not expose source persistence');
-assert.equal(ui.includes('Add to My Playlist'),false,'Phase 4 must not expose My Playlist mutation');
+assert.equal(fs.existsSync(new URL('../src/discovery/discovery-ui.js',import.meta.url)),false,'retired Discovery Beta shell must remain deleted');
+assert.equal(fs.existsSync(new URL('../src/discovery/new-xtream-preview.js',import.meta.url)),false,'retired New Xtream preview helper must remain deleted');
 console.log('discovery Phase 4 isolation tests PASS');
