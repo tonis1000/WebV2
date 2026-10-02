@@ -15,4 +15,5 @@ assert.match(source,/XTREAM_PAGE_SIZE/,'production preview UI must use bounded c
 assert.doesNotMatch(source,/previewXtreamAccount[\s\S]{0,1200}WebTVPlaylistAPI\?\.applyText|previewXtreamAccount[\s\S]{0,1200}\.applyText\(/,'preview browsing must not populate sidebar/player');
 assert.doesNotMatch(registry,/discovery\/discovery-ui\.js/,'legacy Discovery UI must stay out of production entrypoint');
 assert.match(registry,/xtream-ui\.js/,'production Xtream UI must remain loaded');
+assert.doesNotMatch(registry,/xtream-enhancements\.js/,'legacy Xtream enhancements module must stay out of the production entrypoint');
 console.log('Xtream production preview ownership contract PASS');
