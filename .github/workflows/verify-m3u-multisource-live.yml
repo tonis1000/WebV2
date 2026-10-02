@@ -1,0 +1,59 @@
+name: Verify M3U Multi-source Live
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/verify-m3u-multisource-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DISCOVERY_URL: https://source-discoveryatonisworkersdev.atonis.workers.dev
+    steps:
+      - name: Verify real jimgate multi-source candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          probe() {
+            local channel="$1"
+            local outfile="$2"
+            local id
+            id=$(printf '%s' "$channel" | tr '[:upper:]' '[:lower:]')
+            curl --fail --silent --show-error -X POST "$DISCOVERY_URL/discover" \
+              -H 'content-type: application/json' \
+              --data "{\"provider\":\"curated-remote-feeds\",\"freshness\":\"24h\",\"channel\":{\"name\":\"$channel\",\"id\":\"$id\"}}" \
+              -o "$outfile"
+          }
+
+          probe MEGA /tmp/mega.json
+          probe ALPHA /tmp/alpha.json
+          probe ERT3 /tmp/ert3.json
+
+          node <<'NODE'
+          const fs=require('fs');
+          function inspect(path,name,minMulti){
+            const body=JSON.parse(fs.readFileSync(path,'utf8'));
+            const rows=(body.candidates||[]).filter(x=>x.sourceOrigin==='jimgate07/grtv multi');
+            console.log('\n'+name+' jimgate07/grtv multi candidates:');
+            for(const row of rows) console.log(JSON.stringify({type:row.sourceType,url:row.sourceUrl,origin:row.sourceOrigin}));
+            if(rows.length<minMulti) throw new Error(name+' expected at least '+minMulti+' multi-source candidates, got '+rows.length);
+            return rows;
+          }
+          const mega=inspect('/tmp/mega.json','MEGA',3);
+          const alpha=inspect('/tmp/alpha.json','ALPHA',3);
+          const ert3=inspect('/tmp/ert3.json','ERT3',4);
+
+          if(!mega.some(x=>String(x.sourceUrl).includes('x-roku-reserved-dev-id='))) throw new Error('MEGA Roku header-bearing alternative missing');
+          if(!mega.some(x=>x.sourceType==='dash')) throw new Error('MEGA DASH alternative missing');
+          if(alpha.filter(x=>x.sourceType==='hls').length<3) throw new Error('ALPHA HLS alternatives missing');
+          if(ert3.filter(x=>x.sourceType==='hls').length<4) throw new Error('ERT3 HLS alternatives missing');
+
+          console.log('\nLIVE_MULTI_SOURCE_ACCEPTANCE=PASS');
+          NODE
