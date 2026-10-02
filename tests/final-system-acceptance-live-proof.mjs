@@ -43,6 +43,11 @@ await page.evaluate(()=>{
 await page.waitForFunction(()=>document.getElementById('playlist-manager')&&document.getElementById('saved-playlists'),null,{timeout:15000});
 await page.waitForFunction(()=>document.getElementById('xtream-tool-card'),null,{timeout:15000});
 await page.waitForFunction(()=>document.getElementById('playback-source-inspector'),null,{timeout:15000});
+await page.waitForFunction(()=>{
+  const rows=document.querySelectorAll('#channel-list .channel-item').length;
+  const now=document.querySelectorAll('#channel-list .channel-item .channel-now-inline').length;
+  return rows===0 || now===rows;
+},null,{timeout:30000});
 
 const state=await page.evaluate(()=>({
   player:{
