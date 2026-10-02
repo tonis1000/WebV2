@@ -14,7 +14,7 @@ assert.match(addBlock,/assertGenericMyMutationAllowed\s*\(channel\)/,'generic Ad
 
 const apiBlock=manager.split('window.WebTVMyPlaylistAPI=')[1]||'';
 assert.match(apiBlock,/upsertChannel\s*:/,'My Playlist API must expose canonical upsertChannel');
-assert.match(apiBlock,/reason\s*=\s*['"]xtream-preview-save['"]|xtream-preview-save/,'canonical upsert path must preserve verified-save reason ownership');
+assert.match(apiBlock,/upsertChannel\s*:\s*\(channel,sources,options=\{\}\\)\s*=>upsertMyChannel\(channel,sources,options\)/,'public upsertChannel must delegate to the verified upsert owner');
 
 const upsertBlock=manager.split('async function upsertMyChannel(')[1]?.split('window.WebTVMyPlaylistAPI=')[0]||'';
 assert.match(upsertBlock,/reason\s*!==\s*['"]xtream-preview-save['"]/,'upsertMyChannel must reject callers outside the verified Xtream preview flow');
