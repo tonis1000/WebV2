@@ -1,11 +1,8 @@
 import './diagnostics-overlay-behavior.js?v=20260929-outside-close';
 import { CONFIG } from './config.js?v=20260923-2215';
-import { cleanUrl, parseIptvUrl, isHls, isDash, workerUrl } from './core/utils.js?v=20260924-0900';
-import { StrmResolver } from './core/strm-resolver.js?v=20260924-1919';
-import { isRejectedChannelSource } from './core/source-rules.js?v=20260928-ant1-identity';
+import { cleanUrl } from './core/utils.js?v=20260924-0900';
 
 const BUILD_ID = '20260924-2300';
-const strmResolver = new StrmResolver();
 let renderToken = 0;
 const $ = id => document.getElementById(id);
 
@@ -26,56 +23,6 @@ function fmtWhen(ts){
 function pct(entry){
   const total = Number(entry?.success || 0) + Number(entry?.fail || 0);
   return total ? Math.round((Number(entry.success || 0) / total) * 100) : null;
-}
-
-async function routeRows(channel){
-  const map = loadHealthMap();
-  const out = [];
-  const seen = new Set();
-  for(const raw of channel?.directUrls || []){
-    const parsed = parseIptvUrl(raw);
-    const source = parsed.url;
-    if(!source) continue;
-
-    if(/\.strm(?:\?.*)?$/i.test(source)){
-      const info = await strmResolver.inspect(source);
-      const resolved = info?.resolvedUrl || '';
-      const resolvedParsed = parseIptvUrl(resolved);
-      const resolvedUrl = resolvedParsed.url || '';
-      if(resolvedUrl && isRejectedChannelSource(channel,resolvedUrl)) continue;
-      const mediaType = isHls(resolvedUrl) ? 'HLS' : isDash(resolvedUrl) ? 'DASH' : resolvedUrl ? 'MEDIA' : 'UNRESOLVED';
-      const drm = Boolean(info?.drm);
-      const unsupported = drm && mediaType === 'DASH';
-      out.push({
-        source,
-        kind:'strm-ref',
-        playbackUrl:resolvedUrl,
-        entry:resolvedUrl ? (map[cleanUrl(resolvedUrl)] || null) : null,
-        reference:true,
-        resolvedUrl,
-        mediaType,
-        drm,
-        licenseType:info?.licenseType || '',
-        unsupported,
-      });
-      continue;
-    }
-
-    if(isRejectedChannelSource(channel,source)) continue;
-    const candidates = [];
-    if(/^https:\/\//i.test(source)) candidates.push({kind:'direct',playbackUrl:source});
-    if(isHls(source) && CONFIG.workerForHls){
-      const hasHeaders = Object.keys(parsed.headers).length > 0;
-      candidates.push({kind:hasHeaders?'worker+headers':'worker',playbackUrl:workerUrl(source,parsed.headers)});
-    }
-    for(const route of candidates){
-      if(seen.has(route.playbackUrl)) continue;
-      seen.add(route.playbackUrl);
-      const entry = map[cleanUrl(route.playbackUrl)] || null;
-      out.push({source,...route,entry});
-    }
-  }
-  return out;
 }
 
 function ensureUi(){
@@ -132,8 +79,14 @@ async function render(){
     return;
   }
 
-  const rows = await routeRows(channel);
+  const getSourceHealthRows = window.WebTVDiagnosticsAPI?.getSourceHealthRows;
+  const canonicalRows = typeof getSourceHealthRows === 'function' ? await getSourceHealthRows(channel) : [];
   if(token !== renderToken) return;
+  const map = loadHealthMap();
+  const rows = canonicalRows.map(row => ({
+    ...row,
+    entry: row.playbackUrl ? (map[cleanUrl(row.playbackUrl)] || null) : null,
+  }));
   const plan = window.WebTVDiagnosticsAPI?.lastRoutePlan || [];
   const planByRoute = new Map(plan.map(item => [`${cleanUrl(item.source)}|${item.route}`, item]));
   const routedRows = rows.filter(r => !r.reference && !r.unsupported);

@@ -168,6 +168,57 @@ export class SourceRegistry {
 
     return routes.filter((item, index, arr) => arr.findIndex(other => other.playbackUrl === item.playbackUrl) === index);
   }
+  async getCuratedRouteDiagnostics(channel) {
+    const rows = [];
+    const seen = new Set();
+    const temporary = channel?.sourceTrust === 'temporary';
+
+    for (const raw of channel?.directUrls || []) {
+      const parsed = parseIptvUrl(raw);
+      const source = parsed.url;
+      if (!source) continue;
+
+      if (isStrmReference(source)) {
+        const info = await this.strm.inspect(source);
+        const resolvedUrl = parseIptvUrl(info?.resolvedUrl || '').url || '';
+        if (resolvedUrl && isRejectedChannelSource(channel, resolvedUrl)) continue;
+        const mediaType = isHls(resolvedUrl) ? 'HLS' : isDash(resolvedUrl) ? 'DASH' : resolvedUrl ? 'MEDIA' : 'UNRESOLVED';
+        const drm = Boolean(info?.drm);
+        rows.push({
+          source,
+          kind: 'strm-ref',
+          playbackUrl: resolvedUrl,
+          reference: true,
+          resolvedUrl,
+          mediaType,
+          drm,
+          licenseType: info?.licenseType || '',
+          unsupported: drm && mediaType === 'DASH',
+        });
+        continue;
+      }
+
+      if (!isPlayableMedia(source)) continue;
+      if (isRejectedChannelSource(channel, source)) continue;
+      if (temporary && BLOCKED.has(source)) continue;
+
+      const routes = [];
+      if (isSecureUrl(source)) routes.push({ kind: 'direct', playbackUrl: source });
+      if (isHls(source) && CONFIG.workerForHls) {
+        routes.push({
+          kind: Object.keys(parsed.headers).length ? 'worker+headers' : 'worker',
+          playbackUrl: workerUrl(source, parsed.headers),
+        });
+      }
+
+      for (const route of routes) {
+        if (seen.has(route.playbackUrl)) continue;
+        seen.add(route.playbackUrl);
+        rows.push({ source, ...route, reference: false, unsupported: false });
+      }
+    }
+    return rows;
+  }
   async getAllRoutes(channel) {
     const curated = await this.#resolvedCuratedSources(channel);
     return this.#allRoutes(channel, curated);
