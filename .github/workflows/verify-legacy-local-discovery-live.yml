@@ -1,0 +1,70 @@
+name: Verify Legacy Local Discovery Retirement Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/legacy-local-discovery-live-proof.mjs'
+      - '.github/workflows/verify-legacy-local-discovery-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 8ef91a32d898930dfd38d82220ebc370b0444ed2
+      ARTIFACT_DIR: artifacts/legacy-local-discovery-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify deleted production files and exact runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in src/discovery/local-data-reader.js src/discovery/local-candidates.js; do
+            code="$(curl -sS -o /tmp/deleted-body -w '%{http_code}' -H 'Cache-Control: no-cache' "$WEBV2_URL$path?proof=$GITHUB_SHA")"
+            echo "$path -> HTTP $code"
+            test "$code" = "404"
+          done
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/discovery/discovery-ui.js?proof=$GITHUB_SHA" -o /tmp/discovery-ui-live.js
+          if grep -Eq 'local-data-reader|local-candidates|scanLocalSources|scanLocal:|discovery-scan-local|Find Local Sources' /tmp/discovery-ui-live.js; then
+            echo 'Retired Local Discovery ownership still present in live shell'
+            exit 1
+          fi
+          grep -q 'discoverCuratedRemoteFeeds' /tmp/discovery-ui-live.js
+          grep -q 'discoverGithubPublicPlaylists' /tmp/discovery-ui-live.js
+          grep -q 'discoverRecentWebSearch' /tmp/discovery-ui-live.js
+          grep -q 'discoverStrmSpecific' /tmp/discovery-ui-live.js
+          grep -q 'discoverAuthorizedXtream' /tmp/discovery-ui-live.js
+          grep -q 'verifyCandidates' /tmp/discovery-ui-live.js
+          grep -q 'promoteCandidate' /tmp/discovery-ui-live.js
+
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA" -o /tmp/project-status.json
+          node -e "const j=require('/tmp/project-status.json');if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)"
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production retirement browser proof
+        run: node tests/legacy-local-discovery-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-local-discovery-live-${{ github.sha }}
+          path: artifacts/legacy-local-discovery-live
+          if-no-files-found: warn
+          retention-days: 14
