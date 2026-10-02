@@ -1,0 +1,65 @@
+name: Verify Diagnostics Structured State Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/diagnostics-structured-state-live-proof.mjs'
+      - '.github/workflows/verify-diagnostics-structured-state-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 040e6be426a7367f8e0ccc6446f5908f82d8ff15
+      ARTIFACT_DIR: artifacts/diagnostics-structured-state-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify exact production ownership is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/main.js?proof=$GITHUB_SHA" -o /tmp/main-live.js
+          grep -q 'getSnapshot' /tmp/main-live.js
+          grep -q 'webtv:diagnostics-updated' /tmp/main-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/saved-sources-ui.js?proof=$GITHUB_SHA" -o /tmp/saved-live.js
+          grep -q 'webtv:diagnostics-updated' /tmp/saved-live.js
+          if grep -q 'new MutationObserver(inspectDiagnostics)' /tmp/saved-live.js; then exit 1; fi
+          if grep -q 'new MutationObserver(syncPlaybackInspector)' /tmp/saved-live.js; then exit 1; fi
+          if grep -q 'diagSource?.textContent' /tmp/saved-live.js; then exit 1; fi
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/source-health-ui.js?proof=$GITHUB_SHA" -o /tmp/health-live.js
+          grep -q 'webtv:diagnostics-updated' /tmp/health-live.js
+          if grep -q 'MutationObserver(render)' /tmp/health-live.js; then exit 1; fi
+
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA" -o /tmp/project-status.json
+          node -e "const j=require('/tmp/project-status.json');if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)"
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production diagnostics state proof
+        run: node tests/diagnostics-structured-state-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-structured-state-live-${{ github.sha }}
+          path: artifacts/diagnostics-structured-state-live
+          if-no-files-found: warn
+          retention-days: 14
