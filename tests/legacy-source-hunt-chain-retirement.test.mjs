@@ -30,7 +30,8 @@ assert.match(searchRuntime,/strm-specific-discovery/,'Unified Search must retain
 assert.match(searchRuntime,/authorized-xtream/,'Unified Search must retain authorized Xtream lane');
 assert.match(discoveryAdapter,/external-discovery-client\.js/,'Unified Search discovery adapter must remain active');
 assert.match(m3uCore,/parseM3uContainer/,'shared M3U parser must remain active');
-assert.match(strmCore,/resolveStrmReference/,'shared STRM resolver must remain active');
+assert.match(strmCore,/export class StrmResolver/,'shared STRM resolver class must remain active');
+assert.match(strmCore,/parseStrmDocument/,'shared STRM resolver must continue to use the shared STRM structural core');
 assert.equal(fs.existsSync(new URL('../workers/source-hunt-bouquet-proxy.js',import.meta.url)),true,'Enigma2 bouquet Worker capability must remain');
 assert.equal(fs.existsSync(new URL('../workers/source-huntatonisworkersdev.js',import.meta.url)),true,'Source Hunt Worker capability must remain');
 
