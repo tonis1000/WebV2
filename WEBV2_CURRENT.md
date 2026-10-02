@@ -25,6 +25,7 @@ Xtream maintenance-session handoff runtime SHA: `1d2026de2a96588c7ae67ffe0b3d2ad
 Unified Search visible run-state UX runtime SHA: `5be9889c49de825051907e2c58a60e6648b82012` via PR #157.
 Discovery quality v3 final runtime SHA: `daa73919623f47946f7a36ba6c055c4ad2cbbf00` via PR #163, built through PRs #158-#163.
 Header-aware IPTV compatibility runtime SHA: `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7` via PR #165; live-gate topology follow-ups through PR #167, current deployed closure SHA `2e6a34b207b903eea6b5cb10695afc5ef60998fd`.
+Multi-source M3U curated discovery runtime SHA: `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` via PR #170.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -347,6 +348,16 @@ Verified header-aware IPTV compatibility evidence:
 - Verification-only PR #168 stayed unmerged and tested the real current jimgate MEGA source `http://15.235.41.196/hls/mega.m3u8` with the repository's exact Roku User-Agent and device id. A direct GitHub runner request returned HTTP 403 from nginx/1.24.0; deployed Source Verifier returned HTTP 403; deployed tv-cache returned HTTP 403. Therefore this specific source remains upstream-restricted/unavailable to external requests even after WebV2's header transport gap was fixed.
 - The generalized compatibility slice is DONE because implemented, deployed and verified. The specific jimgate MEGA IP source is NOT a verified playable source and must not be promoted solely because its metadata format is now supported.
 
+Verified multi-source M3U curated discovery evidence:
+- Active `jimgate07/grtv/griptv.m3u` rows encode multiple playback alternatives on one physical source line using spaced ` | ` separators, while inline IPTV options use an unspaced `|` directly after the URL.
+- PR #170 added shared `splitM3uSourceAlternatives()` structural parsing in `src/core/m3u-container.js`, taught Source Discovery to emit each valid alternative separately, and added `jimgate07/grtv/griptv.m3u` as an additional primary/high curated feed while retaining the existing `android.m3u` feed.
+- The splitter is intentionally narrow: only spaced ` | ` separates alternatives. Header-bearing strings such as `URL|User-Agent=...` remain one source.
+- RED head `276c6faa0052375aaa4751b25fc763d1ba7cafc3`: Frontend run `37074879958` failed because the shared splitter export did not yet exist; Unified Search run `37074879972` failed because the rich jimgate feed was not yet present.
+- Implementation head `accf550d8adf85f8f7d3302edd89e8d084aecd74`: Unified Search `37074931744`, Enigma2 Ownership `37074931846`, and Frontend `37074931727` all SUCCESS.
+- Runtime merge `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` deployed successfully. Post-merge Source Discovery `37075027677`, Source Hunt `37075027716`, Unified Search `37075027689`, Enigma2 Ownership `37075027742`, Frontend `37075027653`, Registry `37075027648`, and Pages `37075026936` succeeded.
+- Verification-only PR #171 remained unmerged. Final live acceptance run `37075286990` queried the deployed Source Discovery Worker against the real current `griptv.m3u`. Pre-dedupe feed report counts were MEGA=3, ALPHA=5, ERT3=4, and `LIVE_MULTI_SOURCE_ACCEPTANCE=PASS`.
+- Final MEGA candidates included the Roku header-bearing HLS source and smart-tv-data DASH fallback. Global dedupe may retain an identical URL under an earlier feed origin; this is expected and does not undo per-feed alternative discovery.
+
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
@@ -394,12 +405,13 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Unified Search visible Searching / Finished UX: DONE / VERIFIED, runtime merge `5be9889c49de825051907e2c58a60e6648b82012` via PR #157
 - Discovery quality v3: DONE / VERIFIED, final runtime `daa73919623f47946f7a36ba6c055c4ad2cbbf00` via PR #163; Curated + Recent Web runtime started in PR #158, safe Xtream provider/trial lead quality completed through PRs #159-#163
 - Header-aware IPTV compatibility: DONE / DEPLOYED / VERIFIED for parser + verifier + HLS proxy transport, runtime `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7` via PR #165 with live-gate closure `2e6a34b207b903eea6b5cb10695afc5ef60998fd` via PR #167; verification-only PR #168 closed unmerged after the real jimgate MEGA upstream still returned HTTP 403 even outside Cloudflare
+- Multi-source M3U curated discovery: DONE / DEPLOYED / LIVE VERIFIED, runtime `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` via PR #170; verification-only PR #171 closed unmerged after live production acceptance
 
 ## NEXT SAFE ACTION
 The WebV2 System Audit & UX Consolidation is closed for the approved ownership-consolidation scope.
 
 For future work:
-1. treat the current ownership map and DEC-001…DEC-035 as the baseline; do not reopen a closed owner without new concrete evidence;
+1. treat the current ownership map and DEC-001…DEC-036 as the baseline; do not reopen a closed owner without new concrete evidence;
 2. before any new major feature or architectural change, define the exact problem and the production proof that will demonstrate it is solved;
 3. use a new bounded slice for any future Player, Sidebar, EPG, Playlist/My Playlist, Favorites, Xtream, Unified Search / discovery, diagnostics or persistence change;
 4. preserve the existing RED → implementation → exact-SHA deploy → live verification → canonical docs closure discipline.
@@ -439,6 +451,8 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - Phase D import/promotion boundary
 - Phase E1 Source Format Registry transport-vs-media distinction
 - Phase E2 shared M3U structural ownership and caller-owned policy
+- M3U structural alternative splitting uses spaced ` | ` separators only. Inline IPTV request metadata such as `URL|User-Agent=...` must remain attached to its URL and must not be split as a separate source.
+- Source Discovery may emit multiple candidates from one M3U source line, but global candidate dedupe and `MAX_RESULTS` remain authoritative after per-feed parsing.
 - Phase E3a shared STRM structural ownership and caller-owned network/security/product policy
 - Phase E3b shared Enigma2 structural ownership with caller-owned matching/header/security/UI policy
 - Unified Search as the single automatic discovery surface
