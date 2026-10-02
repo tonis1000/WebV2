@@ -16,6 +16,7 @@ My Playlist action-ownership runtime SHA: `3adc057cd2f0186a1fab506c7c8e4d36ceea9
 Player ownership retirement runtime SHA: `258bc39cc4a4f26c94c7d4933772ca9a3e3ff1c7` via PR #122.
 EPG refresh-ownership runtime SHA: `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5` via PR #125.
 Sidebar selected-channel ownership runtime SHA: `8b6485fb8ad925319b974f0f565478bc507194d0` via PR #128; closure follow-up runtime SHA: `06e4d0cc0696b19c916f0f65007a3cf2572a0356` via PR #131.
+Sidebar row-presentation ownership runtime SHA: `f9f861641856bacdcc16b8be0b255dcfa318b692` via PR #133.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -251,7 +252,7 @@ Unified Search Hunt / Discovery consolidation remains DONE.
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
 Before the PR #108 runtime change, GitHub main and Registry deployed SHA were both `002f7215d6a5d3666fbef79c2b0eb98772de912b`; the D1 `WEBV2_CURRENT.md` checkpoint was independently read and remains stale at the older Project Brain bootstrap state from 2026-09-30. The stale mirror therefore does not equal current GitHub/runtime state and must not be treated as production truth.
-The exact latest verified runtime SHA `06e4d0cc0696b19c916f0f65007a3cf2572a0356` completed Deploy WebTV Registry Worker #129 successfully, GitHub Pages #487 successfully and Validate WebTV Frontend #939 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #132 independently required `/api/project-status` to report the same runtime SHA before final browser acceptance.
+The exact latest verified runtime SHA `f9f861641856bacdcc16b8be0b255dcfa318b692` completed Deploy WebTV Registry Worker #131 successfully, GitHub Pages #489 successfully and Validate WebTV Frontend #947 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #134 independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
@@ -282,6 +283,7 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Player ownership audit / dormant One-click retirement: DONE / DELETED, runtime merge `258bc39cc4a4f26c94c7d4933772ca9a3e3ff1c7`
 - EPG refresh ownership audit: DONE, runtime merge `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5`
 - Sidebar selected-channel ownership audit: DONE, initial runtime merge `8b6485fb8ad925319b974f0f565478bc507194d0`, closure follow-up runtime `06e4d0cc0696b19c916f0f65007a3cf2572a0356`
+- Sidebar row-presentation ownership audit: DONE, runtime merge `f9f861641856bacdcc16b8be0b255dcfa318b692`
 
 ## NEXT SAFE ACTION
 Continue the System Audit one bounded owner at a time:
