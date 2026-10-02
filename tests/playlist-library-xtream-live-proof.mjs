@@ -40,7 +40,15 @@ const mapped=streams.map(stream=>({
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1100}});
 await context.setExtraHTTPHeaders({'cache-control':'no-cache',pragma:'no-cache'});
-await context.addInitScript(token=>localStorage.setItem('webtv_v2_registry_token',token),FAKE_TOKEN);
+await context.addInitScript(token=>{
+  localStorage.setItem('webtv_v2_registry_token',token);
+  window.__xtreamListenerAudit=[];
+  const original=EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener=function(type,listener,options){
+    if(type==='click'&&this?.id?.startsWith?.('xtream-preview-save-'))window.__xtreamListenerAudit.push({id:this.id,type});
+    return original.call(this,type,listener,options);
+  };
+},FAKE_TOKEN);
 const page=await context.newPage();
 
 const pageErrors=[];
@@ -143,6 +151,10 @@ const saveDialogDebug=await page.evaluate(()=>({
   managerHidden:Boolean(document.getElementById('playlist-manager')?.hidden),
   saveApi:Boolean(window.WebTVXtreamSaveDestination?.open),
   preview:window.WebTVXtream?.getPreview?.(),
+  listenerAudit:window.__xtreamListenerAudit||[],
+  saveButtonCount:document.querySelectorAll('#xtream-preview-save-channel').length,
+  saveButtonConnected:document.getElementById('xtream-preview-save-channel')?.isConnected,
+  pageErrors:window.__none||null,
 }));
 console.log('SAVE_DIALOG_DEBUG '+JSON.stringify(saveDialogDebug));
 await page.waitForSelector('#xtream-save-destination-dialog[open]',{timeout:5000});
