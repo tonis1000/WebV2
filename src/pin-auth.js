@@ -1,4 +1,4 @@
-const BUILD_ID='20260929-pin-auth-bypass';
+const BUILD_ID='20261002-maintenance-session';
 const DEFAULT_REGISTRY='https://webtv-registry.atonis.workers.dev';
 const URL_KEY='webtv_v2_registry_url';
 const TOKEN_KEY='webtv_v2_registry_token';
@@ -27,9 +27,34 @@ async function refreshPinRequirement(){
   return pinRequired;
 }
 
+async function mintMaintenanceSession(){
+  try{
+    const r=await request('/api/session/maintenance',{method:'POST'});
+    let j={};try{j=await r.json();}catch{}
+    if(!r.ok||!j.token)return false;
+    localStorage.setItem(TOKEN_KEY,String(j.token));
+    localStorage.setItem(TRUST_KEY,'1');
+    setState('Maintenance access','1');
+    return true;
+  }catch{return false;}
+}
+
 async function validateSession(){
   if(!pinRequirementKnown)await refreshPinRequirement();
-  if(!pinRequired){setState('Maintenance access','1');return true;}
+  if(!pinRequired){
+    const token=session();
+    if(token){
+      try{
+        const r=await request('/api/session',{headers:{authorization:`Bearer ${token}`}});
+        if(r.ok){localStorage.setItem(TRUST_KEY,'1');setState('Maintenance access','1');return true;}
+      }catch{}
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(TRUST_KEY);
+    }
+    const minted=await mintMaintenanceSession();
+    if(!minted)setState('Maintenance session unavailable','0');
+    return minted;
+  }
   const token=session();
   if(!token)return false;
   try{
