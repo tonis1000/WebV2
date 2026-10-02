@@ -17,6 +17,7 @@ Player ownership retirement runtime SHA: `258bc39cc4a4f26c94c7d4933772ca9a3e3ff1
 EPG refresh-ownership runtime SHA: `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5` via PR #125.
 Sidebar selected-channel ownership runtime SHA: `8b6485fb8ad925319b974f0f565478bc507194d0` via PR #128; closure follow-up runtime SHA: `06e4d0cc0696b19c916f0f65007a3cf2572a0356` via PR #131.
 Sidebar row-presentation ownership runtime SHA: `f9f861641856bacdcc16b8be0b255dcfa318b692` via PR #133.
+Legacy Source Hunt frontend-chain retirement runtime SHA: `b46f11bce380d03b565f65c22e96729dae60beb6` via PR #139.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -121,6 +122,16 @@ Verified Sidebar row-presentation ownership evidence:
 - Exact branch head `33c781b24f0e1f56e270d3cbd7899d65feb9b473` completed Validate WebTV Frontend #946 SUCCESS. Post-merge Validate WebTV Frontend #947, Deploy WebTV Registry Worker #131 and GitHub Pages #489 all completed SUCCESS.
 - Verification-only PR #134 remained unmerged and was closed after Verify Sidebar Row Presentation Live #9 SUCCESS against production runtime `f9f861641856bacdcc16b8be0b255dcfa318b692`; exact verification head Frontend #956 also succeeded. My Playlist rendered favorite-first rows with summary `3 / 3 κανάλια`; Favorites-only rendered exactly two Favorite rows with summary `2 / 3 κανάλια`; selected/active `qathree` survived the main-owned rerender; a temporary catalog ignored Favorites-only state and rendered `2 / 2 κανάλια`; every rendered row retained Sidebar Now Playing decoration. Favorites startup performed one cloud read, durable Registry user-data writes were zero, page errors = 0 and console errors = 0. The one mocked `PUT /api/health` was playback telemetry, not durable user data. Artifact ID: `11240030912`, digest `sha256:d313f41effbb8d599e73905dddb534f291421d8b22268931b97cec39bcfead0c`.
 
+Verified legacy Source Hunt frontend-chain retirement evidence:
+- Audit-only PR #138 proved the legacy chain was detached from production: `source-hunt-engine.js`, `source-hunt-web.js` and `source-hunt-save-destination.js` had zero production consumers; the integration / Enigma2 / playlist-provenance files were reachable only through that orphan chain.
+- RED-first Validate WebTV Frontend #967 failed exactly because the six zero-consumer frontend files still existed.
+- PR #139 merged at `b46f11bce380d03b565f65c22e96729dae60beb6`. The six retired files were deleted while Unified Search, Manual Source Test, shared M3U / STRM / Enigma2 cores, Source Hunt / Source Discovery Workers, bouquet proxy, Xtream, playback and persistence semantics were retained.
+- Exact-head `eef479b35979a77de98519934e195b758ac1c9d1`: Validate WebTV Frontend #976 SUCCESS with all 75/75 steps, and Validate Enigma2 Ownership #60 SUCCESS.
+- Exact-SHA post-merge proof at `b46f11bce380d03b565f65c22e96729dae60beb6`: Validate WebTV Frontend, Validate Enigma2 Ownership, Deploy Source Hunt Worker, Deploy Source Discovery Worker, Deploy WebTV Registry Worker and GitHub Pages all SUCCESS; Registry `/api/project-status` reported that exact deployed SHA.
+- Verification-only PR #140 remained unmerged and was closed after Verify Source Hunt Frontend Retirement Live #1 SUCCESS; verification-head Frontend #978 also succeeded. All six retired production URLs returned HTTP 404, Unified Search and Manual Source Test remained present, no retired script loaded, shared Enigma2 / STRM cores remained live, durable Registry user-data writes were zero and page/console errors were zero. Artifact ID `11241690885`, digest `sha256:2bba1b06fbd9a8da599d3d6944fc74e948d36a22f9b889ededc92ff2f6c64724`.
+- The recursive Sidebar / Now Playing audit preceding this slice scanned 84 frontend JavaScript files and proved zero overlap for the already-closed Sidebar owners; no production change was required for that audit.
+
+
 Verified Local known-source ownership production evidence:
 - PR #100 merged at `35306d1161899a8f58801363bd3b1947881db9b2`.
 - `src/known-source-collector.js` is the canonical source aggregation owner for save-time already-known sources; it now includes source-backed Saved M3U snapshots in addition to My Playlist, Custom Playlists and the already-loaded catalog.
@@ -209,6 +220,8 @@ Player ownership audit: DONE for the approved bounded scope.
 EPG refresh-ownership audit: DONE for the approved bounded scope.
 Sidebar selected-channel ownership audit: DONE for the approved bounded scope.
 Sidebar row-presentation ownership audit: DONE for the approved bounded scope.
+Recursive Sidebar / Now Playing zero-overlap sweep: DONE / CLEAN across 84 frontend JavaScript files.
+Legacy Source Hunt frontend-chain zero-consumer retirement: DONE / DELETED for the approved bounded scope.
 
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
@@ -229,6 +242,8 @@ Production playback/fallback orchestration is owned by `main.js` + one `PlayerCo
 EPG feed/XMLTV/matching ownership remains in `src/core/epg.js`; `main.js` is the sole frontend EPG refresh scheduler, while Sidebar Now Playing is a read-only EPG presentation consumer.
 Selected-channel state is owned by `main.js`; `WebTVPlaylistAPI.getSelectedChannel()` is the canonical snapshot and `webtv:channel-selected` is the structured notification consumed by presentation modules instead of rendered DOM state.
 Channel-row presentation ownership is also singular: `main.js` owns channel-row order, root visibility, summary and Favorite decoration. `favorites-ui.js` owns Favorite/filter state only through `WebTVFavoritesPresentationAPI.getState()` plus `webtv:favorites-presentation-changed`; `sidebar-now.js` may decorate existing row subtrees with EPG presentation but must not reorder or hide channel-root rows.
+The recursive Sidebar / Now Playing sweep is clean: `sidebar-now.js` is the sole `.channel-now-inline` writer, `main.js` is the sole channel-summary/root-row owner and sole EPG refresh scheduler, and remaining row consumers are read-only for their bounded roles.
+The legacy Source Hunt frontend chain is deleted after zero-consumer proof. Unified Search remains the sole automatic discovery surface; Manual Source Test remains explicit candidate testing. Shared M3U / STRM / Enigma2 cores plus Source Hunt / Source Discovery Workers remain active.
 
 Production Playlist / Library / Xtream ownership now has one full-account save path, one verified channel-save path and one Saved Playlist card owner. Full Xtream account persistence is only Preview → Verify → Save Full Xtream Account. Verified Xtream channel persistence is only Save Channel…; loaded-account channels cannot silently use the generic My Playlist Add path as a second persistence route. Playlist Manager directly owns account-backed Saved Xtream cards and delegates Load live through the shared Xtream account loader.
 
@@ -284,20 +299,23 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - EPG refresh ownership audit: DONE, runtime merge `8815ac39b25cc82755dba8a7a37b2b1c8e7783a5`
 - Sidebar selected-channel ownership audit: DONE, initial runtime merge `8b6485fb8ad925319b974f0f565478bc507194d0`, closure follow-up runtime `06e4d0cc0696b19c916f0f65007a3cf2572a0356`
 - Sidebar row-presentation ownership audit: DONE, runtime merge `f9f861641856bacdcc16b8be0b255dcfa318b692`
+- Sidebar / Now Playing recursive zero-overlap sweep: DONE / CLEAN, audit-only PR #137, 84 `src/**/*.js` files, `zeroOverlap:true`
+- Legacy Source Hunt frontend chain: DONE / DELETED after zero-consumer proof, runtime merge `b46f11bce380d03b565f65c22e96729dae60beb6`
 
 ## NEXT SAFE ACTION
 Continue the System Audit one bounded owner at a time:
-1. run a recursive zero-overlap sweep for any remaining Sidebar / Now Playing presentation owners outside the now-closed selected-channel, EPG-refresh and channel-row presentation slices; do not change code unless a concrete duplicate owner or drift is proven;
-2. keep selected-channel ownership, channel-row order/visibility ownership, EPG refresh ownership and Player ownership closed unless new evidence shows a regression;
-3. if the recursive sweep proves no remaining Sidebar ownership overlap, advance to the next unresolved System Audit / UX Consolidation owner rather than redesigning the Sidebar.
+1. audit the now-callerless narrow `WebTVMyPlaylistAPI.saveDiscoveredChannel(...,{reason:'source-hunt-save'})` surface in `playlist-manager.js` and prove whether any active production consumer remains after the legacy Source Hunt frontend-chain retirement;
+2. do not remove or redesign that API unless recursive consumer proof shows it is genuinely unused and retained My Playlist / Unified Search / Xtream persistence boundaries stay covered;
+3. keep Sidebar selected-channel, EPG-refresh, channel-row presentation and the retired Source Hunt frontend chain closed unless new evidence shows a regression;
+4. if the narrow discovered-channel API is still actively required, leave it intact and advance to the next unresolved System Audit / UX Consolidation owner.
 
-Do not redesign final visual layout or change playback/EPG semantics merely for cleanup. Each slice requires a bounded problem statement, RED proof for any real bug, exact-SHA deployment and live verification.
+Do not redesign final visual layout or change playback/EPG/discovery semantics merely for cleanup. Each slice requires a bounded problem statement, RED proof for any real bug, exact-SHA deployment and live verification.
 
 ## DO NOT BREAK
 - D1-primary My Playlist
 - D1-authoritative Favorites after successful cloud read
 - Favorites belong only to the D1 My Playlist catalog; do not expose/apply them to temporary, Saved/Custom, loaded Xtream or other catalogs without a separate future product decision
-- Source Hunt must not own a direct My Playlist Registry writer; discovered-channel My Playlist saves go through `WebTVMyPlaylistAPI.saveDiscoveredChannel` and inherit the loaded-Xtream generic-mutation guard
+- The retired legacy Source Hunt frontend chain must remain deleted; Unified Search is the sole automatic discovery surface and Manual Source Test remains explicit candidate testing. Any future discovered-channel My Playlist path must stay behind the canonical Playlist Manager persistence boundary and loaded-Xtream guard.
 - Saved Playlist D1 truth + IndexedDB reconciliation
 - Custom Saved Playlist D1 truth with playlist-specific channel/source ownership
 - Custom Playlist source snapshots must never own raw Xtream credentials or preview tokens
