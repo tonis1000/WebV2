@@ -197,6 +197,7 @@ assert.deepEqual(myWrites[2].body.sources.map(source=>source.url),[SOURCE_B],'no
 
 await page.locator('#playlist-manager-toggle').click();
 await page.waitForSelector('#xtream-tool-card',{timeout:10000});
+await page.locator('#xtream-refresh-accounts').click();
 await page.waitForFunction(()=>document.querySelector('#xtream-account-select option[value="xt_ci_inspector"]'),null,{timeout:10000});
 await page.locator('#xtream-account-select').selectOption('xt_ci_inspector');
 await page.locator('#xtream-load').click();
