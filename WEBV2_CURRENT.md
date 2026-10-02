@@ -21,6 +21,7 @@ Legacy Source Hunt frontend-chain retirement runtime SHA: `b46f11bce380d03b565f6
 Orphan `saveDiscoveredChannel` API retirement runtime SHA: `0c6360f6d3cfdab0ca629a59c1500deee88f13fa` via PR #143.
 Final dormant frontend-surface retirement runtime SHA: `3fd863325511a332268dc6238a08a236341f3cf0` via PR #147.
 GitHub Discovery v2 runtime merge SHA: `62569795f436c497ad3b271200ab9332098d809f` via PR #152.
+Xtream maintenance-session handoff runtime SHA: `1d2026de2a96588c7ae67ffe0b3d2ade2af90735` via PR #154.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -303,6 +304,17 @@ Verified GitHub Discovery v2 evidence:
 - Production GitHub discovery now uses three bounded recent repository searches, including one channel-aware shared-alias README query, then recursive Git tree playlist discovery with Greek-path ranking, at most two ranked playlist files per repository and stop-after-match behavior. Shared M3U parsing, Channel Identity matching, dedupe and verifier handoff remain canonical.
 
 
+
+Verified Xtream maintenance-session handoff evidence:
+- Production diagnosis proved Authorized Xtream failed before any `/api/accounts` request with `Trusted-device session is required` while browser Local Storage contained neither `webtv_v2_registry_token` nor `webtv_v2_trusted_device`.
+- Root cause: `pin-auth.js` treated Registry `pinAuth=false` as maintenance access without creating a token, while `src/xtream-client.js` correctly retained a hard trusted-session requirement. The deployed Xtream Worker also correctly requires a session header and was intentionally not weakened.
+- PR #154 introduced a one-hour maintenance-scoped signed Registry session. `pin-auth.js` automatically mints/stores it only while `PIN_AUTH_DISABLED` is active; Registry validation rejects the same maintenance token immediately after the bypass flag is disabled.
+- RED head `8ffc4e9801eb30c68d035e750bab7d285e75920f`: Frontend run `37057207021` failed exactly because maintenance session minting did not yet exist.
+- Exact GREEN head `90973614eadecad3d705fad5cbd949a2c19d485f`: Registry Project Agent Boundary run `37057361178` SUCCESS and Frontend run `37057361051` SUCCESS.
+- Runtime merge `1d2026de2a96588c7ae67ffe0b3d2ade2af90735`: post-merge Frontend, Registry deploy and Pages all SUCCESS. Registry live gate verified maintenance-session mint + validation and `/api/project-status` reported the same runtime SHA.
+- Verification-only PR #155 stayed unmerged and closed after live workflow `37057737827` SUCCESS against deployed Registry + Xtream. The scoped maintenance session was accepted by deployed Xtream `/api/accounts` with 8 saved accounts visible; read-only expansion of the first account returned 4 channels. No writes, saves, edits or deletes occurred.
+
+
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
@@ -346,12 +358,13 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Final dormant frontend retirement: DONE / DELETED, runtime merge `3fd863325511a332268dc6238a08a236341f3cf0`
 - Final end-to-end production acceptance: DONE / SUCCESS, verification-only PR #150, artifact `11244485111`
 - GitHub Discovery v2 recursive subfolder coverage: DONE / VERIFIED, runtime merge `62569795f436c497ad3b271200ab9332098d809f` via PR #152
+- Xtream maintenance-mode trusted-session handoff: DONE / VERIFIED, runtime merge `1d2026de2a96588c7ae67ffe0b3d2ade2af90735` via PR #154; verification-only PR #155 closed unmerged
 
 ## NEXT SAFE ACTION
 The WebV2 System Audit & UX Consolidation is closed for the approved ownership-consolidation scope.
 
 For future work:
-1. treat the current ownership map and DEC-001…DEC-031 as the baseline; do not reopen a closed owner without new concrete evidence;
+1. treat the current ownership map and DEC-001…DEC-032 as the baseline; do not reopen a closed owner without new concrete evidence;
 2. before any new major feature or architectural change, define the exact problem and the production proof that will demonstrate it is solved;
 3. use a new bounded slice for any future Player, Sidebar, EPG, Playlist/My Playlist, Favorites, Xtream, Unified Search / discovery, diagnostics or persistence change;
 4. preserve the existing RED → implementation → exact-SHA deploy → live verification → canonical docs closure discipline.
@@ -411,6 +424,7 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - Project-agent least-privilege route separation
 - Existing Registry checkpoint/history infrastructure
 - Existing PIN implementation while temporary `PIN_AUTH_DISABLED=1` maintenance mode is active
+- During temporary PIN bypass, browser auth must obtain a signed maintenance-scoped Registry session before authenticated cross-Worker consumers such as Xtream are used; maintenance tokens are valid only while the bypass remains enabled and must never weaken normal PIN-mode Xtream auth
 
 ## OPERATIONAL NOTES
 - Branch copies of `WEBV2_CURRENT.md` are proposed state; only the copy merged to GitHub `main` is canonical.
