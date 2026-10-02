@@ -20,6 +20,7 @@ Sidebar row-presentation ownership runtime SHA: `f9f861641856bacdcc16b8be0b255dc
 Legacy Source Hunt frontend-chain retirement runtime SHA: `b46f11bce380d03b565f65c22e96729dae60beb6` via PR #139.
 Orphan `saveDiscoveredChannel` API retirement runtime SHA: `0c6360f6d3cfdab0ca629a59c1500deee88f13fa` via PR #143.
 Final dormant frontend-surface retirement runtime SHA: `3fd863325511a332268dc6238a08a236341f3cf0` via PR #147.
+GitHub Discovery v2 runtime merge SHA: `62569795f436c497ad3b271200ab9332098d809f` via PR #152.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -292,6 +293,16 @@ Production behavior now has:
 Official broadcaster discovery/resolution retirement remains DONE.
 Unified Search Hunt / Discovery consolidation remains DONE.
 
+Verified GitHub Discovery v2 evidence:
+- The bounded problem was GitHub discovery recall: the provider used only two repository searches and root-level playlist listing, so valid Greek playlists stored in nested paths were invisible.
+- RED evidence: PR #152 initial regression head `9280565a188a115456c2760ea5d40a2d127b7dbb`; Validate WebTV Frontend run `37052344165` failed exactly on the GitHub public playlist provider regression.
+- Credential-sensitive GitHub Code Search was explicitly rejected after an unauthenticated `/search/code` probe returned HTTP 401. No new GitHub token/secret was introduced.
+- The existing hard `GITHUB_MAX_SUBREQUESTS=10` contract was preserved. An intermediate implementation that raised the budget was stopped by the existing frontend integration guard; the implementation was redesigned instead of weakening the guard.
+- Final exact implementation head `26b823faf2ffd3f5d5c68a25b23b398a0fa13832` completed Validate WebTV Frontend run `37053095432` SUCCESS.
+- Runtime merge `62569795f436c497ad3b271200ab9332098d809f`: post-merge Validate WebTV Frontend run `37053266438` SUCCESS, Deploy Source Discovery Worker run `37053266411` SUCCESS including live Worker/provider verification, and Deploy WebTV Registry Worker run `37053266465` SUCCESS. Registry `/api/project-status` then reported the same runtime SHA, deployed at 2026-10-02 19:19:11.
+- Production GitHub discovery now uses three bounded recent repository searches, including one channel-aware shared-alias README query, then recursive Git tree playlist discovery with Greek-path ranking, at most two ranked playlist files per repository and stop-after-match behavior. Shared M3U parsing, Channel Identity matching, dedupe and verifier handoff remain canonical.
+
+
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
@@ -334,12 +345,13 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Final broad ownership sweep: DONE; duplicate global API owners = 0; active Enigma2 Worker dependency retained
 - Final dormant frontend retirement: DONE / DELETED, runtime merge `3fd863325511a332268dc6238a08a236341f3cf0`
 - Final end-to-end production acceptance: DONE / SUCCESS, verification-only PR #150, artifact `11244485111`
+- GitHub Discovery v2 recursive subfolder coverage: DONE / VERIFIED, runtime merge `62569795f436c497ad3b271200ab9332098d809f` via PR #152
 
 ## NEXT SAFE ACTION
 The WebV2 System Audit & UX Consolidation is closed for the approved ownership-consolidation scope.
 
 For future work:
-1. treat the current ownership map and DEC-001…DEC-030 as the baseline; do not reopen a closed owner without new concrete evidence;
+1. treat the current ownership map and DEC-001…DEC-031 as the baseline; do not reopen a closed owner without new concrete evidence;
 2. before any new major feature or architectural change, define the exact problem and the production proof that will demonstrate it is solved;
 3. use a new bounded slice for any future Player, Sidebar, EPG, Playlist/My Playlist, Favorites, Xtream, Unified Search / discovery, diagnostics or persistence change;
 4. preserve the existing RED → implementation → exact-SHA deploy → live verification → canonical docs closure discipline.
@@ -386,6 +398,9 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - Search / Now Playing independence and explicit-Play-only ownership of Player changes
 - Unified Search progressive cancellation, stale-run protection, provenance and credential-redaction behavior
 - retained Curated / GitHub / Recent Web / STRM / Authorized Xtream / Hunt exploration discovery capabilities
+- GitHub public-playlist discovery retains the hard `GITHUB_MAX_SUBREQUESTS=10` budget, repository freshness via `pushed:>=`, public repository search plus bounded recursive Git-tree scanning, shared Channel Identity / M3U parsing, dedupe and verifier handoff
+- GitHub public-playlist discovery must not introduce credential-sensitive GitHub Code Search or a new GitHub token/secret merely to expand public discovery recall
+- Recent Web Xtream-provider lead detection and any change to Authorized Xtream discovery remain separate future bounded product decisions; DEC-031 changes neither lane
 - Promotion safety boundary between temporary findings and permanent saved state
 - Local intelligence remains background/read-only for dedupe and known-source awareness; it must not become a Unified Search lane or start save-time network discovery
 - bouquet proxy transport/security ownership
