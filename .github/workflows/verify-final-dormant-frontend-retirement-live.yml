@@ -1,0 +1,71 @@
+name: Verify Final Dormant Frontend Retirement Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/final-dormant-frontend-retirement-live-proof.mjs'
+      - '.github/workflows/verify-final-dormant-frontend-retirement-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 3fd863325511a332268dc6238a08a236341f3cf0
+      ARTIFACT_DIR: artifacts/final-dormant-frontend-retirement-live
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify exact deployed retirement and retained owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA")"
+          node -e "const j=JSON.parse(process.argv[1]);if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)" "$status"
+
+          for file in             cloud-auto-sync.js             d1-sync-addon.js             core/official-fallbacks.js             discovery/discovery-ui.js             discovery/new-xtream-preview.js
+          do
+            code="$(curl -L -s -o /tmp/retired.out -w '%{http_code}' -H 'Cache-Control: no-cache' "$WEBV2_URL/src/$file?proof=$GITHUB_SHA")"
+            test "$code" = "404"
+            echo "$file -> 404"
+          done
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/right-rail-preview.js?proof=$GITHUB_SHA" -o /tmp/right-rail.js
+          ! grep -q 'findDiscoveryButton' /tmp/right-rail.js
+          ! grep -qi 'discovery[[:space:]]*beta' /tmp/right-rail.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/core/player.js?proof=$GITHUB_SHA" -o /tmp/player.js
+          grep -q 'OFFICIAL_FALLBACKS' /tmp/player.js
+          grep -q 'officialFallbackFor' /tmp/player.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/core/enigma2-core.js?proof=$GITHUB_SHA" -o /tmp/enigma2-core.js
+          grep -q 'parseEnigma2Bouquet' /tmp/enigma2-core.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/index.html?proof=$GITHUB_SHA" -o /tmp/index-live.html
+          grep -q 'Manual Source Test' /tmp/index-live.html
+          grep -q 'Unified Search is the only automatic discovery surface' /tmp/index-live.html
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production browser proof
+        run: node tests/final-dormant-frontend-retirement-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-dormant-frontend-retirement-live-${{ github.sha }}
+          path: artifacts/final-dormant-frontend-retirement-live
+          if-no-files-found: warn
+          retention-days: 14
