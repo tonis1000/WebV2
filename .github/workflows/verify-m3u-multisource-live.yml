@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      DISCOVERY_URL: https://source-discoveryatonisworkersdev.atonis.workers.dev
+      DISCOVERY_URL: https://webtv-source-discovery.atonis.workers.dev
     steps:
       - name: Verify real jimgate multi-source candidates
         shell: bash
