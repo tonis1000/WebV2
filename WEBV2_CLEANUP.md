@@ -80,3 +80,29 @@ Required proof before deletion:
 Status: **MIGRATED / DO NOT DELETE YET.** PR #100 merge `35306d1161899a8f58801363bd3b1947881db9b2` moved the last identified useful Saved M3U local-intelligence coverage into the canonical known-source path. Exact-SHA Validate WebTV Frontend #813, Deploy WebTV Registry Worker #109 and GitHub Pages #467 succeeded. Deletion remains a separate bounded cleanup task.
 
 Deletion SHA: none.
+
+
+## CLEAN-010 Legacy Xtream enhancement ownership
+Current consumers before retirement: `src/xtream-enhancements.js` patched the production UI after the fact and owned three overlapping behaviors:
+- a second `Save Xtream Playlist` full-account persistence path;
+- a second Xtream → My Playlist merge dialog/capture path;
+- Saved Xtream Library card decoration/loading through title matching and DOM mutation observation.
+
+Replacement:
+- `src/xtream-ui.js` + `src/xtream-full-account-ui.js` / `src/xtream-full-account-save.js` own verified Full Account persistence;
+- `src/xtream-save-destination-ui.js` / `src/xtream-save-destination.js` own verified channel destinations;
+- Playlist Manager owns typed Saved Xtream cards directly and delegates `Load live` to `WebTVXtream.loadAccountById(accountId)`;
+- `WebTVMyPlaylistAPI.upsertChannel` is the narrow My Playlist writer for verified Xtream Preview saves only.
+
+Required proof:
+- permanent regression that the legacy module/import/button/merge overlay do not return;
+- one shared saved-account load path;
+- typed account-marker identity instead of title matching;
+- normal Saved Playlist behavior preserved;
+- generic loaded-Xtream My Playlist persistence blocked;
+- exact-SHA frontend/deploy proof;
+- live browser proof of Save Channel, Full Account card, Load live and no Export.
+
+Status: **RESOLVED / DELETED.** PR #102 runtime merge `44dc1b777b222b232f3a9aa4c4e4a4a9dcda6b4f` removed `src/xtream-enhancements.js` and its production import. PR #103 `f01a422065ff18c0b29841440ba529bdf6df9151` closed the My Playlist persistence boundary. PR #106 `3fb730f01efa370a1ed7d166978b178868a8dc06` fixed overlapping Preview action hit areas discovered during production acceptance. Exact-SHA Frontend #849, Registry #113 and Pages #471 succeeded. Verification-only PR #105 run #11 succeeded against production with the authorized `test_50` mock and was closed unmerged.
+
+Deletion SHA: `44dc1b777b222b232f3a9aa4c4e4a4a9dcda6b4f`.
