@@ -56,6 +56,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
           ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=320x180:r=25 -f lavfi -i anullsrc=r=44100:cl=stereo -t 2 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest /tmp/webv2-diagnostics-qa.mp4
           test -s /tmp/webv2-diagnostics-qa.mp4
 
