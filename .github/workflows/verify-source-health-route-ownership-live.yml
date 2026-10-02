@@ -1,0 +1,69 @@
+name: Verify Source Health Route Ownership Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/source-health-route-ownership-live-proof.mjs'
+      - '.github/workflows/verify-source-health-route-ownership-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 367421d007c79cd6e7d54e61278c56dc62a910d6
+      ARTIFACT_DIR: artifacts/source-health-route-ownership-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify exact production ownership is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/source-health-ui.js?proof=$GITHUB_SHA" -o /tmp/source-health-live.js
+          grep -q 'getSourceHealthRows' /tmp/source-health-live.js
+          if grep -q 'async function routeRows' /tmp/source-health-live.js; then
+            echo 'Source Health still owns routeRows'
+            exit 1
+          fi
+          if grep -q 'new StrmResolver' /tmp/source-health-live.js; then
+            echo 'Source Health still owns a STRM resolver'
+            exit 1
+          fi
+          if grep -q 'workerUrl' /tmp/source-health-live.js; then
+            echo 'Source Health still builds worker routes'
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/core/source-registry.js?proof=$GITHUB_SHA" -o /tmp/source-registry-live.js
+          grep -q 'getCuratedRouteDiagnostics' /tmp/source-registry-live.js
+
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA" -o /tmp/project-status.json
+          node -e "const j=require('/tmp/project-status.json');if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)"
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production Source Health ownership proof
+        run: node tests/source-health-route-ownership-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-health-route-ownership-live-${{ github.sha }}
+          path: artifacts/source-health-route-ownership-live
+          if-no-files-found: warn
+          retention-days: 14
