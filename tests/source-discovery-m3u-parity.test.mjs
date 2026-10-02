@@ -17,6 +17,17 @@ assert.equal(base[0].sourceType,'hls');
 assert.equal(base[0].sourceOrigin,'fixture');
 assert.equal(base[0].saveEligible,true);
 
+const multi=parseM3u(`#EXTM3U
+#EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA",MEGA
+webview:https://embed.example.test/?channel=mega | http://15.235.41.196/hls/mega.m3u8|User-Agent=Roku%2FDVP-14.6&x-roku-reserved-dev-id=device-1 | http://15.235.41.196/hls/mega.m3u8|stream_headers={User-Agent=Roku/DVP-14.6, x-roku-reserved-dev-id=device-1} | https://spark.example.test/mega/manifest.mpd
+`,mega,{name:'multi'});
+assert.deepEqual(multi.map(item=>item.sourceUrl),[
+  'http://15.235.41.196/hls/mega.m3u8|User-Agent=Roku%2FDVP-14.6&x-roku-reserved-dev-id=device-1',
+  'http://15.235.41.196/hls/mega.m3u8|stream_headers={User-Agent=Roku/DVP-14.6, x-roku-reserved-dev-id=device-1}',
+  'https://spark.example.test/mega/manifest.mpd',
+],'multi-source line must emit each public playback alternative while skipping unsupported webview');
+assert.deepEqual(multi.map(item=>item.sourceType),['hls','hls','dash']);
+
 const formats=parseM3u(`#EXTM3U
 #EXTINF:-1 tvg-name="MEGA",MEGA
 https://cdn.test/live.mpd
