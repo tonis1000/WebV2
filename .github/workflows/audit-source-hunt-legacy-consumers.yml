@@ -1,0 +1,20 @@
+name: Audit Source Hunt Legacy Consumers
+
+on:
+  pull_request:
+    paths:
+      - 'tests/source-hunt-legacy-consumer-audit.mjs'
+      - '.github/workflows/audit-source-hunt-legacy-consumers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Audit Source Hunt legacy consumers
+        run: node tests/source-hunt-legacy-consumer-audit.mjs
