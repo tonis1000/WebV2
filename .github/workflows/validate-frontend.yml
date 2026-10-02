@@ -206,6 +206,8 @@ jobs:
         run: node tests/source-hunt-m3u-parity.test.mjs
       - name: Run Source Hunt STRM parity
         run: node tests/source-hunt-strm-parity.test.mjs
+      - name: Run Source Hunt Xtream provider lead contract
+        run: node tests/source-hunt-xtream-leads.test.mjs
       - name: Run STRM workflow wiring contract
         run: node tests/strm-workflow-contract.test.mjs
       - name: Run STRM duplicate parser audit
