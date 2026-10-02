@@ -150,9 +150,20 @@ function renderGroups(){
   }
   els.group.value=groups.includes(previous)?previous:'all';
 }
+function favoritesPresentationState(){
+  const state=window.WebTVFavoritesPresentationAPI?.getState?.()||{};
+  const favorites=new Set((Array.isArray(state.favorites)?state.favorites:[]).map(String));
+  return {favorites,favoritesOnly:catalogMode==='cloud'&&Boolean(state.favoritesOnly)};
+}
 function filteredChannels(){
   const q=els.search.value.trim().toLowerCase(),group=els.group.value;
-  return channels.filter(channel=>(!q||`${channel.name} ${channel.originalId}`.toLowerCase().includes(q))&&(group==='all'||channel.group===group));
+  const presentation=favoritesPresentationState();
+  return channels
+    .filter(channel=>(!q||`${channel.name} ${channel.originalId}`.toLowerCase().includes(q))&&(group==='all'||channel.group===group))
+    .map((channel,index)=>({channel,index,fav:presentation.favorites.has(String(channel.id||''))}))
+    .filter(entry=>!presentation.favoritesOnly||entry.fav)
+    .sort((a,b)=>Number(b.fav)-Number(a.fav)||a.index-b.index)
+    .map(entry=>entry.channel);
 }
 function statsText(channel){
   const stats=sources.getStats(channel);
@@ -175,13 +186,16 @@ function updateChannelRowStats(channel){
 }
 function renderChannels(){
   const visible=filteredChannels();
+  const presentation=favoritesPresentationState();
   els.summary.textContent=`${visible.length} / ${channels.length} κανάλια`;
   channelRows.clear();
   const fragment=document.createDocumentFragment();
   for(const channel of visible){
     const button=document.createElement('button');
     button.type='button';
-    button.className=`channel-item${selected?.id===channel.id?' active':''}`;
+    const favorite=presentation.favorites.has(String(channel.id||''));
+    button.className=`channel-item${selected?.id===channel.id?' active':''}${favorite?' favorite':''}`;
+    button.title=favorite?'Favorite channel':'';
     button.setAttribute('role','listitem');
     button.dataset.channelId=String(channel.id||'');
     const logo=document.createElement('img');
@@ -472,6 +486,7 @@ async function boot(){
 
 els.search.addEventListener('input',renderChannels);
 els.group.addEventListener('change',renderChannels);
+window.addEventListener('webtv:favorites-presentation-changed',renderChannels);
 els.diagToggle.addEventListener('click',()=>{els.diagnostics.hidden=!els.diagnostics.hidden;});
 els.sourceHuntToggle.addEventListener('click',()=>{if(selected){renderSourceHunt(selected);els.sourceHunt.hidden=!els.sourceHunt.hidden;}});
 document.addEventListener('pointerdown',event=>{

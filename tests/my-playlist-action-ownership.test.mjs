@@ -53,8 +53,13 @@ assert.match(
 );
 assert.match(
   favorites,
-  /if\s*\(!myPlaylist\)\s*\{[^}]*item\.hidden\s*=\s*false/s,
-  'Favorites filtering must not hide channels outside My Playlist'
+  /favoritesOnly\s*:\s*isMyPlaylistCatalog\(\)\s*&&\s*favoritesOnly/,
+  'Favorites presentation state must disable Favorites-only filtering outside My Playlist'
+);
+assert.doesNotMatch(
+  favorites,
+  /item\.hidden\s*=/,
+  'Favorites must not directly own channel-row visibility'
 );
 assert.match(
   favorites,

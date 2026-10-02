@@ -130,6 +130,8 @@ jobs:
         run: node tests/epg-deploy-verification.test.mjs
       - name: Run Sidebar selected-channel ownership regression test
         run: node tests/sidebar-selection-ownership.test.mjs
+      - name: Run Sidebar row presentation ownership regression test
+        run: node tests/sidebar-row-presentation-ownership.test.mjs
       - name: Run EPG refresh ownership regression test
         run: node tests/epg-refresh-ownership.test.mjs
       - name: Run EPG parity regression test
