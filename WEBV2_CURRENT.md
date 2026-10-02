@@ -10,6 +10,7 @@ Xtream My Playlist persistence-boundary follow-up SHA: `f01a422065ff18c0b2984144
 Xtream preview action hit-layout follow-up SHA: `3fb730f01efa370a1ed7d166978b178868a8dc06` via PR #106.
 Playback Inspector My Playlist persistence-boundary runtime SHA: `7fd58ee145884d09e19d4ef1321c18f0fdabc028` via PR #108.
 Source Health route-ownership runtime SHA: `367421d007c79cd6e7d54e61278c56dc62a910d6` via PR #111.
+Diagnostics structured-state ownership runtime SHA: `040e6be426a7367f8e0ccc6446f5908f82d8ff15` via PR #114.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -48,6 +49,16 @@ Verified Source Health route-ownership evidence:
 - Exact-SHA post-merge proof at `367421d007c79cd6e7d54e61278c56dc62a910d6`: Validate WebTV Frontend #871 SUCCESS, Deploy WebTV Registry Worker #117 SUCCESS and GitHub Pages #475 SUCCESS.
 - Verification-only PR #112 was closed unmerged after Verify Source Health Route Ownership Live #1 SUCCESS against real production GitHub Pages. The final proof showed the live canonical API and actual playback plan both produced direct + worker for the selected curated HLS source; Source Health rendered exactly DIRECT + WORKER for the same source; headers / HTTP / DASH / video / non-media route contracts passed; page errors = 0; console errors = 0. Artifact ID: `11222443409`.
 - This closes only Source Health route ownership. The wider diagnostics audit remains ACTIVE because Source Health / Playback Inspector still consume diagnostic state through DOM / MutationObserver coupling instead of one structured diagnostic event/API owner.
+
+Verified Diagnostics structured-state ownership evidence:
+- The diagnostics audit found a real second state bus: Manual Test verification and Playback Inspector inferred runtime playback/diagnostic state from rendered `#diag-*` / `#playback-status` DOM changes, while Source Health also watched presentation DOM mutations to refresh.
+- PR #114 merged at `040e6be426a7367f8e0ccc6446f5908f82d8ff15`. `main.js` now owns one structured runtime `diagnosticsState`; `WebTVDiagnosticsAPI.getSnapshot()` returns a copy, and `webtv:diagnostics-updated` is emitted whenever diagnostic or playback-state data changes.
+- Manual Test verification and Playback Inspector now consume the structured snapshot/event rather than diagnostic presentation DOM. Source Health refreshes from the structured event while retaining canonical route semantics from SourceRegistry. The `#diag-*` elements remain presentation only.
+- RED-first evidence: Validate WebTV Frontend #875 failed exactly on the new diagnostics structured-state ownership regression. Intermediate run #877 exposed two remaining Inspector Edit/Delete DOM fallbacks; those were removed rather than weakening the regression. Exact latest branch head then completed Validate WebTV Frontend #878 SUCCESS.
+- Exact-SHA post-merge proof at `040e6be426a7367f8e0ccc6446f5908f82d8ff15`: Validate WebTV Frontend #879 SUCCESS, Deploy WebTV Registry Worker #119 SUCCESS and GitHub Pages #477 SUCCESS.
+- Verification-only PR #115 remained unmerged and was closed after Verify Diagnostics Structured State Live #9 SUCCESS against real production GitHub Pages with deterministic browser-local WebM media. The final proof showed: selected playback snapshot `native-video / direct / live`; Manual Test candidate snapshot `native-video / candidate-direct / live`; Save Source became available only after verified playback; Source Health rendered the selected source; direct mutation of `#diag-source` / `#diag-route` did not propagate into Playback Inspector; only expected `/api/health` telemetry writes occurred and durable My Playlist / Saved Playlist writes remained 0 before and after candidate Test; page errors = 0; console errors = 0. Artifact ID: `11224181561`.
+- A final ownership sweep across `main.js`, `saved-sources-ui.js`, `source-health-ui.js`, `diagnostics-overlay-behavior.js` and `route-tooltip.js` found no remaining diagnostic MutationObserver consumer or diagnostic-DOM state reader outside the canonical producer/presentation path.
+- With the previously verified Playback Inspector persistence boundary and Source Health route ownership, this closes the Diagnostics ownership audit for the approved bounded scope.
 
 Verified Local known-source ownership production evidence:
 - PR #100 merged at `35306d1161899a8f58801363bd3b1947881db9b2`.
@@ -130,7 +141,8 @@ Local scan ownership audit + canonical known-source migration: DONE.
 Playlist / Library / Xtream management consolidation: DONE for the approved bounded ownership scope.
 Playback Inspector My Playlist persistence-boundary sub-slice: DONE.
 Source Health route-ownership sub-slice: DONE.
-Diagnostics ownership audit: ACTIVE; diagnostics DOM / MutationObserver coupling remains open.
+Diagnostics structured-state ownership sub-slice: DONE.
+Diagnostics ownership audit: DONE for the approved bounded scope.
 
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
@@ -144,6 +156,7 @@ Local scan ownership and canonical known-source migration remain DONE for their 
 Xtream Preview ownership and Custom Saved Playlists remain DONE for their approved bounded scope.
 Playback Inspector permanent My Playlist mutations are now canonical-API owned; loaded Xtream account channels cannot persist through Inspector Add/Edit/Delete as a second generic path.
 Source Health route semantics are now canonical SourceRegistry output; Source Health no longer parses/classifies routes, builds worker routes or owns a second STRM resolver.
+Runtime diagnostics state now has one structured owner in `main.js` / `WebTVDiagnosticsAPI`; Manual Test, Playback Inspector and Source Health no longer use rendered diagnostic DOM as an inter-module state bus.
 
 Production Playlist / Library / Xtream ownership now has one full-account save path, one verified channel-save path and one Saved Playlist card owner. Full Xtream account persistence is only Preview → Verify → Save Full Xtream Account. Verified Xtream channel persistence is only Save Channel…; loaded-account channels cannot silently use the generic My Playlist Add path as a second persistence route. Playlist Manager directly owns account-backed Saved Xtream cards and delegates Load live through the shared Xtream account loader.
 
@@ -167,7 +180,7 @@ Unified Search Hunt / Discovery consolidation remains DONE.
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
 Before the PR #108 runtime change, GitHub main and Registry deployed SHA were both `002f7215d6a5d3666fbef79c2b0eb98772de912b`; the D1 `WEBV2_CURRENT.md` checkpoint was independently read and remains stale at the older Project Brain bootstrap state from 2026-09-30. The stale mirror therefore does not equal current GitHub/runtime state and must not be treated as production truth.
-The exact latest verified runtime SHA `367421d007c79cd6e7d54e61278c56dc62a910d6` completed Deploy WebTV Registry Worker #117 successfully, GitHub Pages #475 successfully and Validate WebTV Frontend #871 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and the production verification workflow independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
+The exact latest verified runtime SHA `040e6be426a7367f8e0ccc6446f5908f82d8ff15` completed Deploy WebTV Registry Worker #119 successfully, GitHub Pages #477 successfully and Validate WebTV Frontend #879 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and the production verification workflow independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
@@ -192,15 +205,17 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Playlist / Library / Xtream management consolidation: DONE, runtime merge `44dc1b777b222b232f3a9aa4c4e4a4a9dcda6b4f`, persistence-boundary follow-up `f01a422065ff18c0b29841440ba529bdf6df9151`, action-layout follow-up `3fb730f01efa370a1ed7d166978b178868a8dc06`
 - Playback Inspector My Playlist persistence boundary: DONE, runtime merge `7fd58ee145884d09e19d4ef1321c18f0fdabc028`
 - Source Health route ownership: DONE, runtime merge `367421d007c79cd6e7d54e61278c56dc62a910d6`
+- Diagnostics structured-state ownership: DONE, runtime merge `040e6be426a7367f8e0ccc6446f5908f82d8ff15`
+- Diagnostics ownership audit: DONE for the approved bounded scope
 
 ## NEXT SAFE ACTION
 Continue the System Audit one bounded owner at a time:
-1. continue the diagnostics audit with one bounded problem: map the remaining DOM / MutationObserver diagnostic-state coupling across Manual Test, Diagnostics, Source Health and Playback Inspector, then define one structured diagnostic event/API owner before changing behavior;
-2. preserve SourceRegistry as the canonical route owner while removing only proven DOM-derived state duplication; do not redesign Player, health scoring or Source Health presentation as part of that slice;
-3. separately prove whether the remaining legacy Local Discovery files have zero active consumers before any deletion;
-4. then continue Favorites / My Playlist action ownership and Player / EPG / Sidebar audit in the planned sequence.
+1. prove whether the remaining legacy Local Discovery files, especially `src/discovery/local-data-reader.js` and `src/discovery/local-candidates.js`, have zero active production consumers before any deletion;
+2. if zero-consumer proof succeeds, add regression coverage for the retired boundary before deleting anything, then deploy and verify the deletion separately;
+3. then continue Favorites / My Playlist action ownership;
+4. then continue the planned Player / EPG / Sidebar ownership audit.
 
-Do not delete legacy Local Discovery files merely because canonical ownership has moved. Deletion still requires explicit no-consumer proof, regression coverage and deployed verification. Do not redesign Player, Verifier, EPG or final visual layout as part of the diagnostics audit unless a separate bounded problem statement and proof require it.
+Do not delete legacy Local Discovery files merely because canonical known-source ownership has moved. Deletion still requires explicit no-consumer proof, regression coverage and deployed verification. Do not redesign Player, Verifier, EPG or final visual layout as part of the legacy-file audit unless a separate bounded problem statement and proof require it.
 
 ## DO NOT BREAK
 - D1-primary My Playlist
@@ -213,6 +228,7 @@ Do not delete legacy Local Discovery files merely because canonical ownership ha
 - Xtream channel persistence remains the verified Save Channel… flow only; loaded-account channels must not regain a generic My Playlist persistence shortcut
 - Playback Inspector must not own a direct My Playlist Registry writer; permanent source Add/Edit/Delete goes through `WebTVMyPlaylistAPI` and inherits the loaded-Xtream generic-mutation guard
 - SourceRegistry owns curated playback route semantics for Source Health; Source Health must not reintroduce route parsing/classification, worker construction or a second STRM resolver
+- `main.js` / `WebTVDiagnosticsAPI` owns runtime diagnostic state; rendered `#diag-*` / playback-status DOM must remain presentation rather than an inter-module business-state bus
 - Saved Xtream Library cards remain Playlist Manager-owned account references with Load live and no synthetic marker export
 - Test / Preview persists nothing until explicit verified save
 - All known sources means already-known sources only; no implicit Unified Search or discovery at save time
