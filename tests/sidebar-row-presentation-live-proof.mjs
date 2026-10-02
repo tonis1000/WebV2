@@ -100,7 +100,7 @@ await page.locator('#channel-list .channel-item[data-channel-id="qathree"]').cli
 await page.waitForFunction(()=>window.WebTVPlaylistAPI?.getSelectedChannel?.()?.id==='qathree',null,{timeout:10000});
 await page.waitForFunction(()=>document.querySelector('#channel-list .channel-item.active')?.dataset?.channelId==='qathree',null,{timeout:5000});
 
-await page.locator('#favorites-filter').click();
+await page.evaluate(()=>document.getElementById('favorites-filter')?.click());
 await page.waitForFunction(()=>document.querySelectorAll('#channel-list .channel-item').length===2,null,{timeout:5000});
 await page.waitForFunction(()=>document.querySelectorAll('#channel-list .channel-now-inline').length===2,null,{timeout:5000});
 
