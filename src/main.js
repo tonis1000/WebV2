@@ -215,6 +215,7 @@ function applyPlaylistText(text,{mode='replace',label='Playlist'}={}){
   channels=mode==='merge'?dedupeChannels([...channels,...imported]):dedupeChannels(imported);
   catalogMode='temporary';
   clearSelectedIfMissing();renderGroups();renderChannels();
+  emitChannelSelection('catalog-import');
   log(`Playlist applied · ${label} · ${mode} · ${imported.length} imported · ${channels.length} total`);
   return{imported:imported.length,total:channels.length};
 }
@@ -263,8 +264,22 @@ async function loadCloudMyPlaylist({reason='manual',preserveSelection=true}={}){
     applyImmediateLogo(els.logo,selected.logo);
     setOfficialLive(selected);
   }
+  emitChannelSelection(`catalog-cloud:${reason}`);
   log(`D1 MY PLAYLIST LOADED · ${channels.length} channels · ${reason}`);
   return {total:channels.length,channels:[...channels]};
+}
+
+function selectedChannelSnapshot(){
+  return selected
+    ? (catalogMode==='temporary'
+      ? promoteImportedChannel(selected)
+      : {...selected,directUrls:[...(selected.directUrls||[])]})
+    : null;
+}
+function emitChannelSelection(reason='selection'){
+  window.dispatchEvent(new CustomEvent('webtv:channel-selected',{
+    detail:{reason,catalogMode,channel:selectedChannelSnapshot()}
+  }));
 }
 
 window.WebTVPlaylistAPI={
@@ -274,7 +289,7 @@ window.WebTVPlaylistAPI={
   getCount:()=>channels.length,
   getCatalogMode:()=>catalogMode,
   getChannelById:id=>channels.find(channel=>String(channel.id)===String(id))||null,
-  getSelectedChannel:()=>selected?(catalogMode==='temporary'?promoteImportedChannel(selected):{...selected,directUrls:[...(selected.directUrls||[])]}):null,
+  getSelectedChannel:selectedChannelSnapshot,
   getChannels:()=>channels.map(c=>({...c,directUrls:[...(c.directUrls||[])]}))
 };
 
@@ -287,6 +302,7 @@ async function selectChannel(channel){
   els.channelName.textContent=channel.name;els.channelGroup.textContent=channel.group||'WEBTV';
   applyImmediateLogo(els.logo,channel.logo);
   clearDiagnostics();const officialUrl=setOfficialLive(channel);renderEpg();
+  emitChannelSelection('user-select');
   const before=sources.getStats(channel);
   setPlaybackState('loading',before.pending?'Resolving source':'Connecting');
   try{
