@@ -1,0 +1,54 @@
+name: Verify saveDiscoveredChannel Retirement Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/save-discovered-channel-retirement-live-proof.mjs'
+      - '.github/workflows/verify-save-discovered-channel-retirement-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 0c6360f6d3cfdab0ca629a59c1500deee88f13fa
+      ARTIFACT_DIR: artifacts/save-discovered-channel-retirement-live
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify exact deployed runtime and source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA")"
+          node -e "const j=JSON.parse(process.argv[1]);if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)" "$status"
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/playlist-manager.js?proof=$GITHUB_SHA" -o /tmp/playlist-manager-live.js
+          ! grep -q 'saveDiscoveredChannel' /tmp/playlist-manager-live.js
+          ! grep -q 'saveDiscoveredMyChannel' /tmp/playlist-manager-live.js
+          grep -q 'upsertChannel' /tmp/playlist-manager-live.js
+          grep -q 'addSourceToCurrent' /tmp/playlist-manager-live.js
+          grep -q 'replaceSourcesForCurrent' /tmp/playlist-manager-live.js
+          grep -q 'xtream-preview-save' /tmp/playlist-manager-live.js
+          grep -q 'assertGenericMyMutationAllowed' /tmp/playlist-manager-live.js
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run production browser proof
+        run: node tests/save-discovered-channel-retirement-live-proof.mjs
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: save-discovered-channel-retirement-live-${{ github.sha }}
+          path: artifacts/save-discovered-channel-retirement-live
+          if-no-files-found: warn
+          retention-days: 14
