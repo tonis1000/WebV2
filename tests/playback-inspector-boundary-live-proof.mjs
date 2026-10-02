@@ -134,9 +134,31 @@ const sourceArea=page.locator('#playback-source-full');
 await page.waitForFunction(source=>document.getElementById('playback-source-full')?.value?.includes(source),SOURCE_A,{timeout:10000});
 
 assert.equal(writes.filter(row=>row.target==='my-playlist').length,0,'temporary playback must not persist by itself');
+await page.evaluate(()=>{
+  const api=window.WebTVPlaybackAPI;
+  if(!api?.testCandidate)throw new Error('WebTVPlaybackAPI.testCandidate unavailable');
+  const original=api.testCandidate.bind(api);
+  window.__inspectorTestAudit={calls:0,settled:false,ok:null,error:''};
+  api.testCandidate=async(...args)=>{
+    window.__inspectorTestAudit.calls+=1;
+    try{
+      const result=await original(...args);
+      window.__inspectorTestAudit.ok=Boolean(result?.ok);
+      return result;
+    }catch(error){
+      window.__inspectorTestAudit.ok=false;
+      window.__inspectorTestAudit.error=error?.message||String(error);
+      throw error;
+    }finally{
+      window.__inspectorTestAudit.settled=true;
+    }
+  };
+});
 await sourceArea.fill(SOURCE_A);
 await page.locator('#playback-source-test').click();
-await page.waitForFunction(()=>document.getElementById('playback-inspector-status')?.textContent?.includes('Test started'),null,{timeout:25000});
+await page.waitForFunction(()=>window.__inspectorTestAudit?.settled===true,null,{timeout:30000});
+const testAudit=await page.evaluate(()=>window.__inspectorTestAudit);
+assert.equal(testAudit.calls,1,'Test edited URL must delegate exactly once to WebTVPlaybackAPI.testCandidate');
 assert.equal(writes.filter(row=>row.target==='my-playlist').length,0,'Test edited URL must remain temporary playback-only');
 
 await sourceArea.fill(SOURCE_C);
