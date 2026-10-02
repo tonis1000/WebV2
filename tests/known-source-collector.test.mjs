@@ -11,6 +11,12 @@ const result=collectKnownSources(mega,{
     {id:'greek',channels:[{...mega,sources:[{url:'https://backup.example/mega.m3u8',origin:'custom'}]}]},
     {id:'wrong',channels:[{id:'skai',name:'SKAI',sources:[{url:'https://wrong.example/skai.m3u8'}]}]},
   ],
+  savedPlaylists:[{
+    id:'saved-m3u',
+    name:'Greek backup M3U',
+    type:'url',
+    text:'#EXTM3U\n#EXTINF:-1 tvg-id="mega.gr" tvg-name="MEGA",MEGA\nhttps://saved.example/mega.m3u8\n#EXTINF:-1 tvg-id="skai.gr" tvg-name="SKAI",SKAI\nhttps://wrong.example/saved-skai.m3u8\n',
+  }],
   loadedCatalog:[{...mega,directUrls:['https://loaded.example/mega.m3u8']},{id:'skai',name:'SKAI',directUrls:['https://wrong.example/skai2.m3u8']}],
 });
 assert.equal(result[0].url,selected.url,'selected permanent source must remain first');
@@ -19,6 +25,7 @@ assert.deepEqual(new Set(result.map(row=>row.url)),new Set([
   selected.url,
   'https://m3u.example/mega.m3u8',
   'https://backup.example/mega.m3u8',
+  'https://saved.example/mega.m3u8',
   'https://loaded.example/mega.m3u8',
 ]));
 assert.equal(result.some(row=>row.url.includes('wrong.example')),false,'different channel sources must never merge');
