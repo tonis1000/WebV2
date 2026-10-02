@@ -12,6 +12,7 @@ Playback Inspector My Playlist persistence-boundary runtime SHA: `7fd58ee145884d
 Source Health route-ownership runtime SHA: `367421d007c79cd6e7d54e61278c56dc62a910d6` via PR #111.
 Diagnostics structured-state ownership runtime SHA: `040e6be426a7367f8e0ccc6446f5908f82d8ff15` via PR #114.
 Legacy Local Discovery retirement runtime SHA: `8ef91a32d898930dfd38d82220ebc370b0444ed2` via PR #116.
+My Playlist action-ownership runtime SHA: `3adc057cd2f0186a1fab506c7c8e4d36ceea9973` via PR #119.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -67,6 +68,16 @@ Verified legacy Local Discovery retirement evidence:
 - Exact-SHA post-merge proof at `8ef91a32d898930dfd38d82220ebc370b0444ed2`: Validate WebTV Frontend #897 SUCCESS, Deploy WebTV Registry Worker #120 SUCCESS and GitHub Pages #478 SUCCESS.
 - Verification-only PR #117 was closed unmerged after Verify Legacy Local Discovery Retirement Live #3 SUCCESS. Both deleted production URLs returned HTTP 404; the live legacy shell had no Local import/control/API and retained Curated / GitHub / Recent Web / STRM / Authorized Xtream / verify / promotion; the production page loaded with canonical search visible; legacy Discovery Beta and Local controls were absent; page errors = 0; console errors = 0. Artifact ID: `11224489871`.
 - Canonical local intelligence remains `cloud-read-sync.js` + `known-source-collector.js`; it stays background/read-only and does not become a Unified Search lane or start save-time network discovery.
+
+Verified Favorites / My Playlist action-ownership evidence:
+- The ownership audit found that `src/source-hunt-save-destination.js` still owned a direct `PUT /api/my-playlist/channel` writer even after Playlist Manager had become the canonical My Playlist persistence owner. The same audit also clarified product scope: Favorites belong only to the D1 My Playlist catalog, not temporary imports, Saved/Custom playlists, loaded Xtream catalogs or other list surfaces.
+- PR #119 merged at `3adc057cd2f0186a1fab506c7c8e4d36ceea9973`. Playlist Manager now exposes narrow `WebTVMyPlaylistAPI.saveDiscoveredChannel(...,{reason:'source-hunt-save'})`; Source Hunt delegates My Playlist persistence to that owner and no longer contains a direct My Playlist channel writer.
+- The canonical discovered-channel owner builds its target from the actual discovered source URLs before applying `assertGenericMyMutationAllowed(target)`, preserving the loaded-Xtream persistence boundary. Source Hunt provenance remains `origin:'source-hunt'`, priority 100, append position 999999 and replaceSources=true.
+- `favorites-ui.js` now treats only `WebTVPlaylistAPI.getCatalogMode()==='cloud'` as Favorite-capable. Outside My Playlist the filter/action are hidden, Favorite mutation is a no-op, rows are not reordered/filtered/decorated by Favorite state, and existing cloud Favorite data is not migrated or deleted.
+- RED-first evidence: Validate WebTV Frontend #903 failed exactly on the direct Source Hunt My Playlist writer. #904 exposed only an over-specific test regex and was corrected without weakening the no-direct-writer contract. Diff review then found a real loaded-Xtream guard gap in the first implementation; that gap was fixed before merge. Final exact branch head completed Validate WebTV Frontend #906 SUCCESS, plus Playlist Manager Xtream Dialog Ownership #21 and Xtream Save Destination #71 SUCCESS.
+- Exact-SHA post-merge proof at `3adc057cd2f0186a1fab506c7c8e4d36ceea9973`: Validate WebTV Frontend #907 SUCCESS, Deploy WebTV Registry Worker #122 SUCCESS and GitHub Pages #480 SUCCESS.
+- Verification-only PR #120 was closed unmerged after Verify My Playlist Action Ownership Live #4 SUCCESS against real production GitHub Pages with Registry writes mocked so user data was not modified. In cloud My Playlist, the stored Favorite decorated the normalized channel row and one explicit Favorite action produced exactly one `/api/favorites` PUT. In a temporary catalog, Favorites filter/action were hidden, rows remained visible and undecorated, and a programmatic hidden-action click produced no write. Canonical Source Hunt save produced exactly one My Playlist channel PUT with preserved provenance/position semantics; a loaded-Xtream discovered source was rejected before persistence with the verified Preview/Save Channel guidance. Page errors = 0; console errors = 0. Artifact ID: `11227811674`.
+- Existing Favorite data remains untouched. Expanding Favorites beyond My Playlist is explicitly deferred to a future separate product decision.
 
 Verified Local known-source ownership production evidence:
 - PR #100 merged at `35306d1161899a8f58801363bd3b1947881db9b2`.
@@ -151,6 +162,7 @@ Playback Inspector My Playlist persistence-boundary sub-slice: DONE.
 Source Health route-ownership sub-slice: DONE.
 Diagnostics ownership audit: DONE for the approved bounded scope.
 Legacy Local Discovery zero-consumer retirement: DONE / deleted.
+Favorites / My Playlist action ownership: DONE for the approved bounded scope.
 
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
@@ -166,6 +178,7 @@ Playback Inspector permanent My Playlist mutations are now canonical-API owned; 
 Source Health route semantics are now canonical SourceRegistry output; Source Health no longer parses/classifies routes, builds worker routes or owns a second STRM resolver.
 Runtime diagnostics state now has one structured owner in `main.js` / `WebTVDiagnosticsAPI`; Manual Test, Playback Inspector and Source Health consume snapshot/event state rather than rendered diagnostic DOM.
 Legacy Local Discovery owner files and Local shell bindings are deleted after zero-consumer proof; canonical local intelligence remains `cloud-read-sync` + `known-source-collector`.
+Favorites are scoped only to the D1 My Playlist catalog. Source Hunt My Playlist persistence is Playlist Manager-owned through the narrow discovered-channel API and inherits the loaded-Xtream generic-mutation guard.
 
 Production Playlist / Library / Xtream ownership now has one full-account save path, one verified channel-save path and one Saved Playlist card owner. Full Xtream account persistence is only Preview → Verify → Save Full Xtream Account. Verified Xtream channel persistence is only Save Channel…; loaded-account channels cannot silently use the generic My Playlist Add path as a second persistence route. Playlist Manager directly owns account-backed Saved Xtream cards and delegates Load live through the shared Xtream account loader.
 
@@ -189,7 +202,7 @@ Unified Search Hunt / Discovery consolidation remains DONE.
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
 Before the PR #108 runtime change, GitHub main and Registry deployed SHA were both `002f7215d6a5d3666fbef79c2b0eb98772de912b`; the D1 `WEBV2_CURRENT.md` checkpoint was independently read and remains stale at the older Project Brain bootstrap state from 2026-09-30. The stale mirror therefore does not equal current GitHub/runtime state and must not be treated as production truth.
-The exact latest verified runtime SHA `8ef91a32d898930dfd38d82220ebc370b0444ed2` completed Deploy WebTV Registry Worker #120 successfully, GitHub Pages #478 successfully and Validate WebTV Frontend #897 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #117 independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
+The exact latest verified runtime SHA `3adc057cd2f0186a1fab506c7c8e4d36ceea9973` completed Deploy WebTV Registry Worker #122 successfully, GitHub Pages #480 successfully and Validate WebTV Frontend #907 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #120 independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
@@ -216,18 +229,21 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Source Health route ownership: DONE, runtime merge `367421d007c79cd6e7d54e61278c56dc62a910d6`
 - Diagnostics structured-state ownership: DONE, runtime merge `040e6be426a7367f8e0ccc6446f5908f82d8ff15`
 - Legacy Local Discovery zero-consumer retirement: DONE / DELETED, runtime merge `8ef91a32d898930dfd38d82220ebc370b0444ed2`
+- Favorites / My Playlist action ownership: DONE, runtime merge `3adc057cd2f0186a1fab506c7c8e4d36ceea9973`
 
 ## NEXT SAFE ACTION
 Continue the System Audit one bounded owner at a time:
-1. audit Favorites / My Playlist action ownership for duplicate writers, hidden second paths and correct canonical mutation/read owners;
-2. preserve D1-authoritative Favorites and D1-primary My Playlist semantics while proving any overlap before refactoring;
-3. after that, continue Player / EPG / Sidebar ownership in the planned sequence.
+1. audit Player ownership for duplicate playback/start-stop/fallback state owners and hidden second control paths without redesigning playback behavior;
+2. then audit EPG ownership against the preserved Phase C identity/profile contract;
+3. then audit Sidebar / Now Playing presentation ownership and remove only proven duplicate state/control paths.
 
-Do not redesign Player, Verifier, EPG or final visual layout as part of the Favorites / My Playlist audit unless a separate bounded problem statement and proof require it.
+Do not redesign final visual layout or change playback/EPG semantics merely for cleanup. Each slice requires a bounded problem statement, RED proof for any real bug, exact-SHA deployment and live verification.
 
 ## DO NOT BREAK
 - D1-primary My Playlist
 - D1-authoritative Favorites after successful cloud read
+- Favorites belong only to the D1 My Playlist catalog; do not expose/apply them to temporary, Saved/Custom, loaded Xtream or other catalogs without a separate future product decision
+- Source Hunt must not own a direct My Playlist Registry writer; discovered-channel My Playlist saves go through `WebTVMyPlaylistAPI.saveDiscoveredChannel` and inherit the loaded-Xtream generic-mutation guard
 - Saved Playlist D1 truth + IndexedDB reconciliation
 - Custom Saved Playlist D1 truth with playlist-specific channel/source ownership
 - Custom Playlist source snapshots must never own raw Xtream credentials or preview tokens

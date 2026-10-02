@@ -270,3 +270,28 @@ Evidence:
 - Verification-only PR #117 remained unmerged and was closed after Verify Legacy Local Discovery Retirement Live #3 SUCCESS: both deleted files returned production HTTP 404; live shell Local ownership was absent; retained capabilities and canonical search remained present; page/console errors were zero. Artifact ID `11224489871`.
 
 Reconsider when: only if a new bounded use case proves a distinct Local discovery lane is needed and cannot be satisfied by canonical known-source intelligence plus retained external discovery, with explicit ownership and live proof.
+
+
+## DEC-023 Favorites are My Playlist-only and Source Hunt delegates My Playlist persistence
+Decision: Favorites are a feature of the D1 My Playlist catalog only. Source Hunt is not an independent My Playlist persistence owner; discovered-channel saves delegate to Playlist Manager through the narrow `WebTVMyPlaylistAPI.saveDiscoveredChannel` API.
+
+Hard rules:
+- Favorite filter, row decoration/sorting/filtering and Favorite channel mutation operate only when `WebTVPlaylistAPI.getCatalogMode()==='cloud'`;
+- temporary/imported catalogs, Saved/Custom playlist catalogs, loaded Xtream catalogs and other non-My-Playlist surfaces must not expose or apply Favorite behavior;
+- existing Favorites remain D1-authoritative after successful cloud read with local fallback; this decision performs no Favorite data cleanup/migration;
+- expanding Favorites to another catalog requires a separate future product decision;
+- Source Hunt must not contain a direct `/api/my-playlist/channel` writer;
+- Source Hunt My Playlist saves use `WebTVMyPlaylistAPI.saveDiscoveredChannel(...,{reason:'source-hunt-save'})`;
+- Playlist Manager owns auth, payload, D1 write and primary My Playlist refresh for that path;
+- the discovered target must include the actual discovered source URLs before the generic loaded-Xtream guard is evaluated;
+- verified Xtream Preview persistence remains owned by the existing `xtream-preview-save` path and must not be bypassed through Source Hunt.
+
+Reason: the ownership audit found one remaining direct My Playlist writer in Source Hunt and a catalog-agnostic Favorites UI. The former duplicated persistence ownership; the latter allowed Favorite state to decorate/filter catalogs outside the user's intended My Playlist-only scope.
+
+Evidence:
+- RED Validate WebTV Frontend #903 failed exactly on the direct Source Hunt writer.
+- PR #119 review caught and fixed a real loaded-Xtream guard gap before merge; final exact-head Validate WebTV Frontend #906, Playlist Manager Xtream Dialog Ownership #21 and Xtream Save Destination #71 all succeeded.
+- Runtime merge `3adc057cd2f0186a1fab506c7c8e4d36ceea9973`; post-merge Frontend #907, Registry #122 and Pages #480 SUCCESS.
+- Verification-only PR #120 remained unmerged and was closed after Verify My Playlist Action Ownership Live #4 SUCCESS against real production Pages with Registry mutations mocked: My Playlist Favorites worked; temporary catalog Favorites were hidden/inert and did not affect rows; canonical Source Hunt save produced exactly one My Playlist write with source-hunt provenance/position; loaded-Xtream Source Hunt save was blocked before persistence; page/console errors were zero. Artifact ID `11227811674`.
+
+Reconsider when: if the product deliberately adds cross-playlist Favorites, or if a future single persistence owner replaces Playlist Manager while preserving D1-primary My Playlist, Xtream verification boundaries and live acceptance proof.
