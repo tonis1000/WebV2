@@ -3,9 +3,9 @@ import discovery from '../workers/webtv-source-discovery.js';
 import { GITHUB_PUBLIC_PLAYLISTS_PROVIDER, GITHUB_MAX_SEARCHES, GITHUB_MAX_REPOS, GITHUB_MAX_SUBREQUESTS } from '../workers/source-discovery/github-public-playlists.js';
 
 assert.equal(GITHUB_PUBLIC_PLAYLISTS_PROVIDER,'github-public-playlists');
-assert.equal(GITHUB_MAX_SEARCHES,4);
+assert.equal(GITHUB_MAX_SEARCHES,3);
 assert.equal(GITHUB_MAX_REPOS,5);
-assert.equal(GITHUB_MAX_SUBREQUESTS,18);
+assert.equal(GITHUB_MAX_SUBREQUESTS,10);
 
 const rootSample=`#EXTM3U
 #EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA HD",MEGA HD
@@ -69,11 +69,10 @@ try{
   assert.ok(body.candidates.every(item=>item.discoveryProvider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER));
   assert.ok(body.candidates.some(item=>/fixture\/subfolder-greek-tv\/stable\/greece\.m3u/.test(item.sourceOrigin)));
   assert.ok(body.candidates.some(item=>/fixture\/recent-greek-iptv\/playlist\.m3u/.test(item.sourceOrigin)));
-  assert.equal(body.reports.searches.length,4);
+  assert.equal(body.reports.searches.length,3);
   assert.equal(body.reports.repositories.length,2);
-  assert.equal(seenSearches.length,4);
+  assert.equal(seenSearches.length,3);
   assert.equal(seenTrees.length,2);
-  assert.ok(seenSearches.some(q=>/"MEGA" greece iptv in:readme/i.test(q)));
   assert.ok(seenSearches.some(q=>/"MEGA TV" greek tv playlist in:readme/i.test(q)));
   assert.ok(body.reports.repositories.every(item=>item.recursive===true));
 
