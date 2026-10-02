@@ -4,7 +4,7 @@ import { GITHUB_PUBLIC_PLAYLISTS_PROVIDER, GITHUB_MAX_REPOS, GITHUB_MAX_SUBREQUE
 
 assert.equal(GITHUB_PUBLIC_PLAYLISTS_PROVIDER,'github-public-playlists');
 assert.equal(GITHUB_MAX_REPOS,4);
-assert.equal(GITHUB_MAX_SUBREQUESTS,10);
+assert.equal(GITHUB_MAX_SUBREQUESTS,16);
 
 const rootSample=`#EXTM3U
 #EXTINF:-1 tvg-id="MEGA" tvg-name="MEGA HD",MEGA HD
