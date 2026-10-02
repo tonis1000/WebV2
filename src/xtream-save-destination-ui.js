@@ -99,8 +99,9 @@ async function getKnownContext(){
     name:playlist.name,
     channels:await getCustomPlaylistChannels(playlist.id),
   })));
+  const savedPlaylists=await window.WebTVSavedPlaylistsReadAPI?.getAllCached?.()||[];
   const loadedCatalog=window.WebTVPlaylistAPI?.getChannels?.()||[];
-  return{myPlaylist,customPlaylists:custom,loadedCatalog};
+  return{myPlaylist,customPlaylists:custom,savedPlaylists,loadedCatalog};
 }
 
 function destinationFromForm(){
