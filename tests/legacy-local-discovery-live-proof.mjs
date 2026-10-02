@@ -11,7 +11,6 @@ await fs.mkdir(ARTIFACT_DIR,{recursive:true});
 
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1100}});
-await context.setExtraHTTPHeaders({'cache-control':'no-cache',pragma:'no-cache'});
 const page=await context.newPage();
 
 const pageErrors=[];
