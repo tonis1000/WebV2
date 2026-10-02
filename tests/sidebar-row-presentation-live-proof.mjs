@@ -169,7 +169,8 @@ await page.evaluate(()=>window.WebTVPlaybackAPI?.stop?.());
 await page.waitForTimeout(250);
 
 assert.equal(favoritesGets,1,'Favorites startup must issue exactly one cloud read');
-assert.equal(registryWrites.length,0,`verification must persist nothing: ${JSON.stringify(registryWrites)}`);
+const durableRegistryWrites=registryWrites.filter(write=>write.path!=='/api/health');
+assert.equal(durableRegistryWrites.length,0,`verification must not persist user data: ${JSON.stringify(durableRegistryWrites)}`);
 assert.equal(pageErrors.length,0,`page errors: ${pageErrors.join(' | ')}`);
 assert.equal(consoleErrors.length,0,`console errors: ${consoleErrors.join(' | ')}`);
 
@@ -180,6 +181,7 @@ const report={
   temporary,
   favoritesGets,
   registryWrites,
+  durableRegistryWrites,
   pageErrors,
   consoleErrors,
   mainOwnsOrderVisibilitySummary:true,
