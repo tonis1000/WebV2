@@ -77,9 +77,11 @@ Required proof before deletion:
 - full frontend/startup/browser regression;
 - exact-SHA Pages/Registry deployment and live verification after deletion.
 
-Status: **MIGRATED / DO NOT DELETE YET.** PR #100 merge `35306d1161899a8f58801363bd3b1947881db9b2` moved the last identified useful Saved M3U local-intelligence coverage into the canonical known-source path. Exact-SHA Validate WebTV Frontend #813, Deploy WebTV Registry Worker #109 and GitHub Pages #467 succeeded. Deletion remains a separate bounded cleanup task.
+Status: **RESOLVED / DELETED.** PR #100 merge `35306d1161899a8f58801363bd3b1947881db9b2` first moved the last identified useful Saved M3U local-intelligence coverage into the canonical known-source path. PR #116 runtime merge `8ef91a32d898930dfd38d82220ebc370b0444ed2` then completed the separate zero-consumer deletion task: `src/discovery/local-data-reader.js` and `src/discovery/local-candidates.js` were deleted, the Local button/scan/lanes/`scanLocal` API were removed from the legacy shell, and the old `tests/discovery-local-sources.test.mjs` owner-specific regression was retired. Curated / GitHub / Recent Web / STRM / Authorized Xtream / verifier / promotion behavior remains retained.
 
-Deletion SHA: none.
+Deletion proof: RED Frontend #889; exact branch head Frontend #896 SUCCESS with permanent retirement, canonical known-source, entrypoint ownership, isolation, browser smoke, startup and recursive import coverage; post-merge Frontend #897, Registry #120 and Pages #478 SUCCESS. Verification-only PR #117 run #3 succeeded against real production Pages: both deleted URLs returned HTTP 404, the live shell had no Local import/control/API, retained capabilities were present, canonical search remained visible, legacy Discovery Beta remained absent, and page/console errors were 0. Artifact ID `11224489871`.
+
+Deletion SHA: `8ef91a32d898930dfd38d82220ebc370b0444ed2`.
 
 
 ## CLEAN-010 Legacy Xtream enhancement ownership
