@@ -1,0 +1,20 @@
+name: Audit Sidebar Presentation Zero Overlap
+
+on:
+  pull_request:
+    paths:
+      - 'tests/sidebar-presentation-zero-overlap-audit.mjs'
+      - '.github/workflows/audit-sidebar-presentation-zero-overlap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Scan every src JavaScript file
+        run: node tests/sidebar-presentation-zero-overlap-audit.mjs
