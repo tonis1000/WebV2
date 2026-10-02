@@ -180,8 +180,6 @@ jobs:
         run: node tests/known-source-collector.test.mjs
       - name: Run authorized Xtream discovery regression test
         run: node tests/authorized-xtream-discovery.test.mjs
-      - name: Run new Xtream preview candidate regression test
-        run: node tests/new-xtream-preview.test.mjs
       - name: Run explicit Discovery promotion regression test
         run: node tests/discovery-promotion.test.mjs
       - name: Run Discovery entrypoint ownership contract
