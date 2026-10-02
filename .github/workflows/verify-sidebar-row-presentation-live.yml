@@ -1,0 +1,66 @@
+name: Verify Sidebar Row Presentation Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/sidebar-row-presentation-live-proof.mjs'
+      - '.github/workflows/verify-sidebar-row-presentation-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: f9f861641856bacdcc16b8be0b255dcfa318b692
+      ARTIFACT_DIR: artifacts/sidebar-row-presentation-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify exact production row ownership is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA")"
+          node -e "const j=JSON.parse(process.argv[1]);if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)" "$status"
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/main.js?proof=$GITHUB_SHA" -o /tmp/main-live.js
+          grep -q 'WebTVFavoritesPresentationAPI?.getState?.()' /tmp/main-live.js
+          grep -q 'webtv:favorites-presentation-changed' /tmp/main-live.js
+          grep -q 'favoritesOnly' /tmp/main-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/favorites-ui.js?proof=$GITHUB_SHA" -o /tmp/favorites-live.js
+          grep -q 'WebTVFavoritesPresentationAPI={getState:presentationState}' /tmp/favorites-live.js
+          grep -q 'webtv:favorites-presentation-changed' /tmp/favorites-live.js
+          ! grep -q 'item.hidden=' /tmp/favorites-live.js
+          ! grep -q 'list.appendChild' /tmp/favorites-live.js
+          ! grep -q 'MutationObserver' /tmp/favorites-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/sidebar-now.js?proof=$GITHUB_SHA" -o /tmp/sidebar-live.js
+          ! grep -Eq 'list\.(appendChild|prepend|replaceChildren|insertBefore)\(' /tmp/sidebar-live.js
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production row presentation proof
+        run: node tests/sidebar-row-presentation-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidebar-row-presentation-live-${{ github.sha }}
+          path: artifacts/sidebar-row-presentation-live
+          if-no-files-found: warn
+          retention-days: 14
