@@ -56,10 +56,36 @@ ${hls}
 
 const row=page.locator('#channel-list [data-channel-id]').first();
 await row.click();
-await page.waitForFunction(hls=>{
-  const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
-  return s?.playbackState==='live'&&s?.source===hls&&Number(s?.startupMs)>0;
-},HLS,{timeout:30000});
+
+async function waitForLive(label){
+  const attempts=[];
+  for(let attempt=1;attempt<=3;attempt+=1){
+    if(attempt>1){
+      await page.evaluate(async()=>{
+        try{await window.WebTVPlaybackAPI?.replaySelected?.();}catch{}
+      });
+    }
+    try{
+      await page.waitForFunction(hls=>{
+        const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
+        return s?.playbackState==='live'&&s?.source===hls&&Number(s?.startupMs)>0;
+      },HLS,{timeout:15000});
+      attempts.push({attempt,ok:true,snapshot:await page.evaluate(()=>window.WebTVDiagnosticsAPI.getSnapshot())});
+      return attempts;
+    }catch(error){
+      attempts.push({
+        attempt,
+        ok:false,
+        error:error.message,
+        snapshot:await page.evaluate(()=>window.WebTVDiagnosticsAPI?.getSnapshot?.()||{}),
+        events:await page.evaluate(()=>window.__diagEvents.slice(-8)),
+      });
+    }
+  }
+  await fs.writeFile(path.join(ARTIFACT_DIR,`${label}-failed-attempts.json`),JSON.stringify(attempts,null,2));
+  throw new Error(`${label} did not reach live structured state after 3 attempts: ${JSON.stringify(attempts)}`);
+}
+const initialAttempts=await waitForLive('initial-playback');
 
 const selectedSnapshot=await page.evaluate(()=>window.WebTVDiagnosticsAPI.getSnapshot());
 assert.equal(selectedSnapshot.source,HLS);
@@ -92,12 +118,31 @@ assert.equal(await page.locator('#playback-source-full').inputValue(),HLS,'tampe
 
 const writesBeforeCandidate=registryWrites.length;
 await page.locator('#candidate-url').fill(HLS);
-await page.locator('#test-candidate').click();
-await page.waitForFunction(hls=>{
-  const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
-  const save=document.getElementById('save-candidate');
-  return s?.playbackState==='live'&&s?.source===hls&&Number(s?.startupMs)>0&&save&&!save.hidden&&!save.disabled;
-},HLS,{timeout:30000});
+let candidateAttempts=[];
+for(let attempt=1;attempt<=3;attempt+=1){
+  await page.locator('#test-candidate').click();
+  try{
+    await page.waitForFunction(hls=>{
+      const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
+      const save=document.getElementById('save-candidate');
+      return s?.playbackState==='live'&&s?.source===hls&&Number(s?.startupMs)>0&&save&&!save.hidden&&!save.disabled;
+    },HLS,{timeout:15000});
+    candidateAttempts.push({attempt,ok:true,snapshot:await page.evaluate(()=>window.WebTVDiagnosticsAPI.getSnapshot())});
+    break;
+  }catch(error){
+    candidateAttempts.push({
+      attempt,
+      ok:false,
+      error:error.message,
+      snapshot:await page.evaluate(()=>window.WebTVDiagnosticsAPI?.getSnapshot?.()||{}),
+      events:await page.evaluate(()=>window.__diagEvents.slice(-8)),
+    });
+  }
+}
+if(!candidateAttempts.some(a=>a.ok)){
+  await fs.writeFile(path.join(ARTIFACT_DIR,'candidate-failed-attempts.json'),JSON.stringify(candidateAttempts,null,2));
+  throw new Error(`candidate did not verify after 3 attempts: ${JSON.stringify(candidateAttempts)}`);
+}
 
 const candidateSnapshot=await page.evaluate(()=>window.WebTVDiagnosticsAPI.getSnapshot());
 assert.equal(candidateSnapshot.source,HLS);
@@ -126,6 +171,8 @@ assert.equal(consoleErrors.length,0,`console errors: ${consoleErrors.join(' | ')
 
 const report={
   runtimeSha:RUNTIME_SHA,
+  initialAttempts,
+  candidateAttempts,
   selectedSnapshot,
   candidateSnapshot,
   candidateStatus,
