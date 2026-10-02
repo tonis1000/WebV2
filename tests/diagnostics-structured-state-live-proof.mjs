@@ -126,7 +126,13 @@ await page.waitForTimeout(500);
 assert.equal(await page.locator('#playback-source-full').inputValue(),MEDIA_URL,'tampering diagnostic presentation DOM must not change Inspector state');
 
 const writesBeforeCandidate=registryWrites.length;
-await page.locator('#candidate-url').fill(MEDIA_URL);
+const candidateInput=page.locator('#candidate-url');
+if(!await candidateInput.isVisible()){
+  const toggle=page.locator('#source-hunt-toggle');
+  if(await toggle.count())await toggle.click();
+}
+await candidateInput.waitFor({state:'visible',timeout:10000});
+await candidateInput.fill(MEDIA_URL);
 await page.locator('#test-candidate').click();
 await page.waitForFunction(mediaUrl=>{
   const s=window.WebTVDiagnosticsAPI?.getSnapshot?.();
