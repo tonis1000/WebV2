@@ -179,6 +179,8 @@ assert.deepEqual(myWrites[1].body.sources.map(source=>source.url).sort(),[SOURCE
 const refreshedRow=page.locator('#channel-list [data-channel-id]').first();
 await refreshedRow.click();
 await page.waitForFunction(()=>window.WebTVPlaylistAPI?.getSelectedChannel?.()?.name==='WebV2 Inspector QA',null,{timeout:5000});
+if(await page.locator('#diagnostics').evaluate(el=>el.hidden))await page.locator('#diagnostics-toggle').click();
+await page.waitForFunction(()=>document.getElementById('diagnostics')?.hidden===false,null,{timeout:5000});
 
 await page.evaluate(source=>{
   const diag=document.getElementById('diag-source');
