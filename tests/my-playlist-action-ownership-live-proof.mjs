@@ -20,7 +20,7 @@ const myChannels=[
     sources:[{url:'https://example.test/qa-two.mp4',origin:'curated',priority:100}]
   }
 ];
-let favoriteIds=['qa-one'];
+let favoriteIds=['qaone'];
 const writes=[];
 
 const browser=await chromium.launch({headless:true});
@@ -76,7 +76,7 @@ await page.evaluate(()=>{document.documentElement.classList.remove('admin-locked
 await page.waitForFunction(()=>window.WebTVPlaylistAPI?.getCatalogMode?.()==='cloud'&&window.WebTVPlaylistAPI?.getCount?.()===2,null,{timeout:15000});
 await page.waitForSelector('#favorites-filter',{state:'attached',timeout:10000});
 await page.waitForSelector('#favorite-channel',{state:'attached',timeout:10000});
-await page.waitForFunction(()=>document.querySelector('#channel-list .channel-item[data-channel-id="qa-one"]')?.classList.contains('favorite')===true,null,{timeout:10000});
+await page.waitForFunction(()=>document.querySelector('#channel-list .channel-item[data-channel-id="qaone"]')?.classList.contains('favorite')===true,null,{timeout:10000});
 
 const cloudState=await page.evaluate(()=>({
   mode:window.WebTVPlaylistAPI.getCatalogMode(),
@@ -91,9 +91,9 @@ const cloudState=await page.evaluate(()=>({
 }));
 assert.equal(cloudState.mode,'cloud');
 assert.equal(cloudState.filterHidden,false,'Favorites filter must be available in My Playlist');
-assert.ok(cloudState.rows.some(row=>row.id==='qa-one'&&row.favorite),'stored favorite must decorate My Playlist row');
+assert.ok(cloudState.rows.some(row=>row.id==='qaone'&&row.favorite),'stored favorite must decorate My Playlist row');
 
-await page.locator('#channel-list .channel-item[data-channel-id="qa-one"]').click();
+await page.locator('#channel-list .channel-item[data-channel-id="qaone"]').click();
 await page.waitForFunction(()=>document.getElementById('favorite-channel')?.hidden===false,null,{timeout:5000});
 const writesBeforeFavorite=writes.filter(w=>w.kind==='favorites').length;
 await page.locator('#favorite-channel').click();
