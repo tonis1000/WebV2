@@ -7,11 +7,11 @@ const WEBV2_URL=process.env.WEBV2_URL||'https://tonis1000.github.io/WebV2/';
 const RUNTIME_SHA=process.env.RUNTIME_SHA||'8b6485fb8ad925319b974f0f565478bc507194d0';
 const ARTIFACT_DIR=process.env.ARTIFACT_DIR||'artifacts/sidebar-selection-ownership-live';
 const MEDIA_URL='https://webv2-qa.invalid/sidebar-selection.webm';
-const MEDIA_FILE='/tmp/webv2-sidebar-qa.webm';
+const MEDIA_BASE64='GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAK+EU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEjTbuMU6uEHFO7a1OsggKo7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjEuNy4xMDNXQYxMYXZmNjEuNy4xMDNEiYhAj0AAAAAAABZUrmvIrgEAAAAAAAA/14EBc8WIS2lJ61a9wBicgQAitZyDdW5kiIEAhoVWX1ZQOYOBASPjg4QF9eEA4JCwgaC6gVqagQJVsIRVuYEBElTDZ0B/c3OfY8CAZ8iZRaOHRU5DT0RFUkSHjExhdmY2MS43LjEwM3Nz2mPAi2PFiEtpSetWvcAYZ8ilRaOHRU5DT0RFUkSHmExhdmM2MS4xOS4xMDEgbGlidnB4LXZwOWfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDEuMDAwMDAwMDAwAB9DtnVA+ueBAKOmgQAAgIJJg0IACfAFlgA4JBwYQgAAMGAAAGc///9ZrxE7uM+GT4CjlYEAZACGAECSnABJQAADIAAAWfmG4KOVgQDIAIYAQJKcAFEgAAMgAABZ+Ybgo5WBASwAhgBAkpwAS8AAAyAAAFn5huCjlYEBkACGAECSnABKwAADIAAAWfmG4KOVgQH0AIYAQJKcAEnAAAMgAABZ+Ybgo5WBA1gAhgBAkpwASKAAAyAAAFn5huCjlYECvACGAECSnABHgAADIAAAWfmG4KOVgQMgAIYAQJKcAEbgAAMgAABZ+Ybgo5WBA4QAhgBAkpwARkAAAyAAAFn5huAcU7trkbuPs4EAt4r3gQHxggGo8IED';
 
 await fs.mkdir(ARTIFACT_DIR,{recursive:true});
-const media=await fs.readFile(MEDIA_FILE);
-assert.ok(media.length>1000,'deterministic QA media must exist');
+const media=Buffer.from(MEDIA_BASE64,'base64');
+assert.ok(media.length>500,'deterministic QA media fixture must exist');
 
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1100}});
