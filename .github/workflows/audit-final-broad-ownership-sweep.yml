@@ -1,0 +1,20 @@
+name: Audit Final Broad Ownership Sweep
+
+on:
+  pull_request:
+    paths:
+      - 'tests/final-broad-ownership-sweep-audit.mjs'
+      - '.github/workflows/audit-final-broad-ownership-sweep.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build final ownership inventory
+        run: node tests/final-broad-ownership-sweep-audit.mjs
