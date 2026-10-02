@@ -1,6 +1,7 @@
 import { channelMatchScore, greekChannelAliases, normalizeChannelText } from '../src/core/channel-identity-gr.js';
 import { parseM3uContainer } from '../src/core/m3u-container.js';
 import { canonicalizeStrmReference, isStrmReference, parseStrmDocument } from '../src/core/strm-core.js';
+import { sanitizeCandidateUrl } from '../src/core/source-candidate-url.js';
 
 const ALLOWED_ORIGIN='*';
 const VERSION='1.13';
@@ -55,7 +56,7 @@ function json(data,status=200,extra={}){return new Response(JSON.stringify(data)
 function normalize(s=''){return normalizeChannelText(s);}
 function profile(channel){const aliases=greekChannelAliases(channel);return{aliases,searches:SEARCHES[channel]||[String(channel||'')],mainNames:aliases};}
 function relevant(text,channel){return channelMatchScore(text,channel,'broad')>0;}
-function cleanUrl(url=''){return String(url).replace(/&amp;/g,'&').replace(/\\\//g,'/').replace(/[),.;]+$/g,'');}
+function cleanUrl(url=''){return sanitizeCandidateUrl(String(url).replace(/[),.;]+$/g,''));}
 function hostOf(url=''){try{return new URL(url).hostname.toLowerCase();}catch{return '';}}
 function safeXtreamProviderLeadUrl(raw=''){
   try{
