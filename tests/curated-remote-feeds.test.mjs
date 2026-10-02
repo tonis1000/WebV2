@@ -8,6 +8,7 @@ import {
 } from '../workers/webtv-source-discovery.js';
 
 assert.ok(FEEDS.some(feed=>feed.name==='iptv-org Greece'&&feed.format==='m3u'));
+assert.ok(FEEDS.some(feed=>feed.name==='jimgate07/grtv multi'&&feed.tier==='primary'&&feed.priority==='high'&&/griptv\.m3u/.test(feed.url)),'rich jimgate multi-source playlist must be scanned as a primary curated feed');
 assert.ok(FEEDS.some(feed=>feed.name==='IPTV Nexus Greece'&&feed.tier==='primary'&&feed.priority==='high'&&/country\/gr\.m3u/.test(feed.url)),'health-ranked Greece feed must be primary');
 assert.ok(FEEDS.some(feed=>feed.name==='Free-TV/IPTV Greece'&&feed.tier==='primary'&&/playlist_greece\.m3u8/.test(feed.url)),'Free-TV Greece-specific feed must replace broad global fallback');
 assert.equal(FEEDS.some(feed=>feed.name==='Free-TV/IPTV'&&/master\/playlist\.m3u8/.test(feed.url)),false,'broad Free-TV global playlist should not remain in curated catalog');
