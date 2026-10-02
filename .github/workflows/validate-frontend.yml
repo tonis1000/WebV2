@@ -140,6 +140,8 @@ jobs:
         run: node tests/xtream-legacy-enhancements-retirement.test.mjs
       - name: Run Xtream My Playlist persistence boundary regression test
         run: node tests/xtream-my-playlist-persistence-boundary.test.mjs
+      - name: Run Source Health route ownership regression test
+        run: node tests/source-health-route-ownership.test.mjs
       - name: Run Playback Inspector persistence boundary regression test
         run: node tests/playback-inspector-persistence-boundary.test.mjs
       - name: Run Xtream preview action layout ownership regression test
