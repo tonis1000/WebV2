@@ -29,6 +29,12 @@ export function parseM3uAttributes(extinfLine = '') {
   return attrs;
 }
 
+export function splitM3uSourceAlternatives(line = '') {
+  const text = String(line || '').trim();
+  if (!text) return [];
+  return text.split(/\s+\|\s+/).map(part => part.trim()).filter(Boolean);
+}
+
 export function isM3uContainer(text = '') {
   const lines = String(text || '').replace(/\r/g, '').split('\n').map(line => line.trim()).filter(Boolean);
   return lines.some(line => /^#EXTM3U\b/i.test(line) || /^#EXTINF\s*:/i.test(line));
