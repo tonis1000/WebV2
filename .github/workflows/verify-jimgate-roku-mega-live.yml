@@ -1,0 +1,57 @@
+name: Verify jimgate Roku MEGA Live
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/verify-jimgate-roku-mega-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe real jimgate MEGA through deployed verifier and tv-cache
+        shell: bash
+        env:
+          VERIFIER_URL: https://webtv-source-verifier.atonis.workers.dev
+          CACHE_URL: https://tv-cache.atonis.workers.dev
+          TARGET_URL: http://15.235.41.196/hls/mega.m3u8
+          ROKU_UA: Roku/DVP-14.6 (14.6.4.9914-CE)
+          ROKU_ID: 75ab1929b0c20717db1f855a37a03a6a621fc3f
+        run: |
+          set -euo pipefail
+
+          RAW_SOURCE="$TARGET_URL|User-Agent=$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$ROKU_UA")&x-roku-reserved-dev-id=$ROKU_ID"
+          VERIFY_JSON=$(node -e "process.stdout.write(JSON.stringify({candidate:{candidateId:'jimgate-mega-roku',sourceType:'hls',sourceUrl:process.argv[1]}}))" "$RAW_SOURCE")
+
+          curl --silent --show-error -X POST "$VERIFIER_URL/verify"             -H 'content-type: application/json'             --data "$VERIFY_JSON"             -o /tmp/verifier.json
+
+          node <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('/tmp/verifier.json','utf8'));
+          const r=j.results?.[0]||{};
+          console.log('VERIFIER_STATUS='+String(r.status||''));
+          console.log('VERIFIER_HTTP='+String(r.lastHttpStatus??''));
+          console.log('VERIFIER_DETAIL='+String(r.detail||''));
+          NODE
+
+          HEADER_CONTEXT=$(node -e "process.stdout.write(Buffer.from(JSON.stringify({'User-Agent':process.argv[1],'X-Roku-Reserved-Dev-Id':process.argv[2]}),'utf8').toString('base64url'))" "$ROKU_UA" "$ROKU_ID")
+          TARGET_ENC=$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$TARGET_URL")
+          CACHE_STATUS=$(curl --silent --show-error --output /tmp/cache-body --write-out '%{http_code}' "$CACHE_URL/?h=$HEADER_CONTEXT&url=$TARGET_ENC" || true)
+
+          echo "CACHE_HTTP=$CACHE_STATUS"
+          head -c 240 /tmp/cache-body 2>/dev/null | tr '\n' ' ' || true
+          echo
+
+          VERIFY_STATUS=$(node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/verifier.json','utf8'));process.stdout.write(String(j.results?.[0]?.status||''))")
+          if [ "$VERIFY_STATUS" = "VERIFIED" ] && [ "$CACHE_STATUS" = "200" ]; then
+            echo "REAL_JIMGATE_MEGA_HEADER_PATH=PASS"
+            exit 0
+          fi
+
+          echo "::error::Real jimgate MEGA header-aware path did not reach VERIFIED + HTTP 200"
+          exit 1
