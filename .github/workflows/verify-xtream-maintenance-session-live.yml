@@ -1,0 +1,65 @@
+name: Verify Xtream Maintenance Session Live
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/verify-xtream-maintenance-session-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Registry maintenance session reaches Xtream accounts
+        shell: bash
+        env:
+          REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+          XTREAM_URL: https://webtv-xtream.atonis.workers.dev
+        run: |
+          set -euo pipefail
+
+          mint_status=$(curl --silent --show-error --output /tmp/maintenance.json --write-out '%{http_code}' \
+            -X POST -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/session/maintenance?verify=${GITHUB_SHA}")
+          if [ "$mint_status" != 200 ]; then
+            echo "::error::maintenance session mint failed · status=$mint_status"
+            exit 1
+          fi
+
+          token=$(node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/maintenance.json','utf8'));if(!j.ok||!j.maintenance||!j.token)process.exit(1);process.stdout.write(j.token)")
+          accounts_status=$(curl --silent --show-error --output /tmp/accounts.json --write-out '%{http_code}' \
+            -H "x-webtv-session: $token" \
+            -H "authorization: Bearer $token" \
+            -H 'Cache-Control: no-cache' \
+            "$XTREAM_URL/api/accounts?verify=${GITHUB_SHA}")
+          if [ "$accounts_status" != 200 ]; then
+            echo "::error::Xtream /api/accounts rejected maintenance session · status=$accounts_status"
+            exit 1
+          fi
+
+          node <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('/tmp/accounts.json','utf8'));
+          if(!Array.isArray(j.accounts)) process.exit(1);
+          console.log('Xtream accounts auth accepted · count='+j.accounts.length);
+          fs.writeFileSync('/tmp/account-id.txt', j.accounts[0]?.id || '');
+          NODE
+
+          account_id=$(cat /tmp/account-id.txt)
+          if [ -n "$account_id" ]; then
+            channels_status=$(curl --silent --show-error --output /tmp/channels.json --write-out '%{http_code}' \
+              -H "x-webtv-session: $token" \
+              -H "authorization: Bearer $token" \
+              -H 'Cache-Control: no-cache' \
+              "$XTREAM_URL/api/accounts/$account_id/channels?verify=${GITHUB_SHA}")
+            if [ "$channels_status" != 200 ]; then
+              echo "::error::Xtream account channels rejected maintenance session · status=$channels_status"
+              exit 1
+            fi
+            node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/channels.json','utf8'));if(!Array.isArray(j.channels))process.exit(1);console.log('Xtream channel expansion accepted · count='+j.channels.length)"
+          else
+            echo 'Xtream auth accepted; no saved account exists to expand.'
+          fi
