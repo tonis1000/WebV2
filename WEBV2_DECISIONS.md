@@ -363,3 +363,28 @@ Evidence:
 - Verification-only PR #132 remained unmerged and was closed after Verify Sidebar Selection Ownership Final Live #1 SUCCESS. Unified Search Now Playing/query followed canonical selection and ignored rendered `#channel-name` tampering; same-ID replacement rebound the canonical selected name/source while active row, Unified Search and Sidebar Now Playing stayed synchronized; Registry writes and page/console errors were zero. Artifact ID `11237980248`, digest `sha256:d4402f9e96cbc9886ed990e17f8a555a60db32ca73f21f6c4ad1d949a2541548`.
 
 Reconsider when: only if a future state architecture deliberately replaces `main.js` / `WebTVPlaylistAPI` as the single selection owner, with one explicit replacement state model, regression proof and production live verification.
+
+
+## DEC-027 main.js owns channel-row presentation; Favorites supplies state, Sidebar supplies EPG decoration
+Decision: `main.js` is the single owner of channel-row root presentation: rendered order, root visibility, list summary and Favorite row decoration. `favorites-ui.js` owns Favorite/filter state and exposes that state through a narrow read API plus notification; `sidebar-now.js` may decorate existing row subtrees with Now Playing / EPG presentation but must not become a second root-row order or visibility owner.
+
+Hard rules:
+- `main.js` derives the final visible channel sequence before rendering, including search/group filtering, My Playlist-only Favorites filtering and stable favorite-first ordering;
+- `main.js` computes the channel summary from that final rendered sequence, so the summary cannot drift from visible rows;
+- `main.js` applies Favorite class/title during row creation and remains the sole owner of channel-list child order;
+- `favorites-ui.js` owns Favorite IDs and Favorites-only filter state, exposed read-only through `WebTVFavoritesPresentationAPI.getState()`;
+- Favorites state changes notify with `webtv:favorites-presentation-changed`; Favorites must not hide row roots, physically append/reorder channel-list children, or observe channel-list child mutations to post-process rows;
+- Favorites remain My Playlist / cloud-catalog only; temporary/imported and other non-cloud catalogs must render normally even if Favorites-only state is persisted;
+- `sidebar-now.js` may add/update `.channel-now-inline` and related EPG subtree presentation inside existing rows, but must not reorder, append, replace or hide channel-root rows;
+- startup retains exactly one Favorites cloud read;
+- selected-channel ownership, Player behavior, EPG semantics and final visual layout are unchanged.
+
+Reason: the audit found that `main.js` created channel rows and the summary while Favorites then became a second physical row owner by hiding rows, changing Favorite decoration, sorting/re-appending the same DOM children and observing list mutations. That architecture allowed summary/order/visibility drift and made Sidebar decoration depend on post-render mutation timing.
+
+Evidence:
+- RED Validate WebTV Frontend #943 failed exactly on the row-presentation ownership contract.
+- PR #133 runtime merge `f9f861641856bacdcc16b8be0b255dcfa318b692`; exact-head Frontend #946 SUCCESS; post-merge Frontend #947, Registry #131 and Pages #489 SUCCESS.
+- Verification-only PR #134 remained unmerged and was closed after Verify Sidebar Row Presentation Live #9 SUCCESS against real production Pages. Initial My Playlist order was `qaone, qathree, qatwo` with `3 / 3 κανάλια`; Favorites-only was `qaone, qathree` with `2 / 3 κανάλια`; selected/active `qathree` survived rerender; a temporary catalog showed `2 / 2 κανάλια` with Favorites hidden/inert; Sidebar Now Playing decorated every rendered row; exactly one Favorites cloud read occurred; durable user-data writes were zero; page/console errors were zero. Artifact ID `11240030912`, digest `sha256:d313f41effbb8d599e73905dddb534f291421d8b22268931b97cec39bcfead0c`.
+- Early live-proof failures were harness-only: a Playwright init script initially executed in child frames and cleared same-origin test Favorites storage, and a later assertion incorrectly counted mocked `/api/health` telemetry as durable persistence. Neither required a production change.
+
+Reconsider when: only if a future rendering architecture intentionally replaces `main.js` as the single channel-row root owner, or the product deliberately expands Favorites beyond My Playlist, with a new bounded decision, regression proof and production live verification.
