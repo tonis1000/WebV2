@@ -176,14 +176,11 @@ myWrites=writes.filter(row=>row.target==='my-playlist');
 assert.equal(myWrites.length,2,'normal Inspector Edit must perform one additional canonical My Playlist write');
 assert.deepEqual(myWrites[1].body.sources.map(source=>source.url).sort(),[SOURCE_B,SOURCE_C].sort(),'normal Edit must replace the inspected source without losing the added source');
 
-await page.evaluate(source=>{
-  const area=document.getElementById('playback-source-full');
-  if(!area)throw new Error('Playback Inspector source field unavailable');
-  area.value=source;
-  area.dispatchEvent(new Event('input',{bubbles:true}));
-  window.dispatchEvent(new CustomEvent('webtv:inspector-source-selected',{detail:{source,route:'qa-selected'}}));
-},SOURCE_C);
-await page.waitForFunction(source=>document.getElementById('playback-source-full')?.value===source,SOURCE_C,{timeout:5000});
+await sourceArea.fill(SOURCE_C);
+await page.evaluate(()=>{if(window.__inspectorTestAudit)window.__inspectorTestAudit.settled=false;});
+await page.locator('#playback-source-test').click();
+await page.waitForFunction(()=>window.__inspectorTestAudit?.calls===2&&window.__inspectorTestAudit?.settled===true,null,{timeout:30000});
+await page.waitForFunction(source=>document.getElementById('diag-source')?.textContent?.includes(source),SOURCE_C,{timeout:5000});
 await page.waitForFunction(()=>document.getElementById('playback-source-delete')?.disabled===false,null,{timeout:5000});
 await page.locator('#playback-source-delete').click();
 await page.waitForFunction(()=>document.getElementById('playback-inspector-status')?.textContent?.includes('Source deleted from'),null,{timeout:10000});
@@ -206,14 +203,11 @@ await page.waitForTimeout(400);
 if(await page.locator('#diagnostics').evaluate(el=>el.hidden))await page.locator('#diagnostics-toggle').click();
 const loadedSource=await page.evaluate(()=>window.WebTVPlaylistAPI?.getSelectedChannel?.()?.directUrls?.[0]||'');
 assert.ok(loadedSource.includes('loaded-xtream'),'loaded Xtream channel must expose its provider-backed source');
-await page.evaluate(source=>{
-  const area=document.getElementById('playback-source-full');
-  if(!area)throw new Error('Playback Inspector source field unavailable');
-  area.value=source;
-  area.dispatchEvent(new Event('input',{bubbles:true}));
-  window.dispatchEvent(new CustomEvent('webtv:inspector-source-selected',{detail:{source,route:'qa-loaded-xtream'}}));
-},loadedSource);
-await page.waitForFunction(()=>document.getElementById('playback-source-full')?.value?.includes('loaded-xtream'),null,{timeout:5000});
+await sourceArea.fill(loadedSource);
+await page.evaluate(()=>{if(window.__inspectorTestAudit)window.__inspectorTestAudit.settled=false;});
+await page.locator('#playback-source-test').click();
+await page.waitForFunction(()=>window.__inspectorTestAudit?.calls===3&&window.__inspectorTestAudit?.settled===true,null,{timeout:30000});
+await page.waitForFunction(()=>document.getElementById('diag-source')?.textContent?.includes('loaded-xtream'),null,{timeout:5000});
 
 const writesBeforeBlocked=writes.filter(row=>row.target==='my-playlist').length;
 await page.waitForFunction(()=>document.getElementById('playback-source-add')?.disabled===false,null,{timeout:5000});
