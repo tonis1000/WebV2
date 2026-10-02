@@ -176,6 +176,10 @@ myWrites=writes.filter(row=>row.target==='my-playlist');
 assert.equal(myWrites.length,2,'normal Inspector Edit must perform one additional canonical My Playlist write');
 assert.deepEqual(myWrites[1].body.sources.map(source=>source.url).sort(),[SOURCE_B,SOURCE_C].sort(),'normal Edit must replace the inspected source without losing the added source');
 
+const refreshedRow=page.locator('#channel-list [data-channel-id]').first();
+await refreshedRow.click();
+await page.waitForFunction(()=>window.WebTVPlaylistAPI?.getSelectedChannel?.()?.name==='WebV2 Inspector QA',null,{timeout:5000});
+
 await page.evaluate(source=>{
   const diag=document.getElementById('diag-source');
   if(!diag)throw new Error('Diagnostics source field unavailable');
