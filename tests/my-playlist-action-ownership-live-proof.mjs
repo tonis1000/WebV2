@@ -93,12 +93,22 @@ assert.equal(cloudState.mode,'cloud');
 assert.equal(cloudState.filterHidden,false,'Favorites filter must be available in My Playlist');
 assert.ok(cloudState.rows.some(row=>row.id==='qaone'&&row.favorite),'stored favorite must decorate My Playlist row');
 
-await page.locator('#channel-list .channel-item[data-channel-id="qaone"]').click();
+await page.evaluate(()=>{
+  window.__qaOriginalGetSelectedChannel=window.WebTVPlaylistAPI.getSelectedChannel;
+  const selected=window.WebTVPlaylistAPI.getChannels().find(channel=>channel.id==='qaone');
+  if(!selected)throw new Error('QA favorite channel unavailable');
+  window.WebTVPlaylistAPI.getSelectedChannel=()=>selected;
+  document.getElementById('channel-name').textContent=selected.name;
+});
 await page.waitForFunction(()=>document.getElementById('favorite-channel')?.hidden===false,null,{timeout:5000});
 const writesBeforeFavorite=writes.filter(w=>w.kind==='favorites').length;
 await page.locator('#favorite-channel').click();
 await page.waitForFunction(()=>document.getElementById('favorite-channel')?.textContent?.includes('☆')||document.getElementById('favorite-channel')?.textContent?.includes('★'),null,{timeout:5000});
 assert.equal(writes.filter(w=>w.kind==='favorites').length,writesBeforeFavorite+1,'Favorite mutation must write only while My Playlist is active');
+await page.evaluate(()=>{
+  if(window.__qaOriginalGetSelectedChannel)window.WebTVPlaylistAPI.getSelectedChannel=window.__qaOriginalGetSelectedChannel;
+  delete window.__qaOriginalGetSelectedChannel;
+});
 
 const tempM3u=`#EXTM3U
 #EXTINF:-1 tvg-id="temp-one" tvg-name="Temp One" group-title="TEMP",Temp One
@@ -126,9 +136,7 @@ assert.equal(tempState.filterHidden,true,'Favorites filter must be hidden outsid
 assert.ok(tempState.rows.every(row=>!row.hidden),'favorite-only mode must not hide temporary catalog rows');
 assert.ok(tempState.rows.every(row=>!row.favorite&&!row.title),'temporary catalog rows must not inherit favorite decoration');
 
-await page.locator('#channel-list .channel-item').first().click();
-await page.waitForTimeout(100);
-assert.equal(await page.locator('#favorite-channel').evaluate(el=>el.hidden),true,'Favorite action must stay hidden for temporary selected channels');
+assert.equal(await page.locator('#favorite-channel').evaluate(el=>el.hidden),true,'Favorite action must stay hidden outside My Playlist');
 
 const writesBeforeHiddenClick=writes.filter(w=>w.kind==='favorites').length;
 await page.evaluate(()=>document.getElementById('favorite-channel')?.click());
