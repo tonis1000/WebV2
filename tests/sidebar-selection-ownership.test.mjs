@@ -79,7 +79,7 @@ assert.match(
 
 assert.match(
   main,
-  /function clearSelectedIfMissing\(\)\{[\s\S]*selected=channels\.find\(c=>String\(c\.id\)===String\(selected\.id\)\)\|\|null/,
+  /function clearSelectedIfMissing\(\)\{[\s\S]*const replacement=channels\.find\(c=>String\(c\.id\)===String\(selected\.id\)\)\|\|null;[\s\S]*if\(replacement\)\{[\s\S]*selected=replacement;/,
   'catalog replacement must rebind same-id selection to the new canonical channel object'
 );
 
