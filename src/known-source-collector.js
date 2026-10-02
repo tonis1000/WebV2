@@ -1,3 +1,4 @@
+import { parseM3U } from './core/channel-catalog.js';
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
 
 function clean(value=''){return String(value??'').trim();}
@@ -58,6 +59,7 @@ function sameChannel(target,row){
 export function collectKnownSources(channel={}, {
   myPlaylist=[],
   customPlaylists=[],
+  savedPlaylists=[],
   loadedCatalog=[],
   selectedSource=null,
 }={}){
@@ -71,6 +73,14 @@ export function collectKnownSources(channel={}, {
     for(const row of Array.isArray(playlist?.channels)?playlist.channels:[]){
       if(!sameChannel(channel,row))continue;
       addSources(out,seen,row.sources||[],'custom-playlist');
+    }
+  }
+  for(const playlist of Array.isArray(savedPlaylists)?savedPlaylists:[]){
+    if(clean(playlist?.type)==='custom'||!clean(playlist?.text))continue;
+    for(const row of parseM3U(playlist.text)){
+      if(!sameChannel(channel,row))continue;
+      const origin=`saved-playlist:${clean(playlist.name||playlist.id)||'unnamed'}`;
+      addSources(out,seen,(row.directUrls||[]).map(url=>({url,origin})),origin);
     }
   }
   for(const row of Array.isArray(loadedCatalog)?loadedCatalog:[]){
