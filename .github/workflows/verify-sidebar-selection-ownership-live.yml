@@ -55,15 +55,6 @@ jobs:
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Build deterministic QA media
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
-          ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=320x180:r=25 -t 3 -c:v libvpx-vp9 -pix_fmt yuv420p -an /tmp/webv2-sidebar-qa.webm
-          test -s /tmp/webv2-sidebar-qa.webm
-
       - name: Run production selection ownership proof
         run: node tests/sidebar-selection-ownership-live-proof.mjs
 
