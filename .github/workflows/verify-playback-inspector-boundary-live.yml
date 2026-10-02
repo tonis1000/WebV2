@@ -1,0 +1,62 @@
+name: Verify Playback Inspector Boundary Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/playback-inspector-boundary-live-proof.mjs'
+      - '.github/workflows/verify-playback-inspector-boundary-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      XTREAM_MOCK_URL: https://webtv-xtream-mock.atonis.workers.dev
+      RUNTIME_SHA: 7fd58ee145884d09e19d4ef1321c18f0fdabc028
+      ARTIFACT_DIR: artifacts/playback-inspector-boundary-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify exact production boundary is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/saved-sources-ui.js?proof=$GITHUB_SHA" -o /tmp/saved-sources-live.js
+          if grep -q '/api/my-playlist/channel' /tmp/saved-sources-live.js; then
+            echo 'Playback Inspector direct My Playlist writer unexpectedly present'
+            exit 1
+          fi
+          grep -q 'addSourceToCurrent' /tmp/saved-sources-live.js
+          grep -q 'replaceSourcesForCurrent' /tmp/saved-sources-live.js
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/playlist-manager.js?proof=$GITHUB_SHA" -o /tmp/playlist-manager-live.js
+          grep -q 'assertGenericMyMutationAllowed' /tmp/playlist-manager-live.js
+          grep -q 'allowEmpty=false' /tmp/playlist-manager-live.js
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA" -o /tmp/project-status.json
+          node -e "const j=require('/tmp/project-status.json');if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)"
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production Playback Inspector boundary proof
+        run: node tests/playback-inspector-boundary-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playback-inspector-boundary-live-${{ github.sha }}
+          path: artifacts/playback-inspector-boundary-live
+          if-no-files-found: warn
+          retention-days: 14
