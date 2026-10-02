@@ -10,25 +10,25 @@ assert.equal(
   false,
   'retired Source Hunt save-destination caller must remain deleted after zero-consumer proof'
 );
-assert.match(
+assert.doesNotMatch(
   manager,
-  /async function saveDiscoveredMyChannel\s*\(/,
-  'Playlist Manager must own discovered-channel persistence'
+  /saveDiscoveredMyChannel|saveDiscoveredChannel\s*:/,
+  'retired zero-consumer discovered-channel API must not return'
 );
 assert.match(
   manager,
-  /reason\s*!==\s*['"]source-hunt-save['"]/,
-  'discovered-channel API must be narrow to Source Hunt save intent'
+  /upsertChannel\s*:/,
+  'verified Xtream Preview channel persistence API must remain'
 );
 assert.match(
   manager,
-  /const target=\{\.\.\.channel,directUrls:cleanSources\.map\(source=>source\.url\)\};[\s\S]*assertGenericMyMutationAllowed\s*\(target\)/,
-  'discovered-channel save must guard the actual discovered source URLs against loaded Xtream bypass'
+  /reason\s*!==\s*['"]xtream-preview-save['"]/,
+  'verified Xtream Preview persistence must remain reason-gated'
 );
 assert.match(
   manager,
-  /saveDiscoveredChannel\s*:\s*\(channel,sources,options=\{\}\)\s*=>saveDiscoveredMyChannel\(channel,sources,options\)/,
-  'public My Playlist API must delegate discovered-channel writes to Playlist Manager owner'
+  /assertGenericMyMutationAllowed/,
+  'canonical loaded-Xtream mutation guard must remain'
 );
 
 assert.match(
