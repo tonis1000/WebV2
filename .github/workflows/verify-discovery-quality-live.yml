@@ -1,0 +1,53 @@
+name: Verify Discovery Quality Live
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/verify-discovery-quality-live.yml'
+      - 'tests/fixtures/discovery-quality-live.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HUNT_URL: https://source-huntatonisworkersdev.atonis.workers.dev
+      DISCOVERY_URL: https://webtv-source-discovery.atonis.workers.dev
+      FIXTURE_URL: https://raw.githubusercontent.com/tonis1000/WebV2/verify-discovery-quality-live-20261003/tests/fixtures/discovery-quality-live.txt
+    steps:
+      - name: Verify deployed sanitizer and Cyprus guard
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          INSPECT_URL="$HUNT_URL/inspect?channel=ALPHA&url=$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$FIXTURE_URL")"
+          curl --fail --silent --show-error "$INSPECT_URL" -o /tmp/inspect.json
+
+          curl --fail --silent --show-error -X POST "$DISCOVERY_URL/discover"             -H 'content-type: application/json'             --data '{"provider":"curated-remote-feeds","freshness":"24h","channel":{"name":"Alpha TV","id":"alpha","originalId":"ALPHA"}}'             -o /tmp/curated.json
+
+          node <<'NODE'
+          const fs=require('fs');
+
+          const inspect=JSON.parse(fs.readFileSync('/tmp/inspect.json','utf8'));
+          const inspectUrls=(inspect.candidates||[]).map(x=>String(x.url||''));
+          console.log('INSPECT_URLS='+JSON.stringify(inspectUrls));
+
+          const expected='https://cdn.example.test/alpha/live.m3u8?dpssid=x&sid=y&ndvc=1';
+          if(!inspectUrls.includes(expected)) throw new Error('clean escaped ALPHA candidate missing');
+          if(inspectUrls.some(x=>/\\u00|&amp;|<|>|\\$/.test(x))) throw new Error('malformed escape/markup survived sanitation');
+          if(inspectUrls.some(x=>/alphacyp/i.test(x))) throw new Error('Alpha Cyprus candidate survived Greece guard');
+
+          const curated=JSON.parse(fs.readFileSync('/tmp/curated.json','utf8'));
+          const curatedUrls=(curated.candidates||[]).map(x=>String(x.sourceUrl||''));
+          console.log('CURATED_ALPHA_COUNT='+curatedUrls.length);
+          console.log('CURATED_ALPHA_URLS='+JSON.stringify(curatedUrls));
+
+          if(curatedUrls.some(x=>/alphacyp/i.test(x))) throw new Error('Curated ALPHA still contains alphacyp');
+          if(!curatedUrls.some(x=>/alphatvlive2\.siliconweb\.com/i.test(x))) throw new Error('Expected Greece Alpha route missing');
+
+          console.log('DISCOVERY_QUALITY_LIVE_ACCEPTANCE=PASS');
+          NODE
