@@ -543,3 +543,56 @@ Evidence:
 
 Reconsider when: temporary maintenance bypass is removed permanently, or a future auth model replaces Registry-issued browser sessions. Any replacement must preserve cross-Worker least privilege and must not expose long-lived admin secrets to the browser.
 
+## DEC-033 Unified Search visible run-state UX
+Decision: keep Unified Search run state owned by the existing orchestrator/search snapshot while making that state visually unmistakable in the UI.
+
+Hard rules:
+- do not create a second search-state bus or infer search state from rendered DOM;
+- the running UI is derived only from the canonical search snapshot status;
+- while running, show an obvious `Searching…` state, visible progress and disabled Search submit control;
+- on completion, show an obvious `Finished` state with candidate and lane totals plus timeout/error summary;
+- Cancel remains explicit and existing stale-run protection remains unchanged;
+- this decision changes presentation only, not lane count, discovery policy, verification, Player ownership or persistence.
+
+Reason: production already exposed `Searching…` / `Search complete` as small chips, but live use showed the state was too easy to miss.
+
+Evidence:
+- PR #157 merged runtime `5be9889c49de825051907e2c58a60e6648b82012`;
+- branch Validate Unified Search run `37064323013` SUCCESS and Validate WebTV Frontend run `37064323065` SUCCESS;
+- post-merge Validate Unified Search `37064478052`, Frontend `37064477964`, Registry deploy `37064478015` and Pages `37064477087` succeeded;
+- live GitHub Pages exposed build id `20261002-unified-search-status`, the status banner, spinner, disabled-running submit behavior and Finished label.
+
+Reconsider when: user testing shows the current visual treatment is still unclear or accessibility requirements need a different presentation. Preserve canonical state ownership.
+
+## DEC-034 Discovery quality v3 and safe Greek Xtream provider/trial leads
+Decision: improve discovery recall/quality inside the existing six Unified Search lanes without creating a new discovery owner, and use Source Hunt only to surface safe Greek Xtream provider/trial leads rather than credentials or automatic accounts.
+
+Hard rules:
+- the six Unified Search lanes remain Curated, GitHub playlists, Recent Web, STRM, Authorized Xtream and Hunt exploration; do not create a seventh Xtream-discovery lane;
+- Curated may use high-quality Greece-specific sources. `IPTV Nexus Greece` and `Free-TV/IPTV Greece` are primary/high; the broad Free-TV global playlist is no longer a curated feed;
+- Recent Web stays bounded at `WEB_MAX_SEARCHES=2` and `WEB_MAX_SUBREQUESTS=8`;
+- Recent Web uses shared Greek channel aliases, one technical HLS/DASH search and one Greek-language live-TV search; known stream-host families are ranking hints only, never an allowlist or trust bypass;
+- Authorized Xtream remains strictly read-only discovery over user-saved / user-authorized Xtream accounts. Hunt must never silently add an account to Authorized Xtream;
+- Hunt may surface provider/trial pages only as exploration leads;
+- provider/trial lead URLs must reject embedded credentials, credential-bearing query parameters and direct Xtream API endpoints such as `player_api.php`, `get.php` and `xmltv.php`;
+- never harvest, persist, display or auto-import third-party Xtream usernames/passwords from dumps, scanners, forums or indexed URLs;
+- a provider-issued public trial/demo may be used only after explicit authorized user action and through the existing Xtream account/Preview boundaries;
+- Source Hunt query count and subrequest budget remain bounded; current Xtream provider discovery reuses one of the existing three Brave queries rather than adding another;
+- freshness is kind-aware and centrally owned: ordinary web/forum direct-stream evidence uses the normal short window (30 days in current Hunt use), while Xtream provider/trial pages may use up to 365 days because provider pages are longer-lived than stream URLs;
+- search filtering, ranking and inspection must all use the same kind-aware freshness policy to prevent policy drift.
+
+Reason: curated/live research found stronger Greece-specific playlists and showed Recent Web was English-only. Separately, Authorized Xtream correctly searched only saved accounts, so an exploration-only path was needed to locate Greek IPTV providers/trials without confusing provider discovery with authorized account ownership. Live acceptance also showed that generic “Greek” text could produce player-article false positives and that three independent freshness checks drifted; both were fixed before closure.
+
+Evidence:
+- PR #158 merged runtime `1603b5d127d1f42003f26bcdbc72955a2a54b053`; exact branch head `951167ac75a874c863d6e384b3ced4cef34c67e4` completed Validate Unified Search `37065907675` SUCCESS and Validate WebTV Frontend `37065907725` SUCCESS;
+- post-merge PR #158 Source Discovery `37065980958`, Source Hunt `37065980947`, Unified Search `37065980940`, Frontend `37065980937`, Registry `37065981011` and Pages `37065980053` succeeded;
+- live verification after PR #158 exposed an over-specific Xtream query, fixed in PR #159 runtime `26a23b6c60ff05438744a8376c8b24a63660162b`;
+- live PR #159 verification found a generic IPTV-player article false positive, fixed by stronger Greek IPTV/channel evidence in PR #160 runtime `c676bee62388bd299b2731367a903c8e3895676f`;
+- PR #161 runtime `4720af0e84697790d611be3effacbfe0e002905b` introduced the bounded 365-day Xtream provider search window while keeping direct web/forum discovery monthly;
+- PR #162 runtime `22c540e9b787f40cecc553cfec94ed7ccc02245e` aligned ranking with that window after live evidence showed `freshSearchesRun:1` but `resultsScanned:0`;
+- PR #163 final runtime `daa73919623f47946f7a36ba6c055c4ad2cbbf00` centralized kind-aware freshness across search filtering, ranking and inspection after live evidence showed the inspection layer still rejected provider rows as stale;
+- final post-merge Source Hunt `37067230801`, Frontend `37067230803`, Pages `37067229745` and Registry `37067230725` succeeded; Registry `/api/project-status` reported exact final runtime SHA `daa73919623f47946f7a36ba6c055c4ad2cbbf00`, deployed 2026-10-02 21:31:36;
+- final live `MEGA` Hunt acceptance returned `freshSearchesRun:1`, `resultsScanned:4`, `subrequestsUsed:14/16` and four safe Xtream provider/trial web leads. The strongest lead explicitly advertised Greek IPTV, Xtream Codes setup and a free trial. No credentials were collected or imported.
+
+Reconsider when: measured production recall/precision warrants a different provider-discovery strategy, or an authenticated provider directory becomes available. Any replacement must preserve Authorized Xtream ownership, credential safety, bounded budgets and live verification.
+
