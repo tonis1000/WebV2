@@ -49,6 +49,21 @@ for(const file of files){
 
 const zeroInbound=files.filter(f=>inbound.get(f).length===0);
 
+const rawInbound={};
+for(const target of files){
+  const rel=target.replace(/^src\//,'');
+  const base=path.posix.basename(target);
+  const refs=[];
+  const probes=[target,'./'+target,rel,'./'+rel,base];
+  for(const [from,text] of [['index.html',index],...texts.entries()]){
+    if(from===target) continue;
+    const hit=probes.find(p=>text.includes(p));
+    if(hit) refs.push({from,spec:hit});
+  }
+  rawInbound[target]=refs;
+}
+const strongZeroInbound=zeroInbound.filter(f=>rawInbound[f].length===0);
+
 const globalOwners={};
 for(const file of files){
   const text=texts.get(file);
@@ -99,6 +114,9 @@ const report={
   scannedFiles:files.length,
   zeroInbound,
   zeroInboundCount:zeroInbound.length,
+  rawInboundForZero:Object.fromEntries(zeroInbound.map(f=>[f,rawInbound[f]])),
+  strongZeroInbound,
+  strongZeroInboundCount:strongZeroInbound.length,
   duplicateGlobals,
   duplicateGlobalCount:Object.keys(duplicateGlobals).length,
   writers,
