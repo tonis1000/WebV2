@@ -16,7 +16,6 @@ assert.match(discovery,/node tests\/source-discovery-enigma2-parity\.test\.mjs/,
 for(const required of [
   "index.html",
   "src/core/enigma2-core.js",
-  "src/source-hunt-enigma2.js",
   "tests/enigma2-core.test.mjs",
   "tests/enigma2-proxy-boundary.test.mjs",
   "tests/enigma2-duplicate-audit.test.mjs",
@@ -24,6 +23,7 @@ for(const required of [
   "tests/source-hunt-enigma2-parity.test.mjs",
 ])assert.ok(ownership.includes(required),`durable Enigma2 validation must own ${required}`);
 
+assert.doesNotMatch(ownership,/src\/source-hunt-enigma2\.js/,'durable workflow must not require the retired frontend Enigma2 adapter');
 assert.doesNotMatch(ownership,/e3b-enigma2-red/,'durable workflow must not depend on temporary RED scaffolding');
 
 console.log('Enigma2 workflow wiring contract PASS');

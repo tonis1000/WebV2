@@ -34,10 +34,9 @@ for(const rel of files){
 assert.deepEqual(violations,[],`independent Enigma2 structural parsing remains outside ${owner}:\n${violations.join('\n')}`);
 
 const discovery=fs.readFileSync(path.join(root,'workers/webtv-source-discovery.js'),'utf8');
-const frontend=fs.readFileSync(path.join(root,'src/source-hunt-enigma2.js'),'utf8');
 const bouquetProxy=fs.readFileSync(path.join(root,proxy),'utf8');
 assert.match(discovery,/enigma2-core\.js/,'Discovery consumes canonical Enigma2 structure');
-assert.match(frontend,/enigma2-core\.js/,'frontend Hunt consumes canonical Enigma2 structure');
+assert.equal(fs.existsSync(path.join(root,'src/source-hunt-enigma2.js')),false,'retired frontend Hunt Enigma2 adapter must remain deleted');
 assert.match(bouquetProxy,/#SERVICE\\s\+|#SERVICE/,'bouquet proxy may retain shallow format recognition');
 assert.doesNotMatch(bouquetProxy,/parseEnigma2Bouquet|enigma2-core\.js/,'bouquet proxy remains transport/security-only rather than structural-parser-owned');
 

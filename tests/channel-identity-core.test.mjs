@@ -71,13 +71,12 @@ assert.throws(() => identity.validateGreekChannelIdentityDefinition({ id:'new-tv
 // not carry independent alias registries that drift over time.
 const huntWorker = fs.readFileSync('workers/source-huntatonisworkersdev.js','utf8');
 const discoveryWorker = fs.readFileSync('workers/webtv-source-discovery.js','utf8');
-const huntFrontend = fs.readFileSync('src/source-hunt-engine.js','utf8');
+const retiredHuntFrontend = 'src/source-hunt-engine.js';
 assert.match(huntWorker, /src\/core\/channel-identity-gr\.js/, 'Source Hunt Worker must import the shared channel identity core');
 assert.doesNotMatch(huntWorker, /aliases:\s*\[/, 'Source Hunt Worker must not keep its own alias registry');
 assert.match(discoveryWorker, /src\/core\/channel-identity-gr\.js/, 'Source Discovery Worker must import the shared channel identity core');
 assert.doesNotMatch(discoveryWorker, /function\s+identitySet\s*\(/, 'Source Discovery Worker must not keep a second identitySet implementation');
 assert.doesNotMatch(discoveryWorker, /function\s+matchesSignals\s*\(/, 'Source Discovery Worker must use shared signal matching');
-assert.match(huntFrontend, /channel-identity-gr\.js/, 'frontend Source Hunt must consume shared channel identity helpers');
-assert.doesNotMatch(huntFrontend, /const\s+CHANNEL_FINGERPRINTS\s*=/, 'frontend Source Hunt must not keep a separate channel fingerprint registry');
+assert.equal(fs.existsSync(retiredHuntFrontend), false, 'retired frontend Source Hunt adapter must remain deleted after zero-consumer proof');
 
 console.log(`channel identity core contract PASS · ${ACTIVE_PLAYLIST_CHANNELS.length} active channels covered`);
