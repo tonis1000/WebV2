@@ -649,3 +649,28 @@ Evidence:
 
 Reconsider when: a real curated source uses a different unambiguous multi-source separator convention, or measured production evidence shows the spaced-pipe rule causes false splits. Any broader grammar must preserve inline IPTV option syntax and shared M3U ownership.
 
+## DEC-037 Discovery candidate sanitation and Greece/Cyprus identity separation
+Decision: normalize web/forum candidate URLs through one shared sanitizer before candidate creation and use the shared Greek channel identity matcher to keep Greece channels distinct from Cyprus variants.
+
+Hard rules:
+- shared candidate URL sanitation lives in `src/core/source-candidate-url.js`;
+- Recent Web and Source Hunt must consume the shared sanitizer rather than maintain independent cleanup regexes;
+- sanitation may decode literal JSON-style unicode escapes, HTML ampersand escaping, escaped slashes, control whitespace, closing markup tails and trailing backslashes, but it must preserve the actual media URL and any valid inline IPTV option suffix;
+- non-http(s) garbage is rejected before candidate creation;
+- Recent Web channel relevance must use the shared channel identity matcher rather than raw substring matching;
+- ANT1 Greece rejects `ANT1 Cyprus`, `ANT1 CY`, `ANT1CY` and `ANT1 Κύπρου`;
+- Alpha Greece rejects `Alpha Cyprus`, `Alpha CY`, `alphacyp` and `Alpha Κύπρου`;
+- adding more country/region variants requires evidence and must extend the shared identity registry, not add provider-local hacks;
+- verifier/health semantics for HTTP 404, 403, 525 and other upstream failures are not changed by this decision. These routes remain failed unless separately verified.
+
+Reason: production browser logs showed malformed candidate URLs containing escaped HTML/JSON residue reaching playback attempts, and also showed Cyprus routes such as `alphacyp` being treated as Greece channel candidates. The existing verifier correctly rejected many of those routes, but cleanup and identity separation belong earlier in discovery.
+
+Evidence:
+- RED head `1129124174ed83dc471a3f622b54740da5372af3`; Validate WebTV Frontend run `37077372794` failed because Source Hunt did not yet import/use the shared candidate URL sanitizer;
+- GREEN implementation head `877461905fec72e956e0c8c2e59e50142fbc1e0e`; Validate Unified Search `37077527352` and Validate WebTV Frontend `37077527470` SUCCESS;
+- runtime merge PR #173: `1a91894cfa8618ba0b5ed998a7102afc40fc8077`;
+- post-merge Source Hunt `37077674139`, Source Discovery `37077674126`, Unified Search `37077674103`, Frontend `37077674092`, Registry `37077674089`, and Pages `37077673470` all SUCCESS;
+- verification-only PR #174 stayed unmerged. Final live run `37077805610` against deployed Workers sanitized the controlled escaped ALPHA fixture to exactly `https://cdn.example.test/alpha/live.m3u8?dpssid=x&sid=y&ndvc=1`, rejected the fixture `alphacyp` route for Alpha Greece, and returned 5 deployed Curated ALPHA Greece candidates with zero `alphacyp` routes. `DISCOVERY_QUALITY_LIVE_ACCEPTANCE=PASS`.
+
+Reconsider when: a real source uses escaping that the sanitizer does not safely normalize, or another regional variant repeatedly leaks across a canonical Greece identity. Any expansion must remain shared, regression-tested and live verified.
+
