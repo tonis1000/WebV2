@@ -27,8 +27,8 @@ assert.match(
 );
 assert.match(
   manager,
-  /assertGenericMyMutationAllowed\s*\(channel\)/,
-  'discovered-channel save must inherit the generic loaded-Xtream guard'
+  /const target=\{\.\.\.channel,directUrls:cleanSources\.map\(source=>source\.url\)\};[\s\S]*assertGenericMyMutationAllowed\s*\(target\)/,
+  'discovered-channel save must guard the actual discovered source URLs against loaded Xtream bypass'
 );
 assert.match(
   manager,
