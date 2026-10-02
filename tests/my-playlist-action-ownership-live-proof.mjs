@@ -76,6 +76,7 @@ await page.evaluate(()=>{document.documentElement.classList.remove('admin-locked
 await page.waitForFunction(()=>window.WebTVPlaylistAPI?.getCatalogMode?.()==='cloud'&&window.WebTVPlaylistAPI?.getCount?.()===2,null,{timeout:15000});
 await page.waitForSelector('#favorites-filter',{state:'attached',timeout:10000});
 await page.waitForSelector('#favorite-channel',{state:'attached',timeout:10000});
+await page.waitForFunction(()=>document.querySelector('#channel-list .channel-item[data-channel-id="qa-one"]')?.classList.contains('favorite')===true,null,{timeout:10000});
 
 const cloudState=await page.evaluate(()=>({
   mode:window.WebTVPlaylistAPI.getCatalogMode(),
