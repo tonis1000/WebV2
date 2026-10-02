@@ -138,6 +138,8 @@ jobs:
         run: node tests/playlist-manager-xtream-library.test.mjs
       - name: Run Xtream legacy enhancements retirement regression test
         run: node tests/xtream-legacy-enhancements-retirement.test.mjs
+      - name: Run Xtream My Playlist persistence boundary regression test
+        run: node tests/xtream-my-playlist-persistence-boundary.test.mjs
       - name: Run Xtream mock deploy contract
         run: node tests/xtream-mock-deploy-contract.test.mjs
       - name: Run Xtream large catalog regression test
