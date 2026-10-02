@@ -220,3 +220,53 @@ Evidence:
 Non-goal: this decision does not replace the remaining diagnostics DOM / MutationObserver state propagation. That coupling remains a separate bounded diagnostics-audit task.
 
 Reconsider when: only if a future architecture replaces SourceRegistry as the single playback-route owner while preserving exact route semantics, health behavior and live acceptance proof.
+
+
+## DEC-021 Runtime diagnostics state has one structured owner
+Decision: `main.js` / `WebTVDiagnosticsAPI` is the single owner of runtime diagnostics state. Consumers receive a read-only snapshot through `WebTVDiagnosticsAPI.getSnapshot()` and updates through `webtv:diagnostics-updated`. Rendered diagnostics DOM is presentation only and must not be used as an inter-module state bus.
+
+Hard rules:
+- Manual Test verification consumes structured diagnostics state, not `#diag-*` or playback-status DOM mutations;
+- Playback Inspector sync/Edit/Delete decisions consume structured diagnostics state, not diagnostic DOM text;
+- Source Health refreshes from the structured diagnostics event and gets route rows from the canonical SourceRegistry owner;
+- `#diag-source`, `#diag-route`, `#diag-player` and `#diag-startup` remain user-visible presentation and may be updated by the diagnostics producer, but consumers must not infer business state by observing them;
+- this state-transport ownership must not change Player callback order, verification policy, health scoring, persistence boundaries or route semantics.
+
+Reason: the diagnostics audit found a hidden second state bus where Manual Test, Playback Inspector and Source Health learned runtime state by observing rendered DOM. That coupled business behavior to presentation timing and allowed UI text mutations to act like state changes.
+
+Evidence:
+- RED Validate WebTV Frontend #875 failed exactly on the structured-state ownership contract; intermediate validation exposed and removed two remaining Inspector diagnostic-DOM fallbacks.
+- PR #114 runtime merge `040e6be426a7367f8e0ccc6446f5908f82d8ff15`; exact-SHA Frontend #879, Registry #119 and Pages #477 SUCCESS.
+- Verification-only PR #115 remained unmerged and was closed after Verify Diagnostics Structured State Live #9 SUCCESS using real production Pages and deterministic browser media. Initial playback and Manual Test both reached structured `live` states, deliberate diagnostic-DOM tampering did not propagate to Inspector state, durable playlist writes remained zero before explicit save, and page/console errors were zero. Artifact ID `11224181561`.
+
+Reconsider when: only if a future architecture replaces `WebTVDiagnosticsAPI` with another single structured diagnostics owner while preserving behavior and live acceptance proof.
+
+## DEC-022 Legacy Local Discovery scan retired after zero-consumer proof
+Decision: retire and delete the legacy Local Discovery owner files and Local shell path after canonical local intelligence moved to `cloud-read-sync.js` + `known-source-collector.js` and zero active production consumers were proven.
+
+Deleted/retired ownership:
+- `src/discovery/local-data-reader.js`;
+- `src/discovery/local-candidates.js`;
+- legacy Discovery `Find Local Sources` control, Local lanes, `scanLocalSources` and public `scanLocal` API;
+- owner-specific `tests/discovery-local-sources.test.mjs`.
+
+Retained capabilities:
+- canonical already-known source aggregation across My Playlist, Custom Playlists, source-backed Saved M3U and loaded catalog;
+- Curated / GitHub / Recent Web / STRM / Authorized Xtream discovery;
+- verifier and generic verified-source promotion;
+- Search / Player isolation and explicit-play boundaries.
+
+Hard rules:
+- Local intelligence remains background/read-only and must not reappear as a Unified Search lane or start save-time network discovery;
+- the deleted Local owner files/control/API must not return without a new bounded architecture decision;
+- retained non-Local discovery capabilities must not be weakened as a side effect of Local retirement.
+
+Reason: after PR #100 migrated the last useful Saved M3U coverage into the canonical known-source path, the legacy Local implementation had no production entrypoint owner and only survived inside an isolated legacy shell. Keeping it created duplicate identity/aggregation ownership and a hidden `scanLocal` API with no canonical product role.
+
+Evidence:
+- RED Validate WebTV Frontend #889 proved the legacy owners were still present.
+- PR #116 retirement work found and removed a hidden `window.WebTVDiscovery.scanLocal` path and stale `localBusy` state before merge rather than weakening coverage.
+- Runtime merge `8ef91a32d898930dfd38d82220ebc370b0444ed2`; exact-SHA Frontend #897, Registry #120 and Pages #478 SUCCESS.
+- Verification-only PR #117 remained unmerged and was closed after Verify Legacy Local Discovery Retirement Live #3 SUCCESS: both deleted files returned production HTTP 404; live shell Local ownership was absent; retained capabilities and canonical search remained present; page/console errors were zero. Artifact ID `11224489871`.
+
+Reconsider when: only if a new bounded use case proves a distinct Local discovery lane is needed and cannot be satisfied by canonical known-source intelligence plus retained external discovery, with explicit ownership and live proof.
