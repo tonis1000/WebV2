@@ -7,7 +7,6 @@ on:
     paths:
       - 'index.html'
       - 'src/core/enigma2-core.js'
-      - 'src/source-hunt-enigma2.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-hunt-bouquet-proxy.js'
       - 'tests/enigma2-*.test.mjs'
@@ -18,7 +17,6 @@ on:
     paths:
       - 'index.html'
       - 'src/core/enigma2-core.js'
-      - 'src/source-hunt-enigma2.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-hunt-bouquet-proxy.js'
       - 'tests/enigma2-*.test.mjs'
@@ -42,14 +40,13 @@ jobs:
       - name: Validate Enigma2 source syntax
         run: |
           node --check src/core/enigma2-core.js
-          node --check src/source-hunt-enigma2.js
           node --input-type=module --check < workers/webtv-source-discovery.js
           node --input-type=module --check < workers/source-hunt-bouquet-proxy.js
       - name: Run shared Enigma2 core contract
         run: node tests/enigma2-core.test.mjs
       - name: Run Discovery Enigma2 parity
         run: node tests/source-discovery-enigma2-parity.test.mjs
-      - name: Run frontend Hunt Enigma2 parity
+      - name: Run retired frontend Hunt Enigma2 ownership contract
         run: node tests/source-hunt-enigma2-parity.test.mjs
       - name: Run bouquet proxy boundary contract
         run: node tests/enigma2-proxy-boundary.test.mjs
