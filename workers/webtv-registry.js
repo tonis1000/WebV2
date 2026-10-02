@@ -1,5 +1,6 @@
 const VERSION = '1.5';
 const SESSION_DAYS = 180;
+const MAINTENANCE_SESSION_SECONDS = 60 * 60;
 const MAX_PIN_FAILURES = 5;
 const PIN_BLOCK_MINUTES = 15;
 const CHECKPOINT_MAX_BYTES = 512 * 1024;
@@ -23,6 +24,7 @@ function escAttr(value=''){return clean(value).replace(/"/g,"'");}
 function normalizeId(value=''){return clean(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9α-ω]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,160);}
 function safeId(value=''){return normalizeId(value)||`ch-${crypto.randomUUID()}`;}
 function requestOrigin(request,env){const allowed=clean(env.ALLOWED_ORIGIN);if(!allowed||allowed==='*')return '*';const origin=request.headers.get('origin')||'';return origin===allowed?origin:allowed;}
+function pinAuthDisabled(env){return ['1','true','yes','on'].includes(String(env?.PIN_AUTH_DISABLED||'').trim().toLowerCase());}
 async function readJson(request){try{return await request.json();}catch{throw new Error('Invalid JSON body');}}
 
 function b64url(bytes){return btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
@@ -30,14 +32,14 @@ function b64urlText(textValue){return b64url(new TextEncoder().encode(textValue)
 function fromB64url(value){const s=value.replace(/-/g,'+').replace(/_/g,'/');const pad=s+'='.repeat((4-s.length%4)%4);return Uint8Array.from(atob(pad),c=>c.charCodeAt(0));}
 async function hmac(secret,message){const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);return new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(message)));}
 function safeEqual(a,b){if(a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a[i]^b[i];return x===0;}
-async function createSession(env){const now=Math.floor(Date.now()/1000);const payload=b64urlText(JSON.stringify({v:1,iat:now,exp:now+SESSION_DAYS*86400}));const sig=b64url(await hmac(env.ADMIN_TOKEN,payload));return `${payload}.${sig}`;}
+async function createSession(env,{maintenance=false}={}){const now=Math.floor(Date.now()/1000);const exp=now+(maintenance?MAINTENANCE_SESSION_SECONDS:SESSION_DAYS*86400);const payload=b64urlText(JSON.stringify({v:1,iat:now,exp,...(maintenance?{maintenance:true}:{})}));const sig=b64url(await hmac(env.ADMIN_TOKEN,payload));return `${payload}.${sig}`;}
 async function verifySession(token,env){
   if(!token||!env.ADMIN_TOKEN)return false;
   if(token===env.ADMIN_TOKEN)return true;
   const parts=token.split('.');if(parts.length!==2)return false;
   try{
     const expected=await hmac(env.ADMIN_TOKEN,parts[0]);const supplied=fromB64url(parts[1]);if(!safeEqual(expected,supplied))return false;
-    const payload=JSON.parse(new TextDecoder().decode(fromB64url(parts[0])));return payload?.v===1&&Number(payload.exp)>Math.floor(Date.now()/1000);
+    const payload=JSON.parse(new TextDecoder().decode(fromB64url(parts[0])));if(payload?.maintenance===true&&!pinAuthDisabled(env))return false;return payload?.v===1&&Number(payload.exp)>Math.floor(Date.now()/1000);
   }catch{return false;}
 }
 async function requireAdmin(request,env){
@@ -250,6 +252,11 @@ export default{async fetch(request,env){
   try{
     if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/project-status','/api/project-checkpoints','/api/project-agent','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
     if(path==='/api/login'&&request.method==='POST')return await pinLogin(request,env,origin);
+    if(path==='/api/session/maintenance'&&request.method==='POST'){
+      if(!pinAuthDisabled(env))return json({error:'Maintenance session is not available'},403,origin);
+      if(!env.ADMIN_TOKEN)return json({error:'ADMIN_TOKEN signing secret is not configured'},503,origin);
+      return json({ok:true,maintenance:true,token:await createSession(env,{maintenance:true}),expiresIn:MAINTENANCE_SESSION_SECONDS},200,origin);
+    }
     if(path==='/api/session'&&request.method==='GET'){const auth=request.headers.get('authorization')||'',token=auth.replace(/^Bearer\s+/i,'').trim();const ok=await verifySession(token,env);return json({ok},ok?200:401,origin);}
     if(path==='/api/session/validate'&&request.method==='POST'){const body=await readJson(request);const ok=await verifySession(clean(body.token),env);return json({ok},ok?200:401,origin);}
 
