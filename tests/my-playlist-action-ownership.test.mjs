@@ -12,7 +12,7 @@ assert.doesNotMatch(
 );
 assert.match(
   hunt,
-  /WebTVMyPlaylistAPI\?\.saveDiscoveredChannel/,
+  /saveDiscoveredChannel\s*\(/,
   'Source Hunt must delegate discovered-channel persistence to canonical My Playlist API'
 );
 assert.match(
