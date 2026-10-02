@@ -39,6 +39,7 @@ const channelRows = new Map();
 window.WebTVDiagnosticsAPI={
   buildId:BUILD_ID,
   lastRoutePlan:[],
+  getSourceHealthRows:channel=>sources.getCuratedRouteDiagnostics(channel),
   healthSummary:()=>({entries:Object.keys(health.map||{}).length,storageKey:health.storageKey})
 };
 
