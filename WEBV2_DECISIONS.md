@@ -388,3 +388,36 @@ Evidence:
 - Early live-proof failures were harness-only: a Playwright init script initially executed in child frames and cleared same-origin test Favorites storage, and a later assertion incorrectly counted mocked `/api/health` telemetry as durable persistence. Neither required a production change.
 
 Reconsider when: only if a future rendering architecture intentionally replaces `main.js` as the single channel-row root owner, or the product deliberately expands Favorites beyond My Playlist, with a new bounded decision, regression proof and production live verification.
+
+## DEC-028 Legacy Source Hunt frontend chain retired after zero-consumer proof
+Decision: delete the detached legacy Source Hunt frontend chain after Unified Search consolidation. Unified Search remains the sole automatic discovery surface; Manual Source Test remains an explicit user-triggered candidate URL test surface. Shared parser/normalization cores and server-side discovery Workers remain active.
+
+Deleted/retired frontend ownership:
+- `src/source-hunt-engine.js`;
+- `src/source-hunt-web.js`;
+- `src/source-hunt-save-destination.js`;
+- `src/source-hunt-discovery-integration.js`;
+- `src/source-hunt-enigma2.js`;
+- `src/source-hunt-playlist-provenance.js`.
+
+Hard rules:
+- the six retired frontend files remain deleted and must not return as dormant “reference/rollback” owners;
+- rendered `#channel-name` must not return as a Source Hunt query/state fallback through a revived legacy module;
+- Unified Search owns automatic discovery orchestration;
+- Manual Source Test performs explicit candidate testing only and must not become a second automatic discovery surface;
+- shared M3U, STRM and Enigma2 cores remain the canonical structural parsing/normalization owners;
+- Source Hunt Worker, Source Discovery Worker and the Enigma2 bouquet proxy retain their active server-side/transport roles;
+- My Playlist persistence remains behind Playlist Manager-owned APIs and loaded-Xtream persistence guards;
+- any revival of the retired frontend chain requires a new bounded architecture decision, real consumer proof, regression coverage, deployment and production live verification.
+
+Reason: recursive ownership work found old Source Hunt modules still containing historical DOM/state and discovery logic after the production UI had already consolidated automatic discovery into Unified Search. A zero-consumer audit then proved the chain was detached from the production entrypoint and only old tests/reference scaffolding required its presence. Keeping the files created a future regression path without an active product role.
+
+Evidence:
+- audit-only PR #138, exact audit head `10738e5a3b938c7cb9bed43ec8e7bb7938f9597b`, proved the zero-consumer chain;
+- RED Validate WebTV Frontend #967 failed because the six files still existed;
+- PR #139 exact implementation head `eef479b35979a77de98519934e195b758ac1c9d1` completed Frontend #976 SUCCESS (75/75) and Enigma2 #60 SUCCESS;
+- runtime merge `b46f11bce380d03b565f65c22e96729dae60beb6`; post-merge Frontend, Enigma2, Source Hunt Worker, Source Discovery Worker, Registry and Pages workflows all succeeded, and `/api/project-status` reported the same runtime SHA;
+- verification-only PR #140 stayed unmerged and closed after Verify Source Hunt Frontend Retirement Live #1 SUCCESS and Frontend #978 SUCCESS. All six retired URLs were production 404s, retained active surfaces/cores were present, no retired script loaded, durable writes were zero and page/console errors were zero. Artifact ID `11241690885`, digest `sha256:2bba1b06fbd9a8da599d3d6944fc74e948d36a22f9b889ededc92ff2f6c64724`.
+
+Reconsider when: only if a concrete future product requirement cannot be satisfied by Unified Search, Manual Source Test, active shared cores and Workers, and a new bounded owner is explicitly justified and production-verified.
+
