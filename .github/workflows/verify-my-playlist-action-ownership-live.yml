@@ -1,0 +1,66 @@
+name: Verify My Playlist Action Ownership Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/my-playlist-action-ownership-live-proof.mjs'
+      - '.github/workflows/verify-my-playlist-action-ownership-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: 3adc057cd2f0186a1fab506c7c8e4d36ceea9973
+      ARTIFACT_DIR: artifacts/my-playlist-action-ownership-live
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify exact production ownership is live
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/source-hunt-save-destination.js?proof=$GITHUB_SHA" -o /tmp/hunt-live.js
+          if grep -q "/api/my-playlist/channel" /tmp/hunt-live.js; then
+            echo "Source Hunt still owns direct My Playlist writer"
+            exit 1
+          fi
+          grep -q "saveDiscoveredChannel" /tmp/hunt-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/playlist-manager.js?proof=$GITHUB_SHA" -o /tmp/manager-live.js
+          grep -q "saveDiscoveredMyChannel" /tmp/manager-live.js
+          grep -q "source-hunt-save" /tmp/manager-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/favorites-ui.js?proof=$GITHUB_SHA" -o /tmp/favorites-live.js
+          grep -q "getCatalogMode" /tmp/favorites-live.js
+          grep -q "isMyPlaylistCatalog" /tmp/favorites-live.js
+
+          curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA" -o /tmp/project-status.json
+          node -e "const j=require('/tmp/project-status.json');if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)"
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production My Playlist ownership proof
+        run: node tests/my-playlist-action-ownership-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-playlist-action-ownership-live-${{ github.sha }}
+          path: artifacts/my-playlist-action-ownership-live
+          if-no-files-found: warn
+          retention-days: 14
