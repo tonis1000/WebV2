@@ -10,16 +10,21 @@ const health = {
   score: () => 0,
 };
 
-const raw = 'https://example.com/live.m3u8|user-agent=Kodi%2F21&referer=https%3A%2F%2Fsite.example%2F&origin=https%3A%2F%2Fsite.example&authorization=secret';
+const raw = 'https://example.com/live.m3u8|user-agent=Kodi%2F21&referer=https%3A%2F%2Fsite.example%2F&origin=https%3A%2F%2Fsite.example&x-roku-reserved-dev-id=roku-demo-123&authorization=secret';
 const parsed = parseIptvUrl(raw);
 assert.equal(parsed.url, 'https://example.com/live.m3u8');
 assert.deepEqual(parsed.headers, {
   'User-Agent': 'Kodi/21',
   Referer: 'https://site.example/',
   Origin: 'https://site.example',
+  'X-Roku-Reserved-Dev-Id': 'roku-demo-123',
 });
 assert.equal(cleanUrl(raw), 'https://example.com/live.m3u8');
 assert.equal(parseIptvUrl('https://example.com/a.m3u8|referer=good%0D%0AX-Evil%3Ayes').headers.Referer, undefined);
+const nested=parseIptvUrl('http://15.235.41.196/hls/mega.m3u8|stream_headers={User-Agent=Roku/DVP-14.6 (14.6.4.9914-CE), x-roku-reserved-dev-id=75ab1929}');
+assert.equal(nested.url,'http://15.235.41.196/hls/mega.m3u8');
+assert.deepEqual(nested.headers,{'User-Agent':'Roku/DVP-14.6 (14.6.4.9914-CE)','X-Roku-Reserved-Dev-Id':'75ab1929'});
+
 
 const plainWorker = workerUrl('https://example.com/live.m3u8');
 assert.equal(plainWorker, 'https://tv-cache.atonis.workers.dev/?url=https%3A%2F%2Fexample.com%2Flive.m3u8');
@@ -86,6 +91,7 @@ const upstreamMaster = seen.find(item => item.href.endsWith('/live.m3u8'));
 assert.equal(upstreamMaster.headers['user-agent'], 'Kodi/21');
 assert.equal(upstreamMaster.headers.referer, 'https://site.example/');
 assert.equal(upstreamMaster.headers.origin, 'https://site.example');
+assert.equal(upstreamMaster.headers['x-roku-reserved-dev-id'], 'roku-demo-123');
 
 const childUrl = master.split('\n').find(line => line.includes('variant.m3u8'));
 const child = await worker.fetch(new Request(childUrl), { TV_CACHE: {} }, ctx);
@@ -95,6 +101,7 @@ const upstreamChild = seen.find(item => item.href.endsWith('/child/variant.m3u8'
 assert.equal(upstreamChild.headers['user-agent'], 'Kodi/21');
 assert.equal(upstreamChild.headers.referer, 'https://site.example/');
 assert.equal(upstreamChild.headers.origin, 'https://site.example');
+assert.equal(upstreamChild.headers['x-roku-reserved-dev-id'], 'roku-demo-123');
 
 const badPayload = Buffer.from(JSON.stringify({ Referer: 'good\r\nX-Evil: yes' }), 'utf8').toString('base64url');
 const badReq = new Request(`https://tv-cache.atonis.workers.dev/?h=${badPayload}&url=${encodeURIComponent('https://example.com/live.m3u8')}`);
