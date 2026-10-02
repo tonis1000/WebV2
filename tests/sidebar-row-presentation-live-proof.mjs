@@ -100,9 +100,24 @@ await page.locator('#channel-list .channel-item[data-channel-id="qathree"]').cli
 await page.waitForFunction(()=>window.WebTVPlaylistAPI?.getSelectedChannel?.()?.id==='qathree',null,{timeout:10000});
 await page.waitForFunction(()=>document.querySelector('#channel-list .channel-item.active')?.dataset?.channelId==='qathree',null,{timeout:5000});
 
-await page.evaluate(()=>document.getElementById('favorites-filter')?.click());
-await page.waitForFunction(()=>document.querySelectorAll('#channel-list .channel-item').length===2,null,{timeout:5000});
-await page.waitForFunction(()=>document.querySelectorAll('#channel-list .channel-now-inline').length===2,null,{timeout:5000});
+await page.evaluate(()=>{
+  window.__qaFavoritePresentationEvents=0;
+  window.addEventListener('webtv:favorites-presentation-changed',()=>{window.__qaFavoritePresentationEvents+=1;},{once:false});
+  document.getElementById('favorites-filter')?.click();
+});
+await page.waitForTimeout(250);
+const postFilterDiagnostic=await page.evaluate(()=>({
+  apiState:window.WebTVFavoritesPresentationAPI?.getState?.()||null,
+  eventCount:window.__qaFavoritePresentationEvents||0,
+  filterText:document.getElementById('favorites-filter')?.textContent?.trim()||'',
+  rowCount:document.querySelectorAll('#channel-list .channel-item').length,
+  nowCount:document.querySelectorAll('#channel-list .channel-now-inline').length,
+  summary:document.getElementById('channel-summary')?.textContent?.trim()||''
+}));
+assert.equal(postFilterDiagnostic.apiState?.favoritesOnly,true,`Favorites filter click must toggle canonical presentation state: ${JSON.stringify(postFilterDiagnostic)}`);
+assert.ok(postFilterDiagnostic.eventCount>=1,`Favorites filter click must emit presentation event: ${JSON.stringify(postFilterDiagnostic)}`);
+assert.equal(postFilterDiagnostic.rowCount,2,`main renderer must consume Favorites presentation event: ${JSON.stringify(postFilterDiagnostic)}`);
+assert.equal(postFilterDiagnostic.nowCount,2,`Sidebar Now Playing must redecorate the rerendered Favorites rows: ${JSON.stringify(postFilterDiagnostic)}`);
 
 const favoritesOnly=await snapshot();
 assert.equal(favoritesOnly.summary,'2 / 3 κανάλια','summary must match rendered Favorites-only rows');
