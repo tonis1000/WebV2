@@ -5,6 +5,7 @@ const megaQueries=buildQueries('MEGA');
 assert.equal(megaQueries.length,3,'Source Hunt query budget stays at three Brave searches');
 const xtream=megaQueries.find(item=>item.kind==='xtream');
 assert.ok(xtream,'Source Hunt must include one Xtream provider/trial query');
+assert.equal(xtream.freshness,'py','provider/trial discovery uses an annual window while direct stream searches stay monthly');
 assert.match(xtream.q,/Xtream Codes/i);
 assert.match(xtream.q,/trial/i);
 assert.match(xtream.q,/Greek IPTV/i);
