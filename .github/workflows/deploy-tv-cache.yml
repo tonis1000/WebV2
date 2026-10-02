@@ -70,8 +70,13 @@ jobs:
           for attempt in $(seq 1 12); do
             curl --fail --silent --show-error "$WORKER_URL/channel-streams.json?verify=$GITHUB_SHA" -o /tmp/tv-cache-status.json || true
             if node -e "const fs=require('fs');try{JSON.parse(fs.readFileSync('/tmp/tv-cache-status.json','utf8'));process.exit(0)}catch{process.exit(1)}"; then
-              echo "tv-cache is live and TV_CACHE binding is readable."
-              exit 0
+              HEADER_CONTEXT=$(node -e "process.stdout.write(Buffer.from(JSON.stringify({'User-Agent':'Roku/DVP-14.6','X-Roku-Reserved-Dev-Id':'device-123'}),'utf8').toString('base64url'))")
+              TARGET=$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$WORKER_URL/fixture/header-aware.m3u8")
+              HEADER_STATUS=$(curl --silent --show-error --output /tmp/tv-cache-header-aware.m3u8 --write-out '%{http_code}' "$WORKER_URL/?h=$HEADER_CONTEXT&url=$TARGET" || true)
+              if [ "$HEADER_STATUS" = "200" ] && grep -q '#EXTM3U' /tmp/tv-cache-header-aware.m3u8; then
+                echo "tv-cache is live, TV_CACHE is readable, and approved Roku headers survive proxy transport."
+                exit 0
+              fi
             fi
             echo "Waiting for Cloudflare propagation ($attempt/12)…"
             sleep 5

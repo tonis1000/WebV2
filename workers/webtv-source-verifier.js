@@ -1,4 +1,5 @@
 import { detectSourceFormat, classifySourceBody, toLegacySourceType } from '../src/core/source-format-registry.js';
+import { parseIptvUrl } from '../src/core/utils.js';
 
 const VERSION='1.0';
 const ALLOWED_ORIGIN='*';
@@ -12,7 +13,7 @@ function cors(){return {'access-control-allow-origin':ALLOWED_ORIGIN,'access-con
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{...cors(),'content-type':'application/json;charset=utf-8','cache-control':'no-store'}});}
 function now(){return Date.now();}
 function cleanHeaders(input={}){
-  const allowed=new Map([['user-agent','User-Agent'],['referer','Referer'],['origin','Origin']]);
+  const allowed=new Map([['user-agent','User-Agent'],['referer','Referer'],['origin','Origin'],['x-roku-reserved-dev-id','X-Roku-Reserved-Dev-Id']]);
   const out={};
   if(!input||typeof input!=='object')return out;
   for(const [rawKey,rawValue] of Object.entries(input)){
@@ -99,7 +100,9 @@ async function fetchWithRedirectDiagnostics(target,headers,signal){
 async function verifyOne(input={}){
   const started=now();
   const candidateId=String(input.candidateId||'');
-  const sourceUrl=String(input.sourceUrl||'').trim();
+  const rawSourceUrl=String(input.sourceUrl||'').trim();
+  const parsedSource=parseIptvUrl(rawSourceUrl);
+  const sourceUrl=parsedSource.url;
   const format=detectSourceFormat({sourceUrl,explicitType:input.sourceType});
   const type=toLegacySourceType(format);
   if(format.verificationMode==='resolve-first'||type==='strm'||type==='m3u')return{candidateId,status:'UNRESOLVED',verified:false,startupMs:0,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:'Resolve container/reference before verification',redirects:[],finalTarget:null,finalResponseHeaders:null};
@@ -109,7 +112,7 @@ async function verifyOne(input={}){
   const timer=setTimeout(()=>controller.abort(),UPSTREAM_TIMEOUT_MS);
   let redirects=[];let finalTarget=safeUrlSummary(target);let finalResponseHeaders=null;
   try{
-    const headers=new Headers(cleanHeaders(input.requiredHeaders));
+    const headers=new Headers(cleanHeaders({...parsedSource.headers,...(input.requiredHeaders||{})}));
     if(!headers.has('user-agent'))headers.set('user-agent',`Mozilla/5.0 WebTV-SourceVerifier/${VERSION}`);
     headers.set('accept','application/vnd.apple.mpegurl,application/x-mpegURL,application/dash+xml,video/*,audio/*,*/*;q=0.5');
     const fetched=await fetchWithRedirectDiagnostics(target,headers,controller.signal);
@@ -142,6 +145,12 @@ export default{
     const url=new URL(request.url);
     if(request.method==='GET'&&url.pathname==='/')return json({ok:true,service:'WebTV Source Verifier',version:VERSION,timeoutMs:UPSTREAM_TIMEOUT_MS,maxBatch:MAX_BATCH,maxConcurrency:MAX_CONCURRENCY,maxRedirects:MAX_REDIRECTS});
     if(request.method==='GET'&&url.pathname==='/fixture/working.m3u8')return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:6,\nsegment1.ts\n',{status:200,headers:{...cors(),'content-type':'application/vnd.apple.mpegurl','cache-control':'no-store'}});
+    if(request.method==='GET'&&url.pathname==='/fixture/header-aware.m3u8'){
+      const ua=request.headers.get('user-agent')||'';
+      const roku=request.headers.get('x-roku-reserved-dev-id')||'';
+      if(ua!=='Roku/DVP-14.6'||roku!=='device-123')return new Response('forbidden',{status:403,headers:cors()});
+      return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:6,\nsegment1.ts\n',{status:200,headers:{...cors(),'content-type':'application/vnd.apple.mpegurl','cache-control':'no-store'}});
+    }
     if(request.method==='GET'&&url.pathname==='/fixture/dead')return new Response('gone',{status:404,headers:cors()});
     if(request.method==='POST'&&url.pathname==='/verify'){
       let body={};try{body=await request.json();}catch{return json({error:'Invalid JSON'},400);}

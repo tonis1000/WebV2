@@ -7,6 +7,7 @@ const IPTV_HEADER_ALIASES = Object.freeze({
   referer: 'Referer',
   referrer: 'Referer',
   origin: 'Origin',
+  'x-roku-reserved-dev-id': 'X-Roku-Reserved-Dev-Id',
 });
 
 const IPTV_HEADER_MAX_LENGTH = 2048;
@@ -33,6 +34,24 @@ export function normalizeIptvHeaders(headers = {}) {
   return out;
 }
 
+function parseStreamHeadersBundle(rawValue = '') {
+  const text = String(rawValue || '').trim();
+  if (!text) return {};
+  const inner = text.startsWith('{') && text.endsWith('}') ? text.slice(1, -1) : text;
+  const headers = {};
+  for (const part of inner.split(',')) {
+    const item = part.trim();
+    const eq = item.indexOf('=');
+    if (eq <= 0) continue;
+    const name = item.slice(0, eq).trim();
+    const value = item.slice(eq + 1).trim();
+    const canonical = IPTV_HEADER_ALIASES[name.toLowerCase()];
+    const safeValue = sanitizeHeaderValue(value);
+    if (canonical && safeValue) headers[canonical] = safeValue;
+  }
+  return headers;
+}
+
 export function parseIptvUrl(rawValue = '') {
   const raw = String(rawValue || '').trim();
   if (!raw) return { url: '', headers: {} };
@@ -46,7 +65,12 @@ export function parseIptvUrl(rawValue = '') {
   if (optionsPart) {
     const params = new URLSearchParams(optionsPart);
     for (const [name, value] of params.entries()) {
-      const canonical = IPTV_HEADER_ALIASES[String(name || '').trim().toLowerCase()];
+      const normalizedName = String(name || '').trim().toLowerCase();
+      if (normalizedName === 'stream_headers') {
+        Object.assign(headers, parseStreamHeadersBundle(value));
+        continue;
+      }
+      const canonical = IPTV_HEADER_ALIASES[normalizedName];
       if (!canonical) continue;
       const safeValue = sanitizeHeaderValue(value);
       if (safeValue) headers[canonical] = safeValue;
