@@ -22,7 +22,7 @@ page.on('console',msg=>{if(msg.type()==='error')consoleErrors.push(msg.text());}
 const response=await page.goto(WEBV2_URL,{waitUntil:'domcontentloaded',timeout:45000});
 assert.ok(response?.ok(),`production WebV2 load failed: ${response?.status()}`);
 await page.waitForSelector('#search',{timeout:15000});
-await page.waitForSelector('#channel-list',{timeout:15000});
+await page.waitForSelector('#channel-list',{state:'attached',timeout:15000});
 
 assert.equal(await page.locator('#discovery-beta-toggle').count(),0,'production entrypoint must not restore legacy Discovery Beta toggle');
 assert.equal(await page.locator('#discovery-scan-local').count(),0,'production page must not expose retired Local Discovery control');
