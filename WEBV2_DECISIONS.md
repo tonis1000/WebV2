@@ -494,3 +494,29 @@ Evidence:
 
 Reconsider when: a new verified bug, explicit product requirement or architecture change demonstrates that a closed owner must change. Reopen only as a new bounded decision with fresh evidence and full deployment/live verification.
 
+## DEC-031 GitHub Discovery v2: recursive public playlist coverage
+Decision: expand the Unified Search `GitHub playlists` provider so it can discover Greek channel playlists stored in repository subfolders without adding credentials, a second discovery owner or a larger request budget.
+
+Hard rules:
+- Unified Search remains the sole automatic discovery surface.
+- `workers/source-discovery/github-public-playlists.js` remains the GitHub provider owner.
+- the hard `GITHUB_MAX_SUBREQUESTS=10` budget remains frozen unless a separate bounded decision with new evidence changes it;
+- public GitHub Code Search `/search/code` is not used by this provider, and no new GitHub token/secret is introduced merely for public discovery expansion;
+- repository freshness remains server-side through `pushed:>=...`;
+- recursive Git-tree inspection may discover nested playlist files but must remain bounded and ranked;
+- shared `src/core/channel-identity-gr.js` aliases/matching and shared M3U parsing remain canonical; the GitHub provider must not create a second Greek-channel matcher or parser;
+- candidates remain temporary Unified Search results and continue through the existing verifier/player boundaries; no persistence behavior changes;
+- Recent Web and Authorized Xtream behavior are unchanged by this decision.
+
+Reason: bounded research with MEGA, ERT1, STAR and SKAI proved that useful Greek playlists exist in nested repository paths such as `stable/greece.m3u` and `playlists/playlist_greece.m3u8`, while the previous root-only GitHub provider could not inspect them. A proposed GitHub Code Search approach was rejected because unauthenticated `/search/code` access returned HTTP 401 and would have introduced a new credential dependency.
+
+Evidence:
+- RED regression head `9280565a188a115456c2760ea5d40a2d127b7dbb`; Validate WebTV Frontend run `37052344165` failed exactly at the GitHub public playlist provider regression;
+- an intermediate implementation exposed the existing hard request-budget guard when the frontend integration audit rejected a raised budget; the guard was preserved and the implementation redesigned instead;
+- final exact implementation head `26b823faf2ffd3f5d5c68a25b23b398a0fa13832`; Validate WebTV Frontend run `37053095432` SUCCESS, including provider regression, browser smoke, non-blocking startup and final integration audit;
+- runtime merge `62569795f436c497ad3b271200ab9332098d809f` via PR #152;
+- post-merge Validate WebTV Frontend run `37053266438` SUCCESS, Deploy Source Discovery Worker run `37053266411` SUCCESS including live Worker/provider verification, and Deploy WebTV Registry Worker run `37053266465` SUCCESS;
+- Registry `/api/project-status` reported exact runtime SHA `62569795f436c497ad3b271200ab9332098d809f`, deployed at 2026-10-02 19:19:11.
+
+Reconsider when: measured production recall remains insufficient and a new approach can preserve credential, hard request-budget, shared identity/parser and ownership boundaries with fresh regression, deployment and live-verification evidence.
+
