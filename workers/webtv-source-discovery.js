@@ -2,7 +2,7 @@ import { GITHUB_PUBLIC_PLAYLISTS_PROVIDER, discoverGithubPublicPlaylists } from 
 import { RECENT_WEB_SEARCH_PROVIDER, discoverRecentWebSearch } from './source-discovery/recent-web-search.js';
 import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source-discovery/strm-specific-discovery.js';
 import { channelSignalsMatch, normalizeChannelText } from '../src/core/channel-identity-gr.js';
-import { parseM3uContainer } from '../src/core/m3u-container.js';
+import { parseM3uContainer, splitM3uSourceAlternatives } from '../src/core/m3u-container.js';
 import { parseEnigma2Bouquet } from '../src/core/enigma2-core.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
@@ -74,11 +74,13 @@ function parseM3u(text='',channel={},feed={}){
     const extinf=entry.extinf;
     if(!candidateMatches(extinf,channel))continue;
     if(entry.sourceOffset===null||entry.sourceOffset>=10)continue;
-    const sourceUrl=entry.sourceLine;
-    if(!validPublicUrl(sourceUrl))continue;
     const matchedName=titleOf(extinf)||attr(extinf,'tvg-name')||attr(extinf,'tvg-id')||channel.name||'';
     const resultName=channel.familyQuery===true?matchedName:(channel.name||matchedName);
-    results.push(makeCandidate({channel:{...channel,name:resultName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
+    for(const sourceUrl of splitM3uSourceAlternatives(entry.sourceLine)){
+      if(results.length>=MAX_RESULTS)break;
+      if(!validPublicUrl(sourceUrl))continue;
+      results.push(makeCandidate({channel:{...channel,name:resultName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
+    }
   }
   return results;
 }
