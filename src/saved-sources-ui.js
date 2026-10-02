@@ -336,7 +336,7 @@ function ensurePlaybackInspector(){
 
   $('playback-source-save-edit')?.addEventListener('click',async()=>{
     const edited=cleanUrl($('playback-source-full')?.value||'');
-    const original=cleanUrl(inspectorSelectedSource||diagSource?.textContent||'');
+    const original=cleanUrl(inspectorSelectedSource||inspectorPlaybackSnapshot.source||'');
     if(!/^https?:\/\//i.test(edited)){setInspectorStatus('Enter a valid http/https source first.','error');return;}
     try{
       setInspectorStatus('Saving edited source…','busy');
@@ -359,7 +359,7 @@ function ensurePlaybackInspector(){
   });
 
   $('playback-source-delete')?.addEventListener('click',async()=>{
-    const url=cleanUrl(inspectorSelectedSource||diagSource?.textContent||$('playback-source-full')?.value||'');
+    const url=cleanUrl(inspectorSelectedSource||inspectorPlaybackSnapshot.source||$('playback-source-full')?.value||'');
     if(!url)return;
     try{
       const {index,target}=await getMyPlaylistTarget();
