@@ -1,10 +1,9 @@
-import { CONFIG } from './config.js?v=20260923-2215';
-import { EpgService } from './core/epg.js?v=20260923-2315';
+import { EpgService } from './core/epg.js';
 
 const BUILD_ID = '20260923-2255';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
-let ready = false;
+let ready = epg.lastRefreshAt > 0;
 let scheduled = false;
 
 function ensureStyle(){
@@ -166,16 +165,6 @@ function scheduleRender(){
   requestAnimationFrame(render);
 }
 
-async function refresh(){
-  try{
-    await epg.refresh();
-    ready=true;
-    render();
-  }catch(error){
-    console.warn('[WebTV] sidebar now-playing unavailable',error);
-  }
-}
-
 ensureStyle();
 if(list){
   // Only react when channel rows are replaced/reordered. Do not observe the
@@ -184,7 +173,5 @@ if(list){
 }
 window.addEventListener('webtv:ready',scheduleRender);
 window.addEventListener('webtv:epg-updated',()=>{ready=true;scheduleRender();});
-refresh();
 setInterval(render,30000);
-setInterval(refresh,CONFIG.epgRefreshMs);
-console.info(`[WebTV] Sidebar Now Playing loaded · build ${BUILD_ID} · direct-row observer · shared EPG singleton`);
+console.info(`[WebTV] Sidebar Now Playing loaded · build ${BUILD_ID} · direct-row observer · shared EPG consumer`);
