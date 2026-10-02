@@ -195,7 +195,7 @@ await page.locator('#xtream-preview-verify').click();
 await page.waitForFunction(()=>window.WebTVXtream?.getPreview?.()?.candidate?.verificationStatus==='VERIFIED',null,{timeout:10000});
 
 await page.locator('#xtream-preview-save-channel').click();
-await page.waitForSelector('#xtream-save-destination-dialog[open]',{timeout:5000});
+await page.waitForFunction(()=>document.getElementById('xtream-save-destination-dialog')?.open===true,null,{timeout:5000});
 await page.locator('#xtream-save-destination-select').selectOption('my');
 await page.locator('input[name="xtream-save-source-scope"][value="selected"]').check();
 await page.locator('#xtream-save-destination-confirm').click();
