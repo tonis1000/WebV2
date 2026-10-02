@@ -1,6 +1,7 @@
 export const CURATED_SOURCE_FEEDS=Object.freeze([
   Object.freeze({id:'hitnickgr-iptv',name:'hitnickgr/iptv',label:'hitnickgr/iptv',url:'https://raw.githubusercontent.com/hitnickgr/iptv/refs/heads/main/GreekChannels',format:'m3u',tier:'primary',enabled:true,priority:'high'}),
   Object.freeze({id:'jimgate07-grtv',name:'jimgate07/grtv',label:'jimgate07/grtv',url:'https://raw.githubusercontent.com/jimgate07/grtv/refs/heads/master/android.m3u',format:'m3u',tier:'primary',enabled:true,priority:'high'}),
+  Object.freeze({id:'jimgate07-grtv-multi',name:'jimgate07/grtv multi',label:'jimgate07/grtv multi',url:'https://raw.githubusercontent.com/jimgate07/grtv/refs/heads/master/griptv.m3u',format:'m3u',tier:'primary',enabled:true,priority:'high'}),
   Object.freeze({id:'michatec-greek-iptv',name:'Michatec/Greek-IPTV',label:'Michatec/Greek-IPTV',url:'https://raw.githubusercontent.com/Michatec/Greek-IPTV/refs/heads/main/greek-iptv.m3u8',format:'m3u',tier:'primary',enabled:true,priority:'high'}),
   Object.freeze({id:'don24crk',name:'Don24crk',label:'Don24crk',url:'https://raw.githubusercontent.com/don24crk/Don24crk-Repository/refs/heads/master/android.m3u',format:'m3u',tier:'primary',enabled:true,priority:'high'}),
   Object.freeze({id:'iptv-org-gr',name:'iptv-org Greece',label:'iptv-org Greece',url:'https://iptv-org.github.io/iptv/countries/gr.m3u',format:'m3u',tier:'primary',enabled:true,priority:'high'}),
