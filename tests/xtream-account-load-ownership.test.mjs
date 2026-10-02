@@ -7,13 +7,13 @@ assert.match(source,/async function loadAccountById\s*\(accountId\)/,'Xtream UI 
 assert.match(source,/window\.WebTVXtream\s*=\s*\{[\s\S]*\bloadAccountById\b/,'Xtream public API must expose loadAccountById');
 assert.match(source,/async function loadSelectedAccount\s*\(\)[\s\S]*?loadAccountById\s*\(accountId\)/,'selector loading must delegate to loadAccountById(accountId)');
 
-const loadBlock=source.match(/async function loadAccountById\s*\(accountId\)\s*\{([\s\S]*?)\n\}/)?.[1]||'';
-assert.match(loadBlock,/loadXtreamChannels\s*\(accountId\)/,'shared loader must own saved-account channel loading');
+const loadBlock=source.split('async function loadAccountById(accountId) {')[1]?.split('async function loadSelectedAccount() {')[0]||'';
+assert.match(loadBlock,/loadXtreamChannels\s*\(id\)/,'shared loader must own saved-account channel loading');
 for(const forbidden of ['saveXtreamAccount(','saveXtreamAccountFromPreview(','WebTVMyPlaylistAPI','upsertCustomPlaylistChannel']){
   assert.equal(loadBlock.includes(forbidden),false,`saved-account loading must not persist through ${forbidden}`);
 }
 
-const selectedBlock=source.match(/async function loadSelectedAccount\s*\(\)\s*\{([\s\S]*?)\n\}/)?.[1]||'';
-assert.equal(selectedBlock.includes('loadXtreamChannels(accountId)'),false,'selector wrapper must not keep a second saved-account loader');
+const selectedBlock=source.split('async function loadSelectedAccount() {')[1]?.split('async function removeSelectedAccount() {')[0]||'';
+assert.equal(selectedBlock.includes('loadXtreamChannels('),false,'selector wrapper must not keep a second saved-account loader');
 
 console.log('Xtream account load ownership PASS');
