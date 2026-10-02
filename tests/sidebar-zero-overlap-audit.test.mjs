@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root=new URL('../src/',import.meta.url);
+const root=fileURLToPath(new URL('../src/',import.meta.url));
 function walk(dir){
   const out=[];
   for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
@@ -13,7 +14,8 @@ function walk(dir){
   return out;
 }
 const files=walk(root).sort();
-const rel=file=>path.relative(path.resolve(new URL('..',import.meta.url).pathname),file).replaceAll(path.sep,'/');
+const repoRoot=fileURLToPath(new URL('..',import.meta.url));
+const rel=file=>path.relative(repoRoot,file).replaceAll(path.sep,'/');
 const contents=new Map(files.map(file=>[rel(file),fs.readFileSync(file,'utf8')]));
 
 const channelListRefs=[...contents]
