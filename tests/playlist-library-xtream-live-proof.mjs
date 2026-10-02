@@ -211,7 +211,7 @@ assert.equal(pageErrors.length,0,`page errors: ${pageErrors.join(' | ')}`);
 assert.equal(consoleErrors.length,0,`console errors: ${consoleErrors.join(' | ')}`);
 
 const report={
-  runtimeSha:'f01a422065ff18c0b29841440ba529bdf6df9151',
+  runtimeSha:'3fb730f01efa370a1ed7d166978b178868a8dc06',
   authorizedMock:{profile:'test_50',channels:streams.length,categories:categories.length},
   legacySaveButtonAbsent:true,
   legacyMergeDialogAbsent:true,
