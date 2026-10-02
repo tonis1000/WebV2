@@ -11,6 +11,7 @@ on:
       - 'src/search/curated-source-catalog.js'
       - 'src/search/family-matching.js'
       - 'src/core/channel-identity-gr.js'
+      - 'src/core/source-candidate-url.js'
       - 'src/core/m3u-container.js'
       - 'src/core/strm-core.js'
       - 'src/core/enigma2-core.js'
@@ -19,6 +20,7 @@ on:
       - 'tests/strm-core.test.mjs'
       - 'tests/enigma2-core.test.mjs'
       - 'tests/source-discovery-m3u-parity.test.mjs'
+      - 'tests/candidate-url-sanitizer.test.mjs'
       - 'tests/source-discovery-enigma2-parity.test.mjs'
       - 'tests/*discovery*.test.mjs'
       - 'tests/*provider.test.mjs'
@@ -54,6 +56,7 @@ jobs:
           node --check src/search/curated-source-catalog.js
           node --check src/search/family-matching.js
           node --check src/core/channel-identity-gr.js
+          node --check src/core/source-candidate-url.js
           node --check src/core/m3u-container.js
           node --check src/core/strm-core.js
           node --check src/core/enigma2-core.js
@@ -62,6 +65,7 @@ jobs:
       - name: Run discovery regression tests
         run: |
           node tests/channel-identity-core.test.mjs
+          node tests/candidate-url-sanitizer.test.mjs
           node tests/m3u-container-core.test.mjs
           node tests/strm-core.test.mjs
           node tests/enigma2-core.test.mjs
