@@ -1,0 +1,68 @@
+name: Verify Source Hunt Frontend Retirement Live
+
+on:
+  pull_request:
+    paths:
+      - 'tests/source-hunt-frontend-retirement-live-proof.mjs'
+      - '.github/workflows/verify-source-hunt-frontend-retirement-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      REGISTRY_URL: https://webtv-registry.atonis.workers.dev
+      RUNTIME_SHA: b46f11bce380d03b565f65c22e96729dae60beb6
+      ARTIFACT_DIR: artifacts/source-hunt-frontend-retirement-live
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify exact deployed retirement
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' "$REGISTRY_URL/api/project-status?proof=$GITHUB_SHA")"
+          node -e "const j=JSON.parse(process.argv[1]);if(j.commitSha!==process.env.RUNTIME_SHA){console.error(j);process.exit(1)};console.log('Registry runtime SHA verified '+j.commitSha)" "$status"
+
+          for file in             source-hunt-engine.js             source-hunt-web.js             source-hunt-save-destination.js             source-hunt-discovery-integration.js             source-hunt-enigma2.js             source-hunt-playlist-provenance.js
+          do
+            code="$(curl -L -s -o /tmp/retired.out -w '%{http_code}' -H 'Cache-Control: no-cache' "$WEBV2_URL/src/$file?proof=$GITHUB_SHA")"
+            test "$code" = "404"
+            echo "$file -> 404"
+          done
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/index.html?proof=$GITHUB_SHA" -o /tmp/index-live.html
+          grep -q 'Manual Source Test' /tmp/index-live.html
+          grep -q 'Unified Search is the only automatic discovery surface' /tmp/index-live.html
+          grep -q 'src/search/search-ui.js' /tmp/index-live.html
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/core/enigma2-core.js?proof=$GITHUB_SHA" -o /tmp/enigma-live.js
+          grep -q 'parseEnigma2Bouquet' /tmp/enigma-live.js
+
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/core/strm-resolver.js?proof=$GITHUB_SHA" -o /tmp/strm-live.js
+          grep -q 'export class StrmResolver' /tmp/strm-live.js
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run production browser proof
+        run: node tests/source-hunt-frontend-retirement-live-proof.mjs
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-hunt-frontend-retirement-live-${{ github.sha }}
+          path: artifacts/source-hunt-frontend-retirement-live
+          if-no-files-found: warn
+          retention-days: 14
