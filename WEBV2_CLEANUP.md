@@ -63,3 +63,20 @@ Replacement: Playlist Manager / Xtream account management owns production Test /
 Required proof: RED ownership tests, production Xtream preview UI, strict non-persistent preview policy, explicit channel/full-account persistence tests, source-scope tests, no Search/Player coupling, large-catalog proof, legacy shell regression coverage, deploy evidence and live browser verification.
 Status: **RESOLVED** by PR #93, runtime merge `9588e191fd354b42d20ae87ab16d3a2989041df4`, with closure follow-ups PR #95 `9f08d898b8209ffa4d32aa11424802df367f63e1`, PR #97 `bf0b6a70e0c7840c19b0e08c7f2f04396aa22b7a` and PR #98 `de62fca10c7e452c836d168f2c373b437c936a93`. Production Playwright verification against live Pages and the deployed authorized 50/500/5000 mock provider passed, including bounded rendering, Selected/All-known saves, Custom Playlist creation, Full Account save, Playlist Manager interaction ownership, Player independence and zero page/console errors.
 Deletion SHA: not applicable to the shared preview/promotion primitives. PR #93 retired only the legacy Discovery UI ownership for New Xtream while preserving reusable security/policy logic and other legacy Discovery capabilities still under audit.
+
+
+## CLEAN-009 Legacy Discovery Local scan ownership
+Current consumers before canonicalization: `src/discovery/local-data-reader.js` and `src/discovery/local-candidates.js` feed the retained legacy `src/discovery/discovery-ui.js` shell. That shell is no longer a production entrypoint. The legacy local path historically supplied My Playlist, Saved M3U and loaded Xtream candidates using its own Discovery candidate/identity model.
+
+Replacement: production save-time local intelligence now flows through `src/cloud-read-sync.js` for reconciled Saved Playlist snapshots and `src/known-source-collector.js` for canonical identity matching, dedupe and aggregation across My Playlist, Custom Playlists, source-backed Saved M3U playlists and the already-loaded catalog.
+
+Required proof before deletion:
+- repo-wide active-consumer audit for `local-data-reader.js`, `local-candidates.js` and the relevant legacy Discovery Local UI bindings;
+- preservation of any still-unique non-Local legacy Discovery capability;
+- regression proving Saved M3U known-source parity and no Unified Search/Player coupling;
+- full frontend/startup/browser regression;
+- exact-SHA Pages/Registry deployment and live verification after deletion.
+
+Status: **MIGRATED / DO NOT DELETE YET.** PR #100 merge `35306d1161899a8f58801363bd3b1947881db9b2` moved the last identified useful Saved M3U local-intelligence coverage into the canonical known-source path. Exact-SHA Validate WebTV Frontend #813, Deploy WebTV Registry Worker #109 and GitHub Pages #467 succeeded. Deletion remains a separate bounded cleanup task.
+
+Deletion SHA: none.
