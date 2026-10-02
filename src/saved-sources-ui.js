@@ -1,12 +1,8 @@
 import { cleanUrl, normalizeId, parseIptvUrl } from './core/utils.js?v=20260924-0900';
 import { saveBestSourceToCurrent } from './source-save-policy.js?v=20260923-0815';
-import { cleanupRemovedXtreamChannelSources } from './xtream-channel-lifecycle.js?v=20260926-1800';
 
 const BUILD_ID = '20260926-current-catalog-playback-inspector';
 const LEGACY_STORAGE_KEY = 'webtv_v2_saved_sources';
-const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
-const REGISTRY_TOKEN_KEY = 'webtv_v2_registry_token';
-const DEFAULT_REGISTRY = 'https://webtv-registry.atonis.workers.dev';
 const $ = id => document.getElementById(id);
 
 const candidateInput = $('candidate-url');
@@ -256,38 +252,6 @@ function installCatalogTracking(){
   return true;
 }
 
-function registryUrl(){
-  return (localStorage.getItem(REGISTRY_URL_KEY)||DEFAULT_REGISTRY).trim().replace(/\/$/,'');
-}
-function registryToken(){return localStorage.getItem(REGISTRY_TOKEN_KEY)||'';}
-async function ensureWriteSession(){
-  const auth=window.WebTVRegistryAuth;
-  if(auth?.ensureSession){const ok=await auth.ensureSession({interactive:true});if(!ok)throw new Error('D1 write cancelled');}
-  else if(!registryToken())throw new Error('Trusted-device session is required');
-  if(!registryToken())throw new Error('Trusted-device session is required');
-}
-async function putMyPlaylistChannel(channel,position){
-  await ensureWriteSession();
-  const urls=[...new Set((channel.directUrls||[]).map(cleanUrl).filter(url=>/^https?:\/\//i.test(url)))];
-  const response=await fetch(`${registryUrl()}/api/my-playlist/channel`,{
-    method:'PUT',cache:'no-store',
-    headers:{'content-type':'application/json',authorization:`Bearer ${registryToken()}`},
-    body:JSON.stringify({
-      id:normalizeId(channel.id||channel.originalId||channel.name),
-      name:channel.name,
-      tvgId:channel.originalId||channel.id||channel.name,
-      logo:channel.logo||'',
-      groupName:channel.group||'Other',
-      directUrls:urls,
-      sources:urls.map((url,i)=>({url,origin:'inspector',priority:100+i})),
-      position,
-      replaceSources:true
-    })
-  });
-  let body={};try{body=await response.json();}catch{}
-  if(!response.ok)throw new Error(body.error||`Registry HTTP ${response.status}`);
-  return body;
-}
 function sameChannel(a={},b={}){
   const left=new Set([a.id,a.originalId,a.tvgId,a.name].map(value=>normalizeId(value||'')).filter(Boolean));
   return [b.id,b.originalId,b.tvgId,b.name].map(value=>normalizeId(value||'')).filter(Boolean).some(value=>left.has(value));
@@ -300,30 +264,21 @@ async function getMyPlaylistTarget(){
   const index=list.findIndex(item=>sameChannel(selected,item));
   return {selected,list,index,target:index>=0?{...list[index],directUrls:[...(list[index].directUrls||[])]}:null};
 }
-async function refreshCloudOnlyIfVisible(){
-  if(window.WebTVPlaylistAPI?.getCatalogMode?.()==='cloud')await window.WebTVMyPlaylistAPI?.reload?.();
-}
 async function addExactSourceToMyPlaylist(url){
   const source=cleanUrl(url);
   if(!/^https?:\/\//i.test(source))throw new Error('Valid source URL required');
-  const {selected,list,index,target}=await getMyPlaylistTarget();
-  if(index<0||!target){
-    const created={...selected,directUrls:[source]};
-    await putMyPlaylistChannel(created,list.length);
-    await refreshCloudOnlyIfVisible();
-    return {channel:created,added:true};
-  }
-  const urls=[...new Set([...(target.directUrls||[]).map(cleanUrl),source].filter(Boolean))];
-  const added=!target.directUrls?.map(cleanUrl).includes(source);
-  target.directUrls=urls;
-  await putMyPlaylistChannel(target,index);
-  await refreshCloudOnlyIfVisible();
-  return {channel:target,added};
+  const {target}=await getMyPlaylistTarget();
+  const existing=(target?.directUrls||[]).map(cleanUrl);
+  if(existing.includes(source))return {channel:target,added:false};
+  const api=window.WebTVMyPlaylistAPI;
+  if(typeof api?.addSourceToCurrent!=='function')throw new Error('My Playlist source API unavailable');
+  const channel=await api.addSourceToCurrent(source);
+  return {channel,added:true};
 }
-async function cleanupRemovedSources(urls=[]){
-  const removed=[...new Set(urls.map(cleanUrl).filter(Boolean))];
-  if(!removed.length)return;
-  try{await cleanupRemovedXtreamChannelSources(removed);}catch(error){console.warn('[Playback Inspector] Xtream cleanup failed:',error?.message||error);}
+async function replaceCurrentSources(urls,reason){
+  const api=window.WebTVMyPlaylistAPI;
+  if(typeof api?.replaceSourcesForCurrent!=='function')throw new Error('My Playlist source API unavailable');
+  return api.replaceSourcesForCurrent(urls,{reason,allowEmpty:true});
 }
 
 function setInspectorStatus(text,tone='idle'){
@@ -398,13 +353,11 @@ function ensurePlaybackInspector(){
       }else{
         const old=cleanUrl(original);
         const existing=[...(target.directUrls||[])].map(cleanUrl);
-        const position=index;
-        if(old&&existing.includes(old))target.directUrls=existing.map(url=>url===old?edited:url);
-        else if(!existing.includes(edited))target.directUrls=[...existing,edited];
-        target.directUrls=[...new Set(target.directUrls.filter(Boolean))];
-        await putMyPlaylistChannel(target,position);
-        await refreshCloudOnlyIfVisible();
-        if(old&&old!==edited&&existing.includes(old))await cleanupRemovedSources([old]);
+        let nextUrls=[...existing];
+        if(old&&existing.includes(old))nextUrls=existing.map(url=>url===old?edited:url);
+        else if(!existing.includes(edited))nextUrls=[...existing,edited];
+        nextUrls=[...new Set(nextUrls.filter(Boolean))];
+        await replaceCurrentSources(nextUrls,'playback-inspector-edit');
         setInspectorStatus(`${target.name}: source edit saved to My Playlist ✓`,'ok');
       }
       scheduleMembershipRefresh();
@@ -423,10 +376,7 @@ function ensurePlaybackInspector(){
       const warning=remaining.length?`Delete this source from “${target.name}”?`:`This is the LAST source of “${target.name}”. Delete it and leave the channel with 0 sources?`;
       if(!confirm(warning))return;
       setInspectorStatus('Deleting source from My Playlist…','busy');
-      target.directUrls=remaining;
-      await putMyPlaylistChannel(target,index);
-      await refreshCloudOnlyIfVisible();
-      await cleanupRemovedSources([url]);
+      await replaceCurrentSources(remaining,'playback-inspector-delete');
       setInspectorStatus(`Source deleted from ${target.name} ✓`,'ok');
       scheduleMembershipRefresh();
     }catch(error){setInspectorStatus(`Delete failed · ${error.message}`,'error');}
