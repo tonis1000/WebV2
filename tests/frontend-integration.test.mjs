@@ -61,13 +61,11 @@ const registryDefault=read('src/registry-default.js');
 assert.doesNotMatch(registryDefault,/xtream-enhancements\.js/,'legacy Xtream enhancements must not return to the production entrypoint');
 assert.equal(existsSync(path.join(ROOT,'src/xtream-enhancements.js')),false,'legacy Xtream enhancements file should be deleted after ownership migration');
 
-const oneClick = read('src/source-hunt-oneclick.js');
-assert.match(oneClick, /collectCandidateUrls\(\)/, 'retained legacy One-click file should preserve its historical stream candidate collector until deletion is separately proven safe');
-assert.doesNotMatch(oneClick, /#hunt-official-results\s+code/, 'Official fallback results must never enter stream auto-test/auto-save candidate collection');
-assert.match(oneClick, /officialFallbackFor/, 'retained legacy One-click file should preserve verified official fallback handling until deletion is separately proven safe');
-assert.match(oneClick, /WebTVPlaybackAPI/, 'retained legacy One-click file must use the playback service API if invoked directly');
-assert.doesNotMatch(oneClick, /waitForPlayback\(/, 'legacy One-click must not infer playback success by observing diagnostics DOM');
-assert.doesNotMatch(oneClick, /testButton\.click\(/, 'legacy One-click must not simulate the manual Test button');
+assert.equal(
+  existsSync(path.join(ROOT, 'src/source-hunt-oneclick.js')),
+  false,
+  'retired One-click search/playback/fallback orchestration owner must stay deleted after zero-consumer proof'
+);
 
 const unifiedSearch = read('src/search/search-ui.js');
 assert.match(unifiedSearch, /runUnifiedSearch/, 'Unified Search UI must call the unified orchestrator');
