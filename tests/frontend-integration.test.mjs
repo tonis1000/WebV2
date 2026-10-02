@@ -92,8 +92,7 @@ assert.match(savePolicy, /scoreSourceUrl/, 'Source save policy should use shared
 assert.doesNotMatch(savePolicy, /function routeHealthScore/, 'Source save policy must not keep a second scoring formula');
 assert.match(index, /Content-Security-Policy/, 'index.html should define a CSP boundary');
 
-const engine = read('src/source-hunt-engine.js');
-assert.doesNotMatch(engine, /Official Fallback Discovery|officialDiscoveryLinks/, 'retained Source Hunt file should not render removed external search links');
+assert.equal(existsSync(path.join(ROOT,'src/source-hunt-engine.js')),false,'retired frontend Source Hunt engine must remain deleted after zero-consumer proof');
 assert.doesNotMatch(index, /id="hunt-links"/, 'page must not render manual search cards');
 
 const tvCacheWorkflow = read('.github/workflows/deploy-tv-cache.yml');
