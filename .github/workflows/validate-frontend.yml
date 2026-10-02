@@ -140,6 +140,8 @@ jobs:
         run: node tests/xtream-legacy-enhancements-retirement.test.mjs
       - name: Run Xtream My Playlist persistence boundary regression test
         run: node tests/xtream-my-playlist-persistence-boundary.test.mjs
+      - name: Run Legacy Local Discovery retirement regression test
+        run: node tests/legacy-local-discovery-retirement.test.mjs
       - name: Run Diagnostics structured-state ownership regression test
         run: node tests/diagnostics-structured-state-ownership.test.mjs
       - name: Run Source Health route ownership regression test
