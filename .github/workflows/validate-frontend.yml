@@ -128,6 +128,8 @@ jobs:
         run: node tests/source-ranking.test.mjs
       - name: Run EPG deploy verification contract test
         run: node tests/epg-deploy-verification.test.mjs
+      - name: Run Sidebar selected-channel ownership regression test
+        run: node tests/sidebar-selection-ownership.test.mjs
       - name: Run EPG refresh ownership regression test
         run: node tests/epg-refresh-ownership.test.mjs
       - name: Run EPG parity regression test
