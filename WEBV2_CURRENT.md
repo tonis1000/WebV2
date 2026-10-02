@@ -153,9 +153,9 @@ Unified Search Hunt / Discovery consolidation remains DONE.
 
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
-During this 2026-10-02 closure preflight, the available web tool could not access `/api/project-status` or `/api/project-checkpoints`, so no fresh direct checkpoint SHA / deployed SHA equality is claimed.
-The exact latest verified runtime SHA `7fd58ee145884d09e19d4ef1321c18f0fdabc028` completed Deploy WebTV Registry Worker #115 successfully, GitHub Pages #473 successfully and Validate WebTV Frontend #856 successfully. The Registry workflow's live verification and deployment-status recording steps also completed successfully at that exact SHA.
-Because the direct Registry status/checkpoint endpoints were unavailable to the current tool, workflow/live evidence is recorded without pretending that checkpoint SHA, Registry deployed SHA and GitHub main SHA were independently read back as equal.
+Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
+Before the PR #108 runtime change, GitHub main and Registry deployed SHA were both `002f7215d6a5d3666fbef79c2b0eb98772de912b`; the D1 `WEBV2_CURRENT.md` checkpoint was independently read and remains stale at the older Project Brain bootstrap state from 2026-09-30. The stale mirror therefore does not equal current GitHub/runtime state and must not be treated as production truth.
+The exact latest verified runtime SHA `7fd58ee145884d09e19d4ef1321c18f0fdabc028` completed Deploy WebTV Registry Worker #115 successfully, GitHub Pages #473 successfully and Validate WebTV Frontend #856 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and the production verification workflow independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
 D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
 
