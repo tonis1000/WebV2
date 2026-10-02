@@ -9,12 +9,14 @@ on:
       - 'workers/source-hunt-smart.js'
       - 'workers/source-hunt-bouquet-proxy.js'
       - 'src/core/channel-identity-gr.js'
+      - 'src/core/source-candidate-url.js'
       - 'src/core/m3u-container.js'
       - 'src/core/strm-core.js'
       - 'tests/channel-identity-core.test.mjs'
       - 'tests/m3u-container-core.test.mjs'
       - 'tests/strm-core.test.mjs'
       - 'tests/source-hunt-m3u-parity.test.mjs'
+      - 'tests/candidate-url-sanitizer.test.mjs'
       - 'tests/source-hunt-strm-parity.test.mjs'
       - 'tests/source-hunt-xtream-leads.test.mjs'
       - '.github/workflows/deploy-source-hunt.yml'
@@ -44,9 +46,11 @@ jobs:
           node --check workers/source-hunt-smart.js
           node --check workers/source-hunt-bouquet-proxy.js
           node --check src/core/channel-identity-gr.js
+          node --check src/core/source-candidate-url.js
           node --check src/core/m3u-container.js
           node --check src/core/strm-core.js
           node tests/channel-identity-core.test.mjs
+          node tests/candidate-url-sanitizer.test.mjs
           node tests/m3u-container-core.test.mjs
           node tests/strm-core.test.mjs
           node tests/source-hunt-m3u-parity.test.mjs
