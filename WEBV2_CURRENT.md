@@ -26,6 +26,7 @@ Unified Search visible run-state UX runtime SHA: `5be9889c49de825051907e2c58a60e
 Discovery quality v3 final runtime SHA: `daa73919623f47946f7a36ba6c055c4ad2cbbf00` via PR #163, built through PRs #158-#163.
 Header-aware IPTV compatibility runtime SHA: `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7` via PR #165; live-gate topology follow-ups through PR #167, current deployed closure SHA `2e6a34b207b903eea6b5cb10695afc5ef60998fd`.
 Multi-source M3U curated discovery runtime SHA: `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` via PR #170.
+Discovery candidate sanitation + Greece/Cyprus identity guard runtime SHA: `1a91894cfa8618ba0b5ed998a7102afc40fc8077` via PR #173.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -358,6 +359,16 @@ Verified multi-source M3U curated discovery evidence:
 - Verification-only PR #171 remained unmerged. Final live acceptance run `37075286990` queried the deployed Source Discovery Worker against the real current `griptv.m3u`. Pre-dedupe feed report counts were MEGA=3, ALPHA=5, ERT3=4, and `LIVE_MULTI_SOURCE_ACCEPTANCE=PASS`.
 - Final MEGA candidates included the Roku header-bearing HLS source and smart-tv-data DASH fallback. Global dedupe may retain an identical URL under an earlier feed origin; this is expected and does not undo per-feed alternative discovery.
 
+Verified discovery sanitation + Greece/Cyprus identity evidence:
+- Production browser logs exposed malformed candidates containing literal escaped fragments such as `\\u0026amp;`, closing-anchor text and trailing backslashes, plus Cyprus channel variants such as `alphacyp` entering Greece searches.
+- PR #173 added shared `src/core/source-candidate-url.js` sanitation and moved Recent Web + Source Hunt onto that contract. Recent Web also switched from raw substring relevance to the shared Greek channel identity matcher.
+- ANT1 Greece now rejects `ANT1 Cyprus`, `ANT1 CY`, `ANT1CY` and `ANT1 Κύπρου`; Alpha Greece rejects `Alpha Cyprus`, `Alpha CY`, `alphacyp` and `Alpha Κύπρου`.
+- 404 / 525 verifier semantics were intentionally unchanged because those statuses were already being recorded as failed routes; the defect was candidate quality before verification, not failure classification.
+- RED head `1129124174ed83dc471a3f622b54740da5372af3`: Validate WebTV Frontend run `37077372794` failed exactly because Source Hunt had not yet adopted the shared sanitizer.
+- GREEN implementation head `877461905fec72e956e0c8c2e59e50142fbc1e0e`: Validate Unified Search `37077527352` and Validate WebTV Frontend `37077527470` SUCCESS.
+- Runtime merge `1a91894cfa8618ba0b5ed998a7102afc40fc8077`: Source Hunt deploy `37077674139`, Source Discovery deploy `37077674126`, Unified Search `37077674103`, Frontend `37077674092`, Registry `37077674089`, and Pages `37077673470` all SUCCESS.
+- Verification-only PR #174 stayed unmerged. Live run `37077805610` passed against deployed Workers: Source Hunt sanitized the controlled escaped ALPHA fixture to exactly `https://cdn.example.test/alpha/live.m3u8?dpssid=x&sid=y&ndvc=1`, rejected the fixture `alphacyp` route for Alpha Greece, and deployed Curated ALPHA returned 5 Greece candidates with zero `alphacyp` candidates. `DISCOVERY_QUALITY_LIVE_ACCEPTANCE=PASS`.
+
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
@@ -406,12 +417,13 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Discovery quality v3: DONE / VERIFIED, final runtime `daa73919623f47946f7a36ba6c055c4ad2cbbf00` via PR #163; Curated + Recent Web runtime started in PR #158, safe Xtream provider/trial lead quality completed through PRs #159-#163
 - Header-aware IPTV compatibility: DONE / DEPLOYED / VERIFIED for parser + verifier + HLS proxy transport, runtime `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7` via PR #165 with live-gate closure `2e6a34b207b903eea6b5cb10695afc5ef60998fd` via PR #167; verification-only PR #168 closed unmerged after the real jimgate MEGA upstream still returned HTTP 403 even outside Cloudflare
 - Multi-source M3U curated discovery: DONE / DEPLOYED / LIVE VERIFIED, runtime `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` via PR #170; verification-only PR #171 closed unmerged after live production acceptance
+- Discovery candidate sanitation + Greece/Cyprus identity guard: DONE / DEPLOYED / LIVE VERIFIED, runtime `1a91894cfa8618ba0b5ed998a7102afc40fc8077` via PR #173; verification-only PR #174 closed unmerged after production acceptance
 
 ## NEXT SAFE ACTION
 The WebV2 System Audit & UX Consolidation is closed for the approved ownership-consolidation scope.
 
 For future work:
-1. treat the current ownership map and DEC-001…DEC-036 as the baseline; do not reopen a closed owner without new concrete evidence;
+1. treat the current ownership map and DEC-001…DEC-037 as the baseline; do not reopen a closed owner without new concrete evidence;
 2. before any new major feature or architectural change, define the exact problem and the production proof that will demonstrate it is solved;
 3. use a new bounded slice for any future Player, Sidebar, EPG, Playlist/My Playlist, Favorites, Xtream, Unified Search / discovery, diagnostics or persistence change;
 4. preserve the existing RED → implementation → exact-SHA deploy → live verification → canonical docs closure discipline.
@@ -463,6 +475,8 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - GitHub public-playlist discovery retains the hard `GITHUB_MAX_SUBREQUESTS=10` budget, repository freshness via `pushed:>=`, public repository search plus bounded recursive Git-tree scanning, shared Channel Identity / M3U parsing, dedupe and verifier handoff
 - GitHub public-playlist discovery must not introduce credential-sensitive GitHub Code Search or a new GitHub token/secret merely to expand public discovery recall
 - Recent Web remains direct recent-media discovery; Xtream provider/trial lead discovery belongs to the Hunt exploration lane and must not become a parallel Authorized Xtream account owner
+- Recent Web and Source Hunt must sanitize extracted candidate URLs through the shared `src/core/source-candidate-url.js` contract before candidate creation. Escaped HTML/JSON fragments, closing markup, trailing backslashes/control whitespace and non-http(s) garbage must not reach verification/playback.
+- Greek channel identity matching must keep Greece variants distinct from Cyprus variants. ANT1 Greece rejects ANT1 Cyprus / ANT1 CY / ANT1 Κύπρου; Alpha Greece rejects Alpha Cyprus / Alpha CY / `alphacyp` / Alpha Κύπρου. Recent Web must use the shared channel matcher rather than raw substring matching.
 - Authorized Xtream continues to search only user-saved / user-authorized accounts; Hunt-discovered provider/trial pages are leads only and never become accounts without explicit authorized user input
 - Xtream provider/trial lead discovery must reject embedded credentials, credential-bearing query parameters and direct Xtream API endpoint URLs; it must never harvest third-party account credentials
 - Source Hunt freshness is kind-aware and centrally owned: ordinary web/forum direct-stream evidence stays on the normal short window, while longer-lived Xtream provider/trial pages may use the bounded 365-day window
