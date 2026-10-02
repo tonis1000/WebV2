@@ -17,6 +17,8 @@ try{
       assert.equal(options.headers.Accept,'application/json');
       assert.equal(Object.keys(options.headers).some(key=>key.toLowerCase()==='user-agent'),false,'Brave auth request must match the proven legacy header contract');
       assert.equal(url.searchParams.get('freshness'),'pd');
+      const q=url.searchParams.get('q')||'';
+      assert.ok(/MEGA|Mega Channel|MEGA TV/i.test(q));
       return new Response(JSON.stringify({web:{results:[
         {title:'MEGA TV Greece IPTV source',description:'Recent MEGA live playlist page',url:'https://example.test/mega-live',page_age:'2026-09-26T08:00:00Z'},
         {title:'Unrelated sports page',description:'No relevant channel',url:'https://example.test/sports'},
@@ -44,6 +46,9 @@ try{
   assert.equal(result.candidates[0].matchConfidence,'MEDIUM');
   assert.equal(result.candidates[0].freshness,'result-date:2026-09-26T08:00:00.000Z');
   assert.equal(seen.filter(url=>url.includes('api.search.brave.com')).length,2);
+  const braveQueries=seen.filter(url=>url.includes('api.search.brave.com')).map(value=>new URL(value).searchParams.get('q')||'');
+  assert.ok(braveQueries.some(q=>/m3u8\s+mpd/i.test(q)),'technical query should cover both HLS and DASH');
+  assert.ok(braveQueries.some(q=>/ζωντανά|live greek tv/i.test(q)),'second query should include Greek/live discovery wording');
   assert.equal(seen.some(url=>url.includes('youtube.com')),false,'blocked social result must not be fetched');
 
   globalThis.fetch=async(input)=>{
