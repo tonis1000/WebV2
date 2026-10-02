@@ -443,3 +443,54 @@ Evidence:
 
 Reconsider when: only if a new active product flow requires discovered-channel persistence that cannot use the existing canonical My Playlist APIs, with explicit caller ownership, regression coverage, deployment and live verification.
 
+## DEC-030 WebV2 System Audit & UX Consolidation closed
+Decision: close the WebV2 System Audit & UX Consolidation for the approved ownership-consolidation scope after the final recursive ownership sweep, final dormant-surface retirement and end-to-end production acceptance.
+
+Final ownership map:
+- `main.js`: selected-channel state, channel-root rendering/order/visibility/summary, Favorite row decoration, frontend EPG refresh scheduling and structured runtime diagnostics ownership;
+- `PlayerController` / `src/core/player.js`: playback attempts, route/fallback orchestration and active official-fallback ownership; consumers use the narrow `WebTVPlaybackAPI` bridge;
+- `src/core/epg.js`: EPG feed/XMLTV/matching semantics; Sidebar Now Playing is read-only presentation after `webtv:epg-updated`;
+- `favorites-ui.js`: D1 My Playlist Favorite/filter state only, exposed through `WebTVFavoritesPresentationAPI.getState()` + presentation-change event;
+- Playlist Manager / `WebTVMyPlaylistAPI`: My Playlist persistence boundary, including verified Xtream `upsertChannel(...,{reason:'xtream-preview-save'})` and Playback Inspector source Add/Replace operations;
+- Saved / Custom Playlist modules: D1 library/cache and playlist-specific mixed-source ownership;
+- Unified Search runtime/adapters: sole automatic discovery orchestration surface;
+- Manual Source Test: explicit candidate testing only, never a second automatic discovery owner;
+- SourceRegistry: curated playback route semantics consumed by Source Health;
+- Source Discovery / Source Hunt Workers plus shared M3U / STRM / Enigma2 cores: server-side discovery/transport and structural normalization roles;
+- Diagnostics consumers: structured `WebTVDiagnosticsAPI` snapshot/event only, never rendered diagnostic DOM as state.
+
+Final retirements frozen by this closure:
+- legacy Discovery Beta shell and retired Local Discovery owners;
+- legacy Source Hunt frontend chain;
+- dormant One-click playback orchestration;
+- zero-consumer `saveDiscoveredChannel` / `saveDiscoveredMyChannel`;
+- `src/cloud-auto-sync.js`;
+- `src/d1-sync-addon.js`;
+- duplicate `src/core/official-fallbacks.js`;
+- `src/discovery/discovery-ui.js`;
+- `src/discovery/new-xtream-preview.js`;
+- dead `Discovery Beta` right-rail compatibility lookup.
+
+Hard rules:
+- closed owners are not reopened by cleanup preference alone; require new concrete evidence or a new product requirement;
+- do not create a second state bus from rendered DOM text;
+- do not create parallel persistence writers around Playlist Manager / canonical Registry APIs;
+- do not create a second Player/official-fallback/EPG-refresh/channel-row/discovery orchestration owner;
+- Unified Search remains the only automatic discovery UI surface; Manual Source Test remains explicit testing;
+- Favorites remain scoped to D1 My Playlist unless a separate product decision changes that scope;
+- loaded Xtream channels retain the verified persistence guard and Preview → Verify → Save boundaries;
+- shared Enigma2 core remains active through Source Discovery Worker even though it has no browser entrypoint;
+- every future major change follows bounded problem definition, proof criteria, RED regression when applicable, exact-SHA deployment, production live verification and canonical documentation closure.
+
+Reason: the audit progressively removed duplicate persistence, route, diagnostics, Player, EPG, Sidebar, Discovery and legacy frontend ownership. The final broad sweep found no duplicate `window.WebTV*` global owner, retained the active server-side Enigma2 dependency, and identified only five final dormant frontend surfaces, which were retired. Final production acceptance then proved the retained system surfaces and ownership boundaries together on the deployed runtime.
+
+Evidence:
+- final broad audit PR #146, base `36b3e814a01ebbc8adeeb9e421788c1066893105`;
+- final dormant retirement PR #147, exact GREEN head `e1d5d1a8b53f1f135855c6e9a32cbaf3fbac4d97`, runtime merge `3fd863325511a332268dc6238a08a236341f3cf0`;
+- post-merge Frontend #1003, Unified Search #72, Source Discovery Worker #66, Registry #137 and Pages #495 all SUCCESS; Registry reported the exact runtime SHA;
+- verification-only PR #150 closed unmerged after Verify Final System Acceptance Live #2 SUCCESS and Frontend #1007 SUCCESS (76/76) at `e985189d47fc8cea9d472b49a431434c9825214c`;
+- final acceptance artifact `11244485111`, digest `sha256:254c2c7d2acc94183fe999d66c29a996ad9ce13f48c12dfa2043ea0e0f23cf94`;
+- final live acceptance: five final retired URLs 404, retained active owners/surfaces present, durable Registry user-data writes 0, page errors 0, console errors 0.
+
+Reconsider when: a new verified bug, explicit product requirement or architecture change demonstrates that a closed owner must change. Reopen only as a new bounded decision with fresh evidence and full deployment/live verification.
+
