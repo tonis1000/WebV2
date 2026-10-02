@@ -25,6 +25,7 @@ await context.addInitScript(({token})=>{
   window.__qaStorageWrites=[];
   const originalSet=Storage.prototype.setItem;
   const originalRemove=Storage.prototype.removeItem;
+  const originalClear=Storage.prototype.clear;
   Storage.prototype.setItem=function(key,value){
     if(String(key).includes('favorites'))window.__qaStorageWrites.push({op:'set',key:String(key),value:String(value),stack:new Error().stack||''});
     return originalSet.call(this,key,value);
@@ -32,6 +33,10 @@ await context.addInitScript(({token})=>{
   Storage.prototype.removeItem=function(key){
     if(String(key).includes('favorites'))window.__qaStorageWrites.push({op:'remove',key:String(key),stack:new Error().stack||''});
     return originalRemove.call(this,key);
+  };
+  Storage.prototype.clear=function(){
+    window.__qaStorageWrites.push({op:'clear',stack:new Error().stack||''});
+    return originalClear.call(this);
   };
   localStorage.setItem('webtv_v2_registry_token',token);
   localStorage.setItem('webtv_v2_favorites_filter_v1','0');
