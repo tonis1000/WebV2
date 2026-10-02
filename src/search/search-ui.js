@@ -7,7 +7,7 @@ import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay } from '../discovery/candidate-model.js';
 
-const BUILD_ID='20260930-unified-search-ui-a';
+const BUILD_ID='20261002-unified-search-status';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
 let activeRun=null;
@@ -19,7 +19,7 @@ function ensureStylesheet(){
   if(document.querySelector('link[data-unified-search-style]'))return;
   const link=document.createElement('link');
   link.rel='stylesheet';
-  link.href='./unified-search.css?v=20260930-unified-search-a';
+  link.href='./unified-search.css?v=20261002-search-status';
   link.dataset.unifiedSearchStyle='1';
   document.head.appendChild(link);
 }
@@ -49,9 +49,14 @@ function createUi(){
     </div>
     <form id="unified-search-form" class="unified-search-form">
       <input id="unified-search-query" type="search" autocomplete="off" placeholder="ERT1, ERT, Nova, Cosmote Sport…" aria-label="Search channels or groups">
-      <button class="button" type="submit">Search</button>
+      <button id="unified-search-submit" class="button" type="submit">Search</button>
       <button id="unified-search-cancel" class="button ghost unified-search-cancel" type="button" hidden>Cancel</button>
     </form>
+    <div id="unified-search-status-banner" class="unified-search-status-banner" data-status="idle" aria-live="polite" aria-atomic="true">
+      <span class="unified-search-spinner" aria-hidden="true"></span>
+      <strong id="unified-search-status-title">Ready</strong>
+      <span id="unified-search-status-detail">Start a search when you are ready.</span>
+    </div>
     <div id="unified-search-progress" class="unified-search-progress" aria-live="polite"><span class="unified-search-chip">Ready</span></div>
     <div id="unified-search-results" class="unified-search-grid"><div class="unified-search-empty">Search for a channel or group. The current stream keeps playing while sources are checked.</div></div>
     <details id="unified-search-report" class="unified-report">
@@ -87,13 +92,25 @@ function renderProgress(snapshot={},summary={}){
   root.replaceChildren();
   const add=(text,tone='')=>{const chip=document.createElement('span');chip.className='unified-search-chip';if(tone)chip.dataset.tone=tone;chip.textContent=text;root.appendChild(chip);};
   const status=String(snapshot.status||'idle');
-  add(status==='running'?'Searching…':status==='completed'?'Search complete':status==='cancelled'?'Search cancelled':'Ready',status==='completed'?'ok':status==='cancelled'?'warn':'');
+  const lanes=Object.values(snapshot.lanes||{});const done=lanes.filter(item=>item.status==='done').length;
+  const candidateCount=snapshot.candidates?.length||0;
+  const banner=$('unified-search-status-banner'),title=$('unified-search-status-title'),detail=$('unified-search-status-detail'),submit=$('unified-search-submit');
+  const running=status==='running';
+  if(submit){submit.disabled=running;submit.textContent=running?'Searching…':'Search';}
+  if(banner)banner.dataset.status=status;
+  if(title)title.textContent=running?'Searching…':status==='completed'?'Finished':status==='cancelled'?'Search cancelled':'Ready';
+  if(detail){
+    if(running)detail.textContent=lanes.length?`Checking sources · Lanes: ${done}/${lanes.length} · ${candidateCount} found so far`:'Preparing discovery lanes…';
+    else if(status==='completed')detail.textContent=`${candidateCount} source${candidateCount===1?'':'s'} found · Lanes: ${done}/${lanes.length||0}${summary.failed?` · ${summary.failed} error${summary.failed===1?'':'s'}`:''}${summary.timeouts?` · ${summary.timeouts} timeout${summary.timeouts===1?'':'s'}`:''}`;
+    else if(status==='cancelled')detail.textContent='The search stopped before all lanes finished.';
+    else detail.textContent='Start a search when you are ready.';
+  }
+  add(running?'Searching…':status==='completed'?'Finished':status==='cancelled'?'Search cancelled':'Ready',status==='completed'?'ok':status==='cancelled'?'warn':'');
   if(snapshot.intent?.type)add(`Intent: ${snapshot.intent.type}`);
-  add(`Candidates: ${snapshot.candidates?.length||0}`,(snapshot.candidates?.length||0)>0?'ok':'');
+  add(`Candidates: ${candidateCount}`,candidateCount>0?'ok':'');
   if(snapshot.leads?.length)add(`Leads: ${snapshot.leads.length}`,'warn');
   if(summary.timeouts)add(`Timeouts: ${summary.timeouts}`,'warn');
   if(summary.failed)add(`Errors: ${summary.failed}`,'error');
-  const lanes=Object.values(snapshot.lanes||{});const done=lanes.filter(item=>item.status==='done').length;
   if(lanes.length)add(`Lanes: ${done}/${lanes.length}`);
 }
 
