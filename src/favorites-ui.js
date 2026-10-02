@@ -30,7 +30,6 @@ async function saveCloud(set){
 const list = $('channel-list');
 const toolbar = document.querySelector('.sidebar .toolbar');
 const channelActions = document.querySelector('.channel-actions');
-const channelName = $('channel-name');
 let favoritesOnly = localStorage.getItem(FILTER_KEY) === '1';
 let scheduled = false;
 
@@ -152,7 +151,7 @@ function scheduleApply(){
 
 ensureUi();
 if(list) new MutationObserver(scheduleApply).observe(list,{childList:true,subtree:false});
-if(channelName) new MutationObserver(updateSelectedButton).observe(channelName,{childList:true,characterData:true,subtree:true});
+window.addEventListener('webtv:channel-selected',updateSelectedButton);
 window.addEventListener('webtv:ready',()=>{ensureUi();scheduleApply();});
 loadCloud().then(scheduleApply);
 scheduleApply();
