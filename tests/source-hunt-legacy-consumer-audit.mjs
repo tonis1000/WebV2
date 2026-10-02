@@ -18,7 +18,8 @@ const targets=[
   'source-hunt-web.js',
   'source-hunt-discovery-integration.js',
   'source-hunt-enigma2.js',
-  'source-hunt-playlist-provenance.js'
+  'source-hunt-playlist-provenance.js',
+  'source-hunt-save-destination.js'
 ];
 
 const refs={};
