@@ -1,4 +1,5 @@
-import { greekChannelAliases, normalizeChannelText } from '../../src/core/channel-identity-gr.js';
+import { channelSignalsMatch, greekChannelAliases, normalizeChannelText } from '../../src/core/channel-identity-gr.js';
+import { sanitizeCandidateUrl } from '../../src/core/source-candidate-url.js';
 export const RECENT_WEB_SEARCH_PROVIDER='recent-web-search';
 export const WEB_SEARCH_TIMEOUT_MS=6000;
 export const WEB_MAX_SEARCHES=2;
@@ -13,9 +14,7 @@ const TRUSTED_STREAM_HOST_HINT=/(?:^|\.)(?:siliconweb\.com|antennaplus\.gr|broad
 
 function normalize(value=''){return normalizeChannelText(value);}
 function channelRelevant(text='',channel={}){
-  const hay=normalize(text);if(!hay)return false;
-  const identities=[channel.name,channel.id,channel.originalId,channel.tvgId].map(normalize).filter(Boolean);
-  return identities.some(id=>hay.includes(id));
+  return channelSignalsMatch([text],channel,'broad');
 }
 function typeOf(url=''){
   const clean=String(url).split('|')[0].trim();
@@ -36,7 +35,7 @@ function safePublicUrl(raw=''){
   return u;
 }
 function unique(items=[],keyFn=item=>item?.sourceUrl){const seen=new Set(),out=[];for(const item of items){const key=String(keyFn(item)||'');if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=WEB_MAX_RESULTS)break;}return out;}
-function extractLive(text=''){return [...new Set((String(text).match(LIVE_URL)||[]).map(value=>value.replace(/&amp;/g,'&').replace(/[),.;]+$/g,'')))];}
+function extractLive(text=''){return [...new Set((String(text).match(LIVE_URL)||[]).map(sanitizeCandidateUrl).filter(Boolean))];}
 function resultDate(result={}){for(const value of [result.page_age,result.age,result.published,result.updatedAt]){if(!value)continue;const t=Date.parse(value);if(Number.isFinite(t))return new Date(t).toISOString();}return null;}
 function searchesFor(channel={}){
   const name=String(channel.name||channel.originalId||channel.tvgId||channel.id||'').trim();
@@ -77,7 +76,7 @@ async function fetchPage(raw,budget){
     return {ok:true,status:response.status,elapsedMs:Date.now()-started,text:(await response.text()).slice(0,1200000),type:response.headers.get('content-type')||'',error:''};
   }catch(error){return {ok:false,status:error?.name==='AbortError'?408:0,elapsedMs:Date.now()-started,text:'',type:'',error:error?.message||String(error)};}
 }
-function directCandidate(url,channel,result,freshness){return {channelName:String(channel.name||''),sourceType:typeOf(url),sourceUrl:url,sourceOrigin:`web:${new URL(result.url).hostname}`,discoveryProvider:RECENT_WEB_SEARCH_PROVIDER,discoveredAt:new Date().toISOString(),freshness:resultDate(result)?`result-date:${resultDate(result)}`:`brave-window:${freshness}`,matchConfidence:'MEDIUM'};}
+function directCandidate(url,channel,result,freshness){const clean=sanitizeCandidateUrl(url);return clean?{channelName:String(channel.name||''),sourceType:typeOf(clean),sourceUrl:clean,sourceOrigin:`web:${new URL(result.url).hostname}`,discoveryProvider:RECENT_WEB_SEARCH_PROVIDER,discoveredAt:new Date().toISOString(),freshness:resultDate(result)?`result-date:${resultDate(result)}`:`brave-window:${freshness}`,matchConfidence:'MEDIUM'}:null;}
 function resultScore(result={},channel={}){const text=`${result.title||''} ${result.description||''} ${result.url||''}`;let score=channelRelevant(text,channel)?10:0;try{if(TRUSTED_STREAM_HOST_HINT.test(new URL(String(result.url||'')).hostname))score+=5;}catch{}if(/m3u8|mpd|hls|dash|live stream|ζωνταν/i.test(text))score+=3;if(/playlist|iptv|television|tv/i.test(text))score+=1;return score;}
 
 export async function discoverRecentWebSearch({channel,freshness='7d',env={},parseM3u}={}){
@@ -94,7 +93,7 @@ export async function discoverRecentWebSearch({channel,freshness='7d',env={},par
     const resultUrl=String(result.url||'');
     try{
       safePublicUrl(resultUrl);
-      if(/\.(?:m3u8|mpd)(?:[?#]|$)/i.test(resultUrl))candidates.push(directCandidate(resultUrl,channel,result,freshness));
+      if(/\.(?:m3u8|mpd)(?:[?#]|$)/i.test(resultUrl)){const direct=directCandidate(resultUrl,channel,result,freshness);if(direct)candidates.push(direct);}
     }catch{continue;}
     const page=await fetchPage(resultUrl,budget);let matches=0;
     if(page.ok){
@@ -103,7 +102,7 @@ export async function discoverRecentWebSearch({channel,freshness='7d',env={},par
         candidates.push(...found);matches+=found.length;
       }
       if(channelRelevant(`${result.title||''} ${result.description||''}`,channel)){
-        for(const url of extractLive(page.text)){candidates.push(directCandidate(url,channel,result,freshness));matches++;if(candidates.length>=WEB_MAX_RESULTS)break;}
+        for(const url of extractLive(page.text)){const direct=directCandidate(url,channel,result,freshness);if(!direct)continue;candidates.push(direct);matches++;if(candidates.length>=WEB_MAX_RESULTS)break;}
       }
     }
     pageReports.push({url:resultUrl,status:page.status,elapsedMs:page.elapsedMs,matches,error:page.error||''});

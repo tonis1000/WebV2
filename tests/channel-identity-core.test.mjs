@@ -63,6 +63,10 @@ assert.equal(identity.channelMatchScore('MEGA TV','MEGA News','exact'), 0, 'MEGA
 assert.equal(identity.channelMatchScore('MAD World','MADTV','exact'), 0, 'MAD TV must not match MAD World');
 assert.equal(identity.channelMatchScore('ERT Sports 4','ERT2','exact'), 0, 'ERT2 must not match an ERT Sports numbered channel');
 assert.equal(identity.channelMatchScore('Baraza Greek Laika','BARAZA TV HD Greek Hits','exact'), 0, 'Baraza Hits must not match Baraza Laika');
+assert.equal(identity.channelMatchScore('ANT1 Cyprus','ANT1','exact'), 0, 'ANT1 Greece must reject ANT1 Cyprus');
+assert.equal(identity.channelMatchScore('ANT1 Κύπρου','ANT1','exact'), 0, 'ANT1 Greece must reject ANT1 Κύπρου');
+assert.equal(identity.channelMatchScore('https://l2.cloudskep.com/alphacyp/acy/playlist.m3u8','Alpha TV','exact'), 0, 'Alpha Greece must reject alphacyp routes');
+assert.equal(identity.channelMatchScore('Alpha Cyprus','Alpha TV','broad'), 0, 'Alpha Greece broad matching must still reject Cyprus variant');
 
 assert.throws(() => identity.validateGreekChannelIdentityDefinition({ id:'new-tv', canonicalName:'New TV', aliases:['New TV'], officialNames:['New TV'], officialRefs:[] }, { throwOnError:true }), /official reference/i);
 assert.throws(() => identity.validateGreekChannelIdentityDefinition({ id:'new-tv', canonicalName:'New TV', aliases:[], officialNames:['New TV'], officialRefs:[{kind:'official-site',url:'https://new.example/'}] }, { throwOnError:true }), /alias/i);

@@ -26,7 +26,7 @@ try{
       ]}}),{status:200,headers:{'content-type':'application/json'}});
     }
     if(url.hostname==='example.test'&&url.pathname==='/mega-live'){
-      return new Response('<html><body>MEGA stream https://cdn.example.test/live/mega.m3u8?token=abc</body></html>',{status:200,headers:{'content-type':'text/html'}});
+      return new Response('<html><body>MEGA stream https://cdn.example.test/live/mega.m3u8?token=abc\\u0026amp;sid=123\\u003c/a\\u003e\\\\</body></html>',{status:200,headers:{'content-type':'text/html'}});
     }
     throw new Error(`Unexpected fetch ${url}`);
   };
@@ -40,7 +40,7 @@ try{
   assert.equal(result.reports.subrequestsUsed,3);
   assert.ok(result.reports.subrequestsUsed<=WEB_MAX_SUBREQUESTS);
   assert.equal(result.candidates.length,1);
-  assert.equal(result.candidates[0].sourceUrl,'https://cdn.example.test/live/mega.m3u8?token=abc');
+  assert.equal(result.candidates[0].sourceUrl,'https://cdn.example.test/live/mega.m3u8?token=abc&sid=123');
   assert.equal(result.candidates[0].sourceType,'hls');
   assert.equal(result.candidates[0].discoveryProvider,RECENT_WEB_SEARCH_PROVIDER);
   assert.equal(result.candidates[0].matchConfidence,'MEDIUM');
