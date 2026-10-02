@@ -10,6 +10,7 @@ const main=read('src/main.js');
 const favorites=read('src/favorites-ui.js');
 const manager=read('src/playlist-manager.js');
 const sidebar=read('src/sidebar-now.js');
+const searchUi=read('src/search/search-ui.js');
 
 assert.match(
   main,
@@ -58,6 +59,28 @@ assert.match(
   sidebar,
   /WebTVPlaylistAPI\?\.getChannelById/,
   'Sidebar Now Playing must resolve row identity through the canonical playlist API'
+);
+
+assert.doesNotMatch(
+  searchUi,
+  /MutationObserver\([\s\S]*channel-name/,
+  'Unified Search must not use rendered #channel-name mutations as a selected-channel notification bus'
+);
+assert.doesNotMatch(
+  searchUi,
+  /function sidebarNowPlayingName\(\)\{return String\(\$\('channel-name'\)/,
+  'Unified Search must not read rendered #channel-name as canonical selected-channel state'
+);
+assert.match(
+  searchUi,
+  /webtv:channel-selected/,
+  'Unified Search must react to the canonical structured channel-selection event'
+);
+
+assert.match(
+  main,
+  /function clearSelectedIfMissing\(\)\{[\s\S]*const replacement=channels\.find\(c=>String\(c\.id\)===String\(selected\.id\)\)\|\|null;[\s\S]*if\(replacement\)\{[\s\S]*selected=replacement;/,
+  'catalog replacement must rebind same-id selection to the new canonical channel object'
 );
 
 console.log('Sidebar selected-channel ownership PASS');
