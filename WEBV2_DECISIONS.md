@@ -596,3 +596,30 @@ Evidence:
 
 Reconsider when: measured production recall/precision warrants a different provider-discovery strategy, or an authenticated provider directory becomes available. Any replacement must preserve Authorized Xtream ownership, credential safety, bounded budgets and live verification.
 
+## DEC-035 Header-aware IPTV URL compatibility
+Decision: support a narrow, shared, allowlisted header-aware IPTV URL contract end to end across parsing, Source Verifier and HLS proxy transport.
+
+Hard rules:
+- `parseIptvUrl()` is the canonical frontend parser for IPTV URL options;
+- approved request metadata is limited to `User-Agent`, `Referer`, `Origin`, and `X-Roku-Reserved-Dev-Id`;
+- unknown, sensitive or control-character-bearing headers remain rejected;
+- both direct Kodi-style syntax (`|User-Agent=...&x-roku-reserved-dev-id=...`) and nested `stream_headers={...}` syntax normalize into the same approved-header map;
+- Source Verifier must split raw IPTV URL options before format detection and upstream probing;
+- explicit verifier `requiredHeaders` may override parsed approved metadata, but they pass through the same allowlist;
+- tv-cache must preserve approved header context across HLS master playlists, child manifests, key requests and media segments;
+- this is a transport compatibility rule, not a channel-specific exception and not permission to forward arbitrary headers;
+- a source that still returns 403 after correct approved-header transport remains unverified and must not be promoted as playable.
+
+Reason: active jimgate07/grtv MEGA entries on 2026-10-02 used Roku-specific request metadata in two common IPTV syntaxes. WebV2 previously dropped `x-roku-reserved-dev-id`, did not parse `stream_headers={...}`, and Source Verifier probed raw IPTV URL option strings rather than the clean URL.
+
+Evidence:
+- RED head `dbea2eabf5b501efdacc41a82973e95f5254d402`; Validate WebTV Frontend run `37071016126` failed exactly on the missing Roku header;
+- runtime implementation head `1ba1d47b3b2d1fd1bc1e6efdd18ab990277057e2`; Validate WebTV Frontend run `37071084359` SUCCESS with header-aware proxy and Source Verifier regressions;
+- runtime merge PR #165: `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7`;
+- PRs #166-#167 changed verification topology only after synthetic Worker self/cross-fetch gates produced false negatives; no runtime transport rule was weakened;
+- final deployed closure SHA `2e6a34b207b903eea6b5cb10695afc5ef60998fd`: Frontend `37072104574`, Source Verifier `37072104439`, TV Cache `37072104518`, Registry `37072104495` and Pages `37072103654` all SUCCESS;
+- direct deployed header-aware fixtures accepted both Roku headers;
+- verification-only PR #168 remained unmerged. Against the real current jimgate MEGA IP source, a direct GitHub runner request with the repository's exact Roku User-Agent/device id returned HTTP 403 from nginx/1.24.0; deployed Source Verifier and deployed tv-cache also returned HTTP 403. This proves the WebV2 compatibility gap is fixed but that particular upstream remains externally restricted/unavailable.
+
+Reconsider when: a real verified source requires another request header or IPTV option syntax. Any expansion must be separately justified, explicitly allowlisted, regression-tested across parser/verifier/proxy, deployed and proven against a real source before becoming canonical.
+
