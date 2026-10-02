@@ -40,6 +40,8 @@ jobs:
             echo 'legacy xtream-enhancements import unexpectedly present'
             exit 1
           fi
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/playlist-manager.css?proof=$GITHUB_SHA" -o /tmp/playlist-manager-live.css
+          grep -q 'xtream-preview-save-actions' /tmp/playlist-manager-live.css
 
       - name: Install Playwright Chromium
         shell: bash
