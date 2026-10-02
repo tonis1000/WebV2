@@ -278,6 +278,15 @@ export default {
       };
     };
 
+    if (url.pathname === "/fixture/header-aware.m3u8" && request.method === "GET") {
+      const ua = request.headers.get("User-Agent") || "";
+      const roku = request.headers.get("X-Roku-Reserved-Dev-Id") || "";
+      if (ua !== "Roku/DVP-14.6" || roku !== "device-123") {
+        return textResponse("forbidden", "text/plain; charset=utf-8", 403);
+      }
+      return textResponse("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:6,\nsegment1.ts\n", "application/vnd.apple.mpegurl", 200);
+    }
+
     // -------------------------
     // GET /channel-streams.json
     // -------------------------
