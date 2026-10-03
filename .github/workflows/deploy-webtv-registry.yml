@@ -98,7 +98,7 @@ jobs:
           keep_vars = true
 
           [vars]
-          PIN_AUTH_DISABLED = "1"
+          PIN_AUTH_DISABLED = "0"
 
           [secrets]
           required = ["ADMIN_TOKEN", "ADMIN_PIN"]
@@ -178,12 +178,12 @@ jobs:
               "$REGISTRY_URL/api/status?verify=${GITHUB_SHA}-${attempt}" \
               -o /tmp/webtv-registry-status.json; then
               cat /tmp/webtv-registry-status.json
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));process.exit(j.version==='1.5'&&j.primaryPlaylist==='d1'&&Number(j.sessionDays)===180&&j.pinAuth===false&&j.pinAuthDisabled===true?0:1)"; then
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-registry-status.json','utf8'));process.exit(j.version==='1.5'&&j.primaryPlaylist==='d1'&&Number(j.sessionDays)===180&&j.pinAuth===true&&!('pinAuthDisabled' in j)?0:1)"; then
                 curl --fail --silent --show-error \
                   -H 'Cache-Control: no-cache' \
                   "$REGISTRY_URL/api/my-playlist?verify=${GITHUB_SHA}-${attempt}" \
                   -o /tmp/webtv-my-playlist.json
-                if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-my-playlist.json','utf8'));if(!Array.isArray(j.channels)||j.channels.length<13){console.error('Expected migrated D1 My Playlist, got '+(j.channels?.length??0)+' channels');process.exit(1)};console.log('Verified Registry v1.5 · D1 primary · '+j.channels.length+' My Playlist channels · temporary PIN bypass active')"; then
+                if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-my-playlist.json','utf8'));if(!Array.isArray(j.channels)||j.channels.length<13){console.error('Expected migrated D1 My Playlist, got '+(j.channels?.length??0)+' channels');process.exit(1)};console.log('Verified Registry v1.5 · D1 primary · '+j.channels.length+' My Playlist channels · PIN auth enabled')"; then
                   exit 0
                 fi
               fi
@@ -194,7 +194,7 @@ jobs:
           echo '::error::Registry did not expose v1.5 / D1-primary My Playlist / temporary PIN bypass after 90 seconds'
           exit 1
 
-      - name: Verify temporary PIN bypass
+      - name: Verify Registry admin boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -204,33 +204,22 @@ jobs:
           get_status=$(curl --silent --show-error --output /tmp/webtv-checkpoint-get-unauth.md --write-out '%{http_code}' \
             -H 'Cache-Control: no-cache' \
             "$REGISTRY_URL/api/project-checkpoints/WEBV2_CURRENT.md?verify=$GITHUB_SHA" || true)
-          if [ "$list_status" != 200 ] || [ "$get_status" != 200 ]; then
-            echo "::error::Temporary PIN bypass failed · list=$list_status get=$get_status"
-            exit 1
-          fi
-          grep -q 'WEBV2_CURRENT.md' /tmp/webtv-checkpoint-list-unauth.json
-          grep -q 'WEBV2 CURRENT STATE' /tmp/webtv-checkpoint-get-unauth.md
-
           maintenance_status=$(curl --silent --show-error --output /tmp/webtv-maintenance-session.json --write-out '%{http_code}' \
             -X POST \
             -H 'Cache-Control: no-cache' \
             "$REGISTRY_URL/api/session/maintenance?verify=$GITHUB_SHA" || true)
-          if [ "$maintenance_status" != 200 ]; then
-            echo "::error::Maintenance session mint failed · status=$maintenance_status"
-            cat /tmp/webtv-maintenance-session.json 2>/dev/null || true
-            exit 1
-          fi
-          maintenance_token=$(node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/webtv-maintenance-session.json','utf8'));if(!j.ok||!j.maintenance||!j.token)process.exit(1);process.stdout.write(j.token)")
-          session_status=$(curl --silent --show-error --output /tmp/webtv-maintenance-session-validate.json --write-out '%{http_code}' \
+          write_status=$(curl --silent --show-error --output /tmp/webtv-checkpoint-write-unauth.json --write-out '%{http_code}' \
+            -X PUT \
             -H 'Cache-Control: no-cache' \
-            -H "authorization: Bearer $maintenance_token" \
-            "$REGISTRY_URL/api/session?verify=$GITHUB_SHA" || true)
-          if [ "$session_status" != 200 ]; then
-            echo "::error::Maintenance session validation failed · status=$session_status"
-            cat /tmp/webtv-maintenance-session-validate.json 2>/dev/null || true
+            -H 'content-type: application/json' \
+            --data '{"content":"# unauthorized probe\n"}' \
+            "$REGISTRY_URL/api/project-checkpoints/WEBV2_CURRENT.md?verify=$GITHUB_SHA" || true)
+
+          if [ "$list_status" != 401 ] || [ "$get_status" != 401 ] || [ "$write_status" != 401 ] || [ "$maintenance_status" != 403 ]; then
+            echo "::error::Registry admin boundary failed · list=$list_status get=$get_status write=$write_status maintenance=$maintenance_status"
             exit 1
           fi
-          echo 'Verified temporary PIN bypass and scoped maintenance-session handoff.'
+          echo 'Verified Registry admin boundary · anonymous checkpoint read/write denied · maintenance mint disabled.'
 
       - name: Record verified deployment status
         shell: bash
