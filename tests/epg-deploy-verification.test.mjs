@@ -11,6 +11,7 @@ assert.match(workflow,/<tv/,'EPG deploy verification must require an XMLTV <tv> 
 assert.match(workflow,/<channel/,'EPG deploy verification must require at least one channel');
 assert.match(workflow,/<programme/,'EPG deploy verification must require at least one programme');
 assert.doesNotMatch(workflow,/grep -q 'Use \/epg or \/epg\.xml'/,'root banner alone must not prove EPG deployment');
+for(const required of ['cosmotesport1','novasports1','DasErste.de','epgshare-gr','epgshare-de','cosmote'])assert.ok(workflow.includes(required),'EPG deploy source matrix must include '+required);
 
 const sample='<?xml version="1.0"?><tv><channel id="a"></channel><channel id="b"></channel><programme channel="a"></programme><programme channel="b"></programme></tv>';
 const originalFetch=globalThis.fetch;
