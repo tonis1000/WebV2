@@ -21,12 +21,13 @@ try{
   const status=await statusResponse.json();
   assert.equal(status.ok,true);
   assert.equal(status.valid,true);
-  assert.equal(status.service,'WebTV EPG Proxy GR');
-  assert.equal(status.version,'simple-v3');
+  assert.equal(status.service,'WebTV EPG Proxy');
+  assert.equal(status.version,'multi-v4');
   assert.equal(status.channels,2);
   assert.equal(status.programmes,2);
   assert.ok(status.bytes>=sample.length);
-  assert.equal(status.source,'ext.greektv.app');
+  assert.equal(status.source,'multi');
+  assert.ok(Array.isArray(status.sourcesConfigured)&&status.sourcesConfigured.length>=5);
 
   const feedResponse=await epgWorker.fetch(new Request('https://epg.test/epg.xml'));
   assert.equal(feedResponse.status,200);
