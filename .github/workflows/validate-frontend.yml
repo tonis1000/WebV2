@@ -148,6 +148,8 @@ jobs:
         run: node tests/sport-feed-worker.test.mjs
       - name: Run SPORT unified/public rail regression test
         run: node tests/sport-unified-public-rail.test.mjs
+      - name: Run startup recovery + public rail regression test
+        run: node tests/startup-public-rail-recovery.test.mjs
       - name: Run responsive viewer breakpoint regression test
         run: node tests/responsive-viewer-breakpoints.test.mjs
       - name: Run EPG refresh ownership regression test
