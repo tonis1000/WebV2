@@ -21,13 +21,18 @@ function dayLabel(offset=0){
   return start.toLocaleDateString('el-GR',{weekday:'short',day:'2-digit',month:'2-digit'});
 }
 function ensureToggle(){
-  let button=$('epg-guide-toggle');if(button)return button;
-  const actions=document.querySelector('.topbar-actions');if(!actions)return null;
-  button=document.createElement('button');
-  button.id='epg-guide-toggle';button.type='button';button.className='button epg-guide-button';button.textContent='EPG Guide';
-  button.setAttribute('aria-controls','epg-guide-overlay');button.setAttribute('aria-expanded','false');
-  const before=$('source-hunt-toggle')||$('diagnostics-toggle');actions.insertBefore(button,before||null);
-  button.addEventListener('click',()=>openGuide());
+  let button=$('epg-guide-toggle');
+  if(!button){
+    const actions=document.querySelector('.topbar-actions');if(!actions)return null;
+    button=document.createElement('button');
+    button.id='epg-guide-toggle';button.type='button';button.className='button epg-guide-button';button.textContent='EPG Guide';
+    button.setAttribute('aria-controls','epg-guide-overlay');button.setAttribute('aria-expanded','false');
+    const before=$('source-hunt-toggle')||$('diagnostics-toggle');actions.insertBefore(button,before||null);
+  }
+  if(button.dataset.epgGuideBound!=='1'){
+    button.dataset.epgGuideBound='1';
+    button.addEventListener('click',()=>openGuide());
+  }
   window.dispatchEvent(new CustomEvent('webtv:admin-controls-changed',{detail:{control:'epg-guide-toggle'}}));
   return button;
 }
