@@ -578,8 +578,7 @@ async function loadStartupCloudPlaylist(){
       lastError=error;
       log(`Startup My Playlist read failed · attempt ${attempt}/2 · ${error.message}`);
       if(channels.length){
-        log(`Startup continuing from cached My Playlist · ${channels.length} channels`);
-        return {total:channels.length,channels:[...channels],cached:true,error:error.message};
+        log(`Cached My Playlist remains visible while live D1 retry is pending · ${channels.length} channels`);
       }
       if(attempt<2)await new Promise(resolve=>setTimeout(resolve,700));
     }
