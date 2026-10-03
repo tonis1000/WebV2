@@ -59,7 +59,7 @@ assert.match(sidebar,/epg\.get\(channel\)/,'Sidebar Now Playing should remain a 
 assert.match(sidebar,/webtv:epg-updated/,'Sidebar Now Playing should render from the canonical EPG update event');
 
 const main=readFileSync(path.join(ROOT,'src/main.js'),'utf8');
-assert.match(main,/const epgTask=epg\.refresh\(\)/,'main.js must own initial EPG refresh');
-assert.match(main,/setInterval\(\(\)=>epg\.refresh\(\)\.then\(renderEpg\)/,'main.js must own periodic EPG refresh scheduling');
+assert.match(main,/const epgTask=epg\.refresh\(\{channels\}\)/,'main.js must own initial sidebar-scoped EPG refresh');
+assert.match(main,/setInterval\(\(\)=>epg\.refresh\(\{channels\}\)\.then\(renderEpg\)/,'main.js must own periodic sidebar-scoped EPG refresh scheduling');
 
 console.log('EPG refresh ownership PASS');
