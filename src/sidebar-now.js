@@ -1,4 +1,4 @@
-import { EpgService } from './core/epg.js';
+import { EpgService } from './core/epg.js?v=20261003-worker-only';
 
 const BUILD_ID = '20260923-2255';
 const list = document.getElementById('channel-list');
