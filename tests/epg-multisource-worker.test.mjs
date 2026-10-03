@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import epgWorker,{analyzeXmltv,requestedChannelTerms,filterXmltv,matchesCosmoteChannel} from '../workers/epg-proxy-gr.js';
+import epgWorker,{analyzeXmltv,requestedChannelTerms,filterXmltv,matchesCosmoteChannel,cosmoteDayRange} from '../workers/epg-proxy-gr.js';
 
 const source=fs.readFileSync(new URL('../workers/epg-proxy-gr.js',import.meta.url),'utf8');
 for(const required of [
@@ -22,6 +22,7 @@ assert.equal(analyzeXmltv(filtered).programmes,1);
 assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 1 HD',callSign:'sport1hd'},['COSMOTE Sport 1']),true);
 assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 1 HD',callSign:'sport1hd'},['cosmotesport1']),true);
 assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 2 HD',callSign:'sport2hd'},['COSMOTE Sport 1']),false);
+const day0=cosmoteDayRange(0);assert.ok(day0.to>day0.from);assert.ok(day0.to-day0.from>=86398&&day0.to-day0.from<=86400,'COSMOTE requests must use one-day windows');
 
 const originalFetch=globalThis.fetch;
 try{
