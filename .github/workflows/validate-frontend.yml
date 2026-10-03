@@ -132,6 +132,8 @@ jobs:
         run: node tests/sidebar-row-presentation-ownership.test.mjs
       - name: Run clean viewer admin rail regression test
         run: node tests/admin-tool-rail-layout.test.mjs
+      - name: Run responsive viewer breakpoint regression test
+        run: node tests/responsive-viewer-breakpoints.test.mjs
       - name: Run EPG refresh ownership regression test
         run: node tests/epg-refresh-ownership.test.mjs
       - name: Run EPG parity regression test
