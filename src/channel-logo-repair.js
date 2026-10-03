@@ -1,6 +1,6 @@
 import { resolveChannelProfile } from './core/channel-profile-gr.js';
 
-const BUILD_ID='20261003-logo-repair-a';
+const BUILD_ID='20261003-logo-repair-b';
 const BATCH_LIMIT=25;
 const attemptedBackground=new Set();
 const brokenChannels=new Set();
@@ -26,12 +26,20 @@ function inferCountry(channel={}){
   return'';
 }
 
-function setFindState(text,{busy=false,title=''}={}){
+let findResetTimer=0;
+function setFindState(text,{busy=false,title='',resetMs=0}={}){
   const button=$('channel-logo-find');
   if(!button)return;
+  if(findResetTimer){clearTimeout(findResetTimer);findResetTimer=0;}
   button.textContent=text;
   button.disabled=busy||!selected();
   button.title=title;
+  if(resetMs>0){
+    findResetTimer=setTimeout(()=>{
+      findResetTimer=0;
+      setFindState('Find logo',{busy:false,title:'Find and save a curated logo for the selected channel'});
+    },resetMs);
+  }
 }
 
 function setBatchState(text,{busy=false,title=''}={}){
@@ -97,19 +105,19 @@ async function manualFind(){
   try{
     const result=await lookupAndApply(channel,{interactive:true,reason:'manual-find'});
     if(!result.found){
-      setFindState('Find logo',{title:'No curated logo found in the configured providers'});
+      setFindState('Not found',{title:'No curated logo found in the configured providers',resetMs:2200});
       setManagerStatus(`No curated logo found for ${channel.name}`,'idle');
       return;
     }
     if(result.applied?.reason==='verified-logo-kept'){
-      setFindState('Find logo',{title:'Existing verified logo kept'});
+      setFindState('Verified ✓',{title:'Existing verified logo kept',resetMs:2200});
       setManagerStatus(`${channel.name}: verified logo kept · repair candidate saved as lower-trust metadata`,'ok');
       return;
     }
-    setFindState('Find logo',{title:`Last match: ${result.override.provider}`});
+    setFindState('Found ✓',{title:`Last match: ${result.override.provider}`,resetMs:2200});
     setManagerStatus(`${channel.name}: logo found via ${result.override.provider} and saved to D1`,'ok');
   }catch(error){
-    setFindState('Find logo',{title:error.message});
+    setFindState('Error',{title:error.message,resetMs:2200});
     setManagerStatus(`Logo lookup failed · ${error.message}`,'error');
   }
 }
@@ -142,7 +150,7 @@ async function repairMissing(){
     const remaining=Math.max(0,missing.length-batch.length);
     setManagerStatus(`Logo repair finished · ${found}/${batch.length} found${remaining?` · ${remaining} still queued for another batch`:''}`,'ok');
   }finally{
-    setBatchState('Repair missing logos',{busy:false,title:`Up to ${BATCH_LIMIT} missing/broken channels per run`});
+    setBatchState('Repair missing',{busy:false,title:`Repair up to ${BATCH_LIMIT} missing/broken logos in the current channel list`});
   }
 }
 
@@ -188,14 +196,13 @@ function ensureControls(){
     button.addEventListener('click',manualFind);
     actions.insertBefore(button,actions.firstChild);
   }
-  const head=document.querySelector('.playlist-manager-head');
-  const close=$('playlist-manager-close');
-  if(head&&close&&!$('channel-logo-repair-missing')){
+  if(actions&&!$('channel-logo-repair-missing')){
     const button=document.createElement('button');
-    button.id='channel-logo-repair-missing';button.type='button';button.className='button ghost';button.textContent='Repair missing logos';
-    button.title=`Up to ${BATCH_LIMIT} missing/broken channels per run`;
+    button.id='channel-logo-repair-missing';button.type='button';button.className='button ghost';button.textContent='Repair missing';
+    button.title=`Repair up to ${BATCH_LIMIT} missing/broken logos in the current channel list`;
     button.addEventListener('click',repairMissing);
-    head.insertBefore(button,close);
+    const find=$('channel-logo-find');
+    actions.insertBefore(button,find?.nextSibling||actions.firstChild);
   }
 }
 
