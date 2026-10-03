@@ -13,8 +13,8 @@ assert.equal(fs.existsSync(retiredSource),false,
 // Consolidation ownership: Discovery Worker + shared catalog own active Enigma2 scanning.
 assert.doesNotMatch(index,/source-hunt-enigma2\.js/,
   'legacy frontend Enigma2 scanner must remain absent from active page load');
-assert.match(index,/\.\/src\/search\/search-ui\.js\?v=20260930-unified-search-a/,
-  'Unified Search must be the active automatic search surface');
+assert.match(index,/\.\/src\/search\/search-ui\.js\?v=[^\"']+/,
+  'Unified Search must be the active automatic search surface regardless of cache-bust version');
 assert.match(catalog,/format:'enigma2'/,'canonical curated source catalog must declare Enigma2 feeds');
 assert.match(worker,/parseEnigma2Bouquet/,'active Discovery Worker must consume the shared Enigma2 structural core');
 assert.match(worker,/curated-source-catalog\.js/,'active Discovery Worker must source Enigma2 feeds from the canonical curated catalog');
