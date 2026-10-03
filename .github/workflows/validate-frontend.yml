@@ -138,6 +138,12 @@ jobs:
         run: node tests/epg-refresh-ownership.test.mjs
       - name: Run EPG parity regression test
         run: node tests/epg-parity.test.mjs
+      - name: Run sidebar-scoped EPG regression test
+        run: node tests/epg-sidebar-scope.test.mjs
+      - name: Run multi-source EPG Worker regression test
+        run: node tests/epg-multisource-worker.test.mjs
+      - name: Run EPG Guide UI regression test
+        run: node tests/epg-guide-ui.test.mjs
       - name: Run Xtream source regression test
         run: node tests/xtream-client.test.mjs
       - name: Run Xtream account load ownership regression test
