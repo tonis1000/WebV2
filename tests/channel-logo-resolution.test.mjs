@@ -10,6 +10,7 @@ assert.ok(VERIFIED_LOGO_SOURCE_KINDS.includes('official-broadcaster'));
 assert.ok(VERIFIED_LOGO_SOURCE_KINDS.includes('wikimedia-commons'));
 assert.equal(logoTrustForSourceKind('official-publisher-site'),'verified');
 assert.equal(logoTrustForSourceKind('curated-third-party'),'curated');
+assert.equal(logoTrustForSourceKind('registry-curated-override'),'curated');
 assert.equal(logoTrustForSourceKind('playlist-tvg-logo'),'unverified');
 assert.equal(logoTrustForSourceKind(''),'none');
 
@@ -68,6 +69,24 @@ const promoted=resolveChannelLogo({
 assert.equal(promoted.verified,true,'future verified Registry metadata must outrank curated third-party profile data');
 assert.equal(promoted.url,'https://official.example.test/skai.svg');
 assert.equal(promoted.sourceKind,'registry-verified');
+
+const repairedMega=resolveChannelLogo({
+  id:'mega',
+  providedLogo:'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/greece/mega-channel-gr.png',
+  providedSourceKind:'registry-curated-override',
+  providedSourceUrl:'https://github.com/tv-logo/tv-logos/tree/main/countries/greece',
+});
+assert.equal(repairedMega.trust,'curated','explicit repair must remain curated, not verified');
+assert.equal(repairedMega.sourceKind,'registry-curated-override');
+assert.match(repairedMega.url,/mega-channel-gr\.png$/,'explicit curated D1 repair must win an equal-trust curated profile tie');
+
+const verifiedStillWinsRepair=resolveChannelLogo({
+  id:'meganews',
+  providedLogo:'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/greece/mega-news-gr.png',
+  providedSourceKind:'registry-curated-override',
+});
+assert.equal(verifiedStillWinsRepair.trust,'verified','verified profile logo must still beat a curated repair override');
+assert.equal(verifiedStillWinsRepair.sourceKind,'official-publisher-site');
 
 const missing=resolveChannelLogo({id:'future-channel-no-logo',name:'Future Channel'});
 assert.deepEqual(
