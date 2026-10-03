@@ -265,7 +265,8 @@ function mapRegistryChannel(c){
     name:c.name,
     profile,
     providedLogo:fallbackLogo,
-    providedSourceKind:'registry-channel',
+    providedSourceKind:String(c.logoSourceKind||'').trim()||'registry-channel',
+    providedSourceUrl:String(c.logoSourceUrl||'').trim(),
   });
   return {
     id,
@@ -326,6 +327,44 @@ function emitChannelSelection(reason='selection'){
   }));
 }
 
+function applyLogoCandidate({channelId,url,sourceKind='curated-third-party',sourceUrl='',provider=''}={}){
+  const key=String(channelId||'').trim();
+  if(!key)return{applied:false,reason:'channel-id-required'};
+  const normalizedKey=normalizeId(key);
+  const channel=channels.find(item=>
+    String(item.id||'')===key||
+    String(item.originalId||'')===key||
+    normalizeId(item.id||item.originalId||item.name||'')===normalizedKey
+  )||null;
+  if(!channel)return{applied:false,reason:'channel-not-found'};
+  if(channel.logoMeta?.trust==='verified'&&sourceKind!=='registry-verified'){
+    return{applied:false,reason:'verified-logo-kept',channelId:channel.id,url:channel.logo,logoMeta:channel.logoMeta};
+  }
+  const candidate=safeLogo(url);
+  if(!candidate)return{applied:false,reason:'invalid-logo'};
+  const profile=resolveChannelProfile(channel.id||channel.originalId||channel.name);
+  const logoMeta=resolveChannelLogo({
+    id:channel.id,
+    tvgId:channel.originalId,
+    name:channel.name,
+    profile,
+    providedLogo:candidate,
+    providedSourceKind:sourceKind,
+    providedSourceUrl:sourceUrl,
+  });
+  channel.logo=logoMeta.url;
+  channel.logoMeta={...logoMeta,provider:String(provider||'')};
+  renderChannels();
+  if(selected&&String(selected.id)===String(channel.id)){
+    selected=channel;
+    applyImmediateLogo(els.logo,channel.logo);
+    els.logo.dataset.logoTrust=channel.logoMeta?.trust||'none';
+    els.logo.dataset.logoSourceKind=channel.logoMeta?.sourceKind||'';
+  }
+  window.dispatchEvent(new CustomEvent('webtv:channel-logo-updated',{detail:{channelId:channel.id,logo:channel.logo,logoMeta:channel.logoMeta}}));
+  return{applied:channel.logo===candidate,reason:channel.logo===candidate?'applied':'higher-trust-logo-kept',channelId:channel.id,url:channel.logo,logoMeta:channel.logoMeta};
+}
+
 window.WebTVPlaylistAPI={
   ready:false,
   applyText:applyPlaylistText,
@@ -334,7 +373,8 @@ window.WebTVPlaylistAPI={
   getCatalogMode:()=>catalogMode,
   getChannelById:id=>channels.find(channel=>String(channel.id)===String(id))||null,
   getSelectedChannel:selectedChannelSnapshot,
-  getChannels:()=>channels.map(c=>({...c,directUrls:[...(c.directUrls||[])]}))
+  getChannels:()=>channels.map(c=>({...c,directUrls:[...(c.directUrls||[])]})),
+  applyLogoCandidate
 };
 
 async function selectChannel(channel){
