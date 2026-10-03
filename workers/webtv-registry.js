@@ -279,7 +279,7 @@ async function lookupAndSaveChannelLogo(env,payload={}){
     channelId:query.id||query.tvgId||query.name,
     logoUrl:result.url,
     provider:result.provider,
-    sourceKind:'curated-third-party',
+    sourceKind:'registry-curated-override',
     sourceUrl:result.sourceUrl,
     country:result.country||query.country
   });
