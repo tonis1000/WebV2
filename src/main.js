@@ -6,7 +6,7 @@ import { resolveChannelLogo } from './core/channel-logo.js';
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
 import { HealthStore } from './core/health-store.js';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
-import { EpgService } from './core/epg.js';
+import { EpgService } from './core/epg.js?v=20261003-sidebar-scope';
 import { PlayerController } from './core/player.js';
 import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/utils.js';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
