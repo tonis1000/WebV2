@@ -1,6 +1,8 @@
 const BUILD_ID='20261003-epg-guide-now-polish';
 const $=id=>document.getElementById(id);
-const HOUR_WIDTH=150;
+const DESKTOP_HOUR_WIDTH=225;
+const MOBILE_HOUR_WIDTH=132;
+function hourWidth(){return window.matchMedia('(max-width:780px)').matches?MOBILE_HOUR_WIDTH:DESKTOP_HOUR_WIDTH;}
 let dayOffset=0;
 let activeProgram=null;
 let nowPresentationTimer=0;
@@ -95,7 +97,7 @@ function programmePosition(item,start,end){
   const total=end-start;
   const a=Math.max(start,new Date(item.start).getTime()),b=Math.min(end,new Date(item.stop).getTime());
   if(b<=a)return null;
-  return{left:((a-start)/total)*24*HOUR_WIDTH,width:Math.max(34,((b-a)/total)*24*HOUR_WIDTH)};
+  return{left:((a-start)/total)*24*hourWidth(),width:Math.max(34,((b-a)/total)*24*hourWidth())};
 }
 function openProgram(channel,item){
   activeProgram={channel,item};$('epg-program-dialog').hidden=false;
@@ -129,8 +131,8 @@ function renderGuide(){
   const nowMs=Date.now();
   const header=document.createElement('div');header.className='epg-guide-row epg-guide-hours-row';
   const corner=document.createElement('div');corner.className='epg-guide-channel epg-guide-corner';corner.textContent='Channel';
-  const hours=document.createElement('div');hours.className='epg-guide-hours';hours.style.width=`${24*HOUR_WIDTH}px`;
-  for(let hour=0;hour<24;hour+=1){const cell=document.createElement('span');cell.style.left=`${hour*HOUR_WIDTH}px`;cell.textContent=`${String(hour).padStart(2,'0')}:00`;hours.appendChild(cell);}
+  const hours=document.createElement('div');hours.className='epg-guide-hours';hours.style.width=`${24*hourWidth()}px`;
+  for(let hour=0;hour<24;hour+=1){const cell=document.createElement('span');cell.style.left=`${hour*hourWidth()}px`;cell.textContent=`${String(hour).padStart(2,'0')}:00`;hours.appendChild(cell);}
   header.append(corner,hours);root.appendChild(header);
   let programmeCount=0;
   for(const channel of channels){
@@ -138,7 +140,7 @@ function renderGuide(){
     const label=document.createElement('div');label.className='epg-guide-channel';
     if(channel.logo){const img=document.createElement('img');img.src=channel.logo;img.alt='';label.appendChild(img);}
     const name=document.createElement('strong');name.textContent=channel.name;label.appendChild(name);
-    const track=document.createElement('div');track.className='epg-guide-track';track.style.width=`${24*HOUR_WIDTH}px`;
+    const track=document.createElement('div');track.className='epg-guide-track';track.style.width=`${24*hourWidth()}px`;
     const schedule=api()?.getSchedule?.(channel,{from:start,to:end,limit:160})||[];
     if(!schedule.length){const empty=document.createElement('span');empty.className='epg-guide-empty';empty.textContent='No EPG';track.appendChild(empty);}
     for(const item of schedule){
@@ -154,7 +156,7 @@ function renderGuide(){
     row.append(label,track);root.appendChild(row);
   }
   if(dayOffset===0){
-    const now=new Date();const minutes=now.getHours()*60+now.getMinutes();const nowX=(minutes/60)*HOUR_WIDTH;
+    const now=new Date();const minutes=now.getHours()*60+now.getMinutes();const nowX=(minutes/60)*hourWidth();
     const line=document.createElement('div');line.id='epg-guide-now-line';line.className='epg-guide-now-line';line.style.left=`calc(var(--epg-channel-width) + ${nowX}px)`;
     const badge=document.createElement('span');badge.textContent='ΤΩΡΑ';line.appendChild(badge);root.appendChild(line);
     const target=Math.max(0,nowX-300);
