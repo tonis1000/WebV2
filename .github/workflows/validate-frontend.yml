@@ -38,6 +38,8 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'sport.html'
+      - 'sport.css'
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'tests/**/*.html'
@@ -54,6 +56,7 @@ on:
       - 'workers/source-discovery/**/*.js'
       - 'workers/source-hunt*.js'
       - 'workers/epg-proxy-gr.js'
+      - 'workers/webtv-sport.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-registry.yml'
@@ -63,6 +66,7 @@ on:
       - '.github/workflows/deploy-source-discovery.yml'
       - '.github/workflows/deploy-source-hunt.yml'
       - '.github/workflows/deploy-epg-proxy-gr.yml'
+      - '.github/workflows/deploy-webtv-sport.yml'
 
 permissions:
   contents: read
