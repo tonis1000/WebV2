@@ -127,7 +127,8 @@ function parseHomepageHtml(html='',baseOrigin=''){
   const raw=String(html||'');
   const anchors=[...raw.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)].map((m,index)=>{
     const href=(m[1].match(/\bhref\s*=\s*["']([^"']+)["']/i)||[])[1]||'';
-    return{index,start:m.index||0,end:(m.index||0)+m[0].length,href,text:stripTags(m[2])};
+    const dataUrl=(m[1].match(/\bdata-url\s*=\s*["']([^"']+)["']/i)||[])[1]||'';
+    return{index,start:m.index||0,end:(m.index||0)+m[0].length,href,dataUrl,text:stripTags(m[2])};
   });
   const groups=[];let current=null;
   for(const a of anchors){
@@ -135,7 +136,7 @@ function parseHomepageHtml(html='',baseOrigin=''){
     if(!n)continue;
     const num=Number(n);
     let url='';
-    try{url=new URL(a.href,baseOrigin||undefined).href;}catch{}
+    try{url=new URL(a.dataUrl||a.href,baseOrigin||undefined).href;}catch{}
     if(!safeHttpsUrl(url))continue;
     if(num===1||!current){current={start:a.start,links:[]};groups.push(current);}
     current.links.push(url);
@@ -205,7 +206,6 @@ async function discoverOrigins(){
 async function loadSchedule(){
   const candidates=await discoverOrigins();
   const reports=[];
-  let staleCandidate=null;
   for(const origin of candidates.slice(0,10)){
     if(!normalizeOrigin(origin))continue;
     let homepage=null;
@@ -227,7 +227,6 @@ async function loadSchedule(){
       if(parsed.events.length&&freshness.fresh){
         return{origin,events:parsed.events,source:'program.txt',fresh:true,reports};
       }
-      if(parsed.events.length&&!staleCandidate)staleCandidate={origin,events:parsed.events,source:'program.txt',fresh:false};
     }catch(error){
       reports.push({origin,program:false,error:error?.message||String(error)});
     }
@@ -236,7 +235,6 @@ async function loadSchedule(){
       return{origin,events:homeParsed.events,source:'homepage',fresh:true,reports};
     }
   }
-  if(staleCandidate)return{...staleCandidate,reports};
   return{origin:'',events:[],source:'none',fresh:false,reports};
 }
 

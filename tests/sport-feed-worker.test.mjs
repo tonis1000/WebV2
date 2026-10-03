@@ -19,3 +19,18 @@ assert.ok(origins.includes('https://foothublive.top'));
 assert.equal(typeof toUtcIsoFromAthens(2026,8,23,16,0),'string');
 
 console.log('sport feed worker contract ok');
+
+
+const homepage=`<h5><span class="event-time">19:00</span> Κόσοβο - Αυστρία</h5>
+<h5><span class="event-time">21:45</span> Ελλάδα - Γερμανία</h5>
+<a class="btn" data-url="/cdn3/linka.php" href="javascript:void(0)">Link #1</a>
+<a class="btn" data-url="/cast/1/link1.php" href="javascript:void(0)">Link #2</a>
+<h5><span class="event-time">16:00</span> Αζερμπαϊτζάν - Λιθουανία</h5>
+<a class="btn" data-url="/cdn3/linkb.php" href="javascript:void(0)">Link #1</a>
+<a class="btn" data-url="/cast/1/link2.php" href="javascript:void(0)">Link #2</a>`;
+
+const homeParsed=(await import('../workers/webtv-sport.js')).parseHomepageHtml(homepage,'https://foothubhd.st');
+assert.equal(homeParsed.events.length,3);
+assert.equal(homeParsed.events[0].links[0].url,'https://foothubhd.st/cdn3/linka.php');
+assert.equal(homeParsed.events[1].links[1].url,'https://foothubhd.st/cast/1/link1.php');
+assert.equal(homeParsed.events[2].links[0].url,'https://foothubhd.st/cdn3/linkb.php');
