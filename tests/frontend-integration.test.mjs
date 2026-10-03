@@ -118,8 +118,11 @@ assert.ok(existsSync(path.join(ROOT, 'src/core/channel-profile-gr.js')), 'Channe
 assert.match(main, /channel-profile-gr\.js/, 'Phase B must move My Playlist presentation ownership onto Channel Profiles');
 assert.match(main, /resolveChannelProfile/, 'Phase B runtime must resolve canonical profile metadata');
 assert.match(main, /profile\?\.category\?\.primary/, 'Phase B must prefer canonical profile category for My Playlist');
-assert.match(main, /profile\?\.logo\?\.status\s*===\s*['"]available['"]/, 'Phase B must prefer available canonical profile logo');
-assert.match(main, /safeLogo\(c\.logo\|\|['"]{2}\)/, 'Phase B must preserve sanitized D1 logo fallback while profile logo is pending');
+assert.ok(existsSync(path.join(ROOT, 'src/core/channel-logo.js')), 'Channel Logo resolver should exist');
+assert.match(main, /channel-logo\.js/, 'My Playlist presentation must route logo selection through the shared Channel Logo resolver');
+assert.match(main, /resolveChannelLogo/, 'runtime must resolve logo provenance through the shared owner');
+assert.match(main, /providedSourceKind:\s*['"]registry-channel['"]/, 'D1 logo fallback must enter the resolver as explicit unverified Registry provenance');
+assert.match(main, /safeLogo\(c\.logo\|\|['"]{2}\)/, 'runtime must preserve sanitized D1 logo fallback before provenance resolution');
 assert.match(epgCore, /channel-identity-gr\.js/, 'Phase C EPG matching must consume shared Greek identity');
 assert.match(epgCore, /channel-profile-gr\.js/, 'Phase C EPG matching must consume Channel Profile metadata');
 assert.match(epgCore, /resolveGreekIdentity/, 'Phase C must resolve EPG identities through the shared registry');

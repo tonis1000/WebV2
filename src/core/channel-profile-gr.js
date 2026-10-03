@@ -11,7 +11,7 @@ const STREAM_URL_RE = /(?:rtmps?|rtsps?):\/\/|\.(?:m3u8|mpd|mp4|webm|ts)(?:[?"\\
 function blankLogo(){
   return Object.freeze({status:'pending',preferredUrl:'',sourceKind:'',sourceUrl:'',fallbacks:Object.freeze([])});
 }
-function availableLogo(preferredUrl,sourceKind='registry-curated-baseline',sourceUrl=preferredUrl){
+function availableLogo(preferredUrl,sourceKind='curated-third-party',sourceUrl=preferredUrl){
   return Object.freeze({status:'available',preferredUrl,sourceKind,sourceUrl,fallbacks:Object.freeze([])});
 }
 function pendingEpg(aliases=[]){
@@ -32,7 +32,7 @@ function profile(id,category,logo=blankLogo(),epg=blankEpg()){
 
 const DEFINITIONS = Object.freeze([
   profile('ert1','Γενικά',availableLogo('https://i.imgur.com/slE8U5m.png'),pendingEpg(['ERT1.gr','ERT1.HD.gr','EPT1.gr','ΕΡΤ1','ERT1 HD'])),
-  profile('ert2','Αθλητικά',availableLogo('https://upload.wikimedia.org/wikipedia/commons/5/50/%CE%95%CE%A1%CE%A42.png'),pendingEpg(['ERT2.gr','ERT2.HD.gr','EPT2.gr','ΕΡΤ2','ERT2 HD','ERT2 SPOR HD'])),
+  profile('ert2','Αθλητικά',availableLogo('https://upload.wikimedia.org/wikipedia/commons/5/50/%CE%95%CE%A1%CE%A42.png','wikimedia-commons'),pendingEpg(['ERT2.gr','ERT2.HD.gr','EPT2.gr','ΕΡΤ2','ERT2 HD','ERT2 SPOR HD'])),
   profile('ert3','Γενικά',availableLogo('https://i.imgur.com/f2l9bDR.png'),pendingEpg(['ERT3.gr','ERT3.HD.gr','EPT3.gr','ΕΡΤ3','ERT3 HD'])),
   profile('ertnews','Ειδήσεις',availableLogo('https://i.imgur.com/XwLTzaF.jpg'),pendingEpg(['ERTNEWS.gr','ERT.NEWS.gr','ΕΡΤNEWS','ERT NEWS'])),
   profile('ant1','Γενικά',availableLogo('https://i.imgur.com/V1w22Or.png'),pendingEpg(['ANT1.gr','ANT1.HD.gr','Antenna1.gr','ANT1 HD'])),
@@ -41,13 +41,13 @@ const DEFINITIONS = Object.freeze([
   profile('mega','Γενικά',availableLogo('https://i.ibb.co/f2rCKjh/mega.jpg'),pendingEpg(['MEGA.gr','MEGA.HD.gr','MegaChannel.gr','megatv','MEGA HD'])),
   profile('open','Γενικά',availableLogo('https://i.imgur.com/M6XG03v.png'),pendingEpg(['OPEN.gr','OPEN.HD.gr','OPEN.BEYOND.HD.gr','opentv','OPEN TV HD'])),
   profile('meganews','Ειδήσεις',availableLogo('https://www.alteregomedia.org/wp-content/uploads/2025/04/MEGA-IDENT.png','official-publisher-site','https://www.alteregomedia.org/'),pendingEpg(['MEGA NEWS','Mega News','MEGA.News.gr','meganews'])),
-  profile('star','Γενικά',availableLogo('https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/STAR_Channel.png/250px-STAR_Channel.png'),pendingEpg(['STAR.gr','STAR.HD.gr','startv','STAR HD'])),
+  profile('star','Γενικά',availableLogo('https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/STAR_Channel.png/250px-STAR_Channel.png','wikimedia-commons'),pendingEpg(['STAR.gr','STAR.HD.gr','startv','STAR HD'])),
   profile('action24','Ειδήσεις',availableLogo('https://i.imgur.com/Fsnz8GK.png'),pendingEpg(['ACTION24.gr','ACTION24.HD.gr'])),
   profile('kontra','Ειδήσεις',blankLogo(),pendingEpg(['KONTRA.gr','KONTRA.HD.gr'])),
   profile('tv100','Περιφερειακά',availableLogo('https://i.imgur.com/Qx5MEbl.png')),
   profile('baraza-greek-hits','Μουσική',availableLogo('https://i.imgur.com/gjf9q2g.png')),
   profile('baraza-laika','Μουσική',availableLogo('https://i.imgur.com/NlN4lmc.png')),
-  profile('madtv','Μουσική',availableLogo('https://upload.wikimedia.org/wikipedia/commons/2/23/MADtv_logo.png'),pendingEpg(['MADTV','MAD TV','MAD.TV.gr','MAD TV GREECE'])),
+  profile('madtv','Μουσική',availableLogo('https://upload.wikimedia.org/wikipedia/commons/2/23/MADtv_logo.png','wikimedia-commons'),pendingEpg(['MADTV','MAD TV','MAD.TV.gr','MAD TV GREECE'])),
   profile('madworld','Μουσική',availableLogo('https://i.imgur.com/zoS5RWU.png')),
   profile('paniktv','Μουσική'),
   profile('realmusictv','Μουσική'),

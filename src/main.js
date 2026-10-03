@@ -1,6 +1,7 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js';
 import { resolveChannelProfile } from './core/channel-profile-gr.js';
+import { resolveChannelLogo } from './core/channel-logo.js';
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
 import { HealthStore } from './core/health-store.js';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
@@ -10,7 +11,7 @@ import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 
-const BUILD_ID = '20260930-import-promotion-d';
+const BUILD_ID = '20261003-logo-resolution-a';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const DEBUG_FLAGS = new Set((new URLSearchParams(location.search).get('debug') || '').split(',').map(v => v.trim()).filter(Boolean));
@@ -200,6 +201,8 @@ function renderChannels(){
     button.dataset.channelId=String(channel.id||'');
     const logo=document.createElement('img');
     prepareLazyLogo(logo,channel.logo);
+    logo.dataset.logoTrust=channel.logoMeta?.trust||'none';
+    logo.dataset.logoSourceKind=channel.logoMeta?.sourceKind||'';
     const meta=document.createElement('div');
     const name=document.createElement('strong');name.textContent=channel.name;
     const group=document.createElement('span');group.textContent=channel.group||'Other';
@@ -231,7 +234,18 @@ function clearSelectedIfMissing(){
   els.officialLive.hidden=true;els.sourceHuntToggle.hidden=true;els.sourceHunt.hidden=true;player.stop?.();
 }
 function applyPlaylistText(text,{mode='replace',label='Playlist'}={}){
-  const imported=parseM3U(text).map(channel=>({...channel,logo:safeLogo(channel.logo),sourceTrust:'temporary'}));
+  const imported=parseM3U(text).map(channel=>{
+    const profile=resolveChannelProfile(channel.id||channel.originalId||channel.name);
+    const logoMeta=resolveChannelLogo({
+      id:channel.id,
+      tvgId:channel.originalId,
+      name:channel.name,
+      profile,
+      providedLogo:safeLogo(channel.logo),
+      providedSourceKind:'playlist-tvg-logo',
+    });
+    return {...channel,logo:logoMeta.url,logoMeta,sourceTrust:'temporary'};
+  });
   if(!imported.length)throw new Error('No #EXTINF channels found');
   channels=mode==='merge'?dedupeChannels([...channels,...imported]):dedupeChannels(imported);
   catalogMode='temporary';
@@ -245,11 +259,20 @@ function mapRegistryChannel(c){
   const id=normalizeId(c.id||c.tvgId||c.name);
   const profile=resolveChannelProfile(id||c.tvgId||c.name);
   const fallbackLogo=safeLogo(c.logo||'');
+  const logoMeta=resolveChannelLogo({
+    id,
+    tvgId:c.tvgId||c.id||'',
+    name:c.name,
+    profile,
+    providedLogo:fallbackLogo,
+    providedSourceKind:'registry-channel',
+  });
   return {
     id,
     originalId: c.tvgId||c.id||c.name,
     name: c.name,
-    logo: profile?.logo?.status==='available'?safeLogo(profile.logo.preferredUrl):fallbackLogo,
+    logo: logoMeta.url,
+    logoMeta,
     group: profile?.category?.primary||c.groupName||'Other',
     directUrls: [...new Set((c.sources||[]).map(s=>s?.url).filter(Boolean))],
     position: Number(c.position)||0,
