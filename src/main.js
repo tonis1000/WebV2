@@ -569,6 +569,24 @@ function renderEpg(){
 }
 function startClock(){const tick=()=>{els.clock.textContent=new Date().toLocaleString('de-DE');};tick();setInterval(tick,1000);}
 
+async function loadStartupCloudPlaylist(){
+  let lastError=null;
+  for(let attempt=1;attempt<=2;attempt++){
+    try{
+      return await loadCloudMyPlaylist({reason:attempt===1?'startup':`startup-retry-${attempt}`,preserveSelection:false});
+    }catch(error){
+      lastError=error;
+      log(`Startup My Playlist read failed · attempt ${attempt}/2 · ${error.message}`);
+      if(channels.length){
+        log(`Startup continuing from cached My Playlist · ${channels.length} channels`);
+        return {total:channels.length,channels:[...channels],cached:true,error:error.message};
+      }
+      if(attempt<2)await new Promise(resolve=>setTimeout(resolve,700));
+    }
+  }
+  throw lastError||new Error('My Playlist unavailable');
+}
+
 async function boot(){
   const startedAt=performance.now();
   startClock();setPlaybackState('idle','Idle');clearDiagnostics();
@@ -588,7 +606,7 @@ async function boot(){
       if(window.WebTVPlaylistAPI?.ready)renderChannels();
     })
     .catch(error=>log(`Source registry unavailable: ${error.message}`));
-  await loadCloudMyPlaylist({reason:'startup',preserveSelection:false});
+  await loadStartupCloudPlaylist();
   log(`Startup playlist ready · ${channels.length} channels · ${Math.round(performance.now()-startedAt)} ms`);
   const epgTask=epg.refresh({channels})
     .then(()=>{log(`EPG loaded for ${channels.length} sidebar channels · ${Math.round(performance.now()-startedAt)} ms`);renderEpg();})
