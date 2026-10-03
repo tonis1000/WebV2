@@ -4,6 +4,9 @@ html.admin-locked #playlist-manager-toggle,
 html.admin-locked #source-hunt-toggle,
 html.admin-locked #discovery-beta-toggle,
 html.admin-locked #diagnostics-toggle,
+html.admin-locked #unified-search-toggle,
+html.admin-locked #channel-logo-find,
+html.admin-locked #channel-logo-repair-missing,
 html.admin-locked #favorite-channel,
 html.admin-locked #favorites-filter,
 html.admin-locked #my-playlist-channel-action,
@@ -11,12 +14,13 @@ html.admin-locked #current-catalog-badge,
 html.admin-locked #playlist-manager,
 html.admin-locked #source-hunt,
 html.admin-locked #diagnostics,
+html.admin-locked #unified-search-panel,
 html.admin-locked #source-editor-overlay{display:none!important}
 @media(min-width:1180px){
   html.rail-preview .channel-header{gap:12px}
   html.rail-preview .channel-actions{flex:none}
   html.rail-preview .player-header-admin{white-space:nowrap}
-  html.rail-preview.admin-locked .player-card{width:min(100%,960px)}
+  html.rail-preview.admin-locked .player-card{width:100%}
 }
 @media(max-width:780px){
   .admin-brand{padding:7px 3px}

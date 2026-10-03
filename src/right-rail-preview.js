@@ -1,6 +1,6 @@
 const PARAM = 'layout';
 const DESKTOP = '(min-width: 1180px)';
-const BUILD_ID = '20260926-right-rail-default-v7';
+const BUILD_ID = '20261003-clean-viewer-admin-rail';
 
 const layoutMode = new URLSearchParams(location.search).get(PARAM);
 const enabled = layoutMode !== 'classic';
@@ -40,7 +40,13 @@ if (!enabled) {
     rail.id = 'desktop-control-rail';
     rail.className = 'desktop-control-rail panel';
     rail.setAttribute('aria-label', 'Desktop controls');
-    rail.innerHTML = '<div id="desktop-rail-stack" class="desktop-rail-stack"></div>';
+    rail.innerHTML = `
+      <div id="desktop-rail-stack" class="desktop-rail-stack">
+        <section class="desktop-rail-group"><span class="desktop-rail-label">Library</span><div id="desktop-rail-library" class="desktop-rail-group-stack"></div></section>
+        <section class="desktop-rail-group"><span class="desktop-rail-label">Search & Logos</span><div id="desktop-rail-discovery" class="desktop-rail-group-stack"></div></section>
+        <section class="desktop-rail-group"><span class="desktop-rail-label">Tools</span><div id="desktop-rail-tools" class="desktop-rail-group-stack"></div></section>
+        <section class="desktop-rail-group"><span class="desktop-rail-label">Channel</span><div id="desktop-rail-channel" class="desktop-rail-group-stack"></div></section>
+      </div>`;
     layout.appendChild(rail);
     return rail;
   }
@@ -69,28 +75,35 @@ if (!enabled) {
 
   function moveControls() {
     if (!active) return;
-    const target = ensureRail()?.querySelector('#desktop-rail-stack');
-    if (!target) return;
+    const root = ensureRail();
+    const library = root?.querySelector('#desktop-rail-library');
+    const discovery = root?.querySelector('#desktop-rail-discovery');
+    const tools = root?.querySelector('#desktop-rail-tools');
+    const channel = root?.querySelector('#desktop-rail-channel');
+    if (!library || !discovery || !tools || !channel) return;
 
     const brand = document.querySelector('.topbar > div:first-child');
     const clock = document.getElementById('clock');
     const dock = ensureHeaderDock();
     const playlists = document.getElementById('playlist-manager-toggle');
     const catalog = ensureCatalogBadge();
+    const search = document.getElementById('unified-search-toggle');
+    const findLogo = document.getElementById('channel-logo-find');
+    const repairLogos = document.getElementById('channel-logo-repair-missing');
     const hunt = document.getElementById('source-hunt-toggle');
     const diagnostics = document.getElementById('diagnostics-toggle');
     const favorite = document.getElementById('favorite-channel');
     const myAction = document.getElementById('my-playlist-channel-action');
 
     [brand,clock].filter(Boolean).forEach(node=>rememberAndMove(node,dock));
-
-    [myAction, playlists, catalog, hunt, diagnostics, favorite]
-      .filter(Boolean)
-      .forEach(node => rememberAndMove(node, target));
+    [playlists,catalog].filter(Boolean).forEach(node=>rememberAndMove(node,library));
+    [search,findLogo,repairLogos].filter(Boolean).forEach(node=>rememberAndMove(node,discovery));
+    [hunt,diagnostics].filter(Boolean).forEach(node=>rememberAndMove(node,tools));
+    [favorite,myAction].filter(Boolean).forEach(node=>rememberAndMove(node,channel));
 
     if (brand) brand.classList.add('rail-brand');
     if (clock) clock.classList.add('rail-clock');
-    [myAction,playlists, catalog, hunt, diagnostics, favorite].forEach(node => node?.classList.add('rail-control'));
+    [playlists,catalog,search,findLogo,repairLogos,hunt,diagnostics,favorite,myAction].forEach(node => node?.classList.add('rail-control'));
     if (favorite) favorite.classList.add('rail-favorite');
   }
 
@@ -171,31 +184,37 @@ if (!enabled) {
   style.id = 'right-rail-preview-styles';
   style.textContent = `
     html.rail-preview body{background:radial-gradient(circle at 10% 0%,rgba(99,179,255,.08),transparent 27%),radial-gradient(circle at 100% 12%,rgba(61,220,151,.08),transparent 25%),var(--bg)}
-    html.rail-preview .app-shell{width:min(1600px,calc(100% - 16px));margin:0 auto;padding:8px 0 14px}
+    html.rail-preview .app-shell{width:min(1680px,calc(100% - 16px));margin:0 auto;padding:8px 0 12px}
     html.rail-preview .topbar{display:none!important}
-    html.rail-preview .layout{grid-template-columns:320px minmax(0,1fr) 220px;gap:14px;align-items:start}
-    html.rail-preview.admin-locked .layout{grid-template-columns:320px minmax(0,1fr)}
+    html.rail-preview .layout{grid-template-columns:300px minmax(0,1fr) 238px;gap:12px;align-items:start}
+    html.rail-preview.admin-locked .layout{grid-template-columns:300px minmax(0,1fr)}
     html.rail-preview.admin-locked .desktop-control-rail{display:none!important}
-    html.rail-preview.admin-locked #my-playlist-channel-action,html.rail-preview.admin-locked #favorite-channel{display:none!important}
-    html.rail-preview .sidebar{top:8px;height:calc(100vh - 16px)}
-    html.rail-preview .viewer{min-width:0}
-    html.rail-preview .player-card{width:min(100%,960px);justify-self:center}
-    html.rail-preview .player-stage{width:100%;max-height:min(540px,calc(100vh - 160px));overflow:hidden}
+    html.rail-preview .sidebar{top:8px;height:calc(100vh - 16px);min-height:0}
+    html.rail-preview .viewer{min-width:0;gap:12px}
+    html.rail-preview .player-card{width:100%;max-width:1180px;justify-self:stretch}
+    html.rail-preview .player-stage{width:100%;height:min(62vh,680px);max-height:calc(100vh - 260px);min-height:320px;aspect-ratio:auto;overflow:hidden}
     html.rail-preview .player-stage video,html.rail-preview .player-stage iframe{position:absolute;inset:0;width:100%;height:100%;max-width:100%;object-fit:contain}
-    html.rail-preview .desktop-control-rail{position:sticky;top:8px;min-height:calc(100vh - 16px);padding:14px 12px;background:linear-gradient(180deg,rgba(11,24,26,.98),rgba(8,17,20,.98));border-color:#244b55;box-shadow:0 18px 50px rgba(0,0,0,.28)}
-    html.rail-preview .desktop-rail-stack{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+    html.rail-preview .desktop-control-rail{position:sticky;top:8px;height:calc(100vh - 16px);padding:12px 10px;overflow:auto;background:linear-gradient(180deg,rgba(11,24,26,.99),rgba(8,17,20,.99));border-color:#244b55;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+    html.rail-preview .desktop-rail-stack{display:grid;gap:12px}
+    html.rail-preview .desktop-rail-group{display:grid;gap:7px;padding-bottom:12px;border-bottom:1px solid rgba(148,184,199,.14)}
+    html.rail-preview .desktop-rail-group:last-child{border-bottom:0;padding-bottom:0}
+    html.rail-preview .desktop-rail-label{padding:0 3px;color:#7695a3;font-size:.64rem;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+    html.rail-preview .desktop-rail-group-stack{display:grid;gap:7px}
     html.rail-preview .player-header-admin{display:flex;align-items:center;justify-content:center;gap:12px;min-width:0;margin-left:auto}
     html.rail-preview .player-header-admin .rail-brand{flex:none}
     html.rail-preview .player-header-admin .rail-clock{font-size:.78rem;white-space:nowrap;color:#d7e8f6}
-    html.rail-preview .rail-control{width:100%;min-height:40px;justify-content:center;text-align:center;margin:0!important}
+    html.rail-preview .rail-control{width:100%;min-height:42px;display:flex!important;align-items:center;justify-content:center;text-align:center;margin:0!important;border-radius:11px;font-size:.82rem}
     html.rail-preview #playlist-manager-toggle.rail-control{background:#123f59;border-color:#2e83ad;color:#d9f3ff}
-    html.rail-preview #current-catalog-badge.rail-control{display:flex!important;max-width:none;padding:9px 10px;background:#0d1d29;border-color:#315d7a;color:#bfe0ff;border-radius:10px;white-space:normal;line-height:1.2}
-    html.rail-preview #source-hunt-toggle.rail-control{display:flex!important;background:#33250e;border-color:#86651f;color:#ffe0a0}
-    html.rail-preview #source-hunt-toggle.rail-control[hidden]{opacity:.5;pointer-events:none}
-    html.rail-preview #diagnostics-toggle.rail-control{background:#091116;border-color:#33414c;color:#f4f7fa}
-    html.rail-preview #favorite-channel.rail-control{display:flex!important;background:#33270d;border-color:#886817;color:#ffe39b}
-    html.rail-preview #favorite-channel.rail-control[hidden]{opacity:.5;pointer-events:none}
-    html.rail-preview .rail-favorite{margin-top:12px!important}
+    html.rail-preview #current-catalog-badge.rail-control{max-width:none;padding:9px 10px;background:#0d1d29;border-color:#315d7a;color:#bfe0ff;white-space:normal;line-height:1.2}
+    html.rail-preview #unified-search-toggle.rail-control{background:#142f3e;border-color:#347da0;color:#d9f4ff}
+    html.rail-preview #channel-logo-find.rail-control{background:#24213d;border-color:#655aa0;color:#e0dcff}
+    html.rail-preview #channel-logo-repair-missing.rail-control{background:#17372d;border-color:#347a60;color:#c9f6df}
+    html.rail-preview #source-hunt-toggle.rail-control{background:#33250e;border-color:#86651f;color:#ffe0a0}
+    html.rail-preview #diagnostics-toggle.rail-control{background:#111820;border-color:#3a4652;color:#e8eef4}
+    html.rail-preview #favorite-channel.rail-control{background:#33270d;border-color:#886817;color:#ffe39b}
+    html.rail-preview #my-playlist-channel-action.rail-control{background:#17372d;border-color:#347a60;color:#d6f8e6}
+    html.rail-preview #my-playlist-channel-action.rail-control[data-inside="1"]{background:#3a1d22;border-color:#71373f;color:#ffd1d5}
+    html.rail-preview .rail-control[hidden]{display:none!important}
     html.rail-preview .now-playing{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;padding-top:10px}
     html.rail-preview #program-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;max-height:2.8em;line-height:1.4;transition:max-height .18s ease;color:var(--muted)}
     html.rail-preview #program-description.is-expandable{cursor:pointer;position:relative;padding-right:20px}
@@ -204,6 +223,11 @@ if (!enabled) {
     html.rail-preview #program-description.expanded::after{content:'⌃'}
     html.rail-preview .next-programs{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
     html.rail-preview .next-card{height:100%;min-height:62px}
+    html.rail-preview #unified-search-panel:not([hidden]){position:fixed;top:64px;right:258px;width:min(780px,calc(100vw - 590px));max-height:calc(100vh - 82px);overflow:auto;z-index:1100;background:rgba(14,20,26,.995);border-color:#347da0;box-shadow:0 30px 100px rgba(0,0,0,.7)}
+    @media(max-height:760px) and (min-width:1180px){
+      html.rail-preview .player-stage{height:min(58vh,520px);max-height:calc(100vh - 230px);min-height:280px}
+      html.rail-preview .next-card{min-height:54px}
+    }
   `;
   document.head.appendChild(style);
 
