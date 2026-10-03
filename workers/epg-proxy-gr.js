@@ -158,6 +158,14 @@ function xmltvUtc(value){
   const p=n=>String(n).padStart(2,"0");
   return `${d.getUTCFullYear()}${p(d.getUTCMonth()+1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())} +0000`;
 }
+function cosmoteDayRange(dayOffset=0){
+  const date=athensDateParts(dayOffset);
+  const raw=athensOffset(date);
+  const offset=`${raw.slice(0,3)}:${raw.slice(3)}`;
+  const from=Math.floor(new Date(`${date}T00:00:00${offset}`).getTime()/1000);
+  const to=Math.floor(new Date(`${date}T23:59:59${offset}`).getTime()/1000);
+  return{from,to};
+}
 function makeXmltv(channels=[],programmes=[],generator="WebTV"){
   return `<?xml version="1.0" encoding="UTF-8"?><tv generator-info-name="${escapeXml(generator)}">${channels.map(c=>`<channel id="${escapeXml(c.id)}"><display-name>${escapeXml(c.name)}</display-name>${c.logo?`<icon src="${escapeXml(c.logo)}"/>`:""}</channel>`).join("")}${programmes.map(p=>`<programme channel="${escapeXml(p.channel)}" start="${escapeXml(p.start)}" stop="${escapeXml(p.stop)}"><title>${escapeXml(p.title)}</title>${p.description?`<desc>${escapeXml(p.description)}</desc>`:""}${p.category?`<category>${escapeXml(p.category)}</category>`:""}${p.image?`<icon src="${escapeXml(p.image)}"/>`:""}</programme>`).join("")}</tv>`;
 }
@@ -193,9 +201,10 @@ async function fetchCosmote(requested=[]){
   const data=await response.json();const all=Array.isArray(data?.channels)?data.channels:[];
   const channels=all.filter(c=>matchesCosmoteChannel(c,requested)).slice(0,MAX_COSMOTE_CHANNELS);
   if(!channels.length)throw new Error("cosmote no requested channels");
-  const now=Math.floor((Date.now()-6*3600000)/1000),to=Math.floor((Date.now()+48*3600000)/1000);const programmes=[];
-  await Promise.all(channels.map(async channel=>{
-    const url=`${COSMOTE_LISTINGS_BASE}?from=${now}&to=${to}&callSigns=${encodeURIComponent(channel.callSign)}&endingIncludedInRange=false`;
+  const programmes=[];
+  await Promise.all(channels.flatMap(channel=>[0,1].map(async dayOffset=>{
+    const {from,to}=cosmoteDayRange(dayOffset);
+    const url=`${COSMOTE_LISTINGS_BASE}?from=${from}&to=${to}&callSigns=${encodeURIComponent(channel.callSign)}&endingIncludedInRange=false`;
     try{
       const r=await fetch(url,{headers:COSMOTE_HEADERS});if(!r.ok)return;const j=await r.json();
       for(const group of Array.isArray(j?.channels)?j.channels:[])for(const item of Array.isArray(group?.items)?group.items:[]){
@@ -203,7 +212,7 @@ async function fetchCosmote(requested=[]){
         programmes.push({channel:`cosmote.${channel.callSign}`,start,stop,title:item.title,description:item.description||"",category:item.qoe?.genre||"",image:item.thumbnails?.standard||""});
       }
     }catch{}
-  }));
+  })));
   const xml=makeXmltv(channels.map(c=>({id:`cosmote.${c.callSign}`,name:c.title,logo:c.logos?.square||""})),programmes,"COSMOTE TV official");
   const analysis=analyzeXmltv(xml);if(!analysis.valid)throw new Error("cosmote empty");
   return{id:"cosmote",xml,analysis};
@@ -254,4 +263,4 @@ export default{
   }
 };
 
-export{analyzeXmltv,requestedChannelTerms,filterXmltv,mergeXmltv,normalizeMatch,matchesCosmoteChannel};
+export{analyzeXmltv,requestedChannelTerms,filterXmltv,mergeXmltv,normalizeMatch,matchesCosmoteChannel,cosmoteDayRange};
