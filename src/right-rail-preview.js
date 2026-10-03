@@ -91,6 +91,7 @@ if (!enabled) {
     const findLogo = document.getElementById('channel-logo-find');
     const repairLogos = document.getElementById('channel-logo-repair-missing');
     const epgGuide = document.getElementById('epg-guide-toggle');
+    const sport = document.getElementById('sport-toggle');
     const hunt = document.getElementById('source-hunt-toggle');
     const diagnostics = document.getElementById('diagnostics-toggle');
     const favorite = document.getElementById('favorite-channel');
@@ -99,12 +100,12 @@ if (!enabled) {
     [brand,clock].filter(Boolean).forEach(node=>rememberAndMove(node,dock));
     [playlists,catalog].filter(Boolean).forEach(node=>rememberAndMove(node,library));
     [search,findLogo,repairLogos].filter(Boolean).forEach(node=>rememberAndMove(node,discovery));
-    [epgGuide,hunt,diagnostics].filter(Boolean).forEach(node=>rememberAndMove(node,tools));
+    [epgGuide,sport,hunt,diagnostics].filter(Boolean).forEach(node=>rememberAndMove(node,tools));
     [favorite,myAction].filter(Boolean).forEach(node=>rememberAndMove(node,channel));
 
     if (brand) brand.classList.add('rail-brand');
     if (clock) clock.classList.add('rail-clock');
-    [playlists,catalog,search,findLogo,repairLogos,epgGuide,hunt,diagnostics,favorite,myAction].forEach(node => node?.classList.add('rail-control'));
+    [playlists,catalog,search,findLogo,repairLogos,epgGuide,sport,hunt,diagnostics,favorite,myAction].forEach(node => node?.classList.add('rail-control'));
     if (favorite) favorite.classList.add('rail-favorite');
   }
 
