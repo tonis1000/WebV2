@@ -21,5 +21,13 @@ assert.match(gate,/#epg-guide-toggle/,'locked mode must hide the EPG Guide contr
 assert.match(gate,/#epg-guide-overlay/,'locked mode must hide an open EPG Guide');
 assert.match(css,/\.epg-guide-grid/,'EPG Guide must own a dedicated grid');
 assert.match(css,/position:fixed/,'EPG Guide must be an overlay rather than changing Player layout');
+assert.match(ui,/epg-guide-now-line/,'Guide must render a current-time line');
+assert.match(ui,/ΤΩΡΑ/,'Guide must label the current-time marker');
+assert.match(ui,/classList\.add\('is-now'\)/,'Guide must mark currently airing programmes');
+assert.match(ui,/setInterval\([^\n]*renderGuide/,'Guide must refresh the current-time presentation while open');
+assert.match(css,/\.epg-guide-now-line/,'Guide must style the current-time line');
+assert.match(css,/\.epg-guide-program\.is-now/,'Guide must style currently airing programme cells');
+assert.match(css,/--epg-hour-width:150px/,'Desktop guide must use roomier hour cells');
+assert.match(css,/min-height:78px/,'Desktop guide rows must be taller for readability');
 
 console.log('EPG Guide ownership/UI contract PASS');
