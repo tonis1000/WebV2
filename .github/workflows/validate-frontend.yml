@@ -110,6 +110,8 @@ jobs:
         run: node tests/project-brain-docs.test.mjs
       - name: Run Registry project checkpoint write API regression test
         run: node tests/project-checkpoint-write-api.test.mjs
+      - name: Run project-agent retirement regression test
+        run: node tests/project-agent-retirement.test.mjs
       - name: Run custom playlist Registry regression test
         run: node tests/custom-playlist-registry.test.mjs
       - name: Run custom playlist client regression test
@@ -118,10 +120,6 @@ jobs:
         run: node tests/custom-playlist-cache.test.mjs
       - name: Run playlist manager escaping regression test
         run: node tests/playlist-manager-html-escape.test.mjs
-      - name: Run project agent auth regression test
-        run: node tests/project-agent-auth.test.mjs
-      - name: Run project agent pairing admin regression test
-        run: node tests/project-agent-pairing-admin.test.mjs
       - name: Run playback and fallback regression tests
         run: node tests/header-aware-proxy.test.mjs
       - name: Run source ranking regression test

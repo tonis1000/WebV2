@@ -1,4 +1,3 @@
-import './project-agent-pairing-admin.js?v=20260929-project-agent';
 
 const root=document.documentElement;
 const trigger=document.getElementById('admin-unlock-trigger');
