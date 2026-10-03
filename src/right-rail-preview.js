@@ -1,6 +1,6 @@
 const PARAM = 'layout';
 const DESKTOP = '(min-width: 900px)';
-const BUILD_ID = '20261003-epg-guide-rail';
+const BUILD_ID = '20261004-startup-rail-recovery-a';
 
 const layoutMode = new URLSearchParams(location.search).get(PARAM);
 const enabled = layoutMode !== 'classic';
