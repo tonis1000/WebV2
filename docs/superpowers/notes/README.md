@@ -1,1 +1,0 @@
-This directory contains temporary design rationale notes used during bounded WebV2 cleanup work. Canonical project state remains `WEBV2_CURRENT.md` after verified closure.
