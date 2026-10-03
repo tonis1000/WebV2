@@ -34,3 +34,37 @@ assert.equal(homeParsed.events.length,3);
 assert.equal(homeParsed.events[0].links[0].url,'https://foothubhd.st/cdn3/linka.php');
 assert.equal(homeParsed.events[1].links[1].url,'https://foothubhd.st/cast/1/link1.php');
 assert.equal(homeParsed.events[2].links[0].url,'https://foothubhd.st/cdn3/linkb.php');
+
+
+const { parseSportFmHomepage } = await import('../workers/webtv-sport.js');
+
+const sportFmSample=`
+<section>
+  <div>Παίζει τώρα</div><div>ΣΠΟΡFM TV</div>
+  <div>ΗΡΑΚΛΗΣ - ΟΛΥΜΠΙΑΚΟΣ</div>
+  <div>Stoiximan GBL · 1η αγωνιστική · Κυριακή 4/10, 17:30 · Ζωντανά</div>
+  <a href="/el/media-video/iraklis-olympiakos">ΔΕΙΤΕ ΤΩΡΑ</a>
+
+  <div>Παίζει τώρα</div><div>ΣΠΟΡFM TV</div>
+  <div>ΠΑΝΑΘΗΝΑΪΚΟΣ AKTOR - VIKOS ΦALCONS</div>
+  <div>Stoiximan GBL · 1η αγωνιστική · Κυριακή 4/10, 13:00 · Ζωντανά</div>
+  <a href="/el/media-video/panathinaikos-aktor-vikos-ioanninon-live">ΔΕΙΤΕ ΤΩΡΑ</a>
+
+  <div>ΣΠΟΡFM TV</div><div>ΑΕΚ - ΜΑΡΟΥΣΙ</div>
+  <div>Stoiximan GBL · 1η αγωνιστική · 03/10/2026</div>
+  <a href="/el/media-video/aek-marousi-2">ΔΕΙΤΕ ΤΩΡΑ</a>
+
+  <a href="/el/media-video/sport-fm-linear-channel-1">ΔΕΙΤΕ ΖΩΝΤΑΝΑ</a>
+</section>`;
+
+const sportFmParsed=parseSportFmHomepage(sportFmSample,{
+  baseOrigin:'https://www.sportfmtv.gr',
+  now:new Date('2026-10-04T08:00:00Z')
+});
+assert.equal(sportFmParsed.events.length,2,'old SportFM matches and linear channel cards must not enter the current-event list');
+assert.equal(sportFmParsed.events[0].provider,'sportfmtv');
+assert.equal(sportFmParsed.events[0].title,'ΗΡΑΚΛΗΣ - ΟΛΥΜΠΙΑΚΟΣ');
+assert.equal(sportFmParsed.events[0].links[0].label,'Official');
+assert.equal(sportFmParsed.events[0].links[0].url,'https://www.sportfmtv.gr/el/media-video/iraklis-olympiakos');
+assert.match(sportFmParsed.events[0].startUtc,/Z$/);
+assert.ok(sportFmParsed.events.every(e=>e.source==='sportfmtv-homepage'));

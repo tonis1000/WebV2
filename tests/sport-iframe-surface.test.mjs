@@ -23,3 +23,7 @@ assert.match(sportJs,/frame\.src\s*=\s*safeUrl/,'SPORT selection must load only 
 assert.doesNotMatch(sportJs,/PlayerController|SourceRegistry|WebTVPlaybackAPI/,'SPORT iframe surface must not become a second canonical Player owner');
 
 console.log('sport iframe surface contract ok');
+
+
+assert.match(sportJs,/provider-section/,'SPORT page must render provider sections');
+assert.match(sportJs,/SPORTFM TV/,'SPORT page must label the SportFM TV section');

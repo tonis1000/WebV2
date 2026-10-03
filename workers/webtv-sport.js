@@ -1,6 +1,8 @@
 const SERVICE='WebTV SPORT Feed';
-const VERSION='1.0';
+const VERSION='1.1';
 const SOURCE_TZ='Europe/Athens';
+const SPORTFM_ORIGIN='https://www.sportfmtv.gr';
+const SPORTFM_MAX_EVENTS=10;
 const SEEDS=Object.freeze([
   'https://foothubhd.st',
   'https://foothublive.top',
@@ -117,7 +119,7 @@ function parseProgramText(text='',baseOrigin=''){
       events.push({
         id:eventId(currentDate,time,title,events.length),
         date:currentDate,time,title,startUtc,links,
-        source:'program.txt',slotIndex:events.length+1,
+        source:'program.txt',provider:'foothub',slotIndex:events.length+1,
       });
     }
   }
@@ -158,7 +160,7 @@ function parseHomepageHtml(html='',baseOrigin=''){
       events.push({
         id:eventId('today',time,title,events.length),
         date:'',time,title,startUtc,links,
-        source:'homepage',slotIndex:gi+1,
+        source:'homepage',provider:'foothub',slotIndex:gi+1,
       });
     }
   }
@@ -169,6 +171,122 @@ function parseHomepageHtml(html='',baseOrigin=''){
   }
   return{events:dedup,origins:extractFoothubOrigins(raw),baseOrigin};
 }
+function localDateKey(year,month,day){
+  return year*10000+month*100+day;
+}
+function parseSportFmDate(context='',now=new Date()){
+  const text=String(context||'');
+  const nowAthens=zonedParts(now,SOURCE_TZ);
+  const short=[...text.matchAll(/(\d{1,2})\/(\d{1,2})\s*,\s*(\d{1,2}):(\d{2})/g)].pop();
+  if(short){
+    return{
+      year:nowAthens.year,month:Number(short[2]),day:Number(short[1]),
+      hour:Number(short[3]),minute:Number(short[4]),
+      label:short[0],
+    };
+  }
+  const full=[...text.matchAll(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s*,?\s*(\d{1,2}):(\d{2}))?/g)].pop();
+  if(full){
+    return{
+      year:Number(full[3]),month:Number(full[2]),day:Number(full[1]),
+      hour:full[4]?Number(full[4]):null,minute:full[5]?Number(full[5]):null,
+      label:full[0],
+    };
+  }
+  return null;
+}
+function sportFmTitleFromContext(context=''){
+  let text=stripTags(context)
+    .replace(/Παίζει τώρα/giu,' ')
+    .replace(/ΣΠΟΡFM TV(?:\s+ΚΑΝΑΛΙ\s+\d+)?/giu,' ')
+    .replace(/ΔΕΙΤΕ ΤΩΡΑ|ΔΕΙΤΕ ΖΩΝΤΑΝΑ/giu,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+  const datePos=text.search(/(?:Δευτέρα|Τρίτη|Τετάρτη|Πέμπτη|Παρασκευή|Σάββατο|Κυριακή)?\s*\d{1,2}\/\d{1,2}(?:\/\d{4})?/iu);
+  if(datePos>=0)text=text.slice(0,datePos).trim();
+  const dotPos=text.indexOf('·');
+  if(dotPos>=0)text=text.slice(0,dotPos).trim();
+  const dash=[...text.matchAll(/([^|]{2,110}\s[-–—]\s[^|]{2,110})/gu)].pop();
+  if(!dash)return'';
+  let title=dash[1].trim();
+  const competition=title.match(/^(.+?\s[-–—]\s.+?)(?:\s+(?:Stoiximan|Allwyn|EuroLeague|UEFA|Superbet)\b.*)$/iu);
+  if(competition)title=competition[1].trim();
+  return title;
+}
+function parseSportFmHomepage(html='',{baseOrigin=SPORTFM_ORIGIN,now=new Date()}={}){
+  const raw=String(html||'');
+  const anchors=[...raw.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
+    .map(m=>{
+      const href=(m[1].match(/\bhref\s*=\s*["']([^"']+)["']/i)||[])[1]||'';
+      return{start:m.index||0,end:(m.index||0)+m[0].length,href,text:stripTags(m[2])};
+    })
+    .filter(a=>/\/media-video\//i.test(a.href)&&!/sport-fm-linear-channel-/i.test(a.href));
+  const nowAthens=zonedParts(now,SOURCE_TZ);
+  const todayKey=localDateKey(nowAthens.year,nowAthens.month,nowAthens.day);
+  const todayUtc=Date.UTC(nowAthens.year,nowAthens.month-1,nowAthens.day);
+  const events=[];
+  let previousEnd=0;
+  for(const anchor of anchors){
+    const context=raw.slice(Math.max(previousEnd,anchor.start-6000),anchor.start);
+    previousEnd=anchor.end;
+    const date=parseSportFmDate(context,now);
+    if(!date)continue;
+    const dateKey=localDateKey(date.year,date.month,date.day);
+    const eventDayUtc=Date.UTC(date.year,date.month-1,date.day);
+    if(dateKey<todayKey)continue;
+    if(eventDayUtc-todayUtc>14*86400000)continue;
+    let url='';
+    try{url=new URL(anchor.href,baseOrigin).href;}catch{}
+    if(!safeHttpsUrl(url)||new URL(url).hostname!=='www.sportfmtv.gr')continue;
+    const title=sportFmTitleFromContext(context)||anchor.text||'SPORTFM TV';
+    const startUtc=date.hour===null?'':toUtcIsoFromAthens(date.year,date.month,date.day,date.hour,date.minute||0);
+    events.push({
+      id:eventId(`${String(date.day).padStart(2,'0')}/${String(date.month).padStart(2,'0')}/${date.year}`,date.hour===null?'':`${String(date.hour).padStart(2,'0')}:${String(date.minute||0).padStart(2,'0')}`,title,events.length),
+      date:`${String(date.day).padStart(2,'0')}/${String(date.month).padStart(2,'0')}/${date.year}`,
+      time:date.hour===null?'':`${String(date.hour).padStart(2,'0')}:${String(date.minute||0).padStart(2,'0')}`,
+      title,startUtc,
+      links:[{label:'Official',url}],
+      source:'sportfmtv-homepage',provider:'sportfmtv',
+      liveLabel:/Ζωντανά|Παίζει τώρα/iu.test(stripTags(context)),
+      official:true,
+    });
+    if(events.length>=SPORTFM_MAX_EVENTS)break;
+  }
+  const dedup=[];const seen=new Set();
+  for(const event of events){
+    const key=event.links[0]?.url||event.id;
+    if(seen.has(key))continue;
+    seen.add(key);dedup.push(event);
+  }
+  return{events:dedup,origin:baseOrigin,source:'sportfmtv-homepage'};
+}
+function extractOgTitle(html=''){
+  return ((String(html||'').match(/<meta\b[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["'][^>]*>/i)||[])[1]
+    ||(String(html||'').match(/<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["'][^>]*>/i)||[])[1]
+    ||'').trim();
+}
+async function loadSportFmSchedule(){
+  const reports=[];
+  try{
+    const home=await fetchText(SPORTFM_ORIGIN+'/el');
+    const parsed=parseSportFmHomepage(home.text,{baseOrigin:SPORTFM_ORIGIN,now:new Date()});
+    for(const event of parsed.events.slice(0,SPORTFM_MAX_EVENTS)){
+      try{
+        const page=await fetchText(event.links[0].url);
+        const title=extractOgTitle(page.text);
+        if(title)event.title=title;
+      }catch(error){
+        reports.push({url:event.links[0].url,titleFetch:false,error:error?.message||String(error)});
+      }
+    }
+    reports.unshift({origin:SPORTFM_ORIGIN,ok:true,events:parsed.events.length});
+    return{...parsed,reports};
+  }catch(error){
+    reports.push({origin:SPORTFM_ORIGIN,ok:false,error:error?.message||String(error)});
+    return{origin:SPORTFM_ORIGIN,events:[],source:'sportfmtv-homepage',reports};
+  }
+}
+
 function eventFreshness(events=[]){
   const now=Date.now();
   const dated=events.map(e=>Date.parse(e.startUtc||'')).filter(Number.isFinite);
@@ -203,7 +321,7 @@ async function discoverOrigins(){
   }
   return [...out];
 }
-async function loadSchedule(){
+async function loadFoothubSchedule(){
   const candidates=await discoverOrigins();
   const reports=[];
   for(const origin of candidates.slice(0,10)){
@@ -237,13 +355,34 @@ async function loadSchedule(){
   }
   return{origin:'',events:[],source:'none',fresh:false,reports};
 }
+async function loadSchedule(){
+  const [foothub,sportfmtv]=await Promise.all([
+    loadFoothubSchedule(),
+    loadSportFmSchedule(),
+  ]);
+  const events=[
+    ...(foothub.events||[]),
+    ...(sportfmtv.events||[]),
+  ];
+  return{
+    origin:foothub.origin||'',
+    events,
+    source:'multi',
+    fresh:foothub.fresh!==false||sportfmtv.events.length>0,
+    providers:{
+      foothub:{origin:foothub.origin||'',source:foothub.source||'none',events:(foothub.events||[]).length,reports:foothub.reports||[]},
+      sportfmtv:{origin:SPORTFM_ORIGIN,source:'sportfmtv-homepage',events:(sportfmtv.events||[]).length,reports:sportfmtv.reports||[]},
+    },
+    reports:[...(foothub.reports||[]),...(sportfmtv.reports||[])],
+  };
+}
 
 export default {
   async fetch(request,env={}){
     const url=new URL(request.url);
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers:corsHeaders()});
     if(request.method!=='GET')return json({error:'Method not allowed'},405);
-    if(url.pathname==='/status')return json({ok:true,service:SERVICE,version:VERSION,deploySha:String(env.DEPLOY_SHA||''),seeds:SEEDS,sourceTimezone:SOURCE_TZ});
+    if(url.pathname==='/status')return json({ok:true,service:SERVICE,version:VERSION,deploySha:String(env.DEPLOY_SHA||''),seeds:SEEDS,sportfmOrigin:SPORTFM_ORIGIN,sourceTimezone:SOURCE_TZ});
     if(url.pathname!=='/api/schedule')return json({error:'Not found'},404);
     try{
       const schedule=await loadSchedule();
@@ -258,4 +397,4 @@ export default {
   }
 };
 
-export { extractFoothubOrigins, parseProgramText, parseHomepageHtml, toUtcIsoFromAthens, eventFreshness };
+export { extractFoothubOrigins, parseProgramText, parseHomepageHtml, parseSportFmHomepage, toUtcIsoFromAthens, eventFreshness };
