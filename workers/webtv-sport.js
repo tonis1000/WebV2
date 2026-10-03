@@ -3,6 +3,7 @@ const VERSION='1.1';
 const SOURCE_TZ='Europe/Athens';
 const SPORTFM_ORIGIN='https://www.sportfmtv.gr';
 const SPORTFM_MAX_EVENTS=10;
+const SPORTFM_MAX_ARCHIVE_EVENTS=24;
 const SEEDS=Object.freeze([
   'https://foothubhd.st',
   'https://foothublive.top',
@@ -120,7 +121,7 @@ function parseProgramText(text='',baseOrigin=''){
       events.push({
         id:eventId(currentDate,time,title,events.length),
         date:currentDate,time,title,startUtc,links,
-        source:'program.txt',provider:'foothub',slotIndex:events.length+1,
+        source:'program.txt',provider:'foothub',durationMinutes:125,slotIndex:events.length+1,
       });
     }
   }
@@ -161,7 +162,7 @@ function parseHomepageHtml(html='',baseOrigin=''){
       events.push({
         id:eventId('today',time,title,events.length),
         date:'',time,title,startUtc,links,
-        source:'homepage',provider:'foothub',slotIndex:gi+1,
+        source:'homepage',provider:'foothub',durationMinutes:125,slotIndex:gi+1,
       });
     }
   }
@@ -214,6 +215,12 @@ function sportFmTitleFromContext(context=''){
   if(competition)title=competition[1].trim();
   return title;
 }
+function sportFmDurationMinutes(context=''){
+  const text=stripTags(context);
+  if(/GBL|WBL|EuroLeague|μπάσκετ|basket/i.test(text))return 135;
+  if(/Super League|Κύπελλο|UEFA|ποδόσφαιρο|football/i.test(text))return 125;
+  return 135;
+}
 function parseSportFmHomepage(html='',{baseOrigin=SPORTFM_ORIGIN,now=new Date()}={}){
   const raw=String(html||'');
   const anchors=[...raw.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
@@ -226,6 +233,7 @@ function parseSportFmHomepage(html='',{baseOrigin=SPORTFM_ORIGIN,now=new Date()}
   const todayKey=localDateKey(nowAthens.year,nowAthens.month,nowAthens.day);
   const todayUtc=Date.UTC(nowAthens.year,nowAthens.month-1,nowAthens.day);
   const events=[];
+  const archiveEvents=[];
   let previousEnd=0;
   for(const anchor of anchors){
     const context=raw.slice(Math.max(previousEnd,anchor.start-6000),anchor.start);
@@ -234,15 +242,15 @@ function parseSportFmHomepage(html='',{baseOrigin=SPORTFM_ORIGIN,now=new Date()}
     if(!date)continue;
     const dateKey=localDateKey(date.year,date.month,date.day);
     const eventDayUtc=Date.UTC(date.year,date.month-1,date.day);
-    if(dateKey<todayKey)continue;
-    if(eventDayUtc-todayUtc>14*86400000)continue;
+    const isArchive=dateKey<todayKey;
+    if(!isArchive && eventDayUtc-todayUtc>14*86400000)continue;
     let url='';
     try{url=new URL(anchor.href,baseOrigin).href;}catch{}
     if(!safeHttpsUrl(url)||new URL(url).hostname!=='www.sportfmtv.gr')continue;
     const title=sportFmTitleFromContext(context)||anchor.text||'SPORTFM TV';
     const startUtc=date.hour===null?'':toUtcIsoFromAthens(date.year,date.month,date.day,date.hour,date.minute||0);
-    events.push({
-      id:eventId(`${String(date.day).padStart(2,'0')}/${String(date.month).padStart(2,'0')}/${date.year}`,date.hour===null?'':`${String(date.hour).padStart(2,'0')}:${String(date.minute||0).padStart(2,'0')}`,title,events.length),
+    const event={
+      id:eventId(`${String(date.day).padStart(2,'0')}/${String(date.month).padStart(2,'0')}/${date.year}`,date.hour===null?'':`${String(date.hour).padStart(2,'0')}:${String(date.minute||0).padStart(2,'0')}`,title,isArchive?archiveEvents.length:events.length),
       date:`${String(date.day).padStart(2,'0')}/${String(date.month).padStart(2,'0')}/${date.year}`,
       time:date.hour===null?'':`${String(date.hour).padStart(2,'0')}:${String(date.minute||0).padStart(2,'0')}`,
       title,startUtc,
@@ -250,16 +258,25 @@ function parseSportFmHomepage(html='',{baseOrigin=SPORTFM_ORIGIN,now=new Date()}
       source:'sportfmtv-homepage',provider:'sportfmtv',
       liveLabel:/Ζωντανά|Παίζει τώρα/iu.test(stripTags(context)),
       official:true,
-    });
-    if(events.length>=SPORTFM_MAX_EVENTS)break;
+      archive:isArchive,
+      durationMinutes:sportFmDurationMinutes(context),
+    };
+    if(isArchive){
+      if(archiveEvents.length<SPORTFM_MAX_ARCHIVE_EVENTS)archiveEvents.push(event);
+    }else if(events.length<SPORTFM_MAX_EVENTS){
+      events.push(event);
+    }
   }
-  const dedup=[];const seen=new Set();
-  for(const event of events){
-    const key=event.links[0]?.url||event.id;
-    if(seen.has(key))continue;
-    seen.add(key);dedup.push(event);
+  function dedupe(list){
+    const out=[];const seen=new Set();
+    for(const event of list){
+      const key=event.links[0]?.url||event.id;
+      if(seen.has(key))continue;
+      seen.add(key);out.push(event);
+    }
+    return out;
   }
-  return{events:dedup,origin:baseOrigin,source:'sportfmtv-homepage'};
+  return{events:dedupe(events),archiveEvents:dedupe(archiveEvents),origin:baseOrigin,source:'sportfmtv-homepage'};
 }
 function extractOgTitle(html=''){
   return ((String(html||'').match(/<meta\b[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["'][^>]*>/i)||[])[1]
@@ -271,7 +288,7 @@ async function loadSportFmSchedule(){
   try{
     const home=await fetchText(SPORTFM_ORIGIN+'/el',{maxBytes:SPORTFM_MAX_BYTES});
     const parsed=parseSportFmHomepage(home.text,{baseOrigin:SPORTFM_ORIGIN,now:new Date()});
-    for(const event of parsed.events.slice(0,SPORTFM_MAX_EVENTS)){
+    for(const event of [...parsed.events,...parsed.archiveEvents].slice(0,SPORTFM_MAX_EVENTS+SPORTFM_MAX_ARCHIVE_EVENTS)){
       try{
         const page=await fetchText(event.links[0].url,{maxBytes:SPORTFM_MAX_BYTES});
         const title=extractOgTitle(page.text);
@@ -284,7 +301,7 @@ async function loadSportFmSchedule(){
     return{...parsed,reports};
   }catch(error){
     reports.push({origin:SPORTFM_ORIGIN,ok:false,error:error?.message||String(error)});
-    return{origin:SPORTFM_ORIGIN,events:[],source:'sportfmtv-homepage',reports};
+    return{origin:SPORTFM_ORIGIN,events:[],archiveEvents:[],source:'sportfmtv-homepage',reports};
   }
 }
 
@@ -372,8 +389,9 @@ async function loadSchedule(){
     fresh:foothub.fresh!==false||sportfmtv.events.length>0,
     providers:{
       foothub:{origin:foothub.origin||'',source:foothub.source||'none',events:(foothub.events||[]).length,reports:foothub.reports||[]},
-      sportfmtv:{origin:SPORTFM_ORIGIN,source:'sportfmtv-homepage',events:(sportfmtv.events||[]).length,reports:sportfmtv.reports||[]},
+      sportfmtv:{origin:SPORTFM_ORIGIN,source:'sportfmtv-homepage',events:(sportfmtv.events||[]).length,archiveEvents:(sportfmtv.archiveEvents||[]).length,reports:sportfmtv.reports||[]},
     },
+    archiveEvents:[...(sportfmtv.archiveEvents||[])],
     reports:[...(foothub.reports||[]),...(sportfmtv.reports||[])],
   };
 }
