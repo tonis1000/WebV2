@@ -140,7 +140,8 @@ assert.match(index,/channel-logo-repair\.js/,'Channel Logo Repair UI must load e
 assert.match(logoRepair,/channel-logo-find/,'manual Find logo control must exist');
 assert.match(logoRepair,/channel-logo-repair-missing/,'manual bounded Repair missing logos control must exist');
 assert.match(logoRepair,/BATCH_LIMIT=25/,'manual catalog repair must remain batch-bounded');
-assert.match(logoRepair,/ensureSession\(\{interactive:false\}\)/,'background repair must stay non-interactive');
+assert.match(logoRepair,/ensureSession\(\{interactive\}\)/,'lookup path must forward the explicit interactive flag');
+assert.match(logoRepair,/lookupAndApply\(current,\{interactive:false,reason:/,'background repair must stay non-interactive');
 assert.match(logoRepair,/api\/channel-logos\/lookup/,'frontend repair must persist through the Registry owner');
 assert.match(main,/applyLogoCandidate/,'main.js must remain the presentation mutation bridge for repaired logos');
 assert.match(registryWorker,/channel_logo_overrides/,'Registry must own sparse D1 repaired-logo persistence');
