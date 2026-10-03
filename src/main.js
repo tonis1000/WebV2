@@ -13,6 +13,8 @@ import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 
 const BUILD_ID = '20261003-logo-resolution-a';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
+const MY_PLAYLIST_STARTUP_CACHE_KEY = 'webtv_v2_my_playlist_startup_cache_v1';
+const MY_PLAYLIST_STARTUP_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_REGISTRY = CONFIG.registryUrl || 'https://webtv-registry.atonis.workers.dev';
 const DEBUG_FLAGS = new Set((new URLSearchParams(location.search).get('debug') || '').split(',').map(v => v.trim()).filter(Boolean));
 const DEBUG_STORAGE = DEBUG_FLAGS.has('storage') || DEBUG_FLAGS.has('all');
@@ -280,6 +282,39 @@ function mapRegistryChannel(c){
     sourceTrust: 'curated'
   };
 }
+function loadStartupMyPlaylistCache(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(MY_PLAYLIST_STARTUP_CACHE_KEY)||'null');
+    if(!parsed||!Array.isArray(parsed.channels))return[];
+    const savedAt=Number(parsed.savedAt||0);
+    if(!savedAt||Date.now()-savedAt>MY_PLAYLIST_STARTUP_CACHE_MAX_AGE_MS){
+      localStorage.removeItem(MY_PLAYLIST_STARTUP_CACHE_KEY);
+      return[];
+    }
+    return parsed.channels
+      .filter(row=>row&&typeof row==='object'&&row.id&&row.name)
+      .map(row=>({...row,directUrls:[...(row.directUrls||[])]}));
+  }catch{return[];}
+}
+function saveStartupMyPlaylistCache(rows){
+  try{
+    const channels=(Array.isArray(rows)?rows:[])
+      .filter(row=>row&&typeof row==='object'&&row.id&&row.name)
+      .map(row=>({...row,directUrls:[...(row.directUrls||[])]}));
+    localStorage.setItem(MY_PLAYLIST_STARTUP_CACHE_KEY,JSON.stringify({savedAt:Date.now(),channels}));
+  }catch{}
+}
+function applyCachedStartupPlaylist(rows){
+  if(!Array.isArray(rows)||!rows.length)return false;
+  channels=rows.map(row=>({...row,directUrls:[...(row.directUrls||[])]}));
+  catalogMode='cloud';
+  clearSelectedIfMissing();
+  renderGroups();
+  renderChannels();
+  log(`Startup cache painted · ${channels.length} channels`);
+  return true;
+}
+
 async function fetchCloudMyPlaylist(){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),12000);
@@ -293,6 +328,7 @@ async function fetchCloudMyPlaylist(){
 async function loadCloudMyPlaylist({reason='manual',preserveSelection=true}={}){
   const oldSelectedId=preserveSelection?selected?.id:null;
   const remote=await fetchCloudMyPlaylist();
+  saveStartupMyPlaylistCache(remote);
   channels=remote;
   catalogMode='cloud';
   if(oldSelectedId){
@@ -513,6 +549,8 @@ async function boot(){
   const startedAt=performance.now();
   startClock();setPlaybackState('idle','Idle');clearDiagnostics();
   els.officialLive.hidden=true;els.sourceHuntToggle.hidden=true;els.sourceHunt.hidden=true;
+  const cachedPlaylist=loadStartupMyPlaylistCache();
+  applyCachedStartupPlaylist(cachedPlaylist);
   // D1 health is optional for the public landing view. A slow session check must
   // never delay the primary playlist, EPG, or source catalog.
   health.loadCloud().then(cloudHealth=>{
