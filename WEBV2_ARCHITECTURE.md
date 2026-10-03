@@ -59,6 +59,14 @@ Adapters/consumers:
 Rule: **shared Enigma2 structure; caller-owned matching/header/security/UI policy.** The structural core must remain network-free and the bouquet proxy must not absorb neutral parsing ownership.
 Status: Phase E3b DONE via PR #75 / runtime merge `cc7e2128e9257cc431a95abf08f2f286e93d2235`. Production proof: Enigma Ownership #15 SUCCESS; Frontend #655 SUCCESS; Source Discovery #59 SUCCESS; Registry #94 SUCCESS; Pages #453 SUCCESS; post-merge verification confirmed real ERT1 HansSettings Greece `format=enigma2`, HTTP 200, count 1, live Pages cache key and exact Registry runtime SHA.
 
+## Channel Logo Repair
+Owns: bounded remote candidate lookup for missing/broken logos, manual **Find logo**, manual batch **Repair missing logos**, and sparse repaired-logo persistence through Registry/D1.
+Does not own: final trust/ranking selection, Channel Identity/Profile semantics, full-catalog startup crawling, image-byte hosting, playback, EPG, discovery or Xtream account persistence.
+Rule: normal provider/playlist logos are used first. Remote repair runs only on demand or for one selected missing/broken channel; manual batch repair is capped at 25 channels. Community providers remain curated, and all candidates feed `src/core/channel-logo.js` for final selection.
+Persistence: `channel_logo_overrides` is a sparse D1 overlay keyed by normalized channel id; My Playlist reads overlay it, while temporary/Xtream catalogs may apply matching sparse overrides without copying the full provider catalog.
+Runtime: `src/channel-logo-repair.js` owns frontend orchestration; `workers/channel-logo-repair.js` owns bounded provider lookup; `workers/webtv-registry.js` owns durable sparse state and authenticated lookup writes.
+Status: DONE / DEPLOYED / LIVE VERIFIED via PR #178 runtime `e7bff3becf6856095f3796ba671200fc91b339d2`.
+
 ## Source Hunt
 Owns: broad lead hunting/search, provenance/freshness/ranking of leads.
 Does not own: final VERIFIED media truth or canonical save state.
