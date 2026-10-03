@@ -34,12 +34,13 @@ function normalizeMatch(value=""){
   return String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()
     .replace(/\.(gr|de|cy)$/i,"")
     .replace(/\b(full\s*hd|fhd|uhd|hd|4k|tv)\b/gi,"")
+    .replace(/(?:fullhd|fhd|uhd|hd|4k)$/i,"")
     .replace(/[^a-z0-9\p{L}]+/gu,"");
 }
 function matchesRequested(value,requested=[]){
   if(!requested.length)return true;
   const n=normalizeMatch(value);if(!n)return false;
-  return requested.some(term=>{const q=normalizeMatch(term);return q&&(n===q||n.startsWith(q)||q.startsWith(n));});
+  return requested.some(term=>{const q=normalizeMatch(term);return q&&n===q;});
 }
 function attrValue(attrs="",name=""){
   const m=String(attrs).match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`,"i"));
@@ -231,7 +232,7 @@ export default{
     const requested=requestedChannelTerms(url);
     try{
       const loaded=await loadScopedMultiSource(requested);const analysis=analyzeXmltv(loaded.xml);
-      if(url.pathname==="/status")return json({ok:true,valid:true,service:SERVICE,version:VERSION,source:SOURCE,channels:analysis.channels,programmes:analysis.programmes,bytes:analysis.bytes,requested:requested.length,sourcesConfigured:SOURCES,sourcesUsed:loaded.usedSources,warnings:loaded.errors});
+      if(url.pathname==="/status")return json({ok:true,valid:true,service:SERVICE,version:VERSION,source:SOURCE,channels:analysis.channels,programmes:analysis.programmes,bytes:analysis.bytes,requested:requested.length,sourcesConfigured:SOURCES,sourcesUsed:loaded.usedSources,sourceResults:(loaded.results||[]).map(row=>({id:row.id,channels:Number(row.analysis?.channels||0),programmes:Number(row.analysis?.programmes||0),ok:true})),warnings:loaded.errors});
       return new Response(loaded.xml,{status:200,headers:{...corsHeaders(),"Cache-Control":"public, max-age=300","X-EPG-Source":SOURCE,"X-EPG-Sources-Used":loaded.usedSources.join(","),"X-EPG-Proxy-Version":VERSION}});
     }catch(error){
       const message=error?.message||"unknown error";
