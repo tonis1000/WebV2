@@ -1,6 +1,6 @@
-import { EpgService } from './core/epg.js?v=20261003-worker-only';
+import { EpgService } from './core/epg.js?v=20261003-epg-recovery-a';
 
-const BUILD_ID = '20260923-2255';
+const BUILD_ID = '20261003-epg-recovery-a';
 const list = document.getElementById('channel-list');
 const epg = new EpgService();
 let ready = epg.lastRefreshAt > 0;
