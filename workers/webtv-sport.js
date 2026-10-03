@@ -223,6 +223,7 @@ function parseSportFmHomepage(html='',{baseOrigin=SPORTFM_ORIGIN,now=new Date()}
     .filter(a=>/\/media-video\//i.test(a.href)&&!/sport-fm-linear-channel-/i.test(a.href));
   const nowAthens=zonedParts(now,SOURCE_TZ);
   const todayKey=localDateKey(nowAthens.year,nowAthens.month,nowAthens.day);
+  const todayUtc=Date.UTC(nowAthens.year,nowAthens.month-1,nowAthens.day);
   const events=[];
   let previousEnd=0;
   for(const anchor of anchors){
@@ -231,8 +232,9 @@ function parseSportFmHomepage(html='',{baseOrigin=SPORTFM_ORIGIN,now=new Date()}
     const date=parseSportFmDate(context,now);
     if(!date)continue;
     const dateKey=localDateKey(date.year,date.month,date.day);
+    const eventDayUtc=Date.UTC(date.year,date.month-1,date.day);
     if(dateKey<todayKey)continue;
-    if(dateKey>todayKey+14)continue;
+    if(eventDayUtc-todayUtc>14*86400000)continue;
     let url='';
     try{url=new URL(anchor.href,baseOrigin).href;}catch{}
     if(!safeHttpsUrl(url)||new URL(url).hostname!=='www.sportfmtv.gr')continue;
