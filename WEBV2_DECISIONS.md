@@ -674,3 +674,29 @@ Evidence:
 
 Reconsider when: a real source uses escaping that the sanitizer does not safely normalize, or another regional variant repeatedly leaks across a canonical Greece identity. Any expansion must remain shared, regression-tested and live verified.
 
+## DEC-038 Provenance-aware Channel Logo Resolution
+Decision: route channel-logo selection through one shared resolver that ranks candidates by provenance trust and keeps future unknown channels usable without pretending unverified logos are canonical.
+
+Hard rules:
+- `src/core/channel-logo.js` is the canonical runtime owner for logo candidate sanitization, provenance classification and deterministic selection;
+- trust order is verified > curated > unverified > none;
+- verified kinds are official broadcaster/media-group/publisher, Wikimedia Commons, or explicit `registry-verified` metadata;
+- existing manually curated third-party baselines such as Imgur/ImgBB remain usable but are classified `curated-third-party`, not verified;
+- playlist `tvg-logo` and ordinary Registry-row logo URLs remain usable as immediate fallbacks for future channels but are explicitly unverified;
+- explicit future `registry-verified` metadata may outrank a curated third-party Channel Profile logo;
+- invalid, unsafe, missing, or goo.gl logo candidates fail closed to the existing placeholder state;
+- no web search, broadcaster scraping, or external logo lookup runs during startup/rendering;
+- Channel Identity remains separate from logo provenance; Channel Profile remains the owner of canonical presentation metadata, while Channel Logo Resolver owns runtime candidate selection;
+- playback, EPG, Source Registry, Unified Search, Playlist Manager and persistence semantics are unchanged by this decision.
+
+Reason: production UI showed a mix of official/Wikimedia assets, third-party image hosts and missing logos. The previous runtime treated these mostly as URLs and did not expose whether the selected image was verified, curated or merely supplied by the channel row. This also made the future-channel path ambiguous. A dedicated resolver preserves immediate usability for newly added channels while making trust explicit and creating one safe insertion point for future verified-logo discovery.
+
+Evidence:
+- PR #176 merged runtime `28a54beeede7ee3b85c9d1d9731d275a8aef3425`;
+- branch head `296d8ddc4ca129e3349edbfdfa4746b83a5847d6` completed Validate WebTV Frontend run `37081190491` SUCCESS after the integration ownership contract was updated to require the new resolver rather than the retired direct profile-logo coupling;
+- the new `channel-logo-resolution` regression passed and proves: official/Wikimedia provenance is verified, curated third-party baselines are not mislabeled verified, unknown future channels can use valid supplied logos as unverified fallback, explicit registry-verified metadata outranks curated third-party data, and invalid/missing logos fail closed;
+- post-merge Validate WebTV Frontend `37081271114` SUCCESS, Deploy WebTV Registry Worker `37081271102` SUCCESS, and GitHub Pages `37081270078` SUCCESS at the exact merge SHA;
+- live Registry `/api/project-status` reported exact deployed SHA `28a54beeede7ee3b85c9d1d9731d275a8aef3425`;
+- live GitHub Pages served `src/core/channel-logo.js` and `src/main.js` with build id `20261003-logo-resolution-a`, runtime `resolveChannelLogo` integration, Registry/playlist provenance tags, and the existing WebTV page loaded successfully.
+
+Reconsider when: a separately designed logo-discovery service can produce source-backed official/Wikimedia candidates. Such a service must feed this resolver with provenance and must not bypass its trust ordering or add startup-time network discovery.
