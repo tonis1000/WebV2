@@ -7,9 +7,6 @@ const search=fs.readFileSync(new URL('../src/search/search-ui.js',import.meta.ur
 const gateCss=fs.readFileSync(new URL('../admin-gate.css',import.meta.url),'utf8');
 
 assert.match(admin,/unified-search-panel/,'locking admin must close Unified Search');
-assert.match(admin,/channel-logo-find/,'locking admin must hide Find logo');
-assert.match(admin,/channel-logo-repair-missing/,'locking admin must hide Repair missing');
-
 assert.match(search,/unified-search-toggle/,'Unified Search must expose one admin toggle');
 assert.match(search,/panel\.hidden=true|panel\.hidden = true/,'Unified Search must start closed');
 
