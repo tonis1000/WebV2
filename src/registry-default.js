@@ -36,4 +36,4 @@ async function recoverCloudSidebar(){
 }
 
 window.addEventListener('webtv:ready',()=>setTimeout(recoverCloudSidebar,150),{once:true});
-setTimeout(()=>{if(window.WebTVPlaylistAPI?.ready)recoverCloudSidebar();},1800);
+setTimeout(()=>recoverCloudSidebar(),1800);

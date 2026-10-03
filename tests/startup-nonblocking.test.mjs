@@ -14,14 +14,14 @@ assert.ok(bootMatch, 'main.js must expose the boot function');
 const boot = bootMatch[1];
 
 const sourceRefresh = boot.indexOf('sources.refresh()');
-const playlistAwait = boot.indexOf("await loadCloudMyPlaylist({reason:'startup',preserveSelection:false})");
+const playlistAwait = boot.indexOf('await loadStartupCloudPlaylist()');
 const readyFlag = boot.indexOf('window.WebTVPlaylistAPI.ready=true');
 const readyEvent = boot.indexOf("window.dispatchEvent(new CustomEvent('webtv:ready'))");
 const epgAwait = boot.indexOf('await epgTask');
 
 assert.ok(sourceRefresh >= 0, 'boot must still start the remote Source Registry refresh');
 assert.ok(playlistAwait > sourceRefresh, 'remote Source Registry refresh should start in parallel before the D1 playlist completes');
-assert.ok(readyFlag > playlistAwait, 'the app should become ready only after the D1 My Playlist is loaded');
+assert.ok(readyFlag > playlistAwait, 'the app should become ready only after the resilient live D1 My Playlist load succeeds');
 assert.ok(readyEvent > readyFlag, 'webtv:ready must be emitted after the ready flag is set');
 assert.ok(epgAwait > readyEvent, 'EPG completion must not block webtv:ready');
 assert.doesNotMatch(boot, /await\s+sourceTask\b/, 'remote Source Registry must never block initial interactivity');
@@ -33,8 +33,9 @@ const cachedPlaylistRead = boot.indexOf('const cachedPlaylist=loadStartupMyPlayl
 const cachedPlaylistPaint = boot.indexOf('applyCachedStartupPlaylist(cachedPlaylist)');
 assert.ok(cachedPlaylistRead >= 0, 'boot must read the last successful D1 My Playlist cache for fast presentation');
 assert.ok(cachedPlaylistPaint > cachedPlaylistRead, 'boot must paint the cached My Playlist after reading it');
-assert.ok(cachedPlaylistPaint < playlistAwait, 'cached My Playlist presentation must happen before awaiting the live D1 playlist');
+assert.ok(cachedPlaylistPaint < playlistAwait, 'cached My Playlist presentation must happen before awaiting the resilient live D1 playlist');
 assert.ok(readyFlag > playlistAwait, 'cached presentation must never make the app authoritative-ready before live D1 succeeds');
+assert.match(main,/async function loadStartupCloudPlaylist\(\)[\s\S]*?loadCloudMyPlaylist\(\{reason:attempt===1\?'startup':`startup-retry-\$\{attempt\}`,[\s\S]*?throw lastError/,'startup resilience must retry live D1 without promoting cache to authority');
 assert.match(main, /function loadStartupMyPlaylistCache\(\)[\s\S]*?JSON\.parse\([\s\S]*?MY_PLAYLIST_STARTUP_CACHE_KEY/, 'main must expose a bounded local startup cache reader');
 assert.match(main, /function saveStartupMyPlaylistCache\(rows\)[\s\S]*?localStorage\.setItem\(MY_PLAYLIST_STARTUP_CACHE_KEY/, 'main must persist only the last successful cloud My Playlist snapshot as startup cache');
 assert.match(main, /async function loadCloudMyPlaylist[\s\S]*?const remote=await fetchCloudMyPlaylist\(\);[\s\S]*?saveStartupMyPlaylistCache\(remote\)/, 'a successful D1 My Playlist fetch must refresh the startup cache');

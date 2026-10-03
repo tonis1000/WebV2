@@ -12,7 +12,7 @@ import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 
-const BUILD_ID = '20261003-epg-recovery-a';
+const BUILD_ID = '20261004-startup-rail-recovery-a';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const MY_PLAYLIST_STARTUP_CACHE_KEY = 'webtv_v2_my_playlist_startup_cache_v1';
 const MY_PLAYLIST_STARTUP_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -569,6 +569,23 @@ function renderEpg(){
 }
 function startClock(){const tick=()=>{els.clock.textContent=new Date().toLocaleString('de-DE');};tick();setInterval(tick,1000);}
 
+async function loadStartupCloudPlaylist(){
+  let lastError=null;
+  for(let attempt=1;attempt<=2;attempt++){
+    try{
+      return await loadCloudMyPlaylist({reason:attempt===1?'startup':`startup-retry-${attempt}`,preserveSelection:false});
+    }catch(error){
+      lastError=error;
+      log(`Startup My Playlist read failed · attempt ${attempt}/2 · ${error.message}`);
+      if(channels.length){
+        log(`Cached My Playlist remains visible while live D1 retry is pending · ${channels.length} channels`);
+      }
+      if(attempt<2)await new Promise(resolve=>setTimeout(resolve,700));
+    }
+  }
+  throw lastError||new Error('My Playlist unavailable');
+}
+
 async function boot(){
   const startedAt=performance.now();
   startClock();setPlaybackState('idle','Idle');clearDiagnostics();
@@ -588,7 +605,7 @@ async function boot(){
       if(window.WebTVPlaylistAPI?.ready)renderChannels();
     })
     .catch(error=>log(`Source registry unavailable: ${error.message}`));
-  await loadCloudMyPlaylist({reason:'startup',preserveSelection:false});
+  await loadStartupCloudPlaylist();
   log(`Startup playlist ready · ${channels.length} channels · ${Math.round(performance.now()-startedAt)} ms`);
   const epgTask=epg.refresh({channels})
     .then(()=>{log(`EPG loaded for ${channels.length} sidebar channels · ${Math.round(performance.now()-startedAt)} ms`);renderEpg();})

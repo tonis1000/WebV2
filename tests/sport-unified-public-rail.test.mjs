@@ -21,7 +21,8 @@ assert.match(index,/right-rail-preview\.js/,'main page must load the desktop/pub
 assert.doesNotMatch(rail,/html\.rail-preview\.admin-locked \.desktop-control-rail\{display:none!important\}/,'public right rail must remain visible when admin is locked');
 assert.match(rail,/admin-locked[^\n]*#desktop-rail-tools|#desktop-rail-tools/,'locked right rail must keep the public tools area available');
 
-assert.match(main,/loadCloudMyPlaylist\(\{reason:'startup',preserveSelection:false\}\)/,'fresh/return entry must start with no selected channel');
+assert.match(main,/loadStartupCloudPlaylist\(\)/,'fresh/return entry must use the resilient startup playlist path');
+assert.match(main,/preserveSelection:false/,'fresh/return entry must start with no selected channel');
 assert.match(main,/epg\.refresh\(\{channels\}\)/,'EPG must refresh for the whole sidebar without selecting a channel');
 
 console.log('SPORT unified/public rail contract ok');
