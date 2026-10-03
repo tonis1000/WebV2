@@ -9,7 +9,7 @@ function setUnlocked(unlocked){
   trigger?.setAttribute('aria-expanded',String(unlocked));
   trigger?.setAttribute('aria-label',unlocked?"Lock TONI'S WEBTV controls":"Unlock TONI'S WEBTV controls");
   if(!unlocked){
-    for(const id of ['playlist-manager','source-hunt','diagnostics','source-editor-overlay','unified-search-panel']){
+    for(const id of ['playlist-manager','source-hunt','diagnostics','source-editor-overlay','unified-search-panel','epg-guide-overlay','epg-program-dialog']){
       const panel=document.getElementById(id);if(panel)panel.hidden=true;
     }
   }

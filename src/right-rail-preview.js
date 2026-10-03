@@ -1,6 +1,6 @@
 const PARAM = 'layout';
 const DESKTOP = '(min-width: 1180px)';
-const BUILD_ID = '20261003-large-screen-responsive';
+const BUILD_ID = '20261003-epg-guide-rail';
 
 const layoutMode = new URLSearchParams(location.search).get(PARAM);
 const enabled = layoutMode !== 'classic';
@@ -90,6 +90,7 @@ if (!enabled) {
     const search = document.getElementById('unified-search-toggle');
     const findLogo = document.getElementById('channel-logo-find');
     const repairLogos = document.getElementById('channel-logo-repair-missing');
+    const epgGuide = document.getElementById('epg-guide-toggle');
     const hunt = document.getElementById('source-hunt-toggle');
     const diagnostics = document.getElementById('diagnostics-toggle');
     const favorite = document.getElementById('favorite-channel');
@@ -98,12 +99,12 @@ if (!enabled) {
     [brand,clock].filter(Boolean).forEach(node=>rememberAndMove(node,dock));
     [playlists,catalog].filter(Boolean).forEach(node=>rememberAndMove(node,library));
     [search,findLogo,repairLogos].filter(Boolean).forEach(node=>rememberAndMove(node,discovery));
-    [hunt,diagnostics].filter(Boolean).forEach(node=>rememberAndMove(node,tools));
+    [epgGuide,hunt,diagnostics].filter(Boolean).forEach(node=>rememberAndMove(node,tools));
     [favorite,myAction].filter(Boolean).forEach(node=>rememberAndMove(node,channel));
 
     if (brand) brand.classList.add('rail-brand');
     if (clock) clock.classList.add('rail-clock');
-    [playlists,catalog,search,findLogo,repairLogos,hunt,diagnostics,favorite,myAction].forEach(node => node?.classList.add('rail-control'));
+    [playlists,catalog,search,findLogo,repairLogos,epgGuide,hunt,diagnostics,favorite,myAction].forEach(node => node?.classList.add('rail-control'));
     if (favorite) favorite.classList.add('rail-favorite');
   }
 
@@ -209,6 +210,7 @@ if (!enabled) {
     html.rail-preview #unified-search-toggle.rail-control{background:#142f3e;border-color:#347da0;color:#d9f4ff}
     html.rail-preview #channel-logo-find.rail-control{background:#24213d;border-color:#655aa0;color:#e0dcff}
     html.rail-preview #channel-logo-repair-missing.rail-control{background:#17372d;border-color:#347a60;color:#c9f6df}
+    html.rail-preview #epg-guide-toggle.rail-control{background:#16334a;border-color:#3d80a8;color:#d9f3ff}
     html.rail-preview #source-hunt-toggle.rail-control{background:#33250e;border-color:#86651f;color:#ffe0a0}
     html.rail-preview #diagnostics-toggle.rail-control{background:#111820;border-color:#3a4652;color:#e8eef4}
     html.rail-preview #favorite-channel.rail-control{background:#33270d;border-color:#886817;color:#ffe39b}

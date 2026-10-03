@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import epgWorker,{analyzeXmltv,requestedChannelTerms,filterXmltv} from '../workers/epg-proxy-gr.js';
+
+const source=fs.readFileSync(new URL('../workers/epg-proxy-gr.js',import.meta.url),'utf8');
+for(const required of [
+  'www.digea.gr/el/api/epg/get-events',
+  'mwapi-prod.cosmotetvott.gr/api/v3.4/epg',
+  'ext.greektv.app/epg/epg.xml',
+  'epg_ripper_GR1.xml.gz',
+  'epg_ripper_DE1.xml.gz',
+])assert.ok(source.includes(required),'EPG worker must include source '+required);
+
+const sample='<?xml version="1.0"?><tv><channel id="a"><display-name>ANT1</display-name></channel><channel id="b"><display-name>RTL</display-name></channel><programme channel="a" start="20261003120000 +0300" stop="20261003130000 +0300"><title>A</title></programme><programme channel="b" start="20261003120000 +0200" stop="20261003130000 +0200"><title>B</title></programme></tv>';
+assert.deepEqual(requestedChannelTerms(new URL('https://x/epg.xml?channels=ant1,ANT1%20HD,rtl')),['ant1','ANT1 HD','rtl']);
+const filtered=filterXmltv(sample,['ant1']);
+assert.match(filtered,/ANT1/);
+assert.doesNotMatch(filtered,/RTL/);
+assert.equal(analyzeXmltv(filtered).channels,1);
+assert.equal(analyzeXmltv(filtered).programmes,1);
+
+const originalFetch=globalThis.fetch;
+try{
+  globalThis.fetch=async request=>{
+    const url=String(request instanceof Request?request.url:request);
+    if(url.includes('ext.greektv.app'))return new Response(sample,{status:200});
+    return new Response('upstream unavailable',{status:503});
+  };
+  const response=await epgWorker.fetch(new Request('https://epg.test/epg.xml?channels=ANT1'));
+  assert.equal(response.status,200,'one healthy source must keep the merged feed alive');
+  const xml=await response.text();
+  assert.match(xml,/ANT1/);
+  assert.doesNotMatch(xml,/RTL/);
+}finally{globalThis.fetch=originalFetch;}
+
+console.log('EPG multi-source + sidebar filter contract PASS');
