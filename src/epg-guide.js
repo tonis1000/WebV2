@@ -1,8 +1,9 @@
-const BUILD_ID='20261003-sidebar-epg-guide-v1';
+const BUILD_ID='20261003-epg-guide-now-polish';
 const $=id=>document.getElementById(id);
-const HOUR_WIDTH=132;
+const HOUR_WIDTH=150;
 let dayOffset=0;
 let activeProgram=null;
+let nowPresentationTimer=0;
 
 function api(){return window.WebTVEPGAPI||null;}
 function playlist(){return window.WebTVPlaylistAPI||null;}
@@ -119,6 +120,7 @@ function renderGuide(){
   $('epg-guide-day').textContent=dayLabel(dayOffset);
   $('epg-guide-summary').textContent=`${channels.length} sidebar channels · click a programme for details`;
   root.replaceChildren();
+  const nowMs=Date.now();
   const header=document.createElement('div');header.className='epg-guide-row epg-guide-hours-row';
   const corner=document.createElement('div');corner.className='epg-guide-channel epg-guide-corner';corner.textContent='Channel';
   const hours=document.createElement('div');hours.className='epg-guide-hours';hours.style.width=`${24*HOUR_WIDTH}px`;
@@ -136,6 +138,8 @@ function renderGuide(){
     for(const item of schedule){
       const pos=programmePosition(item,startMs,endMs);if(!pos)continue;programmeCount+=1;
       const block=document.createElement('button');block.type='button';block.className='epg-guide-program';block.style.left=`${pos.left}px`;block.style.width=`${pos.width}px`;
+      const itemStart=new Date(item.start).getTime(),itemStop=new Date(item.stop).getTime();
+      if(dayOffset===0&&nowMs>=itemStart&&nowMs<itemStop){block.classList.add('is-now');block.setAttribute('aria-current','true');}
       block.title=`${item.title} · ${new Date(item.start).toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'})}`;
       const time=document.createElement('small');time.textContent=new Date(item.start).toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
       const title=document.createElement('strong');title.textContent=item.title;block.append(time,title);
@@ -144,7 +148,10 @@ function renderGuide(){
     row.append(label,track);root.appendChild(row);
   }
   if(dayOffset===0){
-    const now=new Date();const minutes=now.getHours()*60+now.getMinutes();const target=Math.max(0,(minutes/60)*HOUR_WIDTH-240);
+    const now=new Date();const minutes=now.getHours()*60+now.getMinutes();const nowX=(minutes/60)*HOUR_WIDTH;
+    const line=document.createElement('div');line.id='epg-guide-now-line';line.className='epg-guide-now-line';line.style.left=`calc(var(--epg-channel-width) + ${nowX}px)`;
+    const badge=document.createElement('span');badge.textContent='ΤΩΡΑ';line.appendChild(badge);root.appendChild(line);
+    const target=Math.max(0,nowX-300);
     requestAnimationFrame(()=>{$('epg-guide-scroll').scrollLeft=target;});
   }else requestAnimationFrame(()=>{$('epg-guide-scroll').scrollLeft=0;});
   status.textContent=`${programmeCount} programmes · ${channels.length} channels`;
@@ -154,6 +161,7 @@ function boot(){
   window.addEventListener('webtv:admin-visibility',event=>{if(!event.detail?.unlocked)closeGuide();});
   window.addEventListener('webtv:epg-updated',()=>{if(!$('epg-guide-overlay')?.hidden)renderGuide();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!$('epg-program-dialog')?.hidden)closeProgram();else if(!$('epg-guide-overlay')?.hidden)closeGuide();}});
+  if(!nowPresentationTimer)nowPresentationTimer=setInterval(()=>{if(!$('epg-guide-overlay')?.hidden&&dayOffset===0)renderGuide();},60000);
 }
 if(playlist()?.ready)boot();else window.addEventListener('webtv:ready',boot,{once:true});
 console.info(`[WebTV] EPG Guide loaded · ${BUILD_ID}`);
