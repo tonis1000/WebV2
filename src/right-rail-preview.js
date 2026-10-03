@@ -44,7 +44,7 @@ if (!enabled) {
       <div id="desktop-rail-stack" class="desktop-rail-stack">
         <section class="desktop-rail-group"><span class="desktop-rail-label">Library</span><div id="desktop-rail-library" class="desktop-rail-group-stack"></div></section>
         <section class="desktop-rail-group"><span class="desktop-rail-label">Search & Logos</span><div id="desktop-rail-discovery" class="desktop-rail-group-stack"></div></section>
-        <section class="desktop-rail-group"><span class="desktop-rail-label">Tools</span><div id="desktop-rail-tools" class="desktop-rail-group-stack"></div></section>
+        <section class="desktop-rail-group desktop-rail-public-tools"><span class="desktop-rail-label">Tools</span><div id="desktop-rail-tools" class="desktop-rail-group-stack"></div></section>
         <section class="desktop-rail-group"><span class="desktop-rail-label">Channel</span><div id="desktop-rail-channel" class="desktop-rail-group-stack"></div></section>
       </div>`;
     layout.appendChild(rail);
@@ -189,8 +189,10 @@ if (!enabled) {
     html.rail-preview .app-shell{width:min(1904px,calc(100% - 16px));margin:0 auto;padding:8px 0 12px}
     html.rail-preview .topbar{display:none!important}
     html.rail-preview .layout{grid-template-columns:300px minmax(0,1fr) 238px;gap:12px;align-items:start}
-    html.rail-preview.admin-locked .layout{grid-template-columns:300px minmax(0,1fr)}
-    html.rail-preview.admin-locked .desktop-control-rail{display:none!important}
+    html.rail-preview.admin-locked .layout{grid-template-columns:300px minmax(0,1fr) 238px}
+    html.rail-preview.admin-locked .desktop-control-rail{display:block!important}
+    html.rail-preview.admin-locked .desktop-rail-group:not(.desktop-rail-public-tools){display:none!important}
+    html.rail-preview.admin-locked .desktop-rail-public-tools .desktop-rail-label{display:none}
     html.rail-preview .sidebar{top:8px;height:calc(100vh - 16px);min-height:0}
     html.rail-preview .viewer{min-width:0;gap:12px}
     html.rail-preview .player-card{width:100%;max-width:none;justify-self:stretch}
@@ -231,13 +233,13 @@ if (!enabled) {
     @media(min-width:1800px){
       html.rail-preview .app-shell{width:min(2200px,calc(100% - 24px))}
       html.rail-preview .layout{grid-template-columns:clamp(310px,17vw,340px) minmax(0,1fr) clamp(238px,13vw,270px)}
-      html.rail-preview.admin-locked .layout{grid-template-columns:clamp(310px,17vw,340px) minmax(0,1fr)}
+      html.rail-preview.admin-locked .layout{grid-template-columns:clamp(310px,17vw,340px) minmax(0,1fr) clamp(238px,13vw,270px)}
       html.rail-preview .player-stage{height:min(66vh,900px);max-height:calc(100vh - 250px)}
     }
     @media(min-width:2400px){
       html.rail-preview .app-shell{width:min(2500px,calc(100% - 32px))}
       html.rail-preview .layout{grid-template-columns:340px minmax(0,1fr) 280px}
-      html.rail-preview.admin-locked .layout{grid-template-columns:340px minmax(0,1fr)}
+      html.rail-preview.admin-locked .layout{grid-template-columns:340px minmax(0,1fr) 280px}
       html.rail-preview .player-stage{height:min(68vh,1080px);max-height:calc(100vh - 260px)}
     }
     @media(max-height:760px) and (min-width:1180px){
