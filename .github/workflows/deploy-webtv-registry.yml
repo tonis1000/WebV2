@@ -130,6 +130,8 @@ jobs:
           def quote(value):
               return "'" + value.replace("'", "''") + "'"
           sql = [
+              'DROP TABLE IF EXISTS project_agent_pairings;',
+              'DROP TABLE IF EXISTS project_agent_sessions;',
               'CREATE TABLE IF NOT EXISTS project_checkpoints (name TEXT PRIMARY KEY, content TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);',
               'CREATE TABLE IF NOT EXISTS project_checkpoint_history (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, checkpoint_updated_at TEXT NOT NULL, archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);',
           ]
