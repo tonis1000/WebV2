@@ -95,3 +95,33 @@ jobs:
           done
           echo "::error::EPG proxy did not return both valid /epg.xml and /status responses"
           exit 1
+
+      - name: Verify live EPG source matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_source() {
+            label="$1"
+            channels="$2"
+            source_id="$3"
+            status_file="/tmp/epg-matrix-${source_id}.json"
+            curl --fail --silent --show-error --max-time 60 \
+              -H 'Cache-Control: no-cache' \
+              "$WORKER_URL/status?channels=${channels}&matrix=${GITHUB_SHA}-${source_id}" \
+              -o "$status_file"
+            node - "$status_file" "$source_id" <<'NODE'
+          const fs=require('fs');
+          const [file,sourceId]=process.argv.slice(2);
+          const j=JSON.parse(fs.readFileSync(file,'utf8'));
+          const ok=j.ok===true&&j.valid===true&&Number(j.channels)>0&&Number(j.programmes)>0&&
+            Array.isArray(j.sourceResults)&&j.sourceResults.some(s=>s.id===sourceId&&s.ok===true&&Number(s.programmes)>0);
+          if(!ok){console.error(JSON.stringify(j));process.exit(1);}
+          console.log(JSON.stringify({requested:j.requested,channels:j.channels,programmes:j.programmes,sourcesUsed:j.sourcesUsed,sourceResults:j.sourceResults}));
+          NODE
+            echo "Verified $label via $source_id"
+          }
+
+          check_source "Digea private channels" "ant1,alpha,ert1" "digea"
+          check_source "COSMOTE SPORT" "cosmotesport1" "cosmote"
+          check_source "Nova Sports" "novasports1" "epgshare-gr"
+          check_source "German Das Erste" "DasErste.de" "epgshare-de"
