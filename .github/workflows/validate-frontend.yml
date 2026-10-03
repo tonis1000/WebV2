@@ -226,6 +226,8 @@ jobs:
         run: node tests/channel-profile-core.test.mjs
       - name: Run channel logo resolution regression test
         run: node tests/channel-logo-resolution.test.mjs
+      - name: Run channel logo repair provider regression test
+        run: node tests/channel-logo-repair.test.mjs
       - name: Run Source Verifier Worker regression test
         run: node tests/source-verifier-worker.test.mjs
       - name: Run external discovery client regression test
