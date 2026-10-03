@@ -1,0 +1,97 @@
+name: Deploy WebTV SPORT Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/webtv-sport.js'
+      - 'tests/sport-feed-worker.test.mjs'
+      - '.github/workflows/deploy-webtv-sport.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-webtv-sport
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
+  WORKER_NAME: webtv-sport
+  WORKER_URL: https://webtv-sport.atonis.workers.dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate source
+        run: node --check workers/webtv-sport.js
+
+      - name: Run SPORT feed regression
+        run: node tests/sport-feed-worker.test.mjs
+
+      - name: Build Wrangler config
+        shell: bash
+        run: |
+          cat > wrangler.sport.ci.toml <<EOF
+          name = "webtv-sport"
+          main = "workers/webtv-sport.js"
+          compatibility_date = "2025-12-25"
+          workers_dev = true
+          preview_urls = false
+
+          [vars]
+          DEPLOY_SHA = "${GITHUB_SHA}"
+          EOF
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.sport.ci.toml
+
+      - name: Verify exact-SHA status and public schedule
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 8); do
+            status_ok=0
+            schedule_ok=0
+
+            if curl --fail --silent --show-error --max-time 30               -H 'Cache-Control: no-cache'               "$WORKER_URL/status?verify=${GITHUB_SHA}-${attempt}"               -o /tmp/sport-status.json; then
+              if node - <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('/tmp/sport-status.json','utf8'));
+          process.exit(j.ok===true&&j.service==='WebTV SPORT Feed'&&j.version==='1.0'&&j.deploySha===process.env.GITHUB_SHA?0:1);
+          NODE
+              then status_ok=1; fi
+            fi
+
+            if curl --fail --silent --show-error --max-time 45               -H 'Cache-Control: no-cache'               "$WORKER_URL/api/schedule?verify=${GITHUB_SHA}-${attempt}"               -o /tmp/sport-schedule.json; then
+              if node - <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('/tmp/sport-schedule.json','utf8'));
+          const events=Array.isArray(j.events)?j.events:[];
+          const valid=events.length>0&&events.every(e=>typeof e.title==='string'&&Array.isArray(e.links)&&e.links.length>0&&e.links.every(l=>/^https:\/\//.test(l.url||'')));
+          process.exit(j.ok===true&&j.service==='WebTV SPORT Feed'&&j.deploySha===process.env.GITHUB_SHA&&valid?0:1);
+          NODE
+              then schedule_ok=1; fi
+            fi
+
+            if [ "$status_ok" = 1 ] && [ "$schedule_ok" = 1 ]; then
+              cat /tmp/sport-status.json
+              node -e "const j=require('/tmp/sport-schedule.json');console.log('Verified SPORT schedule · source='+j.source+' · origin='+j.origin+' · events='+j.events.length)"
+              exit 0
+            fi
+
+            echo "Waiting for SPORT Worker propagation · attempt $attempt/8 · status=$status_ok schedule=$schedule_ok"
+            sleep 5
+          done
+
+          echo "::error::SPORT Worker did not verify exact SHA plus a usable public schedule"
+          exit 1

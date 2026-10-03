@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0d10">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; frame-src https:; connect-src 'self' https://webtv-sport.atonis.workers.dev; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <title>WebTV SPORT</title>
+  <link rel="stylesheet" href="./sport.css?v=20261004-sport-v1">
+</head>
+<body>
+  <header class="sport-topbar">
+    <a class="back-link" href="./index.html">← WebTV</a>
+    <div>
+      <p class="eyebrow">TONI'S WEBTV</p>
+      <h1>SPORT</h1>
+    </div>
+    <div class="sport-topbar-meta">
+      <span id="sport-domain">Foothub: —</span>
+      <span id="sport-clock"></span>
+    </div>
+  </header>
+
+  <main class="sport-layout">
+    <aside class="sport-sidebar panel" aria-label="Αγώνες">
+      <div class="sport-sidebar-head">
+        <div>
+          <p class="eyebrow">LIVE / TODAY</p>
+          <h2>Αγώνες</h2>
+        </div>
+        <button id="sport-refresh" class="button ghost" type="button">Refresh</button>
+      </div>
+      <div id="sport-status" class="sport-status" data-tone="loading">Φόρτωση προγράμματος…</div>
+      <div id="sport-match-list" class="sport-match-list"></div>
+    </aside>
+
+    <section class="sport-viewer panel">
+      <div class="sport-viewer-head">
+        <div>
+          <p class="eyebrow">SPORT PLAYER</p>
+          <h2 id="sport-now-title">Διάλεξε αγώνα και Link</h2>
+        </div>
+        <span id="sport-now-link" class="active-source">—</span>
+      </div>
+      <div class="sport-frame-stage">
+        <iframe id="sport-frame"
+          title="SPORT embedded player"
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen
+          hidden></iframe>
+        <div id="sport-empty" class="sport-empty">
+          <strong>SPORT</strong>
+          <span>Πάτησε Link 1, Link 2, Link 3… στον αγώνα που θέλεις.</span>
+        </div>
+      </div>
+      <div class="sport-note">
+        Η σελίδα φορτώνει τη δημόσια player page του επιλεγμένου link μέσα σε iframe. Αν ένα link δεν παίζει, δοκίμασε το επόμενο.
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./src/sport-page.js?v=20261004-sport-v1"></script>
+</body>
+</html>
