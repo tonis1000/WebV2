@@ -241,16 +241,16 @@ async function loadSchedule(){
 }
 
 export default {
-  async fetch(request){
+  async fetch(request,env={}){
     const url=new URL(request.url);
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers:corsHeaders()});
     if(request.method!=='GET')return json({error:'Method not allowed'},405);
-    if(url.pathname==='/status')return json({ok:true,service:SERVICE,version:VERSION,seeds:SEEDS,sourceTimezone:SOURCE_TZ});
+    if(url.pathname==='/status')return json({ok:true,service:SERVICE,version:VERSION,deploySha:String(env.DEPLOY_SHA||''),seeds:SEEDS,sourceTimezone:SOURCE_TZ});
     if(url.pathname!=='/api/schedule')return json({error:'Not found'},404);
     try{
       const schedule=await loadSchedule();
       return json({
-        ok:true,service:SERVICE,version:VERSION,
+        ok:true,service:SERVICE,version:VERSION,deploySha:String(env.DEPLOY_SHA||''),
         sourceTimezone:SOURCE_TZ,displayTimezone:'Europe/Berlin',
         generatedAt:new Date().toISOString(),...schedule,
       });
