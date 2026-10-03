@@ -245,6 +245,7 @@ if (!enabled) {
   `;
   document.head.appendChild(style);
 
+  window.addEventListener('webtv:admin-controls-changed',()=>{if(active)moveControls();});
   mq.addEventListener?.('change', applyMode);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyMode, { once: true });
   else applyMode();

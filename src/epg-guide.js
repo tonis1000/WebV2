@@ -28,6 +28,7 @@ function ensureToggle(){
   button.setAttribute('aria-controls','epg-guide-overlay');button.setAttribute('aria-expanded','false');
   const before=$('source-hunt-toggle')||$('diagnostics-toggle');actions.insertBefore(button,before||null);
   button.addEventListener('click',()=>openGuide());
+  window.dispatchEvent(new CustomEvent('webtv:admin-controls-changed',{detail:{control:'epg-guide-toggle'}}));
   return button;
 }
 function ensureUi(){

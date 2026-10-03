@@ -87,7 +87,7 @@ export class EpgService {
 
   async #refreshNow(channels = []) {
     const primary = this.#scopedUrl(CONFIG.epgUrl, channels);
-    const urls = [...new Set([primary, CONFIG.epgFallbackUrl].filter(Boolean))];
+    const urls = [primary].filter(Boolean);
     this.programs.clear();
     this.resolveIndex.clear();
     this.programKeyIndex.clear();
