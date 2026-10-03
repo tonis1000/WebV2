@@ -42,6 +42,18 @@ function matchesRequested(value,requested=[]){
   const n=normalizeMatch(value);if(!n)return false;
   return requested.some(term=>{const q=normalizeMatch(term);return q&&n===q;});
 }
+function cosmoteRequestedVariants(value=""){
+  const q=normalizeMatch(value);if(!q)return[];
+  const variants=new Set([q]);
+  if(q.startsWith("cosmote")&&q.length>7)variants.add(q.slice(7));
+  if(q.startsWith("novasports")&&q.length>10)variants.add("nova"+q.slice(10));
+  return [...variants];
+}
+function matchesCosmoteChannel(channel,requested=[]){
+  if(!requested.length)return true;
+  const candidates=[channel?.title,channel?.callSign].map(normalizeMatch).filter(Boolean);
+  return requested.some(term=>cosmoteRequestedVariants(term).some(q=>candidates.includes(q)));
+}
 function attrValue(attrs="",name=""){
   const m=String(attrs).match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`,"i"));
   return m?.[1]||"";
@@ -179,7 +191,7 @@ async function fetchCosmote(requested=[]){
   const response=await fetch(COSMOTE_CHANNELS_URL,{headers:COSMOTE_HEADERS});
   if(!response.ok)throw new Error(`cosmote channels HTTP ${response.status}`);
   const data=await response.json();const all=Array.isArray(data?.channels)?data.channels:[];
-  const channels=all.filter(c=>matchesRequested(c.title,requested)||matchesRequested(c.callSign,requested)).slice(0,MAX_COSMOTE_CHANNELS);
+  const channels=all.filter(c=>matchesCosmoteChannel(c,requested)).slice(0,MAX_COSMOTE_CHANNELS);
   if(!channels.length)throw new Error("cosmote no requested channels");
   const now=Math.floor((Date.now()-6*3600000)/1000),to=Math.floor((Date.now()+48*3600000)/1000);const programmes=[];
   await Promise.all(channels.map(async channel=>{
@@ -242,4 +254,4 @@ export default{
   }
 };
 
-export{analyzeXmltv,requestedChannelTerms,filterXmltv,mergeXmltv,normalizeMatch};
+export{analyzeXmltv,requestedChannelTerms,filterXmltv,mergeXmltv,normalizeMatch,matchesCosmoteChannel};
