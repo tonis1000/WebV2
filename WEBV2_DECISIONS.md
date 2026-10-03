@@ -730,4 +730,9 @@ Evidence:
 - live Registry `/api/channel-logos` returned the new sparse override contract with `count:0` before any user repair, proving no bulk migration/write occurred;
 - live GitHub Pages served `src/channel-logo-repair.js` with batch limit 25, manual/background paths and non-interactive background repair, while live `src/main.js` exposed the canonical `applyLogoCandidate` bridge and retained the shared resolver.
 
+Follow-up evidence:
+- PR #180 follow-up `fb41d76e204d24e84a2e7caa8ec3aa04461295d8` fixed an equal-trust UX gap found live on MEGA. Explicit repaired D1 logos use `registry-curated-override`, remain `curated`, and outrank older curated Profile assets while verified assets still retain priority.
+- Manual Find logo now reports visible Found / Not found / Error state on the action button, and Repair missing is visible in the same channel action bar instead of being hidden inside Playlist Manager.
+- Exact-SHA Frontend #1097, Registry #163 and Pages #521 succeeded; live Registry reported the exact runtime SHA.
+
 Reconsider when: production evidence shows that a different provider order materially improves coverage/accuracy, or an owned image cache/CDN becomes necessary for reliability. Any change must preserve sparse persistence, bounded lookup, resolver trust ordering and non-blocking startup.
