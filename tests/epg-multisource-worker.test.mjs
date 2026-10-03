@@ -11,11 +11,12 @@ for(const required of [
   'epg_ripper_DE1.xml.gz',
 ])assert.ok(source.includes(required),'EPG worker must include source '+required);
 
-const sample='<?xml version="1.0"?><tv><channel id="a"><display-name>ANT1</display-name></channel><channel id="b"><display-name>RTL</display-name></channel><programme channel="a" start="20261003120000 +0300" stop="20261003130000 +0300"><title>A</title></programme><programme channel="b" start="20261003120000 +0200" stop="20261003130000 +0200"><title>B</title></programme></tv>';
+const sample='<?xml version="1.0"?><tv><channel id="a"><display-name>ANT1</display-name></channel><channel id="b"><display-name>RTL</display-name></channel><channel id="c"><display-name>ANT1 Cyprus</display-name></channel><programme channel="a" start="20261003120000 +0300" stop="20261003130000 +0300"><title>A</title></programme><programme channel="b" start="20261003120000 +0200" stop="20261003130000 +0200"><title>B</title></programme><programme channel="c" start="20261003120000 +0300" stop="20261003130000 +0300"><title>C</title></programme></tv>';
 assert.deepEqual(requestedChannelTerms(new URL('https://x/epg.xml?channels=ant1,ANT1%20HD,rtl')),['ant1','ANT1 HD','rtl']);
 const filtered=filterXmltv(sample,['ant1']);
 assert.match(filtered,/ANT1/);
 assert.doesNotMatch(filtered,/RTL/);
+assert.doesNotMatch(filtered,/ANT1 Cyprus/,'ANT1 must not pull sibling/country variants into a scoped request');
 assert.equal(analyzeXmltv(filtered).channels,1);
 assert.equal(analyzeXmltv(filtered).programmes,1);
 

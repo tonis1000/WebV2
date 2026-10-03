@@ -74,9 +74,9 @@ jobs:
 
             if curl --fail --silent --show-error --max-time 45 \
               -H 'Cache-Control: no-cache' \
-              "$WORKER_URL/status?verify=${GITHUB_SHA}-${attempt}" \
+              "$WORKER_URL/status?channels=ant1,alpha,ert1&verify=${GITHUB_SHA}-${attempt}" \
               -o /tmp/epg-status.json; then
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/epg-status.json','utf8'));process.exit(j.ok===true&&j.valid===true&&j.service==='WebTV EPG Proxy'&&j.version==='multi-v4'&&j.source==='multi'&&Array.isArray(j.sourcesConfigured)&&j.sourcesConfigured.length>=5&&Number(j.channels)>0&&Number(j.programmes)>0&&Number(j.bytes)>0?0:1)"; then
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/epg-status.json','utf8'));process.exit(j.ok===true&&j.valid===true&&j.service==='WebTV EPG Proxy'&&j.version==='multi-v4'&&j.source==='multi'&&Array.isArray(j.sourcesConfigured)&&j.sourcesConfigured.length>=5&&Array.isArray(j.sourceResults)&&j.sourceResults.some(s=>s.id==='digea'&&s.ok===true)&&Number(j.channels)>0&&Number(j.programmes)>0&&Number(j.bytes)>0?0:1)"; then
                 status_ok=1
               fi
             fi
