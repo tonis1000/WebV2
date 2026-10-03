@@ -76,17 +76,18 @@ export class EpgService {
     globalThis[GLOBAL_EPG_KEY] = this;
   }
 
-  async refresh({ force = false } = {}) {
+  async refresh({ force = false, channels = [] } = {}) {
     if (this.refreshPromise) return this.refreshPromise;
     if (!force && this.lastRefreshAt && (Date.now() - this.lastRefreshAt) < MIN_REFRESH_GAP_MS) return;
 
-    this.refreshPromise = this.#refreshNow()
+    this.refreshPromise = this.#refreshNow(channels)
       .finally(() => { this.refreshPromise = null; });
     return this.refreshPromise;
   }
 
-  async #refreshNow() {
-    const urls = [...new Set([CONFIG.epgUrl, CONFIG.epgFallbackUrl].filter(Boolean))];
+  async #refreshNow(channels = []) {
+    const primary = this.#scopedUrl(CONFIG.epgUrl, channels);
+    const urls = [...new Set([primary, CONFIG.epgFallbackUrl].filter(Boolean))];
     this.programs.clear();
     this.resolveIndex.clear();
     this.programKeyIndex.clear();
@@ -112,6 +113,21 @@ export class EpgService {
     }
 
     throw new Error(errors.join(' · ') || 'No usable EPG feed available');
+  }
+
+  #scopedUrl(base, channels = []) {
+    if (!base) return '';
+    const terms = [...new Set((Array.isArray(channels) ? channels : []).map(channel =>
+      String(channel?.id || channel?.originalId || channel?.name || '').trim()
+    ).filter(Boolean))].slice(0, 80);
+    if (!terms.length) return base;
+    try {
+      const url = new URL(base);
+      url.searchParams.set('channels', terms.join(','));
+      return url.toString();
+    } catch {
+      return base;
+    }
   }
 
   #indexValue(value, id) {
@@ -147,9 +163,11 @@ export class EpgService {
       const stop = parseXmltvTime(programme.getAttribute('stop'));
       const title = (programme.querySelector('title')?.textContent || '').trim();
       const description = (programme.querySelector('desc')?.textContent || '').trim();
+      const category = (programme.querySelector('category')?.textContent || '').trim();
+      const image = programme.querySelector('icon')?.getAttribute('src') || '';
       if (!channel || !start || !stop || !title) continue;
       if (!this.programs.has(channel)) this.programs.set(channel, []);
-      this.programs.get(channel).push({ start, stop, title, description });
+      this.programs.get(channel).push({ start, stop, title, description, category, image });
     }
 
     return true;
@@ -197,6 +215,17 @@ export class EpgService {
     }
 
     return null;
+  }
+
+  getSchedule(channel, { from = null, to = null, limit = 240 } = {}) {
+    const resolved = this.#resolve(channel);
+    const list = resolved ? (this.programs.get(resolved) || []) : [];
+    const fromMs = from ? new Date(from).getTime() : -Infinity;
+    const toMs = to ? new Date(to).getTime() : Infinity;
+    return list
+      .filter(item => item.stop.getTime() > fromMs && item.start.getTime() < toMs)
+      .slice(0, Math.max(1, Number(limit) || 240))
+      .map(item => ({ ...item }));
   }
 
   get(channel, now = new Date()) {
