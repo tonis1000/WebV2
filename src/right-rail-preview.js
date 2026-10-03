@@ -1,5 +1,5 @@
 const PARAM = 'layout';
-const DESKTOP = '(min-width: 1180px)';
+const DESKTOP = '(min-width: 900px)';
 const BUILD_ID = '20261003-epg-guide-rail';
 
 const layoutMode = new URLSearchParams(location.search).get(PARAM);
@@ -230,6 +230,18 @@ if (!enabled) {
     html.rail-preview .next-programs{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
     html.rail-preview .next-card{height:100%;min-height:62px}
     html.rail-preview #unified-search-panel:not([hidden]){position:fixed;top:64px;right:258px;width:min(780px,calc(100vw - 590px));max-height:calc(100vh - 82px);overflow:auto;z-index:1100;background:rgba(14,20,26,.995);border-color:#347da0;box-shadow:0 30px 100px rgba(0,0,0,.7)}
+    @media(min-width:900px) and (max-width:1179px){
+      html.rail-preview .app-shell{width:min(1500px,calc(100% - 10px));padding:5px 0 8px}
+      html.rail-preview .layout{grid-template-columns:250px minmax(0,1fr) 170px;gap:8px}
+      html.rail-preview.admin-locked .layout{grid-template-columns:250px minmax(0,1fr) 170px}
+      html.rail-preview .desktop-control-rail{top:5px;height:calc(100vh - 10px);padding:8px 7px}
+      html.rail-preview .rail-control{min-height:38px;font-size:.72rem;padding:6px}
+      html.rail-preview .desktop-rail-stack{gap:8px}
+      html.rail-preview .desktop-rail-group{gap:5px;padding-bottom:8px}
+      html.rail-preview .sidebar{top:5px;height:calc(100vh - 10px)}
+      html.rail-preview .player-stage{height:min(58vh,650px);min-height:280px}
+      html.rail-preview #unified-search-panel:not([hidden]){right:188px;width:min(680px,calc(100vw - 470px))}
+    }
     @media(min-width:1800px){
       html.rail-preview .app-shell{width:min(2200px,calc(100% - 24px))}
       html.rail-preview .layout{grid-template-columns:clamp(310px,17vw,340px) minmax(0,1fr) clamp(238px,13vw,270px)}
