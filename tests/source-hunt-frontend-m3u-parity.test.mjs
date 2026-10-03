@@ -12,7 +12,7 @@ assert.equal(fs.existsSync(retiredSource),false,'legacy frontend Hunt M3U scanne
 
 // Active parity now belongs to shared cores + Unified Search/Worker consumers.
 assert.doesNotMatch(index,/\.\/src\/source-hunt-engine\.js(?:\?|"|')/,'legacy frontend Hunt M3U scanner must remain retired from active page load');
-assert.match(index,/\.\/src\/search\/search-ui\.js\?v=20260930-unified-search-a/,'Unified Search must be the active automatic search surface');
+assert.match(index,/\.\/src\/search\/search-ui\.js\?v=[^\"']+/,'Unified Search must be the active automatic search surface regardless of cache-bust version');
 assert.match(registry,/curated-source-catalog\.js/,'Unified Search registry must derive curated sources from the shared source catalog');
 assert.match(worker,/curated-source-catalog\.js/,'Discovery Worker must consume the same shared curated source catalog');
 assert.match(catalog,/format:'m3u'/,'canonical curated catalog must retain M3U source declarations');
