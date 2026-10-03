@@ -80,8 +80,9 @@ function makeMatchCard(event,index){
   const time=document.createElement('time');
   time.className='sport-match-time';
   time.textContent=berlinTime(event);
+  const sourceLabel=event.provider==='sportfmtv'?'SportFM TV':'Foothub';
   time.title=event.time&&event.time!==time.textContent
-    ? 'Foothub: '+event.time+' · Germany: '+time.textContent
+    ? sourceLabel+': '+event.time+' · Germany: '+time.textContent
     : 'Germany time: '+time.textContent;
 
   const title=document.createElement('div');
@@ -89,7 +90,7 @@ function makeMatchCard(event,index){
   title.textContent=event.title||('Αγώνας '+(index+1));
   line.append(time,title);
 
-  if(isLive(event)){
+  if(isLive(event)||event.liveLabel===true){
     const live=document.createElement('span');
     live.className='sport-live-badge';
     live.textContent='LIVE';
@@ -113,27 +114,53 @@ function makeMatchCard(event,index){
   return card;
 }
 
+function makeProviderSection(label,events=[]){
+  const section=document.createElement('section');
+  section.className='provider-section';
+
+  const heading=document.createElement('div');
+  heading.className='provider-heading';
+
+  const name=document.createElement('strong');
+  name.textContent=label;
+
+  const count=document.createElement('span');
+  count.textContent=String(events.length);
+
+  heading.append(name,count);
+  section.appendChild(heading);
+
+  for(const [index,event] of events.entries()){
+    section.appendChild(makeMatchCard(event,index));
+  }
+  return section;
+}
+
 function renderSchedule(data){
   els.list.replaceChildren();
   clearActiveLink();
 
   const events=Array.isArray(data?.events)?data.events:[];
-  els.domain.textContent=data?.origin
-    ? 'Foothub: '+data.origin.replace(/^https?:\/\//,'')
-    : 'Foothub: —';
+  const foothub=events.filter(event=>event.provider!=='sportfmtv');
+  const sportfmtv=events.filter(event=>event.provider==='sportfmtv');
+
+  const foothubOrigin=data?.providers?.foothub?.origin||data?.origin||'';
+  els.domain.textContent=foothubOrigin
+    ? 'Foothub: '+foothubOrigin.replace(/^https?:\/\//,'')+' · SPORTFM TV'
+    : 'SPORTFM TV';
 
   if(!events.length){
-    setStatus('Δεν βρέθηκαν αγώνες από τις διαθέσιμες δημόσιες πηγές.','warn');
+    setStatus('Δεν βρέθηκαν σημερινοί ή επόμενοι αγώνες από τις διαθέσιμες δημόσιες πηγές.','warn');
     return;
   }
 
-  const source=data?.source==='program.txt'?'program.txt':'homepage';
-  const freshness=data?.fresh===false?' · παλιό feed':'';
-  setStatus(events.length+' αγώνες · '+source+freshness+' · ώρα Γερμανίας',data?.fresh===false?'warn':'ok');
+  setStatus(
+    events.length+' αγώνες · Foothub '+foothub.length+' · SPORTFM TV '+sportfmtv.length+' · ώρα Γερμανίας',
+    'ok'
+  );
 
-  for(const [index,event] of events.entries()){
-    els.list.appendChild(makeMatchCard(event,index));
-  }
+  if(foothub.length)els.list.appendChild(makeProviderSection('FOOTHUB',foothub));
+  if(sportfmtv.length)els.list.appendChild(makeProviderSection('SPORTFM TV',sportfmtv));
 }
 
 async function loadSchedule(){
