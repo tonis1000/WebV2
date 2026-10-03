@@ -10,7 +10,7 @@ const sportJs=fs.readFileSync(new URL('../src/sport-page.js',import.meta.url),'u
 assert.match(index,/id="sport-toggle"/,'main viewer must expose a SPORT control');
 assert.match(index,/href="\.\/sport\.html"/,'SPORT control must open the dedicated page');
 assert.match(rail,/sport-toggle/,'desktop right rail must own SPORT control placement');
-assert.match(gate,/#sport-toggle/,'locked admin rail must hide SPORT with the rest of the rail controls');
+assert.doesNotMatch(gate,/html\.admin-locked #sport-toggle/,'SPORT must remain public while admin controls are locked');
 
 assert.match(sportHtml,/id="sport-match-list"/,'SPORT page must expose a match sidebar');
 assert.match(sportHtml,/id="sport-frame"/,'SPORT page must expose one iframe viewer');
@@ -25,5 +25,5 @@ assert.doesNotMatch(sportJs,/PlayerController|SourceRegistry|WebTVPlaybackAPI/,'
 console.log('sport iframe surface contract ok');
 
 
-assert.match(sportJs,/provider-section/,'SPORT page must render provider sections');
-assert.match(sportJs,/SPORTFM TV/,'SPORT page must label the SportFM TV section');
+assert.doesNotMatch(sportJs,/makeProviderSection|provider-section/,'SPORT page must use one unified chronological list');
+assert.match(sportJs,/sport-archive-toggle/,'SPORT page must expose the SportFM archive filter');
