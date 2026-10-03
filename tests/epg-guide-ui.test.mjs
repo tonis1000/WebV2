@@ -9,8 +9,8 @@ const gate=fs.readFileSync(new URL('../admin-gate.css',import.meta.url),'utf8');
 
 for(const required of ['epg-guide-toggle','epg-guide-overlay','epg-program-dialog','EPG Guide','Play'])
   assert.ok(ui.includes(required),'EPG Guide UI must include '+required);
-assert.match(ui,/WebTVPlaylistAPI\?\.getChannels/,'Guide must derive rows from the current sidebar catalog');
-assert.match(ui,/WebTVEPGAPI\?\.getSchedule/,'Guide must consume the canonical EPG owner');
+assert.match(ui,/playlist\(\)\?\.getChannels/,'Guide must derive rows from the current sidebar catalog');
+assert.match(ui,/api\(\)\?\.getSchedule/,'Guide must consume the canonical EPG owner');
 assert.match(ui,/WebTVPlaybackAPI\?\.playChannelById/,'Guide Play must delegate to the existing Player owner');
 assert.match(ui,/event\.target===overlay/,'backdrop click must close the guide');
 assert.match(ui,/event\.key===['"]Escape['"]/,'Escape must close the guide');
