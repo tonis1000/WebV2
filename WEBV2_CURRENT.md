@@ -1,8 +1,9 @@
 # WEBV2 CURRENT STATE
 
-Updated: 2026-10-02
+Updated: 2026-10-03
 Repository: `tonis1000/WebV2`
-Canonical source: GitHub `main/WEBV2_CURRENT.md`.
+Canonical runtime state: Registry/D1 checkpoint `WEBV2_CURRENT.md`.
+Authoritative editable source: GitHub `main/WEBV2_CURRENT.md`; Registry deployment must sync it byte-for-byte to D1 and verify the SHA-256.
 
 ## CURRENT VERSION
 Playlist / Library / Xtream consolidation runtime SHA: `44dc1b777b222b232f3a9aa4c4e4a4a9dcda6b4f` via PR #102.
@@ -32,7 +33,7 @@ Channel logo repair runtime SHA: `e7bff3becf6856095f3796ba671200fc91b339d2` via 
 Logo Repair visible-feedback follow-up SHA: `fb41d76e204d24e84a2e7caa8ec3aa04461295d8` via PR #180.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
-Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
+Registry Project Agent pairing/session system: RETIRED in the current change; historical PR #95 remains history only.
 Xtream All-known unprofiled identity follow-up merge SHA: `bf0b6a70e0c7840c19b0e08c7f2f04396aa22b7a` via PR #97.
 Playlist Manager Xtream dialog ownership follow-up merge SHA: `de62fca10c7e452c836d168f2c373b437c936a93` via PR #98.
 Official discovery/resolution retirement runtime merge SHA: `92dd5411427a06cc501e924df60f7dc2a80be1c1` via PR #82.
@@ -262,7 +263,7 @@ Final end-to-end production acceptance: DONE / SUCCESS against runtime `3fd86332
 Current ownership:
 - GitHub `main/WEBV2_CURRENT.md` = canonical project current-state truth.
 - `/api/project-status` = Registry deployment truth.
-- Registry/D1 `WEBV2_CURRENT.md` checkpoint = mirror/history/fallback, not canonical authority.
+- Registry/D1 `WEBV2_CURRENT.md` = canonical runtime checkpoint; GitHub `main/WEBV2_CURRENT.md` is its controlled editable source.
 - Component-specific workflow/live evidence = deployment truth for that component.
 
 ## CURRENT VERIFIED OUTCOME
@@ -373,12 +374,12 @@ Verified discovery sanitation + Greece/Cyprus identity evidence:
 - Verification-only PR #174 stayed unmerged. Live run `37077805610` passed against deployed Workers: Source Hunt sanitized the controlled escaped ALPHA fixture to exactly `https://cdn.example.test/alpha/live.m3u8?dpssid=x&sid=y&ndvc=1`, rejected the fixture `alphacyp` route for Alpha Greece, and deployed Curated ALPHA returned 5 Greece candidates with zero `alphacyp` candidates. `DISCOVERY_QUALITY_LIVE_ACCEPTANCE=PASS`.
 
 ## REGISTRY / D1 MIRROR STATUS
-Registry/D1 `WEBV2_CURRENT.md` remains mirror/history/fallback, not canonical authority.
+Registry/D1 `WEBV2_CURRENT.md` is the canonical runtime checkpoint. GitHub `main/WEBV2_CURRENT.md` is the controlled editable source and deploy sync must keep both hashes identical.
 Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
 Before the PR #108 runtime change, GitHub main and Registry deployed SHA were both `002f7215d6a5d3666fbef79c2b0eb98772de912b`; the D1 `WEBV2_CURRENT.md` checkpoint was independently read and remains stale at the older Project Brain bootstrap state from 2026-09-30. The stale mirror therefore does not equal current GitHub/runtime state and must not be treated as production truth.
 The exact latest verified runtime SHA `f9f861641856bacdcc16b8be0b255dcfa318b692` completed Deploy WebTV Registry Worker #131 successfully, GitHub Pages #489 successfully and Validate WebTV Frontend #947 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #134 independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
 A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
-D1 mirror synchronization remains optional operational follow-up and must use fresh CAS/readback if performed.
+D1 synchronization is mandatory on Registry deploy. The workflow archives a changed prior checkpoint, writes the GitHub version, and verifies D1 byte length + SHA-256.
 
 ## COMPLETED PHASES
 - State/persistence foundation: DONE
@@ -502,10 +503,11 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - During temporary PIN bypass, browser auth must obtain a signed maintenance-scoped Registry session before authenticated cross-Worker consumers such as Xtream are used; maintenance tokens are valid only while the bypass remains enabled and must never weaken normal PIN-mode Xtream auth
 
 ## OPERATIONAL NOTES
+- The legacy Project Agent pairing flow, persistent project-agent cookie/session, browser editor and project-agent D1 tables are retired. They must not be reintroduced without a new bounded architecture decision.
 - Branch copies of `WEBV2_CURRENT.md` are proposed state; only the copy merged to GitHub `main` is canonical.
 - GitHub CURRENT documents verified reality but does not make GitHub `main` automatically equal production.
 - Always compare CURRENT claims with `/api/project-status`, relevant CI/deploy workflows, and component-specific live evidence.
-- Registry/D1 CURRENT is mirror/history/fallback; its CAS-protected write/editor path remains available for mirror synchronization and historical maintenance.
+- Registry/D1 CURRENT is canonical runtime state; GitHub `main/WEBV2_CURRENT.md` is the controlled edit source. Registry deploy performs history-preserving D1 sync plus hash verification.
 - `/api/project-status` remains Registry deployment truth, not universal Worker deployment truth.
 - Every solved problem that yields reusable knowledge must update the correct Brain owner before task closure.
 - Latest verified logo-resolution runtime before this documentation closure: `28a54beeede7ee3b85c9d1d9731d275a8aef3425`; Frontend #1079, Registry #159 and Pages #517 SUCCESS, with live Registry SHA and live Pages assets confirmed.
