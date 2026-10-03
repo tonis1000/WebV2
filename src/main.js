@@ -34,6 +34,16 @@ const els = {
 const health = new HealthStore();
 const sources = new SourceRegistry(health);
 const epg = new EpgService();
+let epgCatalogRefreshTimer=0;
+function refreshEpgForCatalog({force=false}={}){
+  if(epgCatalogRefreshTimer)clearTimeout(epgCatalogRefreshTimer);
+  return new Promise(resolve=>{
+    epgCatalogRefreshTimer=setTimeout(()=>{
+      epgCatalogRefreshTimer=0;
+      epg.refresh({force,channels}).then(()=>{renderEpg();resolve(true);}).catch(error=>{log(`EPG refresh failed: ${error.message}`);resolve(false);});
+    },80);
+  });
+}
 let channels = [];
 let selected = null;
 let catalogMode = 'cloud';
@@ -254,6 +264,7 @@ function applyPlaylistText(text,{mode='replace',label='Playlist'}={}){
   catalogMode='temporary';
   clearSelectedIfMissing();renderGroups();renderChannels();
   emitChannelSelection('catalog-import');
+  refreshEpgForCatalog({force:true});
   log(`Playlist applied · ${label} · ${mode} · ${imported.length} imported · ${channels.length} total`);
   return{imported:imported.length,total:channels.length};
 }
@@ -347,6 +358,7 @@ async function loadCloudMyPlaylist({reason='manual',preserveSelection=true}={}){
     setOfficialLive(selected);
   }
   emitChannelSelection(`catalog-cloud:${reason}`);
+  if(reason!=='startup')refreshEpgForCatalog({force:true});
   log(`D1 MY PLAYLIST LOADED · ${channels.length} channels · ${reason}`);
   return {total:channels.length,channels:[...channels]};
 }
@@ -412,6 +424,13 @@ window.WebTVPlaylistAPI={
   getSelectedChannel:selectedChannelSnapshot,
   getChannels:()=>channels.map(c=>({...c,directUrls:[...(c.directUrls||[])]})),
   applyLogoCandidate
+};
+
+window.WebTVEPGAPI={
+  refreshForChannels:(rows=channels,{force=false}={})=>epg.refresh({force,channels:Array.isArray(rows)?rows:channels}),
+  getSchedule:(channel,options={})=>epg.getSchedule(channel,options),
+  getNow:(channel,now=new Date())=>epg.get(channel,now),
+  getChannels:()=>channels.map(channel=>({...channel,directUrls:[...(channel.directUrls||[])]})),
 };
 
 async function selectChannel(channel){
@@ -524,6 +543,10 @@ async function testCandidateUrl(){
 
 window.WebTVPlaybackAPI={
   testCandidate,
+  playChannelById:id=>{
+    const channel=channels.find(item=>String(item.id)===String(id));
+    return channel?selectChannel(channel):Promise.reject(new Error('Channel not found'));
+  },
   replaySelected:()=>selected?selectChannel(selected):Promise.resolve(null),
   stop:()=>player.stop(),
 };
@@ -565,12 +588,11 @@ async function boot(){
       if(window.WebTVPlaylistAPI?.ready)renderChannels();
     })
     .catch(error=>log(`Source registry unavailable: ${error.message}`));
-  const epgTask=epg.refresh()
-    .then(()=>{log(`EPG loaded · ${Math.round(performance.now()-startedAt)} ms`);renderEpg();})
-    .catch(error=>log(`EPG unavailable: ${error.message}`));
-
   await loadCloudMyPlaylist({reason:'startup',preserveSelection:false});
   log(`Startup playlist ready · ${channels.length} channels · ${Math.round(performance.now()-startedAt)} ms`);
+  const epgTask=epg.refresh({channels})
+    .then(()=>{log(`EPG loaded for ${channels.length} sidebar channels · ${Math.round(performance.now()-startedAt)} ms`);renderEpg();})
+    .catch(error=>log(`EPG unavailable: ${error.message}`));
   if(DEBUG_STORAGE){
     const hd=health.diagnostics();
     log(`HEALTH STORE · memory=${hd.memoryEntries} · primary=${hd.primaryEntries} (${hd.primaryBytes}B) · backup=${hd.backupEntries} (${hd.backupBytes}B) · key ${hd.storageKey}`);
@@ -583,7 +605,7 @@ async function boot(){
   window.dispatchEvent(new CustomEvent('webtv:ready'));
   await epgTask;
   setInterval(renderEpg,30000);
-  setInterval(()=>epg.refresh().then(renderEpg).catch(error=>log(`EPG refresh failed: ${error.message}`)),CONFIG.epgRefreshMs);
+  setInterval(()=>epg.refresh({channels}).then(renderEpg).catch(error=>log(`EPG refresh failed: ${error.message}`)),CONFIG.epgRefreshMs);
 }
 
 els.search.addEventListener('input',renderChannels);
