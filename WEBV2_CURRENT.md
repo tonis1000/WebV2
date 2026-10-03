@@ -28,6 +28,7 @@ Header-aware IPTV compatibility runtime SHA: `2fe8dd0a0ebe0c5c1d3221b213f8fd7048
 Multi-source M3U curated discovery runtime SHA: `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` via PR #170.
 Discovery candidate sanitation + Greece/Cyprus identity guard runtime SHA: `1a91894cfa8618ba0b5ed998a7102afc40fc8077` via PR #173.
 Channel logo resolution architecture runtime SHA: `28a54beeede7ee3b85c9d1d9731d275a8aef3425` via PR #176.
+Channel logo repair runtime SHA: `e7bff3becf6856095f3796ba671200fc91b339d2` via PR #178.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -420,12 +421,13 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Multi-source M3U curated discovery: DONE / DEPLOYED / LIVE VERIFIED, runtime `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` via PR #170; verification-only PR #171 closed unmerged after live production acceptance
 - Discovery candidate sanitation + Greece/Cyprus identity guard: DONE / DEPLOYED / LIVE VERIFIED, runtime `1a91894cfa8618ba0b5ed998a7102afc40fc8077` via PR #173; verification-only PR #174 closed unmerged after production acceptance
 - Channel Logo Resolution Architecture: DONE / DEPLOYED / LIVE VERIFIED, runtime `28a54beeede7ee3b85c9d1d9731d275a8aef3425` via PR #176; verified/curated/unverified provenance ownership is now centralized in `src/core/channel-logo.js`
+- Channel Logo Repair: DONE / DEPLOYED / LIVE VERIFIED, runtime `e7bff3becf6856095f3796ba671200fc91b339d2` via PR #178; missing/broken logos now have bounded manual/background repair with sparse D1 overrides
 
 ## NEXT SAFE ACTION
 The WebV2 System Audit & UX Consolidation is closed for the approved ownership-consolidation scope.
 
 For future work:
-1. treat the current ownership map and DEC-001…DEC-038 as the baseline; do not reopen a closed owner without new concrete evidence;
+1. treat the current ownership map and DEC-001…DEC-039 as the baseline; do not reopen a closed owner without new concrete evidence;
 2. before any new major feature or architectural change, define the exact problem and the production proof that will demonstrate it is solved;
 3. use a new bounded slice for any future Player, Sidebar, EPG, Playlist/My Playlist, Favorites, Xtream, Unified Search / discovery, diagnostics or persistence change;
 4. preserve the existing RED → implementation → exact-SHA deploy → live verification → canonical docs closure discipline.
@@ -434,6 +436,7 @@ The next task should be a new product requirement, verified bug, or explicitly c
 
 ## DO NOT BREAK
 - Channel logo selection must remain owned by `src/core/channel-logo.js`; verified provenance outranks curated/unverified candidates, playlist/ordinary Registry logos remain explicitly unverified fallbacks, and startup/rendering must not add implicit web-search/logo scraping
+- Logo Repair must remain sparse and bounded: no startup/full-catalog lookup crawl, background repair only for a selected missing/broken channel, manual batch repair capped at 25, community matches remain curated, and full Xtream catalogs must not be copied into D1 just to persist logos
 - D1-primary My Playlist
 - D1-authoritative Favorites after successful cloud read
 - Favorites belong only to the D1 My Playlist catalog; do not expose/apply them to temporary, Saved/Custom, loaded Xtream or other catalogs without a separate future product decision
@@ -505,4 +508,5 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - `/api/project-status` remains Registry deployment truth, not universal Worker deployment truth.
 - Every solved problem that yields reusable knowledge must update the correct Brain owner before task closure.
 - Latest verified logo-resolution runtime before this documentation closure: `28a54beeede7ee3b85c9d1d9731d275a8aef3425`; Frontend #1079, Registry #159 and Pages #517 SUCCESS, with live Registry SHA and live Pages assets confirmed.
+- Latest verified channel-logo-repair runtime: `e7bff3becf6856095f3796ba671200fc91b339d2`; Frontend #1093, Registry #161 and Pages #519 SUCCESS; live Registry exact SHA, empty sparse override state, and live Pages repair/main assets confirmed.
 - DONE means implemented + deployed + actually verified.
