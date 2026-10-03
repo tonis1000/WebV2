@@ -121,7 +121,7 @@ assert.match(main, /profile\?\.category\?\.primary/, 'Phase B must prefer canoni
 assert.ok(existsSync(path.join(ROOT, 'src/core/channel-logo.js')), 'Channel Logo resolver should exist');
 assert.match(main, /channel-logo\.js/, 'My Playlist presentation must route logo selection through the shared Channel Logo resolver');
 assert.match(main, /resolveChannelLogo/, 'runtime must resolve logo provenance through the shared owner');
-assert.match(main, /providedSourceKind:\s*['"]registry-channel['"]/, 'D1 logo fallback must enter the resolver as explicit unverified Registry provenance');
+assert.match(main, /c\.logoSourceKind\|\|['"]['"]\)\.trim\(\)\|\|['"]registry-channel['"]/, 'D1 logo fallback must preserve repaired provenance while keeping registry-channel as the unverified default');
 assert.match(main, /safeLogo\(c\.logo\|\|['"]{2}\)/, 'runtime must preserve sanitized D1 logo fallback before provenance resolution');
 assert.match(epgCore, /channel-identity-gr\.js/, 'Phase C EPG matching must consume shared Greek identity');
 assert.match(epgCore, /channel-profile-gr\.js/, 'Phase C EPG matching must consume Channel Profile metadata');
@@ -132,6 +132,25 @@ assert.doesNotMatch(epgCore, /KNOWN_CHANNEL_KEYS|canonicalChannelKey/, 'Phase C 
 assert.match(sourceRegistry, /CHANNEL_ALIASES/, 'Playback SourceRegistry alias lookup must remain unchanged by Phase C');
 assert.match(channelCatalog, /sourceTrust:\s*['"]temporary['"]/, 'Imported M3U metadata must remain temporary through Phase C');
 assert.doesNotMatch(logoUtils, /channel-profile-gr\.js/, 'logo-utils must remain sanitation/rendering only through Phase C');
+
+const logoRepair=read('src/channel-logo-repair.js');
+const logoRepairWorker=read('workers/channel-logo-repair.js');
+const registryWorker=read('workers/webtv-registry.js');
+assert.match(index,/channel-logo-repair\.js/,'Channel Logo Repair UI must load explicitly after the canonical runtime');
+assert.match(logoRepair,/channel-logo-find/,'manual Find logo control must exist');
+assert.match(logoRepair,/channel-logo-repair-missing/,'manual bounded Repair missing logos control must exist');
+assert.match(logoRepair,/BATCH_LIMIT=25/,'manual catalog repair must remain batch-bounded');
+assert.match(logoRepair,/ensureSession\(\{interactive\}\)/,'lookup path must forward the explicit interactive flag');
+assert.match(logoRepair,/lookupAndApply\(current,\{interactive:false,reason:/,'background repair must stay non-interactive');
+assert.match(logoRepair,/api\/channel-logos\/lookup/,'frontend repair must persist through the Registry owner');
+assert.match(main,/applyLogoCandidate/,'main.js must remain the presentation mutation bridge for repaired logos');
+assert.match(registryWorker,/channel_logo_overrides/,'Registry must own sparse D1 repaired-logo persistence');
+assert.match(registryWorker,/api\/channel-logos\/lookup/,'Registry must expose the bounded authenticated logo lookup route');
+assert.match(logoRepairWorker,/tv-logo\/tv-logos/,'repair provider chain must include tv-logo');
+assert.match(logoRepairWorker,/picons\/picons/,'repair provider chain must include picons');
+assert.match(logoRepairWorker,/iptv-org\.github\.io\/api\/logos\.json/,'repair provider chain must include iptv-org');
+assert.match(logoRepairWorker,/jimgate07\/grtv/,'repair provider chain must retain the Greece-specific grtv fallback');
+
 
 const discoveryClient=read('src/discovery/external-discovery-client.js');
 assert.match(discoveryClient,/webtv-source-discovery\.atonis\.workers\.dev/, 'Phase 4 client must use the dedicated Source Discovery Worker');

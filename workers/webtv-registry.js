@@ -1,3 +1,5 @@
+import { lookupChannelLogo } from './channel-logo-repair.js';
+
 const VERSION = '1.5';
 const SESSION_DAYS = 180;
 const MAINTENANCE_SESSION_SECONDS = 60 * 60;
@@ -228,11 +230,67 @@ function projectCheckpointText(row,origin='*'){
   return new Response(row.content,{status:200,headers:{...cors(origin),'content-type':'text/markdown;charset=utf-8','cache-control':'no-store','x-checkpoint-sha256':row.sha256||'','x-checkpoint-updated-at':row.updated_at||''}});
 }
 
+async function ensureChannelLogoTables(env){
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS channel_logo_overrides (
+    channel_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    tvg_id TEXT NOT NULL DEFAULT '',
+    country TEXT NOT NULL DEFAULT '',
+    logo_url TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    source_kind TEXT NOT NULL,
+    source_url TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`).run();
+}
+async function listChannelLogoOverrides(env){
+  await ensureChannelLogoTables(env);
+  const rows=await env.DB.prepare(`SELECT channel_id AS channelId,name,tvg_id AS tvgId,country,logo_url AS logoUrl,provider,source_kind AS sourceKind,source_url AS sourceUrl,updated_at AS updatedAt FROM channel_logo_overrides ORDER BY updated_at DESC,channel_id ASC`).all();
+  return rows.results||[];
+}
+async function saveChannelLogoOverride(env,payload={}){
+  await ensureChannelLogoTables(env);
+  const channelId=safeId(payload.channelId||payload.id||payload.tvgId||payload.name);
+  const name=clean(payload.name)||channelId;
+  const tvgId=clean(payload.tvgId);
+  const country=clean(payload.country).toUpperCase().slice(0,2);
+  const logoUrl=clean(payload.logoUrl||payload.url);
+  if(!/^https:\/\//i.test(logoUrl))throw new Error('Repaired logo must use HTTPS');
+  const provider=clean(payload.provider)||'unknown';
+  const sourceKind=clean(payload.sourceKind)||'curated-third-party';
+  const sourceUrl=clean(payload.sourceUrl);
+  await env.DB.prepare(`INSERT INTO channel_logo_overrides(channel_id,name,tvg_id,country,logo_url,provider,source_kind,source_url,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(channel_id) DO UPDATE SET name=excluded.name,tvg_id=excluded.tvg_id,country=excluded.country,logo_url=excluded.logo_url,provider=excluded.provider,source_kind=excluded.source_kind,source_url=excluded.source_url,updated_at=CURRENT_TIMESTAMP`)
+    .bind(channelId,name,tvgId,country,logoUrl,provider,sourceKind,sourceUrl).run();
+  return{channelId,name,tvgId,country,logoUrl,provider,sourceKind,sourceUrl,trust:'curated'};
+}
+async function lookupAndSaveChannelLogo(env,payload={}){
+  const query={
+    id:clean(payload.channelId||payload.id),
+    name:clean(payload.name),
+    tvgId:clean(payload.tvgId),
+    country:clean(payload.country).toUpperCase().slice(0,2)
+  };
+  const result=await lookupChannelLogo(query);
+  if(!result?.found)return{found:false,query};
+  const override=await saveChannelLogoOverride(env,{
+    ...query,
+    channelId:query.id||query.tvgId||query.name,
+    logoUrl:result.url,
+    provider:result.provider,
+    sourceKind:'curated-third-party',
+    sourceUrl:result.sourceUrl,
+    country:result.country||query.country
+  });
+  return{found:true,override,matchScore:Number(result.matchScore||0)};
+}
+
 async function listPlaylists(env){const r=await env.DB.prepare(`SELECT id,name,kind,source_url AS sourceUrl,channel_count AS channelCount,group_count AS groupCount,created_at AS createdAt,updated_at AS updatedAt FROM playlists ORDER BY updated_at DESC`).all();return r.results||[];}
 async function getPlaylist(env,id){return await env.DB.prepare(`SELECT id,name,kind,source_url AS sourceUrl,raw_m3u AS rawM3u,channel_count AS channelCount,group_count AS groupCount,created_at AS createdAt,updated_at AS updatedAt FROM playlists WHERE id=?`).bind(id).first();}
 async function upsertSavedPlaylist(env,payload){const id=clean(payload.id)||`pl-${crypto.randomUUID()}`,name=clean(payload.name)||'Saved Playlist',kind=clean(payload.kind)||'saved',sourceUrl=clean(payload.sourceUrl||payload.url),rawM3u=String(payload.rawM3u||payload.text||'');if(!rawM3u.includes('#EXTINF'))throw new Error('rawM3u must contain #EXTINF entries');const channelCount=Math.max(0,Number(payload.channelCount)||0),groupCount=Math.max(0,Number(payload.groupCount)||0);await env.DB.prepare(`INSERT INTO playlists(id,name,kind,source_url,raw_m3u,channel_count,group_count,created_at,updated_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,source_url=excluded.source_url,raw_m3u=excluded.raw_m3u,channel_count=excluded.channel_count,group_count=excluded.group_count,updated_at=CURRENT_TIMESTAMP`).bind(id,name,kind,sourceUrl,rawM3u,channelCount,groupCount).run();return{id,name,kind,sourceUrl,channelCount,groupCount};}
 
-async function myPlaylist(env){const channelsResult=await env.DB.prepare(`SELECT c.id,c.name,c.tvg_id AS tvgId,c.logo,c.group_name AS groupName,c.enabled,m.position,m.added_at AS addedAt FROM my_playlist m JOIN channels c ON c.id=m.channel_id WHERE c.enabled=1 ORDER BY m.position ASC,c.name COLLATE NOCASE ASC`).all();const channels=channelsResult.results||[];if(!channels.length)return[];const ids=channels.map(c=>c.id),placeholders=ids.map(()=>'?').join(',');const sourcesResult=await env.DB.prepare(`SELECT id,channel_id AS channelId,url,origin,priority,enabled,last_success AS lastSuccess,last_failure AS lastFailure,startup_ms AS startupMs,updated_at AS updatedAt FROM channel_sources WHERE enabled=1 AND channel_id IN (${placeholders}) ORDER BY channel_id,priority ASC,id ASC`).bind(...ids).all();const by=new Map();for(const s of sourcesResult.results||[]){if(!by.has(s.channelId))by.set(s.channelId,[]);by.get(s.channelId).push(s);}return channels.map(c=>({...c,sources:by.get(c.id)||[]}));}
+async function myPlaylist(env){await ensureChannelLogoTables(env);const channelsResult=await env.DB.prepare(`SELECT c.id,c.name,c.tvg_id AS tvgId,COALESCE(l.logo_url,c.logo) AS logo,l.provider AS logoProvider,l.source_kind AS logoSourceKind,l.source_url AS logoSourceUrl,l.country AS logoCountry,c.group_name AS groupName,c.enabled,m.position,m.added_at AS addedAt FROM my_playlist m JOIN channels c ON c.id=m.channel_id LEFT JOIN channel_logo_overrides l ON l.channel_id=c.id WHERE c.enabled=1 ORDER BY m.position ASC,c.name COLLATE NOCASE ASC`).all();const channels=channelsResult.results||[];if(!channels.length)return[];const ids=channels.map(c=>c.id),placeholders=ids.map(()=>'?').join(',');const sourcesResult=await env.DB.prepare(`SELECT id,channel_id AS channelId,url,origin,priority,enabled,last_success AS lastSuccess,last_failure AS lastFailure,startup_ms AS startupMs,updated_at AS updatedAt FROM channel_sources WHERE enabled=1 AND channel_id IN (${placeholders}) ORDER BY channel_id,priority ASC,id ASC`).bind(...ids).all();const by=new Map();for(const s of sourcesResult.results||[]){if(!by.has(s.channelId))by.set(s.channelId,[]);by.get(s.channelId).push(s);}return channels.map(c=>({...c,sources:by.get(c.id)||[]}));}
 async function putMyChannel(env,payload){const name=clean(payload.name);if(!name)throw new Error('Channel name is required');const id=safeId(payload.id||payload.tvgId||name),tvgId=clean(payload.tvgId||payload.originalId||payload.id||name),logo=clean(payload.logo),groupName=clean(payload.groupName||payload.group)||'Other';let sources=Array.isArray(payload.sources)?payload.sources:[];if(!sources.length&&Array.isArray(payload.directUrls))sources=payload.directUrls.map(url=>({url,origin:'playlist'}));sources=sources.map((s,i)=>typeof s==='string'?{url:s,origin:'playlist',priority:100+i}:s).filter(s=>/^https?:\/\//i.test(clean(s?.url)));const position=Number.isFinite(Number(payload.position))?Number(payload.position):999999;const statements=[env.DB.prepare(`INSERT INTO channels(id,name,tvg_id,logo,group_name,enabled,created_at,updated_at) VALUES(?,?,?,?,?,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET name=excluded.name,tvg_id=excluded.tvg_id,logo=excluded.logo,group_name=excluded.group_name,enabled=1,updated_at=CURRENT_TIMESTAMP`).bind(id,name,tvgId,logo,groupName),env.DB.prepare(`INSERT INTO my_playlist(channel_id,position,added_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(channel_id) DO UPDATE SET position=excluded.position`).bind(id,position)];if(payload.replaceSources)statements.push(env.DB.prepare(`DELETE FROM channel_sources WHERE channel_id=?`).bind(id));for(let i=0;i<sources.length;i++){const s=sources[i];statements.push(env.DB.prepare(`INSERT INTO channel_sources(channel_id,url,origin,priority,enabled,created_at,updated_at) VALUES(?,?,?,?,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(channel_id,url) DO UPDATE SET origin=excluded.origin,priority=excluded.priority,enabled=1,updated_at=CURRENT_TIMESTAMP`).bind(id,clean(s.url),clean(s.origin)||'playlist',Number.isFinite(Number(s.priority))?Number(s.priority):100+i));}await env.DB.batch(statements);return{id,name,tvgId,logo,groupName,sources:sources.map(s=>clean(s.url))};}
 async function reorderMyPlaylist(env,ids){
   if(!Array.isArray(ids)||!ids.length)return{ok:false,error:'ids array is required'};
@@ -250,7 +308,7 @@ function toM3u(channels){const lines=['#EXTM3U'];for(const c of channels){const 
 export default{async fetch(request,env){
   const origin=requestOrigin(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});if(!env.DB)return json({error:'D1 binding DB is not configured'},503,origin);const url=new URL(request.url),path=url.pathname.replace(/\/+$/,'')||'/';
   try{
-    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/project-status','/api/project-checkpoints','/api/project-agent','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
+    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/project-status','/api/project-checkpoints','/api/project-agent','/api/channel-logos','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
     if(path==='/api/login'&&request.method==='POST')return await pinLogin(request,env,origin);
     if(path==='/api/session/maintenance'&&request.method==='POST'){
       if(!pinAuthDisabled(env))return json({error:'Maintenance session is not available'},403,origin);
@@ -327,6 +385,15 @@ export default{async fetch(request,env){
         if(error?.projectCheckpointStatus)return json(error.projectCheckpointPayload,error.projectCheckpointStatus,origin);
         throw error;
       }
+    }
+    if(path==='/api/channel-logos'&&request.method==='GET'){
+      const overrides=await listChannelLogoOverrides(env);
+      return json({overrides,count:overrides.length},200,origin);
+    }
+    if(path==='/api/channel-logos/lookup'&&request.method==='POST'){
+      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
+      const result=await lookupAndSaveChannelLogo(env,await readJson(request));
+      return json({ok:true,...result},200,origin);
     }
     if(path==='/playlist.m3u'&&request.method==='GET')return text(toM3u(await myPlaylist(env)),200,'audio/x-mpegurl;charset=utf-8',origin);
     if(path==='/api/playlists'&&request.method==='GET')return json({playlists:await listPlaylists(env)},200,origin);
