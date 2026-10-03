@@ -54,9 +54,10 @@ assert.doesNotMatch(source, /function\s+parseStrmText\s*\(/,
   'browser StrmResolver must not keep a local STRM document parser');
 
 const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-assert.match(index, /"\.\/src\/core\/strm-core\.js"\s*:\s*"\.\/src\/core\/strm-core\.js\?v=20260930-strm-e3a"/,
-  'browser import map must cache-bust the shared STRM core');
-assert.match(index, /"\.\/src\/core\/strm-resolver\.js"\s*:\s*"\.\/src\/core\/strm-resolver\.js\?v=20260930-strm-e3a"/,
-  'browser import map must cache-bust the migrated STRM resolver');
+const importMapBuild='20261003-epg-recovery-a';
+assert.match(index, new RegExp(`"\\.\\/src\\/core\\/strm-core\\.js"\\s*:\\s*"\\.\\/src\\/core\\/strm-core\\.js\\?v=${importMapBuild}"`),
+  'browser import map must cache-bust the shared STRM core with the current atomic build id');
+assert.match(index, new RegExp(`"\\.\\/src\\/core\\/strm-resolver\\.js"\\s*:\\s*"\\.\\/src\\/core\\/strm-resolver\\.js\\?v=${importMapBuild}"`),
+  'browser import map must cache-bust the migrated STRM resolver with the current atomic build id');
 
 console.log('browser STRM resolver parity tests PASS');
