@@ -15,9 +15,15 @@ assert.doesNotMatch(epg,/ext\.greektv\.app|epgshare01|digea\.gr|cosmotetv/i,'fro
 assert.match(epg,/const urls = \[primary\]/,'frontend EPG refresh must have one Worker-owned fetch lane');
 assert.match(guide,/webtv:admin-controls-changed/,'EPG Guide must notify presentation when its admin control is created');
 assert.match(rail,/webtv:admin-controls-changed/,'desktop rail must re-dock late-created admin controls');
-assert.match(main,/core\/epg\.js\?v=20261003-worker-only/,'main must load the Worker-only EPG core');
-assert.match(sidebar,/core\/epg\.js\?v=20261003-worker-only/,'sidebar must share the same Worker-only EPG core');
-assert.match(index,/main\.js\?v=20261003-epg-worker-only/,'page must cache-bust the canonical EPG runtime');
-assert.match(index,/sidebar-now\.js\?v=20261003-epg-worker-only/,'page must cache-bust the sidebar EPG consumer');
 
-console.log('EPG browser boundary + admin rail contract PASS');
+const recoveryVersion='20261003-epg-recovery-a';
+assert.match(main,new RegExp(`core\\/epg\\.js\\?v=${recoveryVersion}`),'main must load the recovery EPG core');
+assert.match(sidebar,new RegExp(`core\\/epg\\.js\\?v=${recoveryVersion}`),'sidebar must share the same recovery EPG core');
+assert.match(index,new RegExp(`main\\.js\\?v=${recoveryVersion}`),'page must cache-bust the canonical EPG runtime');
+assert.match(index,new RegExp(`sidebar-now\\.js\\?v=${recoveryVersion}`),'page must cache-bust the sidebar EPG consumer');
+assert.match(index,new RegExp(`src\\/core\\/epg\\.js\\?v=${recoveryVersion}`),'import map must not point EPG at an older cached runtime');
+assert.match(epg,/EPG_FETCH_RETRY_DELAYS_MS/,'EPG runtime must retry transient Worker failures');
+assert.match(epg,/sanitizeXmltvForBrowser/,'EPG runtime must recover from provider XML that is readable but not strict-browser-XML');
+assert.match(epg,/epg-retry/,'retry requests must bypass a stale cached Worker response');
+
+console.log('EPG browser boundary + recovery/cache-coherence contract PASS');

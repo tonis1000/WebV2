@@ -18,6 +18,6 @@ assert.match(worker,/curated-source-catalog\.js/,'Discovery Worker must consume 
 assert.match(catalog,/format:'m3u'/,'canonical curated catalog must retain M3U source declarations');
 
 const importMap=index.match(/<script\s+type="importmap">([\s\S]*?)<\/script>/i)?.[1]||'';
-assert.match(importMap,/\.\/src\/core\/channel-catalog\.js[^\n]*20260930-strm-e3a/,'browser import map must preserve the current Channel Catalog cache ownership');
+assert.match(importMap,/\.\/src\/core\/channel-catalog\.js[^\n]*20261003-epg-recovery-a/,'browser import map must preserve Channel Catalog cache ownership under the current atomic build id');
 
 console.log('frontend M3U parity + Unified Search ownership PASS');
