@@ -108,6 +108,8 @@ jobs:
         run: node --check workers/epg-proxy-gr.js
       - name: Run Drive-canonical Project Brain retirement guard
         run: node tests/project-brain-drive-canonical.test.mjs
+      - name: Run public Markdown surface guard
+        run: node tests/public-markdown-surface.test.mjs
       - name: Run project-agent retirement regression test
         run: node tests/project-agent-retirement.test.mjs
       - name: Run custom playlist Registry regression test
