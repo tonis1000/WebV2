@@ -5,7 +5,25 @@ import { normalizeId, formatTime } from './utils.js';
 
 const GLOBAL_EPG_KEY = '__webtv_epg_service_singleton__';
 const MIN_REFRESH_GAP_MS = 60 * 1000;
+const EPG_FETCH_RETRY_DELAYS_MS=Object.freeze([0,1200,4000]);
 const IDENTITY_INDEX_PREFIX='@identity:';
+
+function sleep(ms=0){return ms>0?new Promise(resolve=>setTimeout(resolve,ms)):Promise.resolve();}
+function sanitizeXmltvForBrowser(xml=''){
+  return String(xml||'')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'')
+    .replace(/&(?!#\d+;|#x[0-9a-f]+;|amp;|lt;|gt;|quot;|apos;)/gi,'&amp;');
+}
+function parseXmltvDocument(xmlText=''){
+  const raw=String(xmlText||'');
+  const parser=new DOMParser();
+  let doc=parser.parseFromString(raw,'application/xml');
+  if(!doc.querySelector('parsererror'))return doc;
+  const sanitized=sanitizeXmltvForBrowser(raw);
+  if(sanitized===raw)return doc;
+  doc=parser.parseFromString(sanitized,'application/xml');
+  return doc;
+}
 
 function parseXmltvTime(value = '') {
   const match = String(value).trim().match(/^(\d{14})(?:\s*([+-]\d{2}:?\d{2}|Z))?$/i);
@@ -88,30 +106,40 @@ export class EpgService {
   async #refreshNow(channels = []) {
     const primary = this.#scopedUrl(CONFIG.epgUrl, channels);
     const urls = [primary].filter(Boolean);
-    this.programs.clear();
-    this.resolveIndex.clear();
-    this.programKeyIndex.clear();
-
+    const previous={
+      programs:this.programs,
+      resolveIndex:this.resolveIndex,
+      programKeyIndex:this.programKeyIndex,
+    };
     const errors = [];
+
     for (const url of urls) {
-      try {
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
-        const xml = await response.text();
-        const merged = this.#merge(xml);
-        if (!merged) throw new Error(`${url}: empty/invalid XMLTV`);
-        this.#finalize();
-        this.lastRefreshAt = Date.now();
-        globalThis.dispatchEvent?.(new CustomEvent('webtv:epg-updated', { detail: { at: this.lastRefreshAt } }));
-        return;
-      } catch (error) {
-        errors.push(error?.message || `EPG fetch failed · ${url}`);
-        this.programs.clear();
-        this.resolveIndex.clear();
-        this.programKeyIndex.clear();
+      for (let attempt=0;attempt<EPG_FETCH_RETRY_DELAYS_MS.length;attempt+=1) {
+        await sleep(EPG_FETCH_RETRY_DELAYS_MS[attempt]);
+        this.programs=new Map();
+        this.resolveIndex=new Map();
+        this.programKeyIndex=new Map();
+        try {
+          const requestUrl=new URL(url);
+          if(attempt>0)requestUrl.searchParams.set('epg-retry',`${Date.now()}-${attempt}`);
+          const response = await fetch(requestUrl.toString(), { cache: 'no-store' });
+          if (!response.ok) throw new Error(`${requestUrl} HTTP ${response.status}`);
+          const xml = await response.text();
+          const merged = this.#merge(xml);
+          if (!merged) throw new Error(`${requestUrl}: empty/invalid XMLTV`);
+          this.#finalize();
+          this.lastRefreshAt = Date.now();
+          globalThis.dispatchEvent?.(new CustomEvent('webtv:epg-updated', { detail: { at: this.lastRefreshAt } }));
+          return;
+        } catch (error) {
+          errors.push(`attempt ${attempt+1}: ${error?.message || `EPG fetch failed · ${url}`}`);
+        }
       }
     }
 
+    this.programs=previous.programs;
+    this.resolveIndex=previous.resolveIndex;
+    this.programKeyIndex=previous.programKeyIndex;
     throw new Error(errors.join(' · ') || 'No usable EPG feed available');
   }
 
@@ -140,7 +168,7 @@ export class EpgService {
   }
 
   #merge(xmlText) {
-    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+    const doc = parseXmltvDocument(xmlText);
     if (doc.querySelector('parsererror')) throw new Error('Invalid XMLTV document');
 
     const channels = [...doc.querySelectorAll('channel')];
