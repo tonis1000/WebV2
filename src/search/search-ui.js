@@ -41,6 +41,7 @@ function createUi(){
   const panel=document.createElement('section');
   panel.id='unified-search-panel';
   panel.className='unified-search-panel panel';
+  panel.hidden=true;
   panel.setAttribute('aria-label','Unified source search');
   panel.innerHTML=`
     <div class="unified-search-head">
@@ -73,6 +74,35 @@ function createUi(){
     </details>`;
   playerCard.insertAdjacentElement('afterend',panel);
   return panel;
+}
+
+function ensureSearchToggle(){
+  let toggle=$('unified-search-toggle');
+  if(toggle)return toggle;
+  const actions=document.querySelector('.topbar-actions');
+  if(!actions)return null;
+  toggle=document.createElement('button');
+  toggle.id='unified-search-toggle';
+  toggle.type='button';
+  toggle.className='button search-tools';
+  toggle.textContent='Find channels & sources';
+  toggle.setAttribute('aria-controls','unified-search-panel');
+  toggle.setAttribute('aria-expanded','false');
+  const before=$('source-hunt-toggle')||$('diagnostics-toggle');
+  actions.insertBefore(toggle,before||null);
+  toggle.addEventListener('click',()=>{
+    const panel=$('unified-search-panel');if(!panel)return;
+    const opening=panel.hidden;
+    panel.hidden=!opening;
+    toggle.setAttribute('aria-expanded',String(opening));
+    if(opening)setTimeout(()=>$('unified-search-query')?.focus(),0);
+  });
+  window.addEventListener('webtv:admin-visibility',event=>{
+    if(event.detail?.unlocked)return;
+    const panel=$('unified-search-panel');if(panel)panel.hidden=true;
+    toggle.setAttribute('aria-expanded','false');
+  });
+  return toggle;
 }
 
 function escapeHtml(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
@@ -225,7 +255,7 @@ function exportJson(){const json=activeRun?.reporter?.exportJson?.();if(!json)re
 
 function bind(){const form=$('unified-search-form');if(!form||form.dataset.bound==='1')return;form.dataset.bound='1';form.addEventListener('submit',startSearch);$('unified-search-cancel')?.addEventListener('click',()=>activeRun?.cancel?.('user'));$('unified-search-report-copy')?.addEventListener('click',()=>copyReport().catch(()=>{}));$('unified-search-report-json')?.addEventListener('click',exportJson);$('unified-search-report-source')?.addEventListener('change',()=>renderReport(activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[],activeRun?.reporter?.summary?.()||latestUpdate?.summary||{}));}
 
-export function installUnifiedSearchUI(){if(installed)return true;ensureStylesheet();const panel=createUi();if(!panel)return false;installed=true;bind();syncSearchQueryToSidebarSelection();window.addEventListener('webtv:channel-selected',()=>{nowPlayingState.sidebarChanged();syncSearchQueryToSidebarSelection();const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();});console.info(`[WebTV] Unified Search UI loaded · ${BUILD_ID}`);return true;}
+export function installUnifiedSearchUI(){if(installed)return true;ensureStylesheet();const panel=createUi();if(!panel)return false;ensureSearchToggle();installed=true;bind();syncSearchQueryToSidebarSelection();window.addEventListener('webtv:channel-selected',()=>{nowPlayingState.sidebarChanged();syncSearchQueryToSidebarSelection();const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();});console.info(`[WebTV] Unified Search UI loaded · ${BUILD_ID}`);return true;}
 
 function bootInstall(){if(installUnifiedSearchUI())return;window.addEventListener('webtv:ready',()=>installUnifiedSearchUI(),{once:true});setTimeout(()=>installUnifiedSearchUI(),1200);}
 
