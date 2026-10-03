@@ -6,13 +6,13 @@ import { resolveChannelLogo } from './core/channel-logo.js';
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
 import { HealthStore } from './core/health-store.js';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
-import { EpgService } from './core/epg.js?v=20261003-worker-only';
+import { EpgService } from './core/epg.js?v=20261003-epg-recovery-a';
 import { PlayerController } from './core/player.js';
 import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/utils.js';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 
-const BUILD_ID = '20261003-startup-cache-a';
+const BUILD_ID = '20261003-epg-recovery-a';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const MY_PLAYLIST_STARTUP_CACHE_KEY = 'webtv_v2_my_playlist_startup_cache_v1';
 const MY_PLAYLIST_STARTUP_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
