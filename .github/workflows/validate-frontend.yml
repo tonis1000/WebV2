@@ -222,6 +222,8 @@ jobs:
         run: node tests/channel-identity-core.test.mjs
       - name: Run channel profile regression test
         run: node tests/channel-profile-core.test.mjs
+      - name: Run channel display-name policy regression test
+        run: node tests/channel-display-name-policy.test.mjs
       - name: Run channel logo resolution regression test
         run: node tests/channel-logo-resolution.test.mjs
       - name: Run channel logo repair provider regression test
