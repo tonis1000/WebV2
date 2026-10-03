@@ -5,14 +5,12 @@ const SESSION_DAYS = 180;
 const MAINTENANCE_SESSION_SECONDS = 60 * 60;
 const MAX_PIN_FAILURES = 5;
 const PIN_BLOCK_MINUTES = 15;
-const CHECKPOINT_MAX_BYTES = 512 * 1024;
 
 function cors(origin='*'){
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers': 'content-type,authorization',
-    'access-control-expose-headers': 'x-checkpoint-sha256,x-checkpoint-updated-at',
     'access-control-max-age': '86400'
   };
 }
@@ -108,70 +106,6 @@ async function writeHealth(env,payload){
   return {ok:true};
 }
 
-export function isValidProjectCheckpointName(name=''){return /^[A-Z0-9_]+\.md$/.test(clean(name));}
-export async function projectCheckpointSha256(content=''){
-  const bytes=new TextEncoder().encode(String(content));
-  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
-  return [...digest].map(byte=>byte.toString(16).padStart(2,'0')).join('');
-}
-async function ensureProjectCheckpointTables(env){
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS project_checkpoints (name TEXT PRIMARY KEY, content TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS project_checkpoint_history (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, content TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, checkpoint_updated_at TEXT NOT NULL, archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`).run();
-}
-function projectCheckpointError(message,status,extra={}){const error=new Error(message);error.projectCheckpointStatus=status;error.projectCheckpointPayload={error:message,...extra};return error;}
-function d1Changes(result){return Number(result?.meta?.changes??result?.changes??0);}
-async function currentProjectCheckpointSha(env,name){const row=await env.DB.prepare('SELECT content, byte_length, sha256, updated_at FROM project_checkpoints WHERE name=?').bind(name).first();return row?.sha256||null;}
-export async function writeProjectCheckpoint(env,{name,content,expectedSha256}={}){
-  const checkpointName=clean(name);
-  if(!isValidProjectCheckpointName(checkpointName))throw projectCheckpointError('Invalid checkpoint name',400);
-  if(typeof content!=='string')throw projectCheckpointError('content must be a string',400);
-  const byteLength=new TextEncoder().encode(content).byteLength;
-  if(byteLength>CHECKPOINT_MAX_BYTES)throw projectCheckpointError('Checkpoint content is too large',413,{maxBytes:CHECKPOINT_MAX_BYTES});
-  await ensureProjectCheckpointTables(env);
-  const current=await env.DB.prepare('SELECT content, byte_length, sha256, updated_at FROM project_checkpoints WHERE name=?').bind(checkpointName).first();
-  const expected=clean(expectedSha256);
-  if(current&&!expected)throw projectCheckpointError('expectedSha256 is required when updating an existing checkpoint',428,{currentSha256:current.sha256});
-  if(current&&expected!==current.sha256)throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256:current.sha256});
-  if(!current&&expected)throw projectCheckpointError('Checkpoint does not exist at expectedSha256',409,{currentSha256:null});
-  const sha256=await projectCheckpointSha256(content);
-
-  if(!current){
-    const inserted=await env.DB.prepare(`INSERT INTO project_checkpoints(name,content,byte_length,sha256,updated_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(name) DO NOTHING`).bind(checkpointName,content,byteLength,sha256).run();
-    if(d1Changes(inserted)!==1){
-      const currentSha256=await currentProjectCheckpointSha(env,checkpointName);
-      throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256});
-    }
-    return{name:checkpointName,created:true,unchanged:false,historyCreated:false,previousSha256:null,sha256,byteLength};
-  }
-
-  if(sha256===current.sha256){
-    const guard=await env.DB.prepare(`UPDATE project_checkpoints SET sha256=sha256 WHERE name=? AND sha256=?`).bind(checkpointName,expected).run();
-    if(d1Changes(guard)!==1){
-      const currentSha256=await currentProjectCheckpointSha(env,checkpointName);
-      throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256});
-    }
-    return{name:checkpointName,created:false,unchanged:true,historyCreated:false,previousSha256:current.sha256,sha256,byteLength};
-  }
-
-  const [archived,updated]=await env.DB.batch([
-    env.DB.prepare(`INSERT INTO project_checkpoint_history(name,content,byte_length,sha256,checkpoint_updated_at,archived_at) SELECT name,content,byte_length,sha256,updated_at,CURRENT_TIMESTAMP FROM project_checkpoints WHERE name=? AND sha256=?`).bind(checkpointName,expected),
-    env.DB.prepare(`UPDATE project_checkpoints SET content=?,byte_length=?,sha256=?,updated_at=CURRENT_TIMESTAMP WHERE name=? AND sha256=?`).bind(content,byteLength,sha256,checkpointName,expected),
-  ]);
-  if(d1Changes(updated)!==1||d1Changes(archived)!==1){
-    const currentSha256=await currentProjectCheckpointSha(env,checkpointName);
-    throw projectCheckpointError('Checkpoint changed since it was read',409,{currentSha256});
-  }
-  return{name:checkpointName,created:false,unchanged:false,historyCreated:true,previousSha256:current.sha256,sha256,byteLength};
-}
-async function listProjectCheckpointHistory(env,name){
-  await ensureProjectCheckpointTables(env);
-  const rows=await env.DB.prepare(`SELECT id,name,byte_length,sha256,checkpoint_updated_at,archived_at FROM project_checkpoint_history WHERE name=? ORDER BY id DESC LIMIT 100`).bind(name).all();
-  return rows.results||[];
-}
-function projectCheckpointText(row,origin='*'){
-  return new Response(row.content,{status:200,headers:{...cors(origin),'content-type':'text/markdown;charset=utf-8','cache-control':'no-store','x-checkpoint-sha256':row.sha256||'','x-checkpoint-updated-at':row.updated_at||''}});
-}
-
 async function ensureChannelLogoTables(env){
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS channel_logo_overrides (
     channel_id TEXT PRIMARY KEY,
@@ -250,7 +184,7 @@ function toM3u(channels){const lines=['#EXTM3U'];for(const c of channels){const 
 export default{async fetch(request,env){
   const origin=requestOrigin(request,env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});if(!env.DB)return json({error:'D1 binding DB is not configured'},503,origin);const url=new URL(request.url),path=url.pathname.replace(/\/+$/,'')||'/';
   try{
-    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/project-status','/api/project-checkpoints','/api/channel-logos','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
+    if(path==='/'||path==='/api/status'){const count=await env.DB.prepare(`SELECT COUNT(*) AS n FROM my_playlist`).first();return json({ok:true,service:'WebTV Registry',version:VERSION,d1:true,primaryPlaylist:'d1',pinAuth:Boolean(env.ADMIN_PIN),sessionDays:SESSION_DAYS,myPlaylistChannels:Number(count?.n||0),endpoints:['/api/login','/api/session','/api/session/validate','/api/project-status','/api/channel-logos','/api/playlists','/api/my-playlist','/api/my-playlist/order','/playlist.m3u']},200,origin);}
     if(path==='/api/login'&&request.method==='POST')return await pinLogin(request,env,origin);
     if(path==='/api/session/maintenance'&&request.method==='POST'){
       if(!pinAuthDisabled(env))return json({error:'Maintenance session is not available'},403,origin);
@@ -262,41 +196,7 @@ export default{async fetch(request,env){
 
     if(path==='/api/project-status'&&request.method==='GET'){
       const row=await env.DB.prepare('SELECT commit_sha, commit_message, deployed_at FROM project_deploy_status WHERE id=1').first();
-      return row?json({repository:'tonis1000/WebV2',commitSha:row.commit_sha,commitMessage:row.commit_message,deployedAt:row.deployed_at,checkpoints:'PIN-protected at /api/project-checkpoints'},200,origin):json({error:'Deployment status not initialized'},503,origin);
-    }
-    if(path==='/api/project-checkpoints'&&request.method==='GET'){
-      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
-      await ensureProjectCheckpointTables(env);
-      const rows=await env.DB.prepare('SELECT name, byte_length, sha256, updated_at FROM project_checkpoints ORDER BY name').all();
-      return json({checkpoints:rows.results||[]},200,origin);
-    }
-    const checkpointPrefix='/api/project-checkpoints/';
-    if(path.startsWith(checkpointPrefix)&&path.endsWith('/history')&&request.method==='GET'){
-      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
-      const name=decodeURIComponent(path.slice(checkpointPrefix.length,-'/history'.length));
-      if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);
-      return json({name,history:await listProjectCheckpointHistory(env,name)},200,origin);
-    }
-    if(path.startsWith(checkpointPrefix)&&request.method==='GET'){
-      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
-      const name=decodeURIComponent(path.slice(checkpointPrefix.length));
-      if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);
-      await ensureProjectCheckpointTables(env);
-      const row=await env.DB.prepare('SELECT content, sha256, updated_at FROM project_checkpoints WHERE name=?').bind(name).first();
-      return row?projectCheckpointText(row,origin):json({error:'Checkpoint not found'},404,origin);
-    }
-    if(path.startsWith(checkpointPrefix)&&request.method==='PUT'){
-      const auth=await requireAdmin(request,env);if(!auth.ok)return auth.response;
-      const name=decodeURIComponent(path.slice(checkpointPrefix.length));
-      if(!isValidProjectCheckpointName(name))return json({error:'Invalid checkpoint name'},400,origin);
-      const body=await readJson(request);
-      try{
-        const checkpoint=await writeProjectCheckpoint(env,{name,content:body.content,expectedSha256:body.expectedSha256});
-        return json({ok:true,checkpoint},checkpoint.created?201:200,origin);
-      }catch(error){
-        if(error?.projectCheckpointStatus)return json(error.projectCheckpointPayload,error.projectCheckpointStatus,origin);
-        throw error;
-      }
+      return row?json({repository:'tonis1000/WebV2',commitSha:row.commit_sha,commitMessage:row.commit_message,deployedAt:row.deployed_at},200,origin):json({error:'Deployment status not initialized'},503,origin);
     }
     if(path==='/api/channel-logos'&&request.method==='GET'){
       const overrides=await listChannelLogoOverrides(env);
