@@ -67,7 +67,7 @@ jobs:
               if node - <<'NODE'
           const fs=require('fs');
           const j=JSON.parse(fs.readFileSync('/tmp/sport-status.json','utf8'));
-          process.exit(j.ok===true&&j.service==='WebTV SPORT Feed'&&j.version==='1.0'&&j.deploySha===process.env.GITHUB_SHA?0:1);
+          process.exit(j.ok===true&&j.service==='WebTV SPORT Feed'&&j.version==='1.1'&&j.deploySha===process.env.GITHUB_SHA?0:1);
           NODE
               then status_ok=1; fi
             fi
@@ -78,14 +78,16 @@ jobs:
           const j=JSON.parse(fs.readFileSync('/tmp/sport-schedule.json','utf8'));
           const events=Array.isArray(j.events)?j.events:[];
           const valid=events.length>0&&events.every(e=>typeof e.title==='string'&&Array.isArray(e.links)&&e.links.length>0&&e.links.every(l=>/^https:\/\//.test(l.url||'')));
-          process.exit(j.ok===true&&j.service==='WebTV SPORT Feed'&&j.deploySha===process.env.GITHUB_SHA&&valid?0:1);
+          const sportfm=events.filter(e=>e.provider==='sportfmtv');
+          const official=sportfm.every(e=>e.links.length===1&&e.links[0].label==='Official'&&/^https:\/\/www\.sportfmtv\.gr\/el\/media-video\//.test(e.links[0].url||''));
+          process.exit(j.ok===true&&j.service==='WebTV SPORT Feed'&&j.deploySha===process.env.GITHUB_SHA&&valid&&sportfm.length>0&&official?0:1);
           NODE
               then schedule_ok=1; fi
             fi
 
             if [ "$status_ok" = 1 ] && [ "$schedule_ok" = 1 ]; then
               cat /tmp/sport-status.json
-              node -e "const j=require('/tmp/sport-schedule.json');console.log('Verified SPORT schedule · source='+j.source+' · origin='+j.origin+' · events='+j.events.length)"
+              node -e "const j=require('/tmp/sport-schedule.json');const s=j.events.filter(e=>e.provider==='sportfmtv').length;console.log('Verified SPORT schedule · source='+j.source+' · origin='+j.origin+' · events='+j.events.length+' · sportfmtv='+s)"
               exit 0
             fi
 
