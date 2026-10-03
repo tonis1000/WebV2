@@ -71,7 +71,7 @@ try{
     const json=await response.json();
     assert.equal(json.found,true);
     assert.equal(json.override.provider,'tv-logo');
-    assert.equal(json.override.sourceKind,'curated-third-party');
+    assert.equal(json.override.sourceKind,'registry-curated-override');
     assert.match(json.override.logoUrl,/crete-tv-gr\.png$/);
     assert.equal(DB.overrides.size,1,'only the repaired override should be persisted');
   }
@@ -90,7 +90,7 @@ try{
     assert.equal(response.status,200);
     const json=await response.json();
     assert.equal(json.channels[0].logoProvider,'tv-logo');
-    assert.equal(json.channels[0].logoSourceKind,'curated-third-party');
+    assert.equal(json.channels[0].logoSourceKind,'registry-curated-override');
     assert.match(json.channels[0].logo,/crete-tv-gr\.png$/,'My Playlist reload must overlay the sparse D1 repair');
   }
 }finally{
