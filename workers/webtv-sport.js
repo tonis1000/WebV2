@@ -11,6 +11,7 @@ const DISCOVERY_PAGES=Object.freeze([
   'https://beacons.ai/foothubhd',
 ]);
 const MAX_BYTES=900000;
+const SPORTFM_MAX_BYTES=3000000;
 const FETCH_TIMEOUT_MS=9000;
 
 function corsHeaders(type='application/json; charset=utf-8'){
@@ -268,11 +269,11 @@ function extractOgTitle(html=''){
 async function loadSportFmSchedule(){
   const reports=[];
   try{
-    const home=await fetchText(SPORTFM_ORIGIN+'/el');
+    const home=await fetchText(SPORTFM_ORIGIN+'/el',{maxBytes:SPORTFM_MAX_BYTES});
     const parsed=parseSportFmHomepage(home.text,{baseOrigin:SPORTFM_ORIGIN,now:new Date()});
     for(const event of parsed.events.slice(0,SPORTFM_MAX_EVENTS)){
       try{
-        const page=await fetchText(event.links[0].url);
+        const page=await fetchText(event.links[0].url,{maxBytes:SPORTFM_MAX_BYTES});
         const title=extractOgTitle(page.text);
         if(title)event.title=title;
       }catch(error){
@@ -295,7 +296,7 @@ function eventFreshness(events=[]){
   const usable=diffs.some(h=>h>=-8&&h<=192);
   return{fresh:usable,minHours:Math.min(...diffs.map(Math.abs))};
 }
-async function fetchText(url){
+async function fetchText(url,{maxBytes=MAX_BYTES}={}){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT_MS);
   try{
@@ -305,9 +306,9 @@ async function fetchText(url){
     });
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     const len=Number(response.headers.get('content-length')||0);
-    if(len>MAX_BYTES)throw new Error('response too large');
+    if(len>maxBytes)throw new Error('response too large');
     const text=await response.text();
-    if(new TextEncoder().encode(text).length>MAX_BYTES)throw new Error('response too large');
+    if(new TextEncoder().encode(text).length>maxBytes)throw new Error('response too large');
     return{text,url:response.url||url,status:response.status};
   }finally{clearTimeout(timer);}
 }

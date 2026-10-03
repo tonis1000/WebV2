@@ -68,3 +68,8 @@ assert.equal(sportFmParsed.events[0].links[0].label,'Official');
 assert.equal(sportFmParsed.events[0].links[0].url,'https://www.sportfmtv.gr/el/media-video/iraklis-olympiakos');
 assert.match(sportFmParsed.events[0].startUtc,/Z$/);
 assert.ok(sportFmParsed.events.every(e=>e.source==='sportfmtv-homepage'));
+
+
+const workerSource=(await import('node:fs')).readFileSync(new URL('../workers/webtv-sport.js',import.meta.url),'utf8');
+assert.match(workerSource,/SPORTFM_MAX_BYTES=3000000/,'SportFM homepage must have an explicit bounded larger response budget');
+assert.match(workerSource,/fetchText\(SPORTFM_ORIGIN\+'\/el',\{maxBytes:SPORTFM_MAX_BYTES\}\)/,'SportFM homepage fetch must use its dedicated budget');
