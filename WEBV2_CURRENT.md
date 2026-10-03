@@ -29,6 +29,7 @@ Multi-source M3U curated discovery runtime SHA: `3d15bf49b7c1277fade4caa5fd5d4f0
 Discovery candidate sanitation + Greece/Cyprus identity guard runtime SHA: `1a91894cfa8618ba0b5ed998a7102afc40fc8077` via PR #173.
 Channel logo resolution architecture runtime SHA: `28a54beeede7ee3b85c9d1d9731d275a8aef3425` via PR #176.
 Channel logo repair runtime SHA: `e7bff3becf6856095f3796ba671200fc91b339d2` via PR #178.
+Logo Repair visible-feedback follow-up SHA: `fb41d76e204d24e84a2e7caa8ec3aa04461295d8` via PR #180.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -509,4 +510,5 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - Every solved problem that yields reusable knowledge must update the correct Brain owner before task closure.
 - Latest verified logo-resolution runtime before this documentation closure: `28a54beeede7ee3b85c9d1d9731d275a8aef3425`; Frontend #1079, Registry #159 and Pages #517 SUCCESS, with live Registry SHA and live Pages assets confirmed.
 - Latest verified channel-logo-repair runtime: `e7bff3becf6856095f3796ba671200fc91b339d2`; Frontend #1093, Registry #161 and Pages #519 SUCCESS; live Registry exact SHA, empty sparse override state, and live Pages repair/main assets confirmed.
+- PR #180 fixed the live MEGA manual-repair UX at `fb41d76e204d24e84a2e7caa8ec3aa04461295d8`: explicit D1 curated repairs now outrank equal-trust curated profile assets while verified assets still win; Find logo exposes visible Found/Not found/Error feedback; Repair missing is visible next to Find logo; Frontend #1097, Registry #163 and Pages #521 SUCCESS; live Registry reported the exact SHA.
 - DONE means implemented + deployed + actually verified.
