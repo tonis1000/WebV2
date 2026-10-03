@@ -21,6 +21,12 @@ Owns: canonical presentation metadata, country/language/category, logo status/pr
 Does not own: stream URLs, source ordering, verifier state, playback routes.
 Rule: stable WebV2 channel id and EPG provider id are different concepts.
 
+## Channel Logo Resolver
+Owns: runtime logo candidate sanitization, provenance trust classification, deterministic candidate ranking/selection, and fail-closed placeholder outcome in `src/core/channel-logo.js`.
+Does not own: channel identity, category/EPG metadata, remote logo search, broadcaster scraping, persistence, playback, or image-host availability.
+Rule: **verified > curated > unverified > none.** Official/media-group/publisher, Wikimedia Commons and explicit registry-verified metadata are verified; curated third-party baselines remain curated; playlist/ordinary Registry-row logos are unverified fallbacks. No startup-time web search is allowed.
+Status: DONE / DEPLOYED / LIVE VERIFIED via PR #176, runtime merge `28a54beeede7ee3b85c9d1d9731d275a8aef3425`.
+
 ## Source Format Registry
 Owns: source format identity, detection, capability metadata, transport-vs-media classification, legacy compatibility mapping.
 Does not own: network verification, trust, saving, playback success.

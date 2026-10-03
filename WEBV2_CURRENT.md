@@ -27,6 +27,7 @@ Discovery quality v3 final runtime SHA: `daa73919623f47946f7a36ba6c055c4ad2cbbf0
 Header-aware IPTV compatibility runtime SHA: `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7` via PR #165; live-gate topology follow-ups through PR #167, current deployed closure SHA `2e6a34b207b903eea6b5cb10695afc5ef60998fd`.
 Multi-source M3U curated discovery runtime SHA: `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` via PR #170.
 Discovery candidate sanitation + Greece/Cyprus identity guard runtime SHA: `1a91894cfa8618ba0b5ed998a7102afc40fc8077` via PR #173.
+Channel logo resolution architecture runtime SHA: `28a54beeede7ee3b85c9d1d9731d275a8aef3425` via PR #176.
 Local known-source ownership merge SHA: `35306d1161899a8f58801363bd3b1947881db9b2` via PR #100.
 Xtream Preview ownership + Custom Saved Playlists runtime merge SHA: `9588e191fd354b42d20ae87ab16d3a2989041df4` via PR #93.
 Registry Project Agent PUT auth-boundary follow-up merge SHA: `9f08d898b8209ffa4d32aa11424802df367f63e1` via PR #95.
@@ -418,12 +419,13 @@ D1 mirror synchronization remains optional operational follow-up and must use fr
 - Header-aware IPTV compatibility: DONE / DEPLOYED / VERIFIED for parser + verifier + HLS proxy transport, runtime `2fe8dd0a0ebe0c5c1d3221b213f8fd704816b7b7` via PR #165 with live-gate closure `2e6a34b207b903eea6b5cb10695afc5ef60998fd` via PR #167; verification-only PR #168 closed unmerged after the real jimgate MEGA upstream still returned HTTP 403 even outside Cloudflare
 - Multi-source M3U curated discovery: DONE / DEPLOYED / LIVE VERIFIED, runtime `3d15bf49b7c1277fade4caa5fd5d4f090341dbcf` via PR #170; verification-only PR #171 closed unmerged after live production acceptance
 - Discovery candidate sanitation + Greece/Cyprus identity guard: DONE / DEPLOYED / LIVE VERIFIED, runtime `1a91894cfa8618ba0b5ed998a7102afc40fc8077` via PR #173; verification-only PR #174 closed unmerged after production acceptance
+- Channel Logo Resolution Architecture: DONE / DEPLOYED / LIVE VERIFIED, runtime `28a54beeede7ee3b85c9d1d9731d275a8aef3425` via PR #176; verified/curated/unverified provenance ownership is now centralized in `src/core/channel-logo.js`
 
 ## NEXT SAFE ACTION
 The WebV2 System Audit & UX Consolidation is closed for the approved ownership-consolidation scope.
 
 For future work:
-1. treat the current ownership map and DEC-001…DEC-037 as the baseline; do not reopen a closed owner without new concrete evidence;
+1. treat the current ownership map and DEC-001…DEC-038 as the baseline; do not reopen a closed owner without new concrete evidence;
 2. before any new major feature or architectural change, define the exact problem and the production proof that will demonstrate it is solved;
 3. use a new bounded slice for any future Player, Sidebar, EPG, Playlist/My Playlist, Favorites, Xtream, Unified Search / discovery, diagnostics or persistence change;
 4. preserve the existing RED → implementation → exact-SHA deploy → live verification → canonical docs closure discipline.
@@ -431,6 +433,7 @@ For future work:
 The next task should be a new product requirement, verified bug, or explicitly chosen UX improvement rather than more cleanup for its own sake.
 
 ## DO NOT BREAK
+- Channel logo selection must remain owned by `src/core/channel-logo.js`; verified provenance outranks curated/unverified candidates, playlist/ordinary Registry logos remain explicitly unverified fallbacks, and startup/rendering must not add implicit web-search/logo scraping
 - D1-primary My Playlist
 - D1-authoritative Favorites after successful cloud read
 - Favorites belong only to the D1 My Playlist catalog; do not expose/apply them to temporary, Saved/Custom, loaded Xtream or other catalogs without a separate future product decision
@@ -501,4 +504,5 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - Registry/D1 CURRENT is mirror/history/fallback; its CAS-protected write/editor path remains available for mirror synchronization and historical maintenance.
 - `/api/project-status` remains Registry deployment truth, not universal Worker deployment truth.
 - Every solved problem that yields reusable knowledge must update the correct Brain owner before task closure.
+- Latest verified logo-resolution runtime before this documentation closure: `28a54beeede7ee3b85c9d1d9731d275a8aef3425`; Frontend #1079, Registry #159 and Pages #517 SUCCESS, with live Registry SHA and live Pages assets confirmed.
 - DONE means implemented + deployed + actually verified.
