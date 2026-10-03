@@ -25,5 +25,5 @@ assert.doesNotMatch(sportJs,/PlayerController|SourceRegistry|WebTVPlaybackAPI/,'
 console.log('sport iframe surface contract ok');
 
 
-assert.match(sportJs,/provider-section/,'SPORT page must render provider sections');
-assert.match(sportJs,/SPORTFM TV/,'SPORT page must label the SportFM TV section');
+assert.doesNotMatch(sportJs,/makeProviderSection|provider-section/,'SPORT page must use one unified chronological list');
+assert.match(sportJs,/sport-archive-toggle/,'SPORT page must expose the SportFM archive filter');
