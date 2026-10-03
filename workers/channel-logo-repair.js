@@ -23,7 +23,7 @@ export function normalizeLogoMatchKey(value=''){
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toLowerCase()
     .replace(/&amp;|&/g,' and ')
-    .replace(/\b(?:full\s*hd|fhd)\b/g,' hd ')
+    .replace(/\b(?:full\s*hd|fhd|hd|uhd|4k)\b/g,' ')
     .replace(/[^a-z0-9α-ω]+/gi,' ')
     .replace(/\s+/g,' ')
     .trim();
