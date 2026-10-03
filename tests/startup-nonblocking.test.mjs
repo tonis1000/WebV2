@@ -28,6 +28,17 @@ assert.doesNotMatch(boot, /await\s+sourceTask\b/, 'remote Source Registry must n
 assert.doesNotMatch(boot, /const\s+sourceTask\s*=\s*sources\.refresh\(\)/, 'boot should not create a Source Registry promise that is later awaited');
 assert.match(boot, /sources\.refresh\(\)[\s\S]*?\.then\(\(\)=>\{[\s\S]*?if\(window\.WebTVPlaylistAPI\?\.ready\)renderChannels\(\)/, 'background Source Registry completion should refresh channel route counts after startup');
 
+
+const cachedPlaylistRead = boot.indexOf('const cachedPlaylist=loadStartupMyPlaylistCache()');
+const cachedPlaylistPaint = boot.indexOf('applyCachedStartupPlaylist(cachedPlaylist)');
+assert.ok(cachedPlaylistRead >= 0, 'boot must read the last successful D1 My Playlist cache for fast presentation');
+assert.ok(cachedPlaylistPaint > cachedPlaylistRead, 'boot must paint the cached My Playlist after reading it');
+assert.ok(cachedPlaylistPaint < playlistAwait, 'cached My Playlist presentation must happen before awaiting the live D1 playlist');
+assert.ok(readyFlag > playlistAwait, 'cached presentation must never make the app authoritative-ready before live D1 succeeds');
+assert.match(main, /function loadStartupMyPlaylistCache\(\)[\s\S]*?JSON\.parse\([\s\S]*?MY_PLAYLIST_STARTUP_CACHE_KEY/, 'main must expose a bounded local startup cache reader');
+assert.match(main, /function saveStartupMyPlaylistCache\(rows\)[\s\S]*?localStorage\.setItem\(MY_PLAYLIST_STARTUP_CACHE_KEY/, 'main must persist only the last successful cloud My Playlist snapshot as startup cache');
+assert.match(main, /async function loadCloudMyPlaylist[\s\S]*?const remote=await fetchCloudMyPlaylist\(\);[\s\S]*?saveStartupMyPlaylistCache\(remote\)/, 'a successful D1 My Playlist fetch must refresh the startup cache');
+
 const favoritesReady = favorites.match(/window\.addEventListener\('webtv:ready',[^;]+;/)?.[0] || '';
 assert.ok(favoritesReady, 'Favorites must react to webtv:ready');
 assert.doesNotMatch(favoritesReady, /loadCloud\s*\(/, 'webtv:ready must not trigger a second Favorites cloud read');
