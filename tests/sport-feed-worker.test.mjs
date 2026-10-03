@@ -73,3 +73,25 @@ assert.ok(sportFmParsed.events.every(e=>e.source==='sportfmtv-homepage'));
 const workerSource=(await import('node:fs')).readFileSync(new URL('../workers/webtv-sport.js',import.meta.url),'utf8');
 assert.match(workerSource,/SPORTFM_MAX_BYTES=3000000/,'SportFM homepage must have an explicit bounded larger response budget');
 assert.match(workerSource,/fetchText\(SPORTFM_ORIGIN\+'\/el',\{maxBytes:SPORTFM_MAX_BYTES\}\)/,'SportFM homepage fetch must use its dedicated budget');
+
+
+const sportFmArchiveSample=`
+<section>
+  <div>ΣΠΟΡFM TV</div><div>ΑΕΚ - ΜΑΡΟΥΣΙ</div>
+  <div>Stoiximan GBL · 1η αγωνιστική · 03/10/2026</div>
+  <a href="/el/media-video/aek-marousi-2">ΔΕΙΤΕ ΤΩΡΑ</a>
+  <div>Παίζει τώρα</div><div>ΣΠΟΡFM TV</div>
+  <div>ΗΡΑΚΛΗΣ - ΟΛΥΜΠΙΑΚΟΣ</div>
+  <div>Stoiximan GBL · 1η αγωνιστική · Κυριακή 4/10, 17:30 · Ζωντανά</div>
+  <a href="/el/media-video/iraklis-olympiakos">ΔΕΙΤΕ ΤΩΡΑ</a>
+</section>`;
+
+const archiveParsed=parseSportFmHomepage(sportFmArchiveSample,{
+  baseOrigin:'https://www.sportfmtv.gr',
+  now:new Date('2026-10-04T08:00:00Z')
+});
+assert.equal(archiveParsed.events.length,1);
+assert.equal(archiveParsed.archiveEvents.length,1);
+assert.equal(archiveParsed.archiveEvents[0].archive,true);
+assert.equal(archiveParsed.archiveEvents[0].links[0].label,'Official');
+assert.equal(archiveParsed.events[0].durationMinutes,135);
