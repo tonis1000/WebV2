@@ -10,6 +10,7 @@ export const VERIFIED_LOGO_SOURCE_KINDS = Object.freeze([
 
 export const CURATED_LOGO_SOURCE_KINDS = Object.freeze([
   'curated-third-party',
+  'registry-curated-override',
 ]);
 
 const VERIFIED = new Set(VERIFIED_LOGO_SOURCE_KINDS);
@@ -44,7 +45,7 @@ function candidate({url='',sourceKind='',sourceUrl='',origin='',profileId=''}) {
   const clean=sanitizeLogoCandidate(url);
   if(!clean)return null;
   const trust=logoTrustForSourceKind(sourceKind);
-  const rank=trust==='verified'?300:trust==='curated'?200:100;
+  const rank=trust==='verified'?300:sourceKind==='registry-curated-override'?250:trust==='curated'?200:100;
   return {url:clean,sourceKind:String(sourceKind||''),sourceUrl:String(sourceUrl||''),origin,profileId,trust,verified:trust==='verified',rank};
 }
 
