@@ -1,4 +1,4 @@
-import './right-rail-preview.js?v=20261003-clean-viewer-admin-rail';
+import './right-rail-preview.js?v=20261003-large-screen-responsive';
 
 const BUILD_ID = '20260929-d1-authoritative-favorites';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
