@@ -375,10 +375,7 @@ Verified discovery sanitation + Greece/Cyprus identity evidence:
 
 ## REGISTRY / D1 MIRROR STATUS
 Registry/D1 `WEBV2_CURRENT.md` is the canonical runtime checkpoint. GitHub `main/WEBV2_CURRENT.md` is the controlled editable source and deploy sync must keep both hashes identical.
-Fresh 2026-10-02 preflight readback succeeded for both `/api/project-status` and `/api/project-checkpoints`.
-Before the PR #108 runtime change, GitHub main and Registry deployed SHA were both `002f7215d6a5d3666fbef79c2b0eb98772de912b`; the D1 `WEBV2_CURRENT.md` checkpoint was independently read and remains stale at the older Project Brain bootstrap state from 2026-09-30. The stale mirror therefore does not equal current GitHub/runtime state and must not be treated as production truth.
-The exact latest verified runtime SHA `f9f861641856bacdcc16b8be0b255dcfa318b692` completed Deploy WebTV Registry Worker #131 successfully, GitHub Pages #489 successfully and Validate WebTV Frontend #947 successfully. The Registry workflow's live verification and deployment-status recording steps completed successfully at that exact SHA, and verification-only PR #134 independently required `/api/project-status` to report the same runtime SHA before browser acceptance.
-A stale mirror is an operational mirror-sync issue only and never overrides GitHub CURRENT.
+Fresh 2026-10-03 production verification confirmed Registry deployment SHA `e83e53597025642a3206f1dcb5fdd6973fb5897e`, live D1 `WEBV2_CURRENT.md` synchronized from GitHub, and the retired `/api/project-agent/*` surface returning 404.
 D1 synchronization is mandatory on Registry deploy. The workflow archives a changed prior checkpoint, writes the GitHub version, and verifies D1 byte length + SHA-256.
 
 ## COMPLETED PHASES
@@ -497,15 +494,14 @@ The next task should be a new product requirement, verified bug, or explicitly c
 - Production playback/fallback orchestration remains owned by `main.js` + one `PlayerController`; Manual Test / Unified Search use the narrow `WebTVPlaybackAPI` bridge
 - Retired `src/source-hunt-oneclick.js` and its legacy One-click control/orchestration must not return without a separate bounded architecture decision and proof
 - Existing Player behavior unless a bounded change proves necessity
-- Project-agent least-privilege route separation
 - Existing Registry checkpoint/history infrastructure
 - Existing PIN implementation while temporary `PIN_AUTH_DISABLED=1` maintenance mode is active
 - During temporary PIN bypass, browser auth must obtain a signed maintenance-scoped Registry session before authenticated cross-Worker consumers such as Xtream are used; maintenance tokens are valid only while the bypass remains enabled and must never weaken normal PIN-mode Xtream auth
 
 ## OPERATIONAL NOTES
 - The legacy Project Agent pairing flow, persistent project-agent cookie/session, browser editor and project-agent D1 tables are retired. They must not be reintroduced without a new bounded architecture decision.
-- Branch copies of `WEBV2_CURRENT.md` are proposed state; only the copy merged to GitHub `main` is canonical.
-- GitHub CURRENT documents verified reality but does not make GitHub `main` automatically equal production.
+- Branch copies of `WEBV2_CURRENT.md` are proposed state. The merged GitHub `main` copy is the controlled edit source; after verified Registry deploy, its byte-identical D1 checkpoint is the canonical runtime state.
+- GitHub CURRENT is not considered production merely because it merged; production requires successful Registry deploy, D1 hash readback and `/api/project-status` confirmation.
 - Always compare CURRENT claims with `/api/project-status`, relevant CI/deploy workflows, and component-specific live evidence.
 - Registry/D1 CURRENT is canonical runtime state; GitHub `main/WEBV2_CURRENT.md` is the controlled edit source. Registry deploy performs history-preserving D1 sync plus hash verification.
 - `/api/project-status` remains Registry deployment truth, not universal Worker deployment truth.
