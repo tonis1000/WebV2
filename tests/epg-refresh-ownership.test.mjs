@@ -33,7 +33,7 @@ assert.deepEqual(
 );
 
 const xmltvParsers=files
-  .filter(({source})=>source.includes("DOMParser().parseFromString(xmlText, 'application/xml')"))
+  .filter(({source})=>source.includes('new DOMParser()')&&source.includes("parseFromString(raw,'application/xml')"))
   .map(({file})=>file);
 
 assert.deepEqual(
