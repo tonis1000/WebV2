@@ -1,6 +1,7 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js';
 import { parseM3U, dedupeChannels } from './core/channel-catalog.js';
 import { resolveChannelProfile } from './core/channel-profile-gr.js';
+import { canonicalDefaultChannelName } from './channel-display-name.js';
 import { resolveChannelLogo } from './core/channel-logo.js';
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
 import { HealthStore } from './core/health-store.js';
@@ -246,7 +247,7 @@ function applyPlaylistText(text,{mode='replace',label='Playlist'}={}){
       providedLogo:safeLogo(channel.logo),
       providedSourceKind:'playlist-tvg-logo',
     });
-    return {...channel,logo:logoMeta.url,logoMeta,sourceTrust:'temporary'};
+    return {...channel,name:canonicalDefaultChannelName(channel),logo:logoMeta.url,logoMeta,sourceTrust:'temporary'};
   });
   if(!imported.length)throw new Error('No #EXTINF channels found');
   channels=mode==='merge'?dedupeChannels([...channels,...imported]):dedupeChannels(imported);
