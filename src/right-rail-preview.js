@@ -212,6 +212,7 @@ if (!enabled) {
     html.rail-preview #channel-logo-find.rail-control{background:#24213d;border-color:#655aa0;color:#e0dcff}
     html.rail-preview #channel-logo-repair-missing.rail-control{background:#17372d;border-color:#347a60;color:#c9f6df}
     html.rail-preview #epg-guide-toggle.rail-control{background:#16334a;border-color:#3d80a8;color:#d9f3ff}
+    html.rail-preview #sport-toggle.rail-control{background:#243214;border-color:#668536;color:#e5ffc7}
     html.rail-preview #source-hunt-toggle.rail-control{background:#33250e;border-color:#86651f;color:#ffe0a0}
     html.rail-preview #diagnostics-toggle.rail-control{background:#111820;border-color:#3a4652;color:#e8eef4}
     html.rail-preview #favorite-channel.rail-control{background:#33270d;border-color:#886817;color:#ffe39b}
