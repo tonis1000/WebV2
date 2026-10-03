@@ -700,3 +700,34 @@ Evidence:
 - live GitHub Pages served `src/core/channel-logo.js` and `src/main.js` with build id `20261003-logo-resolution-a`, runtime `resolveChannelLogo` integration, Registry/playlist provenance tags, and the existing WebTV page loaded successfully.
 
 Reconsider when: a separately designed logo-discovery service can produce source-backed official/Wikimedia candidates. Such a service must feed this resolver with provenance and must not bypass its trust ordering or add startup-time network discovery.
+
+
+## DEC-039 Sparse Channel Logo Repair
+Decision: repair missing or broken channel logos on demand through a bounded provider chain, persist only repaired overrides in Registry/D1, and keep all runtime selection under the existing Channel Logo Resolver trust model.
+
+Hard rules:
+- existing Xtream `stream_icon`, M3U `tvg-logo`, Channel Profile and Registry-row logos remain immediate inputs to the existing resolver; Logo Repair does not replace normal ingest;
+- no mass logo lookup runs during startup or rendering;
+- automatic background repair is limited to the selected channel when its logo is missing or fails to load, and it must use non-interactive auth so startup never prompts or blocks;
+- manual **Find logo** may repair the selected channel;
+- manual **Repair missing logos** is bounded to 25 missing/broken channels per run;
+- provider order is tv-logo/tv-logos, picons/picons, exact-id iptv-org logo metadata, then jimgate07/grtv for Greece;
+- provider documents are fetched only during repair and are cacheable; picons probing is capped at eight direct candidates rather than downloading its full tree;
+- all community/provider results are `curated-third-party`, never automatically verified;
+- `src/core/channel-logo.js` remains the canonical owner of trust ranking and final logo selection, so verified Profile/Registry metadata continues to outrank repaired curated candidates;
+- Registry/D1 stores only sparse repaired overrides with channel id, URL, provider, source kind/source URL and country/tvg-id context; image bytes remain upstream;
+- full Xtream catalogs remain account-backed and are not copied into D1 merely to persist provider logos;
+- playback, EPG, Unified Search, Favorites and source persistence ownership are unchanged.
+
+Reason: provider catalogs can contain thousands of channels and usually already supply a logo URL. The useful missing capability was repair, not a second global logo database. Sparse on-demand repair keeps 5k–15k channel catalogs light while still giving the user an explicit recovery path for missing/broken assets.
+
+Evidence:
+- RED-first PR #178 run #1082 (`37105049960`) failed exactly because the new Logo Repair provider contract had no implementation;
+- provider normalization and fallback behavior were then implemented and the final PR head `d03196511f6fab42ad1f0cbf513caaa9a90e6ac3` completed Validate WebTV Frontend #1092 SUCCESS, plus Unified Search #94, Registry Project Agent Boundary #15 and Enigma2 Ownership #70 SUCCESS;
+- runtime merge PR #178: `e7bff3becf6856095f3796ba671200fc91b339d2`;
+- exact-SHA post-merge Validate WebTV Frontend #1093, Deploy WebTV Registry Worker #161, Validate Unified Search #95, Validate Enigma2 Ownership #71 and GitHub Pages #519 all SUCCESS;
+- live Registry `/api/project-status` reported exact SHA `e7bff3becf6856095f3796ba671200fc91b339d2`, deployed at 2026-10-03 07:12:34;
+- live Registry `/api/channel-logos` returned the new sparse override contract with `count:0` before any user repair, proving no bulk migration/write occurred;
+- live GitHub Pages served `src/channel-logo-repair.js` with batch limit 25, manual/background paths and non-interactive background repair, while live `src/main.js` exposed the canonical `applyLogoCandidate` bridge and retained the shared resolver.
+
+Reconsider when: production evidence shows that a different provider order materially improves coverage/accuracy, or an owned image cache/CDN becomes necessary for reliability. Any change must preserve sparse persistence, bounded lookup, resolver trust ordering and non-blocking startup.
