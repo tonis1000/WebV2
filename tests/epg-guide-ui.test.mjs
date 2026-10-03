@@ -6,6 +6,7 @@ const css=fs.readFileSync(new URL('../epg-guide.css',import.meta.url),'utf8');
 const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 const rail=fs.readFileSync(new URL('../src/right-rail-preview.js',import.meta.url),'utf8');
 const gate=fs.readFileSync(new URL('../admin-gate.css',import.meta.url),'utf8');
+const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 
 for(const required of ['epg-guide-toggle','epg-guide-overlay','epg-program-dialog','EPG Guide','Play'])
   assert.ok(ui.includes(required),'EPG Guide UI must include '+required);
@@ -17,6 +18,8 @@ assert.match(ui,/event\.key===['"]Escape['"]/,'Escape must close the guide');
 assert.match(main,/playChannelById/,'main must expose a narrow channel playback bridge');
 assert.match(main,/window\.WebTVEPGAPI/,'main must expose a narrow EPG read bridge');
 assert.match(rail,/epg-guide-toggle/,'desktop protected rail must move the EPG Guide button');
+assert.match(index,/id="epg-guide-toggle"/,'EPG Guide control must exist statically in index.html');
+assert.match(ui,/epgGuideBound/,'EPG Guide script must bind the static control exactly once');
 assert.match(gate,/#epg-guide-toggle/,'locked mode must hide the EPG Guide control');
 assert.match(gate,/#epg-guide-overlay/,'locked mode must hide an open EPG Guide');
 assert.match(css,/\.epg-guide-grid/,'EPG Guide must own a dedicated grid');
