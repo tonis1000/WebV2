@@ -106,10 +106,8 @@ jobs:
           node --input-type=module --check < workers/source-hunt-bouquet-proxy.js
       - name: Validate EPG Proxy Worker syntax
         run: node --check workers/epg-proxy-gr.js
-      - name: Run Project Brain documentation contract
-        run: node tests/project-brain-docs.test.mjs
-      - name: Run Registry project checkpoint write API regression test
-        run: node tests/project-checkpoint-write-api.test.mjs
+      - name: Run Drive-canonical Project Brain retirement guard
+        run: node tests/project-brain-drive-canonical.test.mjs
       - name: Run project-agent retirement regression test
         run: node tests/project-agent-retirement.test.mjs
       - name: Run custom playlist Registry regression test
