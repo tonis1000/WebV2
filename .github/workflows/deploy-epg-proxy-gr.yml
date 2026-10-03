@@ -133,7 +133,8 @@ jobs:
 
           check_source "Digea private channels" "ant1,alpha,ert1" "digea"
           check_source "COSMOTE SPORT" "cosmotesport1" "cosmote"
-          check_source "Nova Sports" "novasports1" "epgshare-gr"
+          check_source "Nova Sports via COSMOTE guide" "novasports1" "cosmote"
+          check_source "Nova Cinema" "novacinema1" "epgshare-gr"
           check_source "German Das Erste" "DasErste.de" "epgshare-de"
           if [ "$failures" -ne 0 ]; then
             echo "::error::EPG source matrix failures=$failures"
