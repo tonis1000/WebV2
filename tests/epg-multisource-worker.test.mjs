@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import epgWorker,{analyzeXmltv,requestedChannelTerms,filterXmltv} from '../workers/epg-proxy-gr.js';
+import epgWorker,{analyzeXmltv,requestedChannelTerms,filterXmltv,matchesCosmoteChannel} from '../workers/epg-proxy-gr.js';
 
 const source=fs.readFileSync(new URL('../workers/epg-proxy-gr.js',import.meta.url),'utf8');
 for(const required of [
@@ -19,6 +19,9 @@ assert.doesNotMatch(filtered,/RTL/);
 assert.doesNotMatch(filtered,/ANT1 Cyprus/,'ANT1 must not pull sibling/country variants into a scoped request');
 assert.equal(analyzeXmltv(filtered).channels,1);
 assert.equal(analyzeXmltv(filtered).programmes,1);
+assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 1 HD',callSign:'sport1hd'},['COSMOTE Sport 1']),true);
+assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 1 HD',callSign:'sport1hd'},['cosmotesport1']),true);
+assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 2 HD',callSign:'sport2hd'},['COSMOTE Sport 1']),false);
 
 const originalFetch=globalThis.fetch;
 try{
