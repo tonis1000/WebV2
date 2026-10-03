@@ -19,7 +19,7 @@ assert.match(sportHtml,/src="\.\/src\/sport-page\.js/,'SPORT page must load its 
 assert.match(sportJs,/Europe\/Berlin/,'SPORT display time must be Europe/Berlin');
 assert.match(sportJs,/data-link-index/,'SPORT links must carry stable display indexes');
 assert.match(sportJs,/classList\.add\('active'\)/,'clicked SPORT link must visibly become active');
-assert.match(sportJs,/frame\.src\s*=\s*link\.url/,'SPORT selection must load the chosen public page in the iframe');
+assert.match(sportJs,/frame\.src\s*=\s*safeUrl/,'SPORT selection must load only the validated HTTPS page in the iframe');
 assert.doesNotMatch(sportJs,/PlayerController|SourceRegistry|WebTVPlaybackAPI/,'SPORT iframe surface must not become a second canonical Player owner');
 
 console.log('sport iframe surface contract ok');
