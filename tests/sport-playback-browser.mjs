@@ -57,13 +57,16 @@ try{
     // Normal user interaction with provider controls only; no stream extraction or bypass.
     await page.waitForTimeout(12000);
     for(const frame of page.frames().slice(1)){
-     for(const label of [/accept all/i,/αποδοχή όλων/i,/play/i,/αναπαραγωγή/i]){
+     for(const label of [/accept all/i,/αποδοχή όλων/i,/^Αποδοχή$/i,/^Accept$/i,/play/i,/αναπαραγωγή/i]){
       try{const b=frame.getByRole('button',{name:label}).first();if(await b.isVisible())await b.click({timeout:1500});}catch{}
      }
      try{const video=frame.locator('video').first();if(await video.isVisible()&&await video.evaluate(v=>v.paused))await video.click({timeout:1500});}catch{}
     }
+    await page.waitForTimeout(8000);
     const before=await mediaSnapshot(page);await page.waitForTimeout(8000);const after=await mediaSnapshot(page);
     const observation={selected:{title:selected.title,kind:selected.broadcastKind,url:selected.links[0].url},before,after};
+    observation.providerText=[];
+    for(const frame of page.frames().slice(1)){try{observation.providerText.push((await frame.locator('body').innerText()).slice(0,1500));}catch{}}
     observation.playback=after.some((v,i)=>!v.paused&&v.ready>=2&&v.width>0&&v.time>(before[i]?.time||0)+1)?'VIDEO_ADVANCING':'PLAYBACK_UNCONFIRMED';
     await page.screenshot({path:`browser-evidence/sport-${name}-${selectionIndex}-playback.png`,fullPage:true});
     evidence.observations.push(observation);
