@@ -276,6 +276,8 @@ jobs:
         run: node tests/discovery-isolation.test.mjs
       - name: Run Discovery Phase 5 browser smoke test
         run: node tests/discovery-browser-smoke.mjs
+      - name: Run admin SPORT return behavior
+        run: node tests/admin-sport-return.test.mjs
       - name: Run rail runtime browser regression
         run: node tests/rail-runtime-browser.mjs
       - name: Run non-blocking startup regression test
