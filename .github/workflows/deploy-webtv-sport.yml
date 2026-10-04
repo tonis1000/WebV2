@@ -6,7 +6,10 @@ on:
     branches: [main]
     paths:
       - 'workers/webtv-sport.js'
-      - 'tests/sport-feed-worker.test.mjs'
+      - 'tests/sport*'
+      - 'sport.html'
+      - 'src/sport-page.js'
+      - '.github/workflows/verify-sport-browser.yml'
       - '.github/workflows/deploy-webtv-sport.yml'
 
 permissions:

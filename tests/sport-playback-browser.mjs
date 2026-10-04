@@ -47,9 +47,10 @@ try{
    const repeats=data.repeatEvents.filter(e=>Date.parse(e.startUtc)<=now&&now<Date.parse(e.endUtc));
    assert.equal(await cards.count(),data.events.length+repeats.length);
    const currentLive=data.events.find(e=>e.provider==='sportfmtv'&&Date.parse(e.startUtc)<=now&&now<Date.parse(e.endUtc));
-   const selected=repeats[0]||currentLive;
-   const evidence={engine:name,target,feed:local?'REAL_UPSTREAM_CANDIDATE':'UNMOCKED_PRODUCTION',liveCount:data.events.filter(e=>e.provider==='sportfmtv').length,repeatsNow:repeats.map(e=>e.title),playback:'NO_CURRENT_BROADCAST',errors};
-   if(selected){
+   const fresh=currentLive||data.events.find(e=>e.provider==='sportfmtv');
+   const selections=[repeats[0],fresh].filter(Boolean);
+   const evidence={engine:name,target,feed:local?'REAL_UPSTREAM_CANDIDATE':'UNMOCKED_PRODUCTION',liveCount:data.events.filter(e=>e.provider==='sportfmtv').length,repeatsNow:repeats.map(e=>e.title),observations:[],errors};
+   for(const [selectionIndex,selected] of selections.entries()){
     const card=cards.filter({has:page.locator('.sport-match-title',{hasText:selected.title})}).first();
     await card.locator('button').first().click();
     assert.equal(await page.locator('#sport-frame').getAttribute('src'),selected.links[0].url);
@@ -62,13 +63,14 @@ try{
      try{const video=frame.locator('video').first();if(await video.isVisible())await video.click({timeout:1500});}catch{}
     }
     const before=await mediaSnapshot(page);await page.waitForTimeout(8000);const after=await mediaSnapshot(page);
-    evidence.selected={title:selected.title,kind:selected.broadcastKind,url:selected.links[0].url};
-    evidence.before=before;evidence.after=after;
-    evidence.playback=after.some((v,i)=>!v.paused&&v.ready>=2&&v.width>0&&v.time>(before[i]?.time||0)+1)?'VIDEO_ADVANCING':'PLAYBACK_UNCONFIRMED';
-    await page.screenshot({path:`browser-evidence/sport-${name}-playback.png`,fullPage:true});
+    const observation={selected:{title:selected.title,kind:selected.broadcastKind,url:selected.links[0].url},before,after};
+    observation.playback=after.some((v,i)=>!v.paused&&v.ready>=2&&v.width>0&&v.time>(before[i]?.time||0)+1)?'VIDEO_ADVANCING':'PLAYBACK_UNCONFIRMED';
+    await page.screenshot({path:`browser-evidence/sport-${name}-${selectionIndex}-playback.png`,fullPage:true});
+    evidence.observations.push(observation);
     await page.locator('#sport-archive-toggle').uncheck();
     assert.equal(await page.locator('#sport-frame').getAttribute('src'),selected.links[0].url,'filter changes must preserve selected playback');
     assert.equal(await page.locator('#sport-frame').count(),1);
+    await page.locator('#sport-archive-toggle').check();
    }
    assert.deepEqual(errors,[],'SPORT page must have no uncaught exceptions');
    fs.writeFileSync(`browser-evidence/sport-${name}.json`,JSON.stringify(evidence,null,2));

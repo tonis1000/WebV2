@@ -39,3 +39,24 @@ nodes.get('sport-archive-toggle').checked=true;
 assert.deepEqual(Array.from(vm.runInContext('visibleEvents(data,now)',context),e=>e.id),['current-repeat','live'],'filter adds only presently airing repeat broadcasts, never stale archive videos');
 context.now=Date.parse('2026-10-04T10:00:00Z');
 assert.deepEqual(Array.from(vm.runInContext('visibleEvents(data,now)',context),e=>e.id),['live'],'repeat disappears at its actual end');
+
+// Exercise the rendered boundary timer, rather than only the filtering helper.
+let clock=Date.parse('2026-10-04T09:59:59Z');
+let pending=null;
+class ClockDate extends Date{static now(){return clock;}}
+function node(){return{children:[],dataset:{},scrollTop:31,checked:false,classList:{add(){},remove(){}},setAttribute(){},addEventListener(){},append(...children){this.children.push(...children);},appendChild(child){this.children.push(child);},replaceChildren(){this.children=[];}};}
+const dom=new Map();
+const runtime=vm.createContext({document:{getElementById(id){if(!dom.has(id))dom.set(id,node());return dom.get(id);},createElement:node,querySelectorAll(){return[];}},URL,Intl,Date:ClockDate,console,setTimeout(fn,delay){pending={fn,delay};return 1;},clearTimeout(){pending=null;}});
+vm.runInContext(sportJs.slice(0,sportJs.indexOf('els.refresh?.addEventListener')),runtime);
+dom.get('sport-archive-toggle').checked=true;
+runtime.data={events:[],repeatEvents:[{title:'Ends now',provider:'sportfmtv',broadcastKind:'repeat',startUtc:'2026-10-04T08:00:00Z',endUtc:'2026-10-04T10:00:00Z',links:[{url:'https://www.sportfmtv.gr/el/media-video/sport-fm-linear-channel-1'}]}]};
+vm.runInContext('renderSchedule(data)',runtime);
+assert.equal(dom.get('sport-match-list').children.length,1);
+assert.equal(pending.delay,1010,'render schedules one timer at the next official boundary');
+assert.equal(dom.get('sport-match-list').scrollTop,31);
+const expiry=pending.fn;clock+=1010;expiry();
+assert.equal(dom.get('sport-match-list').children.length,0,'expired repeat is removed from the actual rendered list');
+assert.equal(pending,null,'expired schedule must not spin timers');
+runtime.expired=runtime.data.repeatEvents[0];
+vm.runInContext('playLink(expired,expired.links[0],{})',runtime);
+assert.equal(dom.get('sport-frame').src,undefined,'late clicks cannot navigate to expired repeats');
