@@ -167,6 +167,11 @@ function cosmoteDayRange(dayOffset=0){
   const to=Math.floor(new Date(`${date}T23:59:59${offset}`).getTime()/1000);
   return{from,to};
 }
+function cosmoteGuideRange(dayCount=GUIDE_DAY_COUNT){
+  const count=Math.max(1,Math.min(GUIDE_DAY_COUNT,Number(dayCount)||GUIDE_DAY_COUNT));
+  const first=cosmoteDayRange(0),last=cosmoteDayRange(count-1);
+  return{from:first.from,to:last.to};
+}
 function makeXmltv(channels=[],programmes=[],generator="WebTV"){
   return `<?xml version="1.0" encoding="UTF-8"?><tv generator-info-name="${escapeXml(generator)}">${channels.map(c=>`<channel id="${escapeXml(c.id)}"><display-name>${escapeXml(c.name)}</display-name>${c.logo?`<icon src="${escapeXml(c.logo)}"/>`:""}</channel>`).join("")}${programmes.map(p=>`<programme channel="${escapeXml(p.channel)}" start="${escapeXml(p.start)}" stop="${escapeXml(p.stop)}"><title>${escapeXml(p.title)}</title>${p.description?`<desc>${escapeXml(p.description)}</desc>`:""}${p.category?`<category>${escapeXml(p.category)}</category>`:""}${p.image?`<icon src="${escapeXml(p.image)}"/>`:""}</programme>`).join("")}</tv>`;
 }
