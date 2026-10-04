@@ -1,5 +1,3 @@
-import './right-rail-preview.js?v=20261003-epg-control-dock';
-
 const BUILD_ID = '20260929-d1-authoritative-favorites';
 const STORAGE_KEY = 'webtv_v2_favorites_v1';
 const FILTER_KEY = 'webtv_v2_favorites_filter_v1';
