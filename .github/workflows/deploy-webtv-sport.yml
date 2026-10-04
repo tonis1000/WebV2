@@ -79,8 +79,11 @@ jobs:
           const events=Array.isArray(j.events)?j.events:[];
           const valid=events.length>0&&events.every(e=>typeof e.title==='string'&&Array.isArray(e.links)&&e.links.length>0&&e.links.every(l=>/^https:\/\//.test(l.url||'')));
           const sportfm=events.filter(e=>e.provider==='sportfmtv');
-          const official=sportfm.every(e=>e.links.length===1&&e.links[0].label==='Official'&&/^https:\/\/www\.sportfmtv\.gr\/el\/media-video\//.test(e.links[0].url||''));
-          process.exit(j.ok===true&&j.service==='WebTV SPORT Feed'&&j.deploySha===process.env.GITHUB_SHA&&valid&&sportfm.length>0&&official?0:1);
+          const official=sportfm.every(e=>e.broadcastKind==='live-event'&&e.links.every(l=>/^https:\/\/www\.sportfmtv\.gr\/el\/media-video\/[a-z0-9-]+$/.test(l.url||'')));
+          const repeats=Array.isArray(j.repeatEvents)?j.repeatEvents:[];
+          const repeatValid=repeats.every(e=>e.broadcastKind==='repeat'&&Date.parse(e.endUtc)>Date.parse(e.startUtc)&&e.links.length===1&&/^https:\/\/www\.sportfmtv\.gr\/el\/media-video\/sport-fm-linear-channel-\d+$/.test(e.links[0].url||''));
+          const catalog=j.providers?.sportfmtv?.source==='sportfmtv-official-catalog';
+          process.exit(j.ok===true&&j.service==='WebTV SPORT Feed'&&j.deploySha===process.env.GITHUB_SHA&&valid&&catalog&&official&&repeatValid?0:1);
           NODE
               then schedule_ok=1; fi
             fi
