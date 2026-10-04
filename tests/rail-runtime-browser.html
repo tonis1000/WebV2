@@ -1,0 +1,28 @@
+<!doctype html>
+<html class="admin-locked"><head><meta charset="utf-8"><link rel="stylesheet" href="../admin-gate.css"></head><body>
+<div class="app-shell"><header class="topbar"><div><button id="admin-unlock-trigger">TONI'S WEBTV</button></div><div class="topbar-actions"><span id="clock"></span><button id="playlist-manager-toggle">Playlists</button><button id="epg-guide-toggle">EPG Guide</button><a id="sport-toggle" href="../sport.html">SPORT</a><button id="diagnostics-toggle">Diagnostics</button></div></header>
+<main class="layout"><aside class="sidebar"></aside><section class="viewer"><section class="player-card"><div class="channel-header"><div class="channel-identity"></div><div class="channel-actions"></div></div><div id="program-description"></div></section></section></main></div>
+<pre id="result">RUNNING</pre>
+<script>
+// Stop only the test probe after runaway delivery so the RED case cannot hang CI.
+const nativeObserver=MutationObserver;const observers=[];
+window.probe={callbacks:0,records:0,capped:false,errors:[]};
+window.addEventListener('error',e=>probe.errors.push(e.message));
+window.MutationObserver=class extends nativeObserver{
+ constructor(callback){super((records,observer)=>{probe.callbacks++;probe.records+=records.length;if(probe.callbacks>100){probe.capped=true;observers.forEach(o=>o.disconnect());return;}callback(records,observer);});observers.push(this);}
+};
+</script>
+<script type="module">
+// Reproduce the two distinct module URLs used by index.html and Favorites.
+import '../src/right-rail-preview.js?v=20261004-startup-rail-recovery-a';
+import '../src/right-rail-preview.js?v=20261003-epg-control-dock';
+setTimeout(()=>{
+ document.getElementById('clock').textContent='tick';
+ setTimeout(()=>{
+  const outcome={...probe,rails:document.querySelectorAll('#desktop-control-rail').length,brandParent:document.getElementById('admin-unlock-trigger').parentElement.parentElement.id};
+  const pass=!outcome.capped&&outcome.callbacks<30&&outcome.rails===1&&outcome.errors.length===0;
+  document.body.dataset.railResult=pass?'PASS':'FAIL';
+  document.getElementById('result').textContent=JSON.stringify(outcome);
+ },250);
+},250);
+</script></body></html>
