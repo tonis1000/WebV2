@@ -16,9 +16,9 @@ assert.doesNotMatch(sportJs,/makeProviderSection\(/,'SPORT sidebar must be one u
 assert.match(sportJs,/archiveEvents/,'SPORT page must consume SportFM archive events');
 assert.match(sportJs,/sportfmtv/,'SPORT rows must retain provider identity');
 
-assert.doesNotMatch(gateCss,/html\.admin-locked #sport-toggle,/,'SPORT must remain public while admin controls are locked');
+assert.match(gateCss,/html\.admin-locked #sport-toggle,/,'SPORT entry must stay inside the protected rail');
 assert.match(index,/right-rail-preview\.js/,'main page must load the desktop/public rail explicitly');
-assert.doesNotMatch(rail,/html\.rail-preview\.admin-locked \.desktop-control-rail\{display:none!important\}/,'public right rail must remain visible when admin is locked');
+assert.match(rail,/html\.rail-preview\.admin-locked \.desktop-control-rail\{display:none!important\}/,'right rail must be hidden before explicit PIN unlock');
 assert.match(rail,/admin-locked[^\n]*#desktop-rail-tools|#desktop-rail-tools/,'locked right rail must keep the public tools area available');
 
 assert.match(main,/loadStartupCloudPlaylist\(\)/,'fresh/return entry must use the resilient startup playlist path');
