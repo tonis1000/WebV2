@@ -12,6 +12,6 @@ assert.doesNotMatch(registryDefault,/if\(window\.WebTVPlaylistAPI\?\.ready\)reco
 
 assert.match(rail,/const DESKTOP = '\(min-width: 900px\)'/,'public desktop rail must remain available on scaled desktop viewports');
 assert.match(rail,/@media\(min-width:900px\) and \(max-width:1179px\)/,'scaled desktop rail must use a compact three-column layout');
-assert.match(rail,/desktop-control-rail\{display:block!important\}/,'locked public rail must remain visible');
+assert.match(rail,/desktop-control-rail\{display:none!important\}/,'locked rail must remain hidden');
 
 console.log('startup recovery + scaled public rail contract ok');
