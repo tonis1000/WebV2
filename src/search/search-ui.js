@@ -89,7 +89,7 @@ function ensureSearchToggle(){
   toggle.setAttribute('aria-controls','unified-search-panel');
   toggle.setAttribute('aria-expanded','false');
   const before=$('source-hunt-toggle')||$('diagnostics-toggle');
-  actions.insertBefore(toggle,before||null);
+  actions.insertBefore(toggle,before?.parentNode===actions?before:null);
   toggle.addEventListener('click',()=>{
     const panel=$('unified-search-panel');if(!panel)return;
     const opening=panel.hidden;
