@@ -4,8 +4,14 @@ const trigger=document.getElementById('admin-unlock-trigger');
 let unlocking=false;
 const SPORT_RETURN_KEY='webtv_v2_sport_return_unlocked';
 
-function rememberSportReturn(unlocked){
-  try{if(unlocked)sessionStorage.setItem(SPORT_RETURN_KEY,'1');else sessionStorage.removeItem(SPORT_RETURN_KEY);}catch{}
+function clearSportReturn(){
+  try{sessionStorage.removeItem(SPORT_RETURN_KEY);}catch{}
+}
+
+async function sessionFingerprint(token){
+  if(!token)return '';
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
+  return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('');
 }
 
 function setUnlocked(unlocked){
@@ -14,7 +20,7 @@ function setUnlocked(unlocked){
   trigger?.setAttribute('aria-expanded',String(unlocked));
   trigger?.setAttribute('aria-label',unlocked?"Lock TONI'S WEBTV controls":"Unlock TONI'S WEBTV controls");
   if(!unlocked){
-    rememberSportReturn(false);
+    clearSportReturn();
     for(const id of ['playlist-manager','source-hunt','diagnostics','source-editor-overlay','unified-search-panel','epg-guide-overlay','epg-program-dialog']){
       const panel=document.getElementById(id);if(panel)panel.hidden=true;
     }
@@ -37,15 +43,26 @@ trigger?.addEventListener('click',async()=>{
   }finally{unlocking=false;}
 });
 
-document.getElementById('sport-toggle')?.addEventListener('click',()=>{
-  rememberSportReturn(root.classList.contains('admin-unlocked'));
+const sport=document.getElementById('sport-toggle');
+sport?.addEventListener('click',async event=>{
+  if(event.defaultPrevented||event.button>0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
+  event.preventDefault();
+  clearSportReturn();
+  try{
+    if(root.classList.contains('admin-unlocked')){
+      const token=window.WebTVRegistryAuth?.token?.();
+      const fingerprint=await sessionFingerprint(token);
+      if(fingerprint&&root.classList.contains('admin-unlocked')&&window.WebTVRegistryAuth?.token?.()===token)sessionStorage.setItem(SPORT_RETURN_KEY,fingerprint);
+    }
+  }catch{}
+  location.assign(sport.href);
 });
 
 // Only a same-tab SPORT return may restore an explicit UI unlock, and only
 // after the canonical auth owner confirms the existing Registry session.
-let restoreSportReturn=false;
+let restoreSportReturn='';
 try{
-  restoreSportReturn=new URLSearchParams(location.search).get('from')==='sport'&&sessionStorage.getItem(SPORT_RETURN_KEY)==='1';
+  if(new URLSearchParams(location.search).get('from')==='sport')restoreSportReturn=sessionStorage.getItem(SPORT_RETURN_KEY)||'';
   sessionStorage.removeItem(SPORT_RETURN_KEY);
 }catch{}
 setUnlocked(false);
@@ -54,7 +71,7 @@ if(restoreSportReturn){
   Promise.resolve().then(async()=>{
     const auth=window.WebTVRegistryAuth;
     const existingToken=auth?.token?.();
-    if(!existingToken)return false;
+    if(!existingToken||await sessionFingerprint(existingToken)!==restoreSportReturn)return false;
     const valid=await auth.validateSession();
     return valid&&auth.token()===existingToken;
   })
