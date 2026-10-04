@@ -3,12 +3,13 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../src/admin-gate.js',import.meta.url),'utf8');
 const KEY='webtv_v2_sport_return_unlocked';
-async function boot({returning=false,marker=false,valid=true}={}){
+async function boot({returning=false,marker=false,valid=true,replaced=false}={}){
   const classes=new Set(['admin-locked']);
   const trigger=new EventTarget(),sport=new EventTarget();trigger.setAttribute=()=>{};
   const storage=new Map(marker?[[KEY,'1']]:[]);
   const context={document:{documentElement:{classList:{contains:c=>classes.has(c),toggle:(c,on)=>on?classes.add(c):classes.delete(c)}},getElementById:id=>id==='admin-unlock-trigger'?trigger:id==='sport-toggle'?sport:null},window:new EventTarget(),sessionStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{search:returning?'?from=sport':''},URLSearchParams,CustomEvent:class extends Event{constructor(type,init){super(type);this.detail=init?.detail;}}};
-  Object.assign(context.window,{prompt:()=> '123456',alert:()=>{},WebTVRegistryAuth:{login:async()=>({}),validateSession:async()=>valid}});
+  let token='existing-session';
+  Object.assign(context.window,{prompt:()=> '123456',alert:()=>{},WebTVRegistryAuth:{token:()=>token,login:async()=>({}),validateSession:async()=>{if(replaced)token='new-maintenance-session';return valid;}}});
   vm.runInNewContext(source,context);
   await new Promise(resolve=>setImmediate(resolve));
   return {classes,trigger,sport,storage};
@@ -26,6 +27,8 @@ assert(returned.classes.has('admin-unlocked'),'SPORT return must restore the alr
 assert.equal(returned.storage.has(KEY),false,'return marker is consumed once');
 const expired=await boot({returning:true,marker:true,valid:false});
 assert(expired.classes.has('admin-locked'),'expired authentication cannot restore the rail');
+const replacement=await boot({returning:true,marker:true,replaced:true});
+assert(replacement.classes.has('admin-locked'),'minting a replacement session cannot validate the existing SPORT session');
 const publicReturn=await boot({returning:true});
 assert(publicReturn.classes.has('admin-locked'),'direct SPORT visits cannot unlock the rail');
 returned.trigger.dispatchEvent(new Event('click'));
