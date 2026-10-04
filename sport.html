@@ -8,7 +8,7 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; frame-src https:; connect-src 'self' https://webtv-sport.atonis.workers.dev; object-src 'none'; base-uri 'self'; form-action 'self';">
   <title>WebTV SPORT</title>
-  <link rel="stylesheet" href="./sport.css?v=20261004-sport-v1">
+  <link rel="stylesheet" href="./sport.css?v=20261004-sportfm-guide-a">
 </head>
 <body>
   <header class="sport-topbar">
@@ -32,7 +32,7 @@
         </div>
         <button id="sport-refresh" class="button ghost" type="button">Refresh</button>
       </div>
-      <label class="sport-filter" for="sport-archive-toggle"><input id="sport-archive-toggle" type="checkbox"> <span>Παλιοί αγώνες SPORTFM TV</span></label>
+      <label class="sport-filter" for="sport-archive-toggle"><input id="sport-archive-toggle" type="checkbox"> <span>Δείξε και επαναλήψεις SPORTFM</span></label>
       <div id="sport-status" class="sport-status" data-tone="loading">Φόρτωση προγράμματος…</div>
       <div id="sport-match-list" class="sport-match-list"></div>
     </aside>
@@ -58,11 +58,11 @@
         </div>
       </div>
       <div class="sport-note">
-        Foothub: διάλεξε Link 1, Link 2 κτλ. SPORTFM TV: το Official ανοίγει την επίσημη player page. Δεν παρακάμπτονται γεωγραφικοί ή άλλοι περιορισμοί αναπαραγωγής.
+        SPORTFM: Live αγώνα για τη συγκεκριμένη μετάδοση· το κανάλι δείχνει ό,τι παίζει τώρα. Το φίλτρο προσθέτει τις επαναλήψεις που μεταδίδονται τώρα. Foothub: διάλεξε Link 1, Link 2 κτλ.
       </div>
     </section>
   </main>
 
-  <script type="module" src="./src/sport-page.js?v=20261004-sport-v1"></script>
+  <script type="module" src="./src/sport-page.js?v=20261004-sportfm-guide-a"></script>
 </body>
 </html>

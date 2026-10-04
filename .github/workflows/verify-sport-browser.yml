@@ -1,0 +1,44 @@
+name: Verify SPORT Browser Playback
+on:
+  pull_request:
+    paths: ['sport.html', 'src/sport-page.js', 'workers/webtv-sport.js', 'tests/sport*', '.github/workflows/verify-sport-browser.yml']
+  push:
+    branches: [main]
+    paths: ['sport.html', 'src/sport-page.js', 'workers/webtv-sport.js', 'tests/sport*', '.github/workflows/verify-sport-browser.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install native browser tools
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium firefox
+      - name: Verify candidate against real public catalog
+        if: github.event_name == 'pull_request'
+        run: node tests/sport-playback-browser.mjs
+      - name: Wait for exact-SHA SPORT deployment and Pages
+        if: github.event_name == 'push'
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          for attempt in $(seq 1 40); do
+            curl -fsS --max-time 20 "https://webtv-sport.atonis.workers.dev/status?verify=$EXPECTED_SHA" -o /tmp/sport-status.json || true
+            if node -e "const j=require('/tmp/sport-status.json');process.exit(j.deploySha===process.env.EXPECTED_SHA?0:1)" && curl -fsS --max-time 20 https://tonis1000.github.io/WebV2/sport.html | grep -q 'sport-page.js?v=20261004-sportfm-guide-a'; then exit 0; fi
+            sleep 10
+          done
+          exit 1
+      - name: Verify unmocked production routing and media playback
+        if: github.event_name == 'push'
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          WEBV2_TARGET_URL: https://tonis1000.github.io/WebV2/sport.html
+        run: node tests/sport-playback-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sport-browser-evidence-${{ github.sha }}
+          path: browser-evidence/

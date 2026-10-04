@@ -21,6 +21,8 @@ const els={
 
 let scheduleData=null;
 let activeUrl='';
+let scheduleLoading=false;
+let repeatBoundaryTimer=null;
 
 function setStatus(message,tone='loading'){
   els.status.textContent=message;
@@ -56,12 +58,14 @@ function eventDurationMinutes(event={}){
 }
 
 function isInGreenWindow(event={},nowMs=Date.now()){
+  if(event.broadcastKind==='repeat')return isAiringRepeat(event,nowMs);
   if(event.archive)return false;
   const start=Date.parse(event.startUtc||'');
   if(!Number.isFinite(start))return false;
   const pre=PRE_START_MINUTES*60000;
   const post=POST_END_MINUTES*60000;
-  const end=start+eventDurationMinutes(event)*60000;
+  const officialEnd=Date.parse(event.endUtc||'');
+  const end=Number.isFinite(officialEnd)?officialEnd:start+eventDurationMinutes(event)*60000;
   return nowMs>=start-pre&&nowMs<=end+post;
 }
 
@@ -76,20 +80,12 @@ function sortEventsByStart(events=[]){
   });
 }
 
-function sortArchive(events=[]){
-  return [...events].sort((a,b)=>{
-    const ams=Date.parse(a.startUtc||'');
-    const bms=Date.parse(b.startUtc||'');
-    if(Number.isFinite(ams)&&Number.isFinite(bms))return bms-ams;
-    return String(b.date||'').localeCompare(String(a.date||''));
-  });
-}
-
 function clearActiveLink(){
   document.querySelectorAll('.sport-link.active').forEach(node=>node.classList.remove('active'));
 }
 
 function playLink(event,link,button){
+  if(event.broadcastKind==='repeat'&&!isAiringRepeat(event)){renderSchedule(scheduleData);return;}
   const safeUrl=safeEmbedUrl(link?.url);
   if(!safeUrl){
     setStatus('Μη έγκυρο HTTPS link.','warn');
@@ -118,7 +114,9 @@ function makeMatchCard(event,index){
 
   const time=document.createElement('time');
   time.className='sport-match-time';
-  time.textContent=event.archive?(event.date||'PAST'):berlinTime(event);
+  const futureDate=event.startUtc&&new Intl.DateTimeFormat('de-DE',{timeZone:DISPLAY_TZ,day:'2-digit',month:'2-digit'}).format(new Date(event.startUtc));
+  const todayDate=new Intl.DateTimeFormat('de-DE',{timeZone:DISPLAY_TZ,day:'2-digit',month:'2-digit'}).format(new Date());
+  time.textContent=(futureDate&&futureDate!==todayDate?futureDate+' ':'')+berlinTime(event);
   const sourceLabel=event.provider==='sportfmtv'?'SportFM TV':'Foothub';
   time.title=event.archive
     ? sourceLabel+' · '+(event.date||'παλιός αγώνας')
@@ -133,7 +131,7 @@ function makeMatchCard(event,index){
 
   const live=document.createElement('span');
   live.className='sport-live-badge';
-  live.textContent='LIVE';
+  live.textContent=event.broadcastKind==='repeat'?'ΤΩΡΑ · Επανάληψη':'LIVE';
   live.hidden=!isInGreenWindow(event);
   line.appendChild(live);
 
@@ -156,20 +154,33 @@ function makeMatchCard(event,index){
   return card;
 }
 
-function visibleEvents(data){
+function isAiringRepeat(event={},nowMs=Date.now()){
+  const start=Date.parse(event.startUtc||'');
+  const end=Date.parse(event.endUtc||'');
+  return event.broadcastKind==='repeat'&&Number.isFinite(start)&&Number.isFinite(end)&&start<=nowMs&&nowMs<end;
+}
+
+function visibleEvents(data,nowMs=Date.now()){
   const current=sortEventsByStart(Array.isArray(data?.events)?data.events:[]);
   if(!els.archiveToggle?.checked)return current;
-  const archive=sortArchive((Array.isArray(data?.archiveEvents)?data.archiveEvents:[])
-    .filter(event=>event.provider==='sportfmtv'));
-  return [...current,...archive];
+  const repeats=(Array.isArray(data?.repeatEvents)?data.repeatEvents:[])
+    .filter(event=>event.provider==='sportfmtv'&&isAiringRepeat(event,nowMs));
+  return sortEventsByStart([...current,...repeats]);
 }
 
 function renderSchedule(data){
   scheduleData=data;
+  clearTimeout(repeatBoundaryTimer);
+  if(els.archiveToggle?.checked){
+    const now=Date.now();
+    const boundaries=(data?.repeatEvents||[]).flatMap(e=>[Date.parse(e.startUtc),Date.parse(e.endUtc)]).filter(t=>t>now);
+    if(boundaries.length)repeatBoundaryTimer=setTimeout(()=>renderSchedule(scheduleData),Math.min(Math.min(...boundaries)-now+10,2147483647));
+  }
+  const scrollTop=els.list.scrollTop;
   els.list.replaceChildren();
 
   const current=Array.isArray(data?.events)?data.events:[];
-  const archive=Array.isArray(data?.archiveEvents)?data.archiveEvents:[];
+  const repeats=(Array.isArray(data?.repeatEvents)?data.repeatEvents:[]).filter(event=>isAiringRepeat(event));
   const events=visibleEvents(data);
   const foothubCount=current.filter(event=>event.provider!=='sportfmtv').length;
   const sportfmtvCount=current.filter(event=>event.provider==='sportfmtv').length;
@@ -184,7 +195,7 @@ function renderSchedule(data){
     return;
   }
 
-  const archiveSuffix=els.archiveToggle?.checked?' · παλιοί SportFM '+archive.length:'';
+  const archiveSuffix=els.archiveToggle?.checked?' · επαναλήψεις τώρα '+repeats.length:'';
   setStatus(
     current.length+' αγώνες · Foothub '+foothubCount+' · SPORTFM TV '+sportfmtvCount+archiveSuffix+' · ώρα Γερμανίας',
     'ok'
@@ -193,9 +204,11 @@ function renderSchedule(data){
   for(const [index,event] of events.entries()){
     els.list.appendChild(makeMatchCard(event,index));
   }
+  els.list.scrollTop=scrollTop;
 }
 
 function refreshLiveStates(){
+  if(scheduleData&&els.archiveToggle?.checked)return;
   const now=Date.now();
   for(const card of els.list.querySelectorAll('.sport-match-card')){
     const start=Date.parse(card.dataset.startUtc||'');
@@ -211,10 +224,12 @@ function refreshLiveStates(){
 }
 
 async function loadSchedule(){
+  if(scheduleLoading)return;
+  scheduleLoading=true;
   els.refresh.disabled=true;
   setStatus('Φόρτωση προγράμματος…','loading');
   try{
-    const response=await fetch(FEED_URL+'?t='+Date.now(),{cache:'no-store'});
+    const response=await fetch(FEED_URL+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(60000)});
     const data=await response.json();
     if(!response.ok||data?.ok!==true)throw new Error(data?.error||('HTTP '+response.status));
     renderSchedule(data);
@@ -223,6 +238,7 @@ async function loadSchedule(){
     setStatus('Αποτυχία φόρτωσης: '+(error?.message||error),'error');
   }finally{
     els.refresh.disabled=false;
+    scheduleLoading=false;
   }
 }
 
@@ -241,4 +257,5 @@ els.frame?.addEventListener('error',()=>{
 updateClock();
 setInterval(updateClock,1000);
 setInterval(refreshLiveStates,30000);
+setInterval(()=>{if(!document.hidden)loadSchedule();},60000);
 loadSchedule();

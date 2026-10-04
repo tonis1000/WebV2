@@ -283,12 +283,127 @@ function extractOgTitle(html=''){
     ||(String(html||'').match(/<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["'][^>]*>/i)||[])[1]
     ||'').trim();
 }
+function sportFmWatchUrl(value=''){
+  const u=safeHttpsUrl(value);
+  return u&&u.origin===SPORTFM_ORIGIN&&/^\/el\/media-video\/[a-z0-9-]+\/?$/i.test(u.pathname)?u.href:'';
+}
+function parseSportFmChannelLinks(html=''){
+  const out={};
+  for(const m of String(html).matchAll(/channelId:"([a-z0-9-]+)",link:"(media-video\/sport-fm-linear-channel-\d+)"/gi)){
+    out[m[1]]=SPORTFM_ORIGIN+'/el/'+m[2];
+  }
+  return out;
+}
+function buildSportFmCatalog({live=[],guide=[],slugs={},channels={},now=new Date()}={}){
+  const nowMs=now.getTime();
+  const iso=value=>Number.isFinite(Date.parse(value||''))?new Date(value).toISOString():'';
+  const events=[];const repeatEvents=[];const seen=new Set();
+  const titleKey=value=>String(value||'').normalize('NFC').replace(/\s*\(LIVE\)\s*/gi,' ').replace(/\s+/g,' ').trim();
+  const findSlot=row=>{
+    const start=iso(row.broadcast_start||row.start_time);
+    const byId=guide.filter(g=>row.event_id&&g.event_id===row.event_id&&iso(g.broadcast_start)===start);
+    if(byId.length===1)return byId[0];
+    // The provider sometimes uses different event IDs in these two public catalogs.
+    // Only an exact official event-title + timestamp, with one result, may bridge that gap.
+    const byTitle=guide.filter(g=>row.event_title&&titleKey(g.title)===titleKey(row.event_title)&&iso(g.broadcast_start)===start);
+    return byTitle.length===1?byTitle[0]:null;
+  };
+  const liveGuideRows=new Set(live.map(findSlot).filter(Boolean));
+  for(const row of live.slice(0,100)){
+    const startUtc=iso(row.broadcast_start||row.start_time);
+    const endUtc=iso(row.end_time);
+    if(!startUtc||!endUtc||Date.parse(endUtc)<=nowMs||Date.parse(endUtc)<=Date.parse(startUtc))continue;
+    const slug=slugs[row.content_id];
+    const liveUrl=typeof slug==='string'?sportFmWatchUrl(SPORTFM_ORIGIN+'/el/media-video/'+slug):'';
+    // Join by provider identity and broadcast time; title similarity is not authority.
+    const slot=findSlot(row);
+    const channelId=row.channel_id||slot?.channel_id;
+    const channelUrl=sportFmWatchUrl(channels[channelId]);
+    const links=[];
+    if(liveUrl)links.push({label:'Live αγώνα',url:liveUrl});
+    if(channelUrl)links.push({label:slot?.channel_title||row.channel_title||'Κανάλι SPORTFM',url:channelUrl});
+    if(!liveUrl)continue;
+    const key=`${row.content_id}|${startUtc}`;
+    if(seen.has(key))continue;seen.add(key);
+    events.push({id:key,title:row.event_title||row.title||'SPORTFM',startUtc,endUtc,
+      links,provider:'sportfmtv',source:'sportfmtv-official-catalog',official:true,archive:false,
+      broadcastKind:'live-event',channelId:channelId||null,
+      durationMinutes:(Date.parse(endUtc)-Date.parse(startUtc))/60000});
+  }
+  for(const row of guide.slice(0,200)){
+    const startUtc=iso(row.broadcast_start),endUtc=iso(row.end_time);
+    const channelUrl=sportFmWatchUrl(channels[row.channel_id]);
+    if(!startUtc||!endUtc||!channelUrl||Date.parse(endUtc)<=nowMs||Date.parse(endUtc)<=Date.parse(startUtc)||!row.title||row.title===row.channel_title)continue;
+    // The official guide marks replay slots with a null kickoff; air_state
+    // only describes whether any broadcast is currently on air, including repeats.
+    if(row.kickoff_time!==null||liveGuideRows.has(row)||/\bLIVE\b|Ζωντανά/iu.test(row.title))continue;
+    const key=`repeat|${row.channel_id}|${row.event_id||row.title}|${startUtc}`;
+    if(seen.has(key))continue;seen.add(key);
+    repeatEvents.push({id:key,title:row.title,startUtc,endUtc,provider:'sportfmtv',
+      source:'sportfmtv-official-guide',official:true,archive:false,broadcastKind:'repeat',
+      channelId:row.channel_id,durationMinutes:(Date.parse(endUtc)-Date.parse(startUtc))/60000,
+      links:[{label:row.channel_title||'Κανάλι SPORTFM',url:channelUrl}]});
+  }
+  return{events,repeatEvents,archiveEvents:[]};
+}
+async function fetchSportFmJson(url,{body,headers={}}={}){
+  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT_MS);
+  try{
+    const response=await fetch(url,{method:body?'POST':'GET',headers:{accept:'application/json',...headers},
+      ...(body?{body:JSON.stringify(body)}:{}),signal:controller.signal});
+    if(!response.ok)throw new Error('SportFM catalog HTTP '+response.status);
+    if(Number(response.headers.get('content-length')||0)>SPORTFM_MAX_BYTES)throw new Error('catalog too large');
+    const text=await response.text();
+    if(new TextEncoder().encode(text).length>SPORTFM_MAX_BYTES)throw new Error('catalog too large');
+    return JSON.parse(text);
+  }finally{clearTimeout(timer);}
+}
+let sportFmCache=null,sportFmPending=null;
 async function loadSportFmSchedule(){
+  if(sportFmCache&&Date.now()-sportFmCache.at<45000)return sportFmCache.data;
+  if(sportFmPending)return sportFmPending;
+  sportFmPending=loadSportFmOfficialSchedule().then(data=>{
+    if(data.source==='sportfmtv-official-catalog')sportFmCache={at:Date.now(),data};
+    return data;
+  }).finally(()=>{sportFmPending=null;});
+  return sportFmPending;
+}
+async function loadSportFmOfficialSchedule(){
+  try{
+    const [cfg,guidePage]=await Promise.all([
+      fetchSportFmJson(SPORTFM_ORIGIN+'/_ott/amplify-config.json'),
+      fetchText(SPORTFM_ORIGIN+'/el/guide',{maxBytes:SPORTFM_MAX_BYTES}),
+    ]);
+    const api=safeHttpsUrl(cfg?.amplifyOutputs?.data?.url);
+    if(!api||!/^\w[\w-]*\.appsync-api\.[a-z0-9-]+\.amazonaws\.com$/i.test(api.hostname)||api.pathname!=='/graphql')throw new Error('unexpected public catalog endpoint');
+    const now=new Date();const from=new Date(now);from.setUTCHours(0,0,0,0);
+    const to=new Date(from.getTime()+3*86400000);
+    const variables={tenant:cfg.tenantId,from:from.toISOString(),to:to.toISOString()};
+    const query=`query($tenant:String!,$from:String!,$to:String!){
+      listPublicProgramGuide(tenant_id:$tenant,window_from:$from,window_to:$to,channel_id:"",limit:200){channel_id channel_title event_id title broadcast_start kickoff_time end_time air_state}
+      listPublicScheduledLiveContent(tenant_id:$tenant,window_from:$from,window_to:$to,limit:100){content_id event_id title event_title broadcast_start start_time end_time channel_id channel_title}
+    }`;
+    const result=await fetchSportFmJson(api.href,{body:{query,variables},headers:{'content-type':'application/json','x-api-key':cfg.amplifyOutputs.data.api_key}});
+    if(result.errors?.length)throw new Error('public catalog query failed');
+    const live=result.data?.listPublicScheduledLiveContent;
+    const guide=result.data?.listPublicProgramGuide;
+    if(!Array.isArray(live)||!Array.isArray(guide)||guide.length>=200||live.length>=100)throw new Error('incomplete public catalog');
+    const ids=[...new Set(live.map(row=>row.content_id).filter(id=>/^[a-f0-9-]{36}$/i.test(id)))];
+    const mapping=ids.length?await fetchSportFmJson(SPORTFM_ORIGIN+'/_ott/watch-slugs/'+ids.sort().join(',')):{slugs:{}};
+    const catalog=buildSportFmCatalog({live,guide,slugs:mapping.slugs||{},channels:parseSportFmChannelLinks(guidePage.text),now});
+    return{...catalog,origin:SPORTFM_ORIGIN,source:'sportfmtv-official-catalog',reports:[{origin:SPORTFM_ORIGIN,ok:true,guideRows:guide.length,liveRows:live.length}]};
+  }catch(error){
+    const fallback=await loadSportFmHomepageSchedule();
+    // Homepage fallback can retain fresh live pages, but never advertise replay videos as airing repeats.
+    return{...fallback,repeatEvents:[],archiveEvents:[],reports:[...fallback.reports,{officialCatalog:false,error:error?.message||String(error)}]};
+  }
+}
+async function loadSportFmHomepageSchedule(){
   const reports=[];
   try{
     const home=await fetchText(SPORTFM_ORIGIN+'/el',{maxBytes:SPORTFM_MAX_BYTES});
     const parsed=parseSportFmHomepage(home.text,{baseOrigin:SPORTFM_ORIGIN,now:new Date()});
-    for(const event of [...parsed.events,...parsed.archiveEvents].slice(0,SPORTFM_MAX_EVENTS+SPORTFM_MAX_ARCHIVE_EVENTS)){
+    await Promise.all(parsed.events.slice(0,SPORTFM_MAX_EVENTS).map(async event=>{
       try{
         const page=await fetchText(event.links[0].url,{maxBytes:SPORTFM_MAX_BYTES});
         const title=extractOgTitle(page.text);
@@ -296,7 +411,7 @@ async function loadSportFmSchedule(){
       }catch(error){
         reports.push({url:event.links[0].url,titleFetch:false,error:error?.message||String(error)});
       }
-    }
+    }));
     reports.unshift({origin:SPORTFM_ORIGIN,ok:true,events:parsed.events.length});
     return{...parsed,reports};
   }catch(error){
@@ -389,9 +504,10 @@ async function loadSchedule(){
     fresh:foothub.fresh!==false||sportfmtv.events.length>0,
     providers:{
       foothub:{origin:foothub.origin||'',source:foothub.source||'none',events:(foothub.events||[]).length,reports:foothub.reports||[]},
-      sportfmtv:{origin:SPORTFM_ORIGIN,source:'sportfmtv-homepage',events:(sportfmtv.events||[]).length,archiveEvents:(sportfmtv.archiveEvents||[]).length,reports:sportfmtv.reports||[]},
+      sportfmtv:{origin:SPORTFM_ORIGIN,source:sportfmtv.source,events:(sportfmtv.events||[]).length,repeatEvents:(sportfmtv.repeatEvents||[]).length,archiveEvents:(sportfmtv.archiveEvents||[]).length,reports:sportfmtv.reports||[]},
     },
     archiveEvents:[...(sportfmtv.archiveEvents||[])],
+    repeatEvents:[...(sportfmtv.repeatEvents||[])],
     reports:[...(foothub.reports||[]),...(sportfmtv.reports||[])],
   };
 }
@@ -416,4 +532,4 @@ export default {
   }
 };
 
-export { extractFoothubOrigins, parseProgramText, parseHomepageHtml, parseSportFmHomepage, toUtcIsoFromAthens, eventFreshness };
+export { extractFoothubOrigins, parseProgramText, parseHomepageHtml, parseSportFmHomepage, toUtcIsoFromAthens, eventFreshness, buildSportFmCatalog, parseSportFmChannelLinks };
