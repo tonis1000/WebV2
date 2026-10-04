@@ -1,12 +1,13 @@
 const PARAM = 'layout';
 const DESKTOP = '(min-width: 900px)';
-const BUILD_ID = '20261004-startup-rail-recovery-a';
+const BUILD_ID = '20261004-rail-runtime-fix-a';
 
 const layoutMode = new URLSearchParams(location.search).get(PARAM);
 const enabled = layoutMode !== 'classic';
-if (!enabled) {
+if (!enabled || window.__webtvRightRailInstalled) {
   console.info('[WebTV] Right rail layout disabled by ?layout=classic');
 } else {
+  window.__webtvRightRailInstalled = true;
   const mq = window.matchMedia(DESKTOP);
   const moved = new Map();
   let rail = null;
@@ -44,7 +45,7 @@ if (!enabled) {
       <div id="desktop-rail-stack" class="desktop-rail-stack">
         <section class="desktop-rail-group"><span class="desktop-rail-label">Library</span><div id="desktop-rail-library" class="desktop-rail-group-stack"></div></section>
         <section class="desktop-rail-group"><span class="desktop-rail-label">Search & Logos</span><div id="desktop-rail-discovery" class="desktop-rail-group-stack"></div></section>
-        <section class="desktop-rail-group desktop-rail-public-tools"><span class="desktop-rail-label">Tools</span><div id="desktop-rail-tools" class="desktop-rail-group-stack"></div></section>
+        <section class="desktop-rail-group"><span class="desktop-rail-label">Tools</span><div id="desktop-rail-tools" class="desktop-rail-group-stack"></div></section>
         <section class="desktop-rail-group"><span class="desktop-rail-label">Channel</span><div id="desktop-rail-channel" class="desktop-rail-group-stack"></div></section>
       </div>`;
     layout.appendChild(rail);
@@ -82,7 +83,7 @@ if (!enabled) {
     const channel = root?.querySelector('#desktop-rail-channel');
     if (!library || !discovery || !tools || !channel) return;
 
-    const brand = document.querySelector('.topbar > div:first-child');
+    const brand = document.getElementById('admin-unlock-trigger')?.parentElement;
     const clock = document.getElementById('clock');
     const dock = ensureHeaderDock();
     const playlists = document.getElementById('playlist-manager-toggle');
@@ -157,9 +158,14 @@ if (!enabled) {
     ensureRail();
     moveControls();
     installEpgExpansion();
+    let movePending = false;
     observer = new MutationObserver(() => {
-      moveControls();
-      refreshExpandableDescription();
+      if (movePending) return;
+      movePending = true;
+      requestAnimationFrame(() => {
+        movePending = false;
+        moveControls();
+      });
     });
     observer.observe(document.body, { childList: true, subtree: true });
     console.info(`[WebTV] Right rail layout active · build ${BUILD_ID}`);
@@ -189,10 +195,8 @@ if (!enabled) {
     html.rail-preview .app-shell{width:min(1904px,calc(100% - 16px));margin:0 auto;padding:8px 0 12px}
     html.rail-preview .topbar{display:none!important}
     html.rail-preview .layout{grid-template-columns:300px minmax(0,1fr) 238px;gap:12px;align-items:start}
-    html.rail-preview.admin-locked .layout{grid-template-columns:300px minmax(0,1fr) 238px}
-    html.rail-preview.admin-locked .desktop-control-rail{display:block!important}
-    html.rail-preview.admin-locked .desktop-rail-group:not(.desktop-rail-public-tools){display:none!important}
-    html.rail-preview.admin-locked .desktop-rail-public-tools .desktop-rail-label{display:none}
+    html.rail-preview.admin-locked .layout{grid-template-columns:300px minmax(0,1fr)}
+    html.rail-preview.admin-locked .desktop-control-rail{display:none!important}
     html.rail-preview .sidebar{top:8px;height:calc(100vh - 16px);min-height:0}
     html.rail-preview .viewer{min-width:0;gap:12px}
     html.rail-preview .player-card{width:100%;max-width:none;justify-self:stretch}
@@ -233,7 +237,7 @@ if (!enabled) {
     @media(min-width:900px) and (max-width:1179px){
       html.rail-preview .app-shell{width:min(1500px,calc(100% - 10px));padding:5px 0 8px}
       html.rail-preview .layout{grid-template-columns:250px minmax(0,1fr) 170px;gap:8px}
-      html.rail-preview.admin-locked .layout{grid-template-columns:250px minmax(0,1fr) 170px}
+      html.rail-preview.admin-locked .layout{grid-template-columns:250px minmax(0,1fr)}
       html.rail-preview .desktop-control-rail{top:5px;height:calc(100vh - 10px);padding:8px 7px}
       html.rail-preview .rail-control{min-height:38px;font-size:.72rem;padding:6px}
       html.rail-preview .desktop-rail-stack{gap:8px}
@@ -245,13 +249,13 @@ if (!enabled) {
     @media(min-width:1800px){
       html.rail-preview .app-shell{width:min(2200px,calc(100% - 24px))}
       html.rail-preview .layout{grid-template-columns:clamp(310px,17vw,340px) minmax(0,1fr) clamp(238px,13vw,270px)}
-      html.rail-preview.admin-locked .layout{grid-template-columns:clamp(310px,17vw,340px) minmax(0,1fr) clamp(238px,13vw,270px)}
+      html.rail-preview.admin-locked .layout{grid-template-columns:clamp(310px,17vw,340px) minmax(0,1fr)}
       html.rail-preview .player-stage{height:min(66vh,900px);max-height:calc(100vh - 250px)}
     }
     @media(min-width:2400px){
       html.rail-preview .app-shell{width:min(2500px,calc(100% - 32px))}
       html.rail-preview .layout{grid-template-columns:340px minmax(0,1fr) 280px}
-      html.rail-preview.admin-locked .layout{grid-template-columns:340px minmax(0,1fr) 280px}
+      html.rail-preview.admin-locked .layout{grid-template-columns:340px minmax(0,1fr)}
       html.rail-preview .player-stage{height:min(68vh,1080px);max-height:calc(100vh - 260px)}
     }
     @media(max-height:760px) and (min-width:1180px){

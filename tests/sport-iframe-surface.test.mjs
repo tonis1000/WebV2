@@ -10,7 +10,7 @@ const sportJs=fs.readFileSync(new URL('../src/sport-page.js',import.meta.url),'u
 assert.match(index,/id="sport-toggle"/,'main viewer must expose a SPORT control');
 assert.match(index,/href="\.\/sport\.html"/,'SPORT control must open the dedicated page');
 assert.match(rail,/sport-toggle/,'desktop right rail must own SPORT control placement');
-assert.doesNotMatch(gate,/html\.admin-locked #sport-toggle/,'SPORT must remain public while admin controls are locked');
+assert.match(gate,/html\.admin-locked #sport-toggle/,'SPORT entry belongs behind the PIN rail');
 
 assert.match(sportHtml,/id="sport-match-list"/,'SPORT page must expose a match sidebar');
 assert.match(sportHtml,/id="sport-frame"/,'SPORT page must expose one iframe viewer');

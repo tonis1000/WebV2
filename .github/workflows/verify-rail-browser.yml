@@ -1,0 +1,46 @@
+name: Verify Rail Browser Runtime
+on:
+  pull_request:
+    paths: ['index.html', 'sport.html', 'admin-gate.css', 'src/right-rail-preview.js', 'src/admin-gate.js', 'src/favorites-ui.js', 'src/search/search-ui.js', 'tests/rail*', '.github/workflows/verify-rail-browser.yml']
+  push:
+    branches: [main]
+    paths: ['index.html', 'sport.html', 'admin-gate.css', 'src/right-rail-preview.js', 'src/admin-gate.js', 'src/favorites-ui.js', 'src/search/search-ui.js', 'tests/rail*', '.github/workflows/verify-rail-browser.yml']
+permissions:
+  contents: read
+concurrency:
+  group: rail-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install free native browser test tools
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium firefox
+      - name: Verify whole local page in Chromium and Firefox
+        if: github.event_name == 'pull_request'
+        run: node tests/rail-full-page-browser.mjs
+      - name: Wait for exact-SHA production deployment
+        if: github.event_name == 'push'
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          for attempt in $(seq 1 30); do
+            curl -fsS --max-time 20 "https://webtv-registry.atonis.workers.dev/api/project-status?verify=$EXPECTED_SHA" -o /tmp/rail-status.json || true
+            if node -e "const j=require('/tmp/rail-status.json');process.exit(j.commitSha===process.env.EXPECTED_SHA?0:1)" && curl -fsS --max-time 20 https://tonis1000.github.io/WebV2/index.html | grep -q 'right-rail-preview.js?v=20261004-rail-runtime-fix-a'; then exit 0; fi
+            sleep 10
+          done
+          exit 1
+      - name: Verify real production page in Chromium and Firefox
+        if: github.event_name == 'push'
+        env:
+          WEBV2_TARGET_URL: https://tonis1000.github.io/WebV2/
+        run: node tests/rail-full-page-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rail-browser-evidence-${{ github.sha }}
+          path: browser-evidence/
