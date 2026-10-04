@@ -42,4 +42,10 @@ assert.ok(ui.includes('scrollTimelineBy'),'Guide arrows must scroll within the c
 assert.ok(ui.includes('focusNowInTimeline'),'Today must center the current time');
 assert.ok(ui.includes('keepCurrentProgrammeCopyVisible'),'Current programme copy must remain visible while horizontally clipped');
 
+assert.ok(ui.includes('MAX_DAY_OFFSET=6'),'Guide must expose today plus the next six days');
+assert.ok(ui.includes('epg-guide-day-tabs'),'Guide must render a seven-day selector beside the current day');
+assert.ok(ui.includes('renderDayTabs'),'Guide must render day buttons from the selected day state');
+assert.ok(ui.includes('selectGuideDay'),'Guide day buttons must change the active EPG day');
+assert.ok(ui.includes('aria-pressed'),'Selected guide day must expose button state');
+
 console.log('EPG Guide ownership/UI contract PASS');

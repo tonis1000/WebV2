@@ -17,3 +17,9 @@
 .epg-program-image{display:block;width:100%;max-height:280px;object-fit:cover;margin:15px 0 0;border-radius:12px;background:#080b0e}.epg-program-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;color:#9fc9df;font-size:.78rem}.epg-program-description{margin:13px 0 0;color:#c7d0d7;line-height:1.5}.epg-program-actions{display:flex;gap:8px;margin-top:16px}
 html.epg-guide-open body{overflow:hidden}
 @media(max-width:780px){.epg-guide-overlay{padding:6px}.epg-guide-shell{width:100%;height:calc(100dvh - 12px);border-radius:12px}.epg-guide-head{padding:12px;flex-direction:column}.epg-guide-head-actions{width:100%}.epg-guide-head-actions .button{flex:1 1 auto}.epg-guide-datebar{padding:8px 12px}.epg-guide-grid{--epg-channel-width:126px;--epg-hour-width:132px}.epg-guide-row{min-height:66px}.epg-guide-channel{padding:6px}.epg-guide-channel img{width:32px;height:32px}.epg-guide-channel strong{max-width:78px;font-size:.72rem}.epg-guide-track{min-height:66px}.epg-guide-hours span{width:var(--epg-hour-width)}.epg-guide-program{top:5px;height:56px;padding:7px 8px}.epg-guide-now-line::after{top:41px}.epg-program-actions{display:grid;grid-template-columns:1fr 1fr}}
+
+.epg-guide-day-tabs{display:flex;align-items:center;gap:6px;min-width:0;max-width:calc(100% - 170px);overflow-x:auto;scrollbar-width:thin;padding:1px 0}
+.epg-guide-day-tab{flex:0 0 auto;border:1px solid #2f414d;border-radius:9px;background:#111922;color:#aebcc7;padding:7px 10px;font:inherit;font-size:.78rem;font-weight:800;cursor:pointer}
+.epg-guide-day-tab:hover,.epg-guide-day-tab:focus-visible{border-color:#5f8ca3;color:#eef8ff}
+.epg-guide-day-tab.is-selected{border-color:#4ed6a8;background:#143329;color:#eafff7;box-shadow:0 0 0 1px rgba(78,214,168,.16)}
+@media(max-width:780px){.epg-guide-datebar{align-items:flex-start;flex-direction:column}.epg-guide-day-tabs{width:100%;max-width:none}.epg-guide-day-tab{padding:6px 9px;font-size:.72rem}}

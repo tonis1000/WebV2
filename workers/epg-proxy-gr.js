@@ -10,6 +10,7 @@ const COSMOTE_CHANNELS_URL = "https://mwapi-prod.cosmotetvott.gr/api/v3.4/epg/ch
 const COSMOTE_LISTINGS_BASE = "https://mwapi-prod.cosmotetvott.gr/api/v3.4/epg/listings/el";
 const MAX_REQUESTED_CHANNELS=80;
 const MAX_COSMOTE_CHANNELS=35;
+const GUIDE_DAY_COUNT=7;
 
 const SOURCES=Object.freeze([
   {id:"digea",label:"Digea official EPG",kind:"official",country:"GR"},
@@ -166,6 +167,11 @@ function cosmoteDayRange(dayOffset=0){
   const to=Math.floor(new Date(`${date}T23:59:59${offset}`).getTime()/1000);
   return{from,to};
 }
+function cosmoteGuideRange(dayCount=GUIDE_DAY_COUNT){
+  const count=Math.max(1,Math.min(GUIDE_DAY_COUNT,Number(dayCount)||GUIDE_DAY_COUNT));
+  const first=cosmoteDayRange(0),last=cosmoteDayRange(count-1);
+  return{from:first.from,to:last.to};
+}
 function makeXmltv(channels=[],programmes=[],generator="WebTV"){
   return `<?xml version="1.0" encoding="UTF-8"?><tv generator-info-name="${escapeXml(generator)}">${channels.map(c=>`<channel id="${escapeXml(c.id)}"><display-name>${escapeXml(c.name)}</display-name>${c.logo?`<icon src="${escapeXml(c.logo)}"/>`:""}</channel>`).join("")}${programmes.map(p=>`<programme channel="${escapeXml(p.channel)}" start="${escapeXml(p.start)}" stop="${escapeXml(p.stop)}"><title>${escapeXml(p.title)}</title>${p.description?`<desc>${escapeXml(p.description)}</desc>`:""}${p.category?`<category>${escapeXml(p.category)}</category>`:""}${p.image?`<icon src="${escapeXml(p.image)}"/>`:""}</programme>`).join("")}</tv>`;
 }
@@ -178,7 +184,7 @@ async function fetchDigea(requested=[]){
   const all=await channelResponse.json();const channels=(Array.isArray(all)?all:[]).filter(c=>matchesRequested(c.name,requested));
   if(!channels.length)throw new Error("digea no requested channels");
   const ids=new Set(channels.map(c=>String(c.id)));const programmes=[];
-  for(const offset of [0,1]){
+  for(let offset=0;offset<GUIDE_DAY_COUNT;offset+=1){
     const date=athensDateParts(offset);const body=new URLSearchParams({action:"get_events",date:`${Number(date.slice(0,4))}-${Number(date.slice(5,7))}-${Number(date.slice(8,10))}`});
     const response=await fetch(DIGEA_EVENTS_URL,{method:"POST",headers,body});
     if(!response.ok)continue;
