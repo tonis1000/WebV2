@@ -20,7 +20,13 @@ setTimeout(()=>{
  document.getElementById('clock').textContent='tick';
  setTimeout(()=>{
   const outcome={...probe,rails:document.querySelectorAll('#desktop-control-rail').length,brandParent:document.getElementById('admin-unlock-trigger').parentElement.parentElement.id};
-  const pass=!outcome.capped&&outcome.callbacks<30&&outcome.rails===1&&outcome.errors.length===0;
+  const rail=document.getElementById('desktop-control-rail'),sport=document.getElementById('sport-toggle');
+  outcome.lockedHidden=getComputedStyle(rail).display==='none'&&getComputedStyle(sport).display==='none';
+  outcome.topbarStable=document.querySelector('.topbar-actions').parentElement.classList.contains('topbar');
+  outcome.brandDocked=outcome.brandParent==='player-header-admin';
+  document.documentElement.classList.remove('admin-locked');document.documentElement.classList.add('admin-unlocked');
+  outcome.unlockedSport=getComputedStyle(rail).display!=='none'&&sport.parentElement.id==='desktop-rail-tools';
+  const pass=!outcome.capped&&outcome.callbacks<30&&outcome.rails===1&&outcome.errors.length===0&&outcome.lockedHidden&&outcome.topbarStable&&outcome.brandDocked&&outcome.unlockedSport;
   document.body.dataset.railResult=pass?'PASS':'FAIL';
   document.getElementById('result').textContent=JSON.stringify(outcome);
  },250);
