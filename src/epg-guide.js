@@ -1,7 +1,8 @@
-const BUILD_ID='20261003-epg-guide-now-polish';
+const BUILD_ID='20261004-guide-timeline-a';
 const $=id=>document.getElementById(id);
 const DESKTOP_HOUR_WIDTH=225;
 const MOBILE_HOUR_WIDTH=132;
+const TIMELINE_STEP_HOURS=3;
 function hourWidth(){return window.matchMedia('(max-width:780px)').matches?MOBILE_HOUR_WIDTH:DESKTOP_HOUR_WIDTH;}
 let dayOffset=0;
 let activeProgram=null;
@@ -9,7 +10,6 @@ let nowPresentationTimer=0;
 
 function api(){return window.WebTVEPGAPI||null;}
 function playlist(){return window.WebTVPlaylistAPI||null;}
-function esc(value=''){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 function dayBounds(offset=0){
   const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+offset);
   const end=new Date(d);end.setDate(end.getDate()+1);
@@ -47,9 +47,9 @@ function ensureUi(){
       <header class="epg-guide-head">
         <div><p class="eyebrow">TV GUIDE</p><h2>Πρόγραμμα καναλιών</h2><p id="epg-guide-summary" class="muted small">Τα κανάλια του τρέχοντος sidebar</p></div>
         <div class="epg-guide-head-actions">
-          <button id="epg-guide-prev" class="button ghost" type="button">←</button>
+          <button id="epg-guide-prev" class="button ghost" type="button" aria-label="Προηγούμενες ώρες">←</button>
           <button id="epg-guide-today" class="button ghost" type="button">Σήμερα</button>
-          <button id="epg-guide-next" class="button ghost" type="button">→</button>
+          <button id="epg-guide-next" class="button ghost" type="button" aria-label="Επόμενες ώρες">→</button>
           <button id="epg-guide-close" class="button ghost" type="button" aria-label="Close EPG Guide">✕</button>
         </div>
       </header>
@@ -71,13 +71,14 @@ function ensureUi(){
   document.body.appendChild(overlay);
   overlay.addEventListener('pointerdown',event=>{if(event.target===overlay)closeGuide();});
   $('epg-guide-close')?.addEventListener('click',closeGuide);
-  $('epg-guide-prev')?.addEventListener('click',()=>{dayOffset-=1;renderGuide();});
-  $('epg-guide-next')?.addEventListener('click',()=>{dayOffset+=1;renderGuide();});
-  $('epg-guide-today')?.addEventListener('click',()=>{dayOffset=0;renderGuide();});
+  $('epg-guide-prev')?.addEventListener('click',()=>scrollTimelineBy(-TIMELINE_STEP_HOURS));
+  $('epg-guide-next')?.addEventListener('click',()=>scrollTimelineBy(TIMELINE_STEP_HOURS));
+  $('epg-guide-today')?.addEventListener('click',()=>{dayOffset=0;renderGuide({focusNow:true});});
   $('epg-program-close')?.addEventListener('click',closeProgram);
   $('epg-program-back')?.addEventListener('click',closeProgram);
   $('epg-program-dialog')?.addEventListener('pointerdown',event=>{if(event.target===$('epg-program-dialog'))closeProgram();});
   $('epg-program-play')?.addEventListener('click',playProgramChannel);
+  $('epg-guide-scroll')?.addEventListener('scroll',()=>requestAnimationFrame(keepCurrentProgrammeCopyVisible),{passive:true});
 }
 function closeProgram(){$('epg-program-dialog').hidden=true;activeProgram=null;}
 function closeGuide(){
@@ -91,7 +92,39 @@ async function openGuide(){
   const channels=playlist()?.getChannels?.()||[];
   $('epg-guide-status').textContent='Loading EPG…';
   try{await api()?.refreshForChannels?.(channels,{force:false});}catch{}
-  renderGuide();
+  renderGuide({focusNow:true});
+}
+function currentChannelWidth(){
+  const grid=$('epg-guide-grid');
+  const value=grid?parseFloat(getComputedStyle(grid).getPropertyValue('--epg-channel-width')):0;
+  return Number.isFinite(value)&&value>0?value:(window.matchMedia('(max-width:780px)').matches?126:190);
+}
+function keepCurrentProgrammeCopyVisible(){
+  const scroll=$('epg-guide-scroll');if(!scroll)return;
+  for(const block of document.querySelectorAll('.epg-guide-program.is-now')){
+    const copy=block.querySelector('.epg-guide-program-copy');if(!copy)continue;
+    const left=Number(block.dataset.left)||0,width=Number(block.dataset.width)||0;
+    const inset=Math.max(0,Math.min(Math.max(0,width-120),scroll.scrollLeft-left+12));
+    copy.style.transform=inset>0?'translateX('+inset+'px)':'';
+  }
+}
+function focusNowInTimeline({behavior='auto'}={}){
+  if(dayOffset!==0)return;
+  const scroll=$('epg-guide-scroll');if(!scroll)return;
+  const now=new Date(),minutes=now.getHours()*60+now.getMinutes();
+  const nowX=(minutes/60)*hourWidth();
+  const visibleTimelineWidth=Math.max(1,scroll.clientWidth-currentChannelWidth());
+  const maxScroll=Math.max(0,scroll.scrollWidth-scroll.clientWidth);
+  const target=Math.max(0,Math.min(maxScroll,nowX-visibleTimelineWidth/2));
+  scroll.scrollTo({left:target,behavior});
+  requestAnimationFrame(keepCurrentProgrammeCopyVisible);
+}
+function scrollTimelineBy(hours){
+  const scroll=$('epg-guide-scroll');if(!scroll)return;
+  const maxScroll=Math.max(0,scroll.scrollWidth-scroll.clientWidth);
+  const target=Math.max(0,Math.min(maxScroll,scroll.scrollLeft+hours*hourWidth()));
+  scroll.scrollTo({left:target,behavior:'smooth'});
+  requestAnimationFrame(keepCurrentProgrammeCopyVisible);
 }
 function programmePosition(item,start,end){
   const total=end-start;
@@ -120,10 +153,11 @@ async function playProgramChannel(){
     setTimeout(()=>{button.disabled=false;button.textContent='▶ Play';},1600);
   }
 }
-function renderGuide(){
+function renderGuide({focusNow=false}={}){
   ensureUi();
   const channels=playlist()?.getChannels?.()||[];
-  const root=$('epg-guide-grid'),status=$('epg-guide-status');
+  const root=$('epg-guide-grid'),status=$('epg-guide-status'),scroll=$('epg-guide-scroll');
+  const previousScroll=scroll?.scrollLeft||0;
   const{start,end}=dayBounds(dayOffset);const startMs=start.getTime(),endMs=end.getTime();
   $('epg-guide-day').textContent=dayLabel(dayOffset);
   $('epg-guide-summary').textContent=`${channels.length} sidebar channels · click a programme for details`;
@@ -145,12 +179,13 @@ function renderGuide(){
     if(!schedule.length){const empty=document.createElement('span');empty.className='epg-guide-empty';empty.textContent='No EPG';track.appendChild(empty);}
     for(const item of schedule){
       const pos=programmePosition(item,startMs,endMs);if(!pos)continue;programmeCount+=1;
-      const block=document.createElement('button');block.type='button';block.className='epg-guide-program';block.style.left=`${pos.left}px`;block.style.width=`${pos.width}px`;
+      const block=document.createElement('button');block.type='button';block.className='epg-guide-program';block.style.left=`${pos.left}px`;block.style.width=`${pos.width}px`;block.dataset.left=String(pos.left);block.dataset.width=String(pos.width);
       const itemStart=new Date(item.start).getTime(),itemStop=new Date(item.stop).getTime();
       if(dayOffset===0&&nowMs>=itemStart&&nowMs<itemStop){block.classList.add('is-now');block.setAttribute('aria-current','true');}
       block.title=`${item.title} · ${new Date(item.start).toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'})}`;
+      const copy=document.createElement('span');copy.className='epg-guide-program-copy';
       const time=document.createElement('small');time.textContent=new Date(item.start).toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
-      const title=document.createElement('strong');title.textContent=item.title;block.append(time,title);
+      const title=document.createElement('strong');title.textContent=item.title;copy.append(time,title);block.append(copy);
       block.addEventListener('click',()=>openProgram(channel,item));track.appendChild(block);
     }
     row.append(label,track);root.appendChild(row);
@@ -159,9 +194,8 @@ function renderGuide(){
     const now=new Date();const minutes=now.getHours()*60+now.getMinutes();const nowX=(minutes/60)*hourWidth();
     const line=document.createElement('div');line.id='epg-guide-now-line';line.className='epg-guide-now-line';line.style.left=`calc(var(--epg-channel-width) + ${nowX}px)`;
     const badge=document.createElement('span');badge.textContent='ΤΩΡΑ';line.appendChild(badge);root.appendChild(line);
-    const target=Math.max(0,nowX-300);
-    requestAnimationFrame(()=>{$('epg-guide-scroll').scrollLeft=target;});
-  }else requestAnimationFrame(()=>{$('epg-guide-scroll').scrollLeft=0;});
+    requestAnimationFrame(()=>{if(focusNow)focusNowInTimeline();else{if(scroll)scroll.scrollLeft=previousScroll;keepCurrentProgrammeCopyVisible();}});
+  }else requestAnimationFrame(()=>{if(scroll)scroll.scrollLeft=focusNow?0:previousScroll;});
   status.textContent=`${programmeCount} programmes · ${channels.length} channels`;
 }
 function boot(){

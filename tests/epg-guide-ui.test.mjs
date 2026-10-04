@@ -37,4 +37,9 @@ assert.match(ui,/const DESKTOP_HOUR_WIDTH=225/,'Guide JS must use the same 1.5x 
 assert.match(ui,/const MOBILE_HOUR_WIDTH=132/,'Mobile guide must retain the compact hour scale');
 assert.match(ui,/function hourWidth\(\)/,'Guide must compute the active responsive hour scale');
 
+assert.ok(ui.includes('TIMELINE_STEP_HOURS=3'),'Guide arrows must move three-hour timeline steps');
+assert.ok(ui.includes('scrollTimelineBy'),'Guide arrows must scroll within the current day');
+assert.ok(ui.includes('focusNowInTimeline'),'Today must center the current time');
+assert.ok(ui.includes('keepCurrentProgrammeCopyVisible'),'Current programme copy must remain visible while horizontally clipped');
+
 console.log('EPG Guide ownership/UI contract PASS');
