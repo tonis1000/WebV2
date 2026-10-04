@@ -179,7 +179,7 @@ async function fetchDigea(requested=[]){
   const all=await channelResponse.json();const channels=(Array.isArray(all)?all:[]).filter(c=>matchesRequested(c.name,requested));
   if(!channels.length)throw new Error("digea no requested channels");
   const ids=new Set(channels.map(c=>String(c.id)));const programmes=[];
-  for(const offset of [0,1]){
+  for(let offset=0;offset<GUIDE_DAY_COUNT;offset+=1){
     const date=athensDateParts(offset);const body=new URLSearchParams({action:"get_events",date:`${Number(date.slice(0,4))}-${Number(date.slice(5,7))}-${Number(date.slice(8,10))}`});
     const response=await fetch(DIGEA_EVENTS_URL,{method:"POST",headers,body});
     if(!response.ok)continue;
