@@ -25,6 +25,8 @@ assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 2 HD',callSign:'sport2h
 const day0=cosmoteDayRange(0);assert.ok(day0.to>day0.from);assert.ok(day0.to-day0.from>=86398&&day0.to-day0.from<=86400,'COSMOTE requests must use one-day windows');
 assert.match(source,/GUIDE_DAY_COUNT=7/,'EPG worker must define a seven-day guide horizon');
 assert.match(source,/offset<GUIDE_DAY_COUNT/,'Digea official EPG must request today plus the next six days');
+assert.match(source,/cosmoteGuideRange\(\)/,'COSMOTE must use one bounded seven-day guide range per channel');
+assert.doesNotMatch(source,/channels\.flatMap\(channel=>\[0,1\]/,'COSMOTE must not fan out one request per channel per day');
 
 const originalFetch=globalThis.fetch;
 try{
