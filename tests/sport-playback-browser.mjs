@@ -30,7 +30,8 @@ try{
  for(const [name,engine] of [['chromium',chromium],['firefox',firefox]]){
   const browser=await engine.launch({headless:true});
   try{
-   const page=await browser.newPage({viewport:{width:1440,height:1000}});
+   const context=await browser.newContext({viewport:{width:1440,height:1000}});
+   const page=await context.newPage();
    const errors=[];page.on('pageerror',e=>errors.push(e.message));
    if(local)await page.route('https://webtv-sport.atonis.workers.dev/api/schedule*',r=>r.fulfill({json:candidate}));
    const responsePromise=page.waitForResponse(r=>r.url().includes('/api/schedule'));
