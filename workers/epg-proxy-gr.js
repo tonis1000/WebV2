@@ -208,8 +208,8 @@ async function fetchCosmote(requested=[]){
   const channels=all.filter(c=>matchesCosmoteChannel(c,requested)).slice(0,MAX_COSMOTE_CHANNELS);
   if(!channels.length)throw new Error("cosmote no requested channels");
   const programmes=[];
-  await Promise.all(channels.flatMap(channel=>[0,1].map(async dayOffset=>{
-    const {from,to}=cosmoteDayRange(dayOffset);
+  const {from,to}=cosmoteGuideRange();
+  await Promise.all(channels.map(async channel=>{
     const url=`${COSMOTE_LISTINGS_BASE}?from=${from}&to=${to}&callSigns=${encodeURIComponent(channel.callSign)}&endingIncludedInRange=false`;
     try{
       const r=await fetch(url,{headers:COSMOTE_HEADERS});if(!r.ok)return;const j=await r.json();
@@ -218,7 +218,7 @@ async function fetchCosmote(requested=[]){
         programmes.push({channel:`cosmote.${channel.callSign}`,start,stop,title:item.title,description:item.description||"",category:item.qoe?.genre||"",image:item.thumbnails?.standard||""});
       }
     }catch{}
-  })));
+  }));
   const xml=makeXmltv(channels.map(c=>({id:`cosmote.${c.callSign}`,name:c.title,logo:c.logos?.square||""})),programmes,"COSMOTE TV official");
   const analysis=analyzeXmltv(xml);if(!analysis.valid)throw new Error("cosmote empty");
   return{id:"cosmote",xml,analysis};
@@ -269,4 +269,4 @@ export default{
   }
 };
 
-export{analyzeXmltv,requestedChannelTerms,filterXmltv,mergeXmltv,normalizeMatch,matchesCosmoteChannel,cosmoteDayRange};
+export{analyzeXmltv,requestedChannelTerms,filterXmltv,mergeXmltv,normalizeMatch,matchesCosmoteChannel,cosmoteDayRange,cosmoteGuideRange};
