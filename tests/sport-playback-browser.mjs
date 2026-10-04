@@ -22,7 +22,7 @@ if(candidate)assert.equal(candidate.providers.sportfmtv.source,'sportfmtv-offici
 async function mediaSnapshot(page){
  const result=[];
  for(const frame of page.frames().slice(1)){
-  try{result.push(...await frame.evaluate(()=>[...document.querySelectorAll('video')].map(v=>({time:v.currentTime,paused:v.paused,ready:v.readyState,width:v.videoWidth,height:v.videoHeight,muted:v.muted,volume:v.volume,error:v.error?.code||null,frames:v.getVideoPlaybackQuality?.().totalVideoFrames||0}))));}catch{}
+  try{result.push(...await frame.locator('video').evaluateAll(videos=>videos.map(v=>({time:v.currentTime,paused:v.paused,ready:v.readyState,width:v.videoWidth,height:v.videoHeight,muted:v.muted,volume:v.volume,error:v.error?.code||null,frames:v.getVideoPlaybackQuality?.().totalVideoFrames||0}))));}catch{}
  }
  return result;
 }
@@ -60,7 +60,7 @@ try{
      for(const label of [/accept all/i,/αποδοχή όλων/i,/play/i,/αναπαραγωγή/i]){
       try{const b=frame.getByRole('button',{name:label}).first();if(await b.isVisible())await b.click({timeout:1500});}catch{}
      }
-     try{const video=frame.locator('video').first();if(await video.isVisible())await video.click({timeout:1500});}catch{}
+     try{const video=frame.locator('video').first();if(await video.isVisible()&&await video.evaluate(v=>v.paused))await video.click({timeout:1500});}catch{}
     }
     const before=await mediaSnapshot(page);await page.waitForTimeout(8000);const after=await mediaSnapshot(page);
     const observation={selected:{title:selected.title,kind:selected.broadcastKind,url:selected.links[0].url},before,after};
