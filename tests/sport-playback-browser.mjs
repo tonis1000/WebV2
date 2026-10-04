@@ -21,7 +21,7 @@ const candidate=local?await (await worker.fetch(new Request('https://test.local/
 if(candidate)assert.equal(candidate.providers.sportfmtv.source,'sportfmtv-official-catalog');
 async function mediaSnapshot(page){
  const result=[];
- for(const frame of page.frames().slice(1)){
+ for(const frame of page.frames()){
   try{result.push(...await frame.locator('video').evaluateAll(videos=>videos.map(v=>({time:v.currentTime,paused:v.paused,ready:v.readyState,width:v.videoWidth,height:v.videoHeight,muted:v.muted,volume:v.volume,error:v.error?.code||null,frames:v.getVideoPlaybackQuality?.().totalVideoFrames||0}))));}catch{}
  }
  return result;
@@ -69,6 +69,23 @@ try{
     for(const frame of page.frames().slice(1)){try{observation.providerText.push((await frame.locator('body').innerText()).slice(0,1500));}catch{}}
     observation.playback=after.some((v,i)=>!v.paused&&v.ready>=2&&v.width>0&&v.time>(before[i]?.time||0)+1)?'VIDEO_ADVANCING':'PLAYBACK_UNCONFIRMED';
     await page.screenshot({path:`browser-evidence/sport-${name}-${selectionIndex}-playback.png`,fullPage:true});
+    if(selected.broadcastKind==='repeat'&&observation.playback==='PLAYBACK_UNCONFIRMED'){
+     // Compare the identical official page directly, in the same browser and cookie context.
+     // This distinguishes an iframe-only failure from a provider/environment limitation.
+     const direct=await page.context().newPage();
+     try{
+      await direct.goto(selected.links[0].url,{waitUntil:'domcontentloaded'});
+      await direct.waitForTimeout(15000);
+      for(const frame of direct.frames()){
+       try{const accept=frame.getByRole('button',{name:/^Αποδοχή$|^Accept$/i}).first();if(await accept.isVisible())await accept.click({timeout:1500});}catch{}
+       try{const play=frame.getByRole('button',{name:/^play$|αναπαραγωγή/i}).first();if(await play.isVisible())await play.click({timeout:1500});}catch{}
+       try{const video=frame.locator('video').first();if(await video.isVisible()&&await video.evaluate(v=>v.paused))await video.click({timeout:1500});}catch{}
+      }
+      const directBefore=await mediaSnapshot(direct);await direct.waitForTimeout(8000);const directAfter=await mediaSnapshot(direct);
+      observation.direct={before:directBefore,after:directAfter,playback:directAfter.some((v,i)=>!v.paused&&v.ready>=2&&v.width>0&&v.time>(directBefore[i]?.time||0)+1)?'VIDEO_ADVANCING':'PLAYBACK_UNCONFIRMED'};
+      await direct.screenshot({path:`browser-evidence/sport-${name}-direct-provider.png`,fullPage:true});
+     }finally{await direct.close();}
+    }
     evidence.observations.push(observation);
     await page.locator('#sport-archive-toggle').uncheck();
     assert.equal(await page.locator('#sport-frame').getAttribute('src'),selected.links[0].url,'filter changes must preserve selected playback');
