@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source=fs.readFileSync(new URL('../src/admin-gate.js',import.meta.url),'utf8');
+const KEY='webtv_v2_sport_return_unlocked';
+async function boot({returning=false,marker=false,valid=true}={}){
+  const classes=new Set(['admin-locked']);
+  const trigger=new EventTarget(),sport=new EventTarget();trigger.setAttribute=()=>{};
+  const storage=new Map(marker?[[KEY,'1']]:[]);
+  const context={document:{documentElement:{classList:{contains:c=>classes.has(c),toggle:(c,on)=>on?classes.add(c):classes.delete(c)}},getElementById:id=>id==='admin-unlock-trigger'?trigger:id==='sport-toggle'?sport:null},window:new EventTarget(),sessionStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},location:{search:returning?'?from=sport':''},URLSearchParams,CustomEvent:class extends Event{constructor(type,init){super(type);this.detail=init?.detail;}}};
+  Object.assign(context.window,{prompt:()=> '123456',alert:()=>{},WebTVRegistryAuth:{login:async()=>({}),validateSession:async()=>valid}});
+  vm.runInNewContext(source,context);
+  await new Promise(resolve=>setImmediate(resolve));
+  return {classes,trigger,sport,storage};
+}
+const staleMarker=await boot({marker:true});
+assert(staleMarker.classes.has('admin-locked'),'fresh navigation cannot reuse a return marker');
+const fresh=await boot();
+assert(fresh.classes.has('admin-locked'),'fresh entry must remain locked even on a trusted device');
+fresh.trigger.dispatchEvent(new Event('click'));await new Promise(resolve=>setImmediate(resolve));
+assert(fresh.classes.has('admin-unlocked'),'successful PIN unlock must reveal the rail');
+fresh.sport.dispatchEvent(new Event('click'));
+assert.equal(fresh.storage.get(KEY),'1','SPORT departure must remember an explicit UI unlock');
+const returned=await boot({returning:true,marker:true});
+assert(returned.classes.has('admin-unlocked'),'SPORT return must restore the already-authorized rail');
+assert.equal(returned.storage.has(KEY),false,'return marker is consumed once');
+const expired=await boot({returning:true,marker:true,valid:false});
+assert(expired.classes.has('admin-locked'),'expired authentication cannot restore the rail');
+const publicReturn=await boot({returning:true});
+assert(publicReturn.classes.has('admin-locked'),'direct SPORT visits cannot unlock the rail');
+returned.trigger.dispatchEvent(new Event('click'));
+assert(returned.classes.has('admin-locked'),'explicit lock closes the rail');
+console.log('admin SPORT return behavior PASS');
