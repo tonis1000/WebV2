@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import epgWorker,{analyzeXmltv,requestedChannelTerms,filterXmltv,matchesCosmoteChannel,cosmoteDayRange,cosmoteGuideRange} from '../workers/epg-proxy-gr.js';
+import epgWorker,{analyzeXmltv,requestedChannelTerms,filterXmltv,matchesCosmoteChannel,cosmoteDayRange} from '../workers/epg-proxy-gr.js';
 
 const source=fs.readFileSync(new URL('../workers/epg-proxy-gr.js',import.meta.url),'utf8');
 for(const required of [
@@ -23,8 +23,8 @@ assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 1 HD',callSign:'sport1h
 assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 1 HD',callSign:'sport1hd'},['cosmotesport1']),true);
 assert.equal(matchesCosmoteChannel({title:'COSMOTE Sport 2 HD',callSign:'sport2hd'},['COSMOTE Sport 1']),false);
 const day0=cosmoteDayRange(0);assert.ok(day0.to>day0.from);assert.ok(day0.to-day0.from>=86398&&day0.to-day0.from<=86400,'COSMOTE requests must use one-day windows');
-const guideRange=cosmoteGuideRange();assert.ok(guideRange.to-guideRange.from>=7*86398,'COSMOTE guide range must cover today plus the next six days');
-assert.match(source,/GUIDE_DAY_COUNT=7/,'EPG worker must request a seven-day guide horizon');
+assert.match(source,/GUIDE_DAY_COUNT=7/,'EPG worker must define a seven-day guide horizon');
+assert.match(source,/offset<GUIDE_DAY_COUNT/,'Digea official EPG must request today plus the next six days');
 
 const originalFetch=globalThis.fetch;
 try{
