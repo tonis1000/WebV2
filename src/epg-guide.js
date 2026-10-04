@@ -1,8 +1,9 @@
-const BUILD_ID='20261004-guide-timeline-a';
+const BUILD_ID='20261004-guide-seven-days-a';
 const $=id=>document.getElementById(id);
 const DESKTOP_HOUR_WIDTH=225;
 const MOBILE_HOUR_WIDTH=132;
 const TIMELINE_STEP_HOURS=3;
+const MAX_DAY_OFFSET=6;
 function hourWidth(){return window.matchMedia('(max-width:780px)').matches?MOBILE_HOUR_WIDTH:DESKTOP_HOUR_WIDTH;}
 let dayOffset=0;
 let activeProgram=null;
@@ -21,6 +22,31 @@ function dayLabel(offset=0){
   if(offset===1)return'Αύριο';
   if(offset===-1)return'Χθες';
   return start.toLocaleDateString('el-GR',{weekday:'short',day:'2-digit',month:'2-digit'});
+}
+function dayTabLabel(offset=0){
+  if(offset===0)return'Σήμερα';
+  return dayBounds(offset).start.toLocaleDateString('el-GR',{weekday:'short',day:'2-digit',month:'2-digit'});
+}
+function selectGuideDay(offset){
+  const next=Math.max(0,Math.min(MAX_DAY_OFFSET,Number(offset)||0));
+  dayOffset=next;
+  closeProgram();
+  renderGuide({focusNow:next===0,resetTimeline:next!==0});
+}
+function renderDayTabs(){
+  const host=$('epg-guide-day-tabs');if(!host)return;
+  host.replaceChildren();
+  for(let offset=0;offset<=MAX_DAY_OFFSET;offset+=1){
+    const button=document.createElement('button');
+    button.type='button';button.className='epg-guide-day-tab';
+    button.textContent=dayTabLabel(offset);
+    button.dataset.dayOffset=String(offset);
+    const selected=offset===dayOffset;
+    button.classList.toggle('is-selected',selected);
+    button.setAttribute('aria-pressed',selected?'true':'false');
+    button.addEventListener('click',()=>selectGuideDay(offset));
+    host.appendChild(button);
+  }
 }
 function ensureToggle(){
   let button=$('epg-guide-toggle');
@@ -53,7 +79,7 @@ function ensureUi(){
           <button id="epg-guide-close" class="button ghost" type="button" aria-label="Close EPG Guide">✕</button>
         </div>
       </header>
-      <div class="epg-guide-datebar"><strong id="epg-guide-day">Σήμερα</strong><span id="epg-guide-status" class="muted small">Ready</span></div>
+      <div class="epg-guide-datebar"><nav id="epg-guide-day-tabs" class="epg-guide-day-tabs" aria-label="Ημέρες προγράμματος"></nav><span id="epg-guide-status" class="muted small">Ready</span></div>
       <div id="epg-guide-scroll" class="epg-guide-scroll">
         <div id="epg-guide-grid" class="epg-guide-grid"></div>
       </div>
@@ -73,7 +99,7 @@ function ensureUi(){
   $('epg-guide-close')?.addEventListener('click',closeGuide);
   $('epg-guide-prev')?.addEventListener('click',()=>scrollTimelineBy(-TIMELINE_STEP_HOURS));
   $('epg-guide-next')?.addEventListener('click',()=>scrollTimelineBy(TIMELINE_STEP_HOURS));
-  $('epg-guide-today')?.addEventListener('click',()=>{dayOffset=0;renderGuide({focusNow:true});});
+  $('epg-guide-today')?.addEventListener('click',()=>selectGuideDay(0));
   $('epg-program-close')?.addEventListener('click',closeProgram);
   $('epg-program-back')?.addEventListener('click',closeProgram);
   $('epg-program-dialog')?.addEventListener('pointerdown',event=>{if(event.target===$('epg-program-dialog'))closeProgram();});
@@ -153,13 +179,13 @@ async function playProgramChannel(){
     setTimeout(()=>{button.disabled=false;button.textContent='▶ Play';},1600);
   }
 }
-function renderGuide({focusNow=false}={}){
+function renderGuide({focusNow=false,resetTimeline=false}={}){
   ensureUi();
   const channels=playlist()?.getChannels?.()||[];
   const root=$('epg-guide-grid'),status=$('epg-guide-status'),scroll=$('epg-guide-scroll');
   const previousScroll=scroll?.scrollLeft||0;
   const{start,end}=dayBounds(dayOffset);const startMs=start.getTime(),endMs=end.getTime();
-  $('epg-guide-day').textContent=dayLabel(dayOffset);
+  renderDayTabs();
   $('epg-guide-summary').textContent=`${channels.length} sidebar channels · click a programme for details`;
   root.replaceChildren();
   const nowMs=Date.now();
@@ -195,7 +221,7 @@ function renderGuide({focusNow=false}={}){
     const line=document.createElement('div');line.id='epg-guide-now-line';line.className='epg-guide-now-line';line.style.left=`calc(var(--epg-channel-width) + ${nowX}px)`;
     const badge=document.createElement('span');badge.textContent='ΤΩΡΑ';line.appendChild(badge);root.appendChild(line);
     requestAnimationFrame(()=>{if(focusNow)focusNowInTimeline();else{if(scroll)scroll.scrollLeft=previousScroll;keepCurrentProgrammeCopyVisible();}});
-  }else requestAnimationFrame(()=>{if(scroll)scroll.scrollLeft=focusNow?0:previousScroll;});
+  }else requestAnimationFrame(()=>{if(scroll)scroll.scrollLeft=resetTimeline?0:previousScroll;});
   status.textContent=`${programmeCount} programmes · ${channels.length} channels`;
 }
 function boot(){
