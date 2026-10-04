@@ -96,6 +96,21 @@ jobs:
           echo "::error::EPG proxy did not return both valid /epg.xml and /status responses"
           exit 1
 
+      - name: Verify live full sidebar EPG scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          channels='ert1,ert2,ert3,ertnews,ant1,alpha,skai,mega,open,meganews,star,action24,kontra,tv100,barazatvhdgreekhits,barazatvlaika,madtv,madworld,paniktv,realmusictv,ertsports1,ertsports2,ertsports3,ertsports4'
+          curl --fail --silent --show-error --max-time 60 \
+            -H 'Cache-Control: no-cache' \
+            "$WORKER_URL/epg.xml?channels=$channels&fullscope=${GITHUB_SHA}" \
+            -o /tmp/epg-full-scope.xml
+          grep -q '<tv' /tmp/epg-full-scope.xml
+          grep -q '<programme' /tmp/epg-full-scope.xml
+          programmes=$(grep -o '<programme\b' /tmp/epg-full-scope.xml | wc -l | tr -d ' ')
+          bytes=$(wc -c < /tmp/epg-full-scope.xml | tr -d ' ')
+          echo "Verified full sidebar EPG scope · programmes=$programmes bytes=$bytes"
+
       - name: Verify live EPG source matrix
         shell: bash
         run: |
