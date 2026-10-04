@@ -32,8 +32,8 @@ try{
     };
    });
    await page.goto(target,{waitUntil:'domcontentloaded',timeout:30000});
-   await page.waitForFunction(()=>window.WebTVPlaylistAPI?.ready&&window.WebTVPlaylistAPI.getCount()>0,{timeout:45000});
-   await page.waitForFunction(()=>[...document.querySelectorAll('.channel-now-title')].some(n=>n.textContent.trim()),{timeout:60000});
+   await page.waitForFunction(()=>window.WebTVPlaylistAPI?.ready&&window.WebTVPlaylistAPI.getCount()>0,null,{timeout:45000});
+   await page.waitForFunction(()=>[...document.querySelectorAll('.channel-now-title')].some(n=>n.textContent.trim()),null,{timeout:60000});
    const inspect=()=>page.evaluate(()=>({
     ...window.railProbe,rails:document.querySelectorAll('#desktop-control-rail').length,
     channels:window.WebTVPlaylistAPI.getCount(),rows:document.querySelectorAll('#channel-list .channel-item').length,
@@ -68,7 +68,7 @@ try{
    await page.screenshot({path:`browser-evidence/${name}-unlocked-controlled-auth.png`,fullPage:true});
    await page.locator('#sport-toggle').click();await page.waitForURL('**/sport.html');
    await page.locator('.back-link').click();await page.waitForURL('**/index.html?from=sport');
-   await page.waitForFunction(()=>document.documentElement.classList.contains('admin-unlocked')&&window.WebTVPlaylistAPI?.ready,{timeout:45000});
+   await page.waitForFunction(()=>document.documentElement.classList.contains('admin-unlocked')&&window.WebTVPlaylistAPI?.ready,null,{timeout:45000});
    assert(await page.locator('#sport-toggle').isVisible());
    assert.equal(await page.evaluate(()=>window.WebTVPlaylistAPI.getSelectedChannel()),null);
    await page.locator('#admin-unlock-trigger').click();assert(!(await page.locator('#sport-toggle').isVisible()));
