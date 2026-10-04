@@ -2,6 +2,11 @@
 const root=document.documentElement;
 const trigger=document.getElementById('admin-unlock-trigger');
 let unlocking=false;
+const SPORT_RETURN_KEY='webtv_v2_sport_return_unlocked';
+
+function rememberSportReturn(unlocked){
+  try{if(unlocked)sessionStorage.setItem(SPORT_RETURN_KEY,'1');else sessionStorage.removeItem(SPORT_RETURN_KEY);}catch{}
+}
 
 function setUnlocked(unlocked){
   root.classList.toggle('admin-locked',!unlocked);
@@ -9,6 +14,7 @@ function setUnlocked(unlocked){
   trigger?.setAttribute('aria-expanded',String(unlocked));
   trigger?.setAttribute('aria-label',unlocked?"Lock TONI'S WEBTV controls":"Unlock TONI'S WEBTV controls");
   if(!unlocked){
+    rememberSportReturn(false);
     for(const id of ['playlist-manager','source-hunt','diagnostics','source-editor-overlay','unified-search-panel','epg-guide-overlay','epg-program-dialog']){
       const panel=document.getElementById(id);if(panel)panel.hidden=true;
     }
@@ -31,5 +37,22 @@ trigger?.addEventListener('click',async()=>{
   }finally{unlocking=false;}
 });
 
-// Refresh always starts with the administration UI closed, even on a trusted device.
+document.getElementById('sport-toggle')?.addEventListener('click',()=>{
+  rememberSportReturn(root.classList.contains('admin-unlocked'));
+});
+
+// Only a same-tab SPORT return may restore an explicit UI unlock, and only
+// after the canonical auth owner confirms the existing Registry session.
+let restoreSportReturn=false;
+try{
+  restoreSportReturn=new URLSearchParams(location.search).get('from')==='sport'&&sessionStorage.getItem(SPORT_RETURN_KEY)==='1';
+  sessionStorage.removeItem(SPORT_RETURN_KEY);
+}catch{}
 setUnlocked(false);
+if(restoreSportReturn){
+  unlocking=true;
+  Promise.resolve().then(()=>window.WebTVRegistryAuth?.validateSession())
+    .then(valid=>{if(valid)setUnlocked(true);})
+    .catch(()=>{})
+    .finally(()=>{unlocking=false;});
+}
