@@ -51,7 +51,13 @@ try{
 setUnlocked(false);
 if(restoreSportReturn){
   unlocking=true;
-  Promise.resolve().then(()=>window.WebTVRegistryAuth?.validateSession())
+  Promise.resolve().then(async()=>{
+    const auth=window.WebTVRegistryAuth;
+    const existingToken=auth?.token?.();
+    if(!existingToken)return false;
+    const valid=await auth.validateSession();
+    return valid&&auth.token()===existingToken;
+  })
     .then(valid=>{if(valid)setUnlocked(true);})
     .catch(()=>{})
     .finally(()=>{unlocking=false;});
