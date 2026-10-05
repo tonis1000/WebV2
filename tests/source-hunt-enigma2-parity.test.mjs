@@ -16,7 +16,7 @@ assert.doesNotMatch(index,/source-hunt-enigma2\.js/,
 assert.match(index,/\.\/src\/search\/search-ui\.js\?v=[^\"']+/,
   'Unified Search must be the active automatic search surface regardless of cache-bust version');
 assert.match(catalog,/format:'enigma2'/,'canonical curated source catalog must declare Enigma2 feeds');
-assert.match(worker,/parseEnigma2Bouquet/,'active Discovery Worker must consume the shared Enigma2 structural core');
+assert.match(worker,/selectEnigma2BouquetServices/,'active Discovery Worker must consume the shared Enigma2 structural core through its selective API');
 assert.match(worker,/curated-source-catalog\.js/,'active Discovery Worker must source Enigma2 feeds from the canonical curated catalog');
 assert.doesNotMatch(index,/source-hunt-enigma2\.js\?v=20260929-enigma2-visible-proxy/,
   'stale pre-E3b Enigma2 cache key must remain retired');
