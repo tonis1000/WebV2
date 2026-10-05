@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseEnigma2Bouquet } from '../src/core/enigma2-core.js';
+import { parseEnigma2Bouquet, selectEnigma2BouquetServices } from '../src/core/enigma2-core.js';
 
 function serviceByDescription(result, description) {
   return result.services.find(service => service.description === description);
@@ -89,3 +89,15 @@ function serviceByDescription(result, description) {
 }
 
 console.log('Enigma2 core contract passed');
+
+{
+  const filler=Array.from({length:250},(_,i)=>`#SERVICE 4097:0:1:0:0:0:0:0:0:0:http%3A//cdn.example.test/filler-${i}/${'x'.repeat(120)}.m3u8:Filler ${i}\n#DESCRIPTION Filler ${i}\n`).join('');
+  const target='#SERVICE 4097:0:1:0:0:0:0:0:0:0:https%3A//target.example/live.m3u8:Target Channel\n#DESCRIPTION Target Channel\n';
+  const selected=selectEnigma2BouquetServices(`#NAME Selective\n${filler}${target}`,{
+    acceptService:service=>service.description==='Target Channel',
+  });
+  assert.equal(selected.name,'Selective');
+  assert.equal(selected.services.length,1,'selective Enigma2 parsing must materialize only caller-accepted services');
+  assert.equal(selected.services[0].description,'Target Channel');
+  assert.equal(selected.services[0].decodedReference,'https://target.example/live.m3u8');
+}

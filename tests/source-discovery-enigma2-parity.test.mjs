@@ -8,8 +8,8 @@ assert.match(source, /enigma2-core\.js/,
   'Source Discovery must consume the shared Enigma2 structural core');
 assert.doesNotMatch(source, /function\s+parseEnigma2\s*\([^)]*\)\s*\{[\s\S]*?split\(['"]\\n['"]\)/,
   'Source Discovery must not keep its own line-level Enigma2 structural parser');
-assert.match(source, /parseEnigma2Bouquet\s*\(/,
-  'Source Discovery must derive neutral service structure from the shared core');
+assert.match(source, /selectEnigma2BouquetServices\s*\(/,
+  'Source Discovery must derive neutral service structure through the shared core selective API');
 
 const channel={id:'skai',originalId:'SKAI',name:'SKAI',tvgId:'Skai.gr'};
 const fixture=`#NAME Greek\n#SERVICE 4097:0:1:0:0:0:0:0:0:0:https%3A//cdn.example.test/skai/master.m3u8:SKAI\n#DESCRIPTION SKAI\n#SERVICE 1:0:1:0:0:0:0:0:0:0:rtsp%3A//camera.example.test/live:SKAI\n#DESCRIPTION SKAI\n#SERVICE 5002:0:1:0:0:0:0:0:0:0:https%3A//cdn.example.test/skai/live.mpd:SKAI\n#DESCRIPTION SKAI\n`;

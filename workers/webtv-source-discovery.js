@@ -3,7 +3,7 @@ import { RECENT_WEB_SEARCH_PROVIDER, discoverRecentWebSearch } from './source-di
 import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source-discovery/strm-specific-discovery.js';
 import { channelSignalsMatch, normalizeChannelText } from '../src/core/channel-identity-gr.js';
 import { selectM3uContainerEntries, splitM3uSourceAlternatives } from '../src/core/m3u-container.js';
-import { parseEnigma2Bouquet } from '../src/core/enigma2-core.js';
+import { selectEnigma2BouquetServices } from '../src/core/enigma2-core.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
 
@@ -89,15 +89,20 @@ function parseM3u(text='',channel={},feed={}){
 }
 function parseEnigma2(text='',channel={},feed={}){
   const results=[];
-  const bouquet=parseEnigma2Bouquet(text);
+  const bouquet=selectEnigma2BouquetServices(text,{
+    acceptService:service=>{
+      if(!['4097','5001','5002'].includes(service.serviceType))return false;
+      const inlineName=service.inlineName||service.inlineNameDecodedOnce||'';
+      const description=service.description||service.rawDescription||'';
+      return signalsMatch([inlineName,description],channel);
+    },
+  });
   for(const service of bouquet.services){
     if(results.length>=MAX_RESULTS)break;
-    if(!['4097','5001','5002'].includes(service.serviceType))continue;
     const sourceUrl=[service.decodedReference,service.embeddedReference,service.decodedReferenceOnce].find(validPublicUrl)||'';
     const inlineName=service.inlineName||service.inlineNameDecodedOnce||'';
     const description=service.description||service.rawDescription||'';
     if(!sourceUrl)continue;
-    if(!signalsMatch([inlineName,description],channel))continue;
     const matchedName=description||inlineName||channel.name||'';
     const resultName=channel.familyQuery===true?matchedName:(channel.name||matchedName);
     results.push(makeCandidate({
