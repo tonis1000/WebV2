@@ -13,7 +13,7 @@ const savePolicy=fs.readFileSync(new URL('../src/search/save-source-policy.js',i
 for(const required of [
   'unified-search-form','unified-search-query','unified-search-results','unified-search-report',
   'unified-search-report-summary','unified-search-report-timeline','unified-search-cancel',
-  'Copy report','Export JSON','Open source','Details','Play','unified-search-status-banner','unified-search-submit',
+  'Copy report','Export JSON','Open source','Details','Play','Best Source','Use Best Source','unified-search-status-banner','unified-search-submit',
 ])assert.ok(js.includes(required),`UI must include ${required}`);
 
 assert.equal(/Find Official|Official Sources|official-provider-lane|official-api-resolver/i.test(js),false,'Official discovery controls must not appear in Unified Search UI');
@@ -24,6 +24,8 @@ assert.equal(/writeText\?\.\(raw\.sourceUrl\)|writeText\(raw\.sourceUrl\)/.test(
 assert.ok(savePolicy.includes('Save source'),'Save source label must be owned by the save-source policy');
 assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play action must use the existing playback boundary');
 assert.ok(/WebTVMyPlaylistAPI/.test(js)&&/addSourceToCurrent/.test(js),'Save source must reuse the existing My Playlist persistence owner');
+assert.ok(/saveVerifiedSearchSource/.test(js),'Best Source must persist only through the canonical Playlist Manager API');
+assert.ok(/selectBestSource|rankBestSources/.test(js),'Unified Search must use the dedicated Best Source selector instead of inventing a second Health store');
 assert.ok(/playbackConfirmedCandidates/.test(js),'Save source must be gated by successful candidate playback');
 assert.ok(/normalizedSelectedChannelKeys/.test(js),'Save source must bind to the selected sidebar channel identity');
 assert.ok(/genericSaveBlocked/.test(savePolicy)&&/xtreamContext|sourceType[^\n]*xtream/.test(savePolicy),'generic Save source must preserve the Xtream persistence boundary');
