@@ -629,7 +629,9 @@ els.search.addEventListener('input',renderChannels);
 els.group.addEventListener('change',renderChannels);
 window.addEventListener('webtv:favorites-presentation-changed',renderChannels);
 els.diagToggle.addEventListener('click',()=>{els.diagnostics.hidden=!els.diagnostics.hidden;});
+$('diagnostics-close')?.addEventListener('click',()=>{els.diagnostics.hidden=true;els.diagToggle.setAttribute('aria-expanded','false');});
 els.sourceHuntToggle.addEventListener('click',()=>{if(selected){renderSourceHunt(selected);els.sourceHunt.hidden=!els.sourceHunt.hidden;}});
+$('source-hunt-close')?.addEventListener('click',()=>{els.sourceHunt.hidden=true;els.sourceHuntToggle.setAttribute('aria-expanded','false');});
 document.addEventListener('pointerdown',event=>{
   if(els.sourceHunt.hidden)return;
   if(els.sourceHunt.contains(event.target)||els.sourceHuntToggle.contains(event.target))return;
