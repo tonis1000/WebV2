@@ -23,7 +23,7 @@ export function genericSaveBlocked(candidate={}){
 
 export function bestSourceSaveEligibility({candidate={},playbackConfirmed=false}={}){
   if(genericSaveBlocked(candidate))return{enabled:false,label:'Use Xtream Preview',title:'Authorized Xtream sources keep their existing Preview → Verify → Save boundary'};
-  if(String(candidate.verificationStatus||'').toUpperCase()!=='VERIFIED')return{enabled:false,label:'Use Best Source',title:'Best Source must reach VERIFIED_MEDIA first'};
+  if(candidate.verified!==true||String(candidate.verificationStatus||'').toUpperCase()!=='VERIFIED')return{enabled:false,label:'Use Best Source',title:'Best Source must reach canonical VERIFIED_MEDIA proof first'};
   if(String(candidate.streamKind||'unknown').toLowerCase()!=='live')return{enabled:false,label:'Use Best Source',title:'Best Source must be verifier-confirmed live media'};
   if(Boolean(candidate.drmDetected))return{enabled:false,label:'Use Best Source',title:'DRM-marked candidates are not promoted by the generic Best Source flow'};
   if(candidate.browserPlayable!==true)return{enabled:false,label:'Use Best Source',title:'This candidate is not playable by the current browser Player'};
@@ -40,7 +40,7 @@ export function saveSourceEligibility({
 }={}){
   if(alreadySaved)return{enabled:false,label:'Saved ✓',title:'This source is already saved in this search session'};
   if(genericSaveBlocked(candidate))return{enabled:false,label:'Save via Xtream Preview',title:'Authorized Xtream sources must use Xtream Preview → Verify → Save Channel…'};
-  if(String(candidate.verificationStatus||'').toUpperCase()!=='VERIFIED')return{enabled:false,label:'Save source',title:'Wait for this source to reach VERIFIED_MEDIA first'};
+  if(candidate.verified!==true||String(candidate.verificationStatus||'').toUpperCase()!=='VERIFIED')return{enabled:false,label:'Save source',title:'Wait for this source to reach canonical VERIFIED_MEDIA proof first'};
   if(String(candidate.streamKind||'unknown').toLowerCase()!=='live')return{enabled:false,label:'Save source',title:'Only verifier-confirmed live media can be saved to a linear channel; on-demand or unknown media stays temporary'};
   if(!playbackConfirmed)return{enabled:false,label:'Save source',title:'Play this source successfully before saving it'};
   if(!candidateMatchesSelectedChannel(candidate,channelName,selectedChannel||{}))return{enabled:false,label:'Save source',title:`Select ${channelName||candidate.channelName||'this channel'} in the sidebar before saving`};
