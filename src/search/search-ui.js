@@ -8,7 +8,7 @@ import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay } from '../discovery/candidate-model.js';
 import { normalizedSelectedChannelKeys, saveSourceEligibility } from './save-source-policy.js';
 
-const BUILD_ID='20261005-unified-save-source-a';
+const BUILD_ID='20261005-channel-signal-health-a';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
 const playbackConfirmedCandidates=new Set();
@@ -188,7 +188,19 @@ function candidateRow(raw,channelName){
   const grid=document.createElement('div');grid.className='unified-detail-grid';
   const facts=[['Input format',candidate.inputFormatId||candidate.sourceType||'unknown'],['Resolved media',candidate.resolvedMediaFormatId||'unknown'],['Browser playback',candidate.browserPlayable?'yes':'no'],['Verification',candidate.verificationStatus||'UNVERIFIED'],['HTTP',candidate.lastHttpStatus||'—'],['Candidate ID',candidate.candidateId||'—']];
   for(const [label,value] of facts){const cell=document.createElement('div');const l=document.createElement('span');l.textContent=label;const v=document.createElement('code');v.textContent=String(value);cell.append(l,v);grid.appendChild(cell);}
-  details.append(detailSummary,grid,sourceLinks(raw));
+  const external=document.createElement('div');external.className='unified-external-health';external.dataset.state='idle';external.textContent='External health: open Details to check Channel Signal';
+  details.append(detailSummary,grid,external,sourceLinks(raw));
+  details.addEventListener('toggle',async()=>{
+    if(!details.open||external.dataset.state!=='idle')return;
+    if(raw.xtreamContext||String(raw.sourceType||'').toLowerCase()==='xtream'){external.dataset.state='skipped';external.textContent='External health: not applicable to Xtream';return;}
+    external.dataset.state='loading';external.textContent='External health: checking Channel Signal…';
+    const result=await fetchExternalHealth(raw.sourceUrl);
+    external.dataset.state=String(result.state||'unavailable');
+    const when=result.checkedAt||String(result.lastSwept||'').slice(0,10);
+    const scope=[result.state||'unavailable',result.channel,result.list,when].filter(Boolean).join(' · ');
+    external.textContent=`External health: Channel Signal · ${scope}${result.state==='not-found'?' · exact URL not tracked':''}`;
+    external.title=result.detail||'Advisory exact-URL external health evidence; does not override WebV2 verification.';
+  });
   const candidateEvents=candidateReportEvents(candidate.candidateId);if(candidateEvents.length){const pre=document.createElement('div');pre.className='unified-report-timeline';for(const event of candidateEvents.slice(-30))pre.appendChild(reportEventRow(event));details.appendChild(pre);}
   main.append(title,meta,url,details);
   const actions=document.createElement('div');actions.className='unified-candidate-actions';
