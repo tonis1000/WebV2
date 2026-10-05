@@ -177,7 +177,7 @@ assert.match(webProvider,/WEB_MAX_GIST_SCANS=2/, 'Recent Web provider must keep 
 assert.match(webProvider,/site:gist\.github\.com/, 'Recent Web provider must use an explicit GitHub Gist discovery query');
 assert.match(webProvider,/api\.github\.com\/gists\//, 'Gist leads must resolve through the canonical public GitHub Gist API');
 assert.match(webProvider,/CREDENTIAL_DUMP/, 'Gist intelligence must reject credential-style dumps before candidate production');
-assert.match(webProvider,/api\.search\.brave\.com/, 'Recent Web provider must call Brave directly from the Worker');
+assert.match(webProvider,/api\.search\.brave\.com/, 'Recent Web explicit fallback keeps its bounded Brave implementation in the Worker');
 assert.match(webProvider,/freshness/, 'Recent Web provider must send an explicit search freshness window');
 assert.doesNotMatch(webProvider,/source-huntatonisworkersdev/, 'Recent Web provider must not route through legacy Source Hunt');
 
