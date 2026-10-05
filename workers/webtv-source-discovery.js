@@ -88,7 +88,8 @@ function parseM3u(text='',channel={},feed={}){
 }
 function parseEnigma2(text='',channel={},feed={}){
   const results=[];
-  for(const service of parseEnigma2Bouquet(text).services){
+  const bouquet=parseEnigma2Bouquet(text);
+  for(const service of bouquet.services){
     if(results.length>=MAX_RESULTS)break;
     if(!['4097','5001','5002'].includes(service.serviceType))continue;
     const sourceUrl=[service.decodedReference,service.embeddedReference,service.decodedReferenceOnce].find(validPublicUrl)||'';
@@ -109,7 +110,7 @@ function parseEnigma2(text='',channel={},feed={}){
         enigma2ServiceType:service.serviceType,
         enigma2Description:description,
         enigma2InlineName:inlineName,
-        enigma2Bouquet:parseEnigma2Bouquet(text).name||'',
+        enigma2Bouquet:bouquet.name||'',
       },
     }));
   }
