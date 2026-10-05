@@ -1,0 +1,40 @@
+name: Verify Source Discovery CPU fix
+on:
+  pull_request:
+    paths: ['.github/workflows/verify-source-discovery-cpu-fix.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify playlist-heavy production lanes
+        shell: bash
+        env:
+          W: https://webtv-source-discovery.atonis.workers.dev
+        run: |
+          set -euo pipefail
+          probe() {
+            name="$1"; body="$2"
+            code=$(curl --silent --show-error --max-time 25 -o "/tmp/$name.json" -w '%{http_code}' -X POST "$W/discover" -H 'content-type: application/json' --data "$body")
+            echo "$name HTTP=$code bytes=$(wc -c < "/tmp/$name.json")"
+            [ "$code" = "200" ]
+            node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "/tmp/$name.json"
+          }
+          probe curated '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
+          probe github '{"provider":"github-public-playlists","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
+          probe strm '{"provider":"strm-specific-discovery","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}'
+          probe fallback_empty '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"__WEBV2_NO_SUCH_CHANNEL__","id":"__webv2_no_such_channel__","originalId":"__WEBV2_NO_SUCH_CHANNEL__"}}'
+          probe fallback_private '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"Západoslovenská TV (Twich)","id":"zapadoslovenska-tv-twich","originalId":"Západoslovenská TV (Twich)"}}'
+          node <<'NODE'
+          const fs=require('fs');
+          const empty=JSON.parse(fs.readFileSync('/tmp/fallback_empty.json','utf8'));
+          const priv=JSON.parse(fs.readFileSync('/tmp/fallback_private.json','utf8'));
+          if(!Array.isArray(empty.candidates)||!Array.isArray(empty.reports))process.exit(1);
+          if(!Array.isArray(priv.candidates)||!Array.isArray(priv.reports))process.exit(1);
+          if(!priv.reports.some(x=>x.feed==='Ciefp IPTV Mix'&&x.status===200))process.exit(1);
+          const bad=priv.candidates.some(x=>/^(?:https?:\/\/)?(?:127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|localhost)/i.test(String(x.sourceUrl||'')));
+          if(bad)process.exit(1);
+          console.log('FALLBACK_ACCEPTANCE=PASS');
+          NODE
