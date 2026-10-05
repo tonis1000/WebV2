@@ -1,79 +1,107 @@
 const SERVICE='WebTV Media Catalog';
-const VERSION='1.0';
+const VERSION='1.1';
 const ORIGIN='https://live.ertflix.gr';
-const MAX_ITEMS=36;
-const MAX_BYTES=2500000;
-const TIMEOUT_MS=10000;
+const MAX_ITEMS=48;
+const MAX_BYTES=3500000;
+const TIMEOUT_MS=12000;
 
 function headers(){return {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, OPTIONS','Content-Type':'application/json; charset=utf-8'};}
 function reply(body,status=200){return new Response(JSON.stringify(body),{status,headers:{...headers(),'Cache-Control':'public, max-age=120'}});}
-function decode(value=''){return String(value||'').replaceAll('&amp;','&').replaceAll('&quot;','"').replaceAll('&#39;',"'").replaceAll('\\u0026','&').replaceAll('\\u003c','<').replaceAll('\\u003e','>').replaceAll('\\/','/');}
-function text(value=''){return decode(String(value||'')).replace(/<[^>]+>/g,' ').replace(/\\[nrt]/g,' ').replace(/\s+/g,' ').trim();}
-function validId(value=''){const id=String(value||'').toUpperCase();return /^ERT_[A-Z0-9_]+_E\d+$/.test(id)?id:'';}
-function pageUrl(id=''){const safe=validId(id);return safe?ORIGIN+'/details/'+safe:'';}
-function titleNear(html,pos,id){
-  const s=decode(html).slice(Math.max(0,pos-650),pos+650);
-  const candidates=[];
-  for(const re of [/<h[1-4][^>]*>([\s\S]*?)<\/h[1-4]>/gi,/["'](?:Title|title)["']\s*:\s*["']([^"']{2,160})["']/gi,/alt=["']([^"']{2,160})["']/gi]){
-    for(const m of s.matchAll(re)){const v=text(m[1]);if(v&&v!==id&&!/^ERT[_ ]/i.test(v))candidates.push(v);}
-  }
-  return candidates.at(-1)||'';
+function validSeriesId(value=''){
+  const id=String(value||'').trim().toUpperCase();
+  return /^ERT_[A-Z0-9_]+_E0$/.test(id)?id:'';
 }
-function refs(html=''){
-  const raw=decode(html);const out=[];const seen=new Set();
-  for(const a of raw.matchAll(/<a\b[^>]*href=["'][^"']*\/details\/(ERT_[A-Z0-9_]+_E\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi)){
-    const id=validId(a[1]);if(!id||seen.has(id))continue;seen.add(id);
-    out.push({id,title:text(a[2]).replace(/^Play\s*/i,'').trim(),officialUrl:pageUrl(id),provider:'ertflix'});
-  }
-  for(const m of raw.matchAll(/\/details\/(ERT_[A-Z0-9_]+_E\d+)/gi)){
-    const id=validId(m[1]);if(!id||seen.has(id))continue;seen.add(id);
-    out.push({id,title:titleNear(raw,m.index||0,id),officialUrl:pageUrl(id),provider:'ertflix'});
+function officialUrl(id=''){const safe=validSeriesId(id);return safe?ORIGIN+'/details/'+safe:'';}
+function imageUrl(value=''){
+  const raw=String(value||'').trim();
+  if(!raw)return'';
+  if(raw.startsWith('/cached-images/'))return ORIGIN+raw;
+  return raw.startsWith(ORIGIN+'/cached-images/')?raw:'';
+}
+function episodeNumber(value=''){
+  const m=String(value||'').match(/^[EΕ](\d+)\b/i);
+  return m?Number(m[1]):null;
+}
+function normalizeCatalog(payload={}){
+  const out=[];const seen=new Set();
+  for(const rail of Array.isArray(payload.rails)?payload.rails:[]){
+    for(const row of Array.isArray(rail?.items)?rail.items:[]){
+      const id=validSeriesId(row?.id);
+      if(!id||seen.has(id))continue;
+      const title=String(row?.title||'').trim();
+      if(!title)continue;
+      seen.add(id);
+      out.push({
+        id,title,
+        year:String(row?.year||'').trim(),
+        category:String(row?.category||'Series').trim()||'Series',
+        rating:String(row?.rating||'').trim(),
+        hasCc:Boolean(row?.hasCc),
+        image:imageUrl(row?.image||row?.thumbnail),
+        description:String(row?.description||'').trim().slice(0,1200),
+        officialUrl:officialUrl(id),
+        provider:'ertflix',
+        kind:'series'
+      });
+      if(out.length>=MAX_ITEMS)return out;
+    }
   }
   return out;
 }
-function pageTitle(html='',id=''){
-  const raw=decode(html);
-  const h=text((raw.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)||[])[1]||'');
-  if(h&&h!==id&&!/^ERT[_ ]/i.test(h))return h;
-  const p=raw.indexOf(id);
-  return titleNear(raw,p<0?0:p,id)||id;
+function normalizeDetails(payload={},requestedId=''){
+  const id=validSeriesId(payload?.id)||validSeriesId(requestedId);
+  if(!id)throw new Error('Invalid ERTFlix series details');
+  const episodes=(Array.isArray(payload?.episodes)?payload.episodes:[]).map(row=>({
+    id:String(row?.id||'').trim(),
+    episodeNumber:episodeNumber(row?.title),
+    title:String(row?.title||'').trim()||'Επεισόδιο',
+    duration:String(row?.duration||'').trim(),
+    rating:String(row?.rating||'').trim(),
+    hasCc:Boolean(row?.hasCc),
+    image:imageUrl(row?.image),
+    description:String(row?.description||'').trim().slice(0,1200),
+    provider:'ertflix',
+    officialUrl:officialUrl(id)
+  })).filter(row=>row.id&&row.title);
+  return {
+    id,
+    title:String(payload?.title||'').trim()||id,
+    year:String(payload?.year||'').trim(),
+    category:String(payload?.category||'Series').trim()||'Series',
+    rating:String(payload?.rating||'').trim(),
+    image:imageUrl(payload?.poster||payload?.wallpaper),
+    description:String(payload?.description||payload?.synopsis||'').trim().slice(0,1800),
+    officialUrl:officialUrl(id),
+    provider:'ertflix',
+    episodes
+  };
 }
-function description(html=''){
-  const raw=decode(html);
-  const m=raw.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']+)["']/i);
-  return text(m?.[1]||'').slice(0,1000);
-}
-function seriesFromHtml(html,id){
-  const episodes=refs(html).filter(x=>x.id!==id&&!/_E0$/i.test(x.id)).map(x=>{
-    const n=Number((x.id.match(/_E(\d+)$/i)||[])[1]||0)||null;
-    return {...x,episodeNumber:n,title:x.title||('Επεισόδιο '+(n||''))};
-  }).sort((a,b)=>(a.episodeNumber||9999)-(b.episodeNumber||9999));
-  return {id,title:pageTitle(html,id),description:description(html),officialUrl:pageUrl(id),provider:'ertflix',episodes};
-}
-async function fetchHtml(path){
-  const url=new URL(path,ORIGIN);if(url.origin!==ORIGIN)throw new Error('provider origin rejected');
+async function fetchJson(path){
+  const url=new URL(path,ORIGIN);
+  if(url.origin!==ORIGIN)throw new Error('provider origin rejected');
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),TIMEOUT_MS);
   try{
-    const r=await fetch(url.href,{redirect:'follow',headers:{accept:'text/html'},signal:controller.signal,cf:{cacheTtl:120}});
+    const r=await fetch(url.href,{redirect:'follow',headers:{accept:'application/json'},signal:controller.signal,cf:{cacheTtl:120}});
     if(!r.ok)throw new Error('ERTFlix HTTP '+r.status);
     if(Number(r.headers.get('content-length')||0)>MAX_BYTES)throw new Error('ERTFlix response too large');
-    const body=await r.text();if(new TextEncoder().encode(body).length>MAX_BYTES)throw new Error('ERTFlix response too large');
-    return body;
+    const raw=await r.text();
+    if(new TextEncoder().encode(raw).length>MAX_BYTES)throw new Error('ERTFlix response too large');
+    return JSON.parse(raw);
   }finally{clearTimeout(timer);}
 }
 async function catalog(){
-  const pages=await Promise.allSettled([fetchHtml('/'),fetchHtml('/series')]);
-  const all=[];const seen=new Set();
-  for(const page of pages){
-    if(page.status!=='fulfilled')continue;
-    for(const row of refs(page.value)){
-      if(!/_E0$/i.test(row.id)||seen.has(row.id))continue;seen.add(row.id);all.push({...row,kind:'series'});
-      if(all.length>=MAX_ITEMS)break;
-    }
-  }
-  const named=all.filter(x=>x.title&&x.title!==x.id);
-  if(!named.length)throw new Error('No identifiable ERTFlix series found');
-  return named;
+  let payload;
+  try{payload=await fetchJson('/api/template?template=Series%20Guest&lang=el_GR');}
+  catch{payload=await fetchJson('/api/template?template=Series%20Guest&lang=en_GB');}
+  const items=normalizeCatalog(payload);
+  if(!items.length)throw new Error('No identifiable ERTFlix series found');
+  return items;
+}
+async function details(id){
+  let payload;
+  try{payload=await fetchJson('/api/details?contentId='+encodeURIComponent(id)+'&lang=el_GR');}
+  catch{payload=await fetchJson('/api/details?contentId='+encodeURIComponent(id)+'&lang=en_GB');}
+  return normalizeDetails(payload,id);
 }
 
 export default {async fetch(request,env={}){
@@ -84,16 +112,16 @@ export default {async fetch(request,env={}){
   try{
     if(url.pathname==='/api/catalog'){
       const items=await catalog();
-      return reply({ok:true,service:SERVICE,version:VERSION,deploySha:String(env.DEPLOY_SHA||''),provider:'ertflix',source:ORIGIN,items});
+      return reply({ok:true,service:SERVICE,version:VERSION,deploySha:String(env.DEPLOY_SHA||''),provider:'ertflix',source:ORIGIN+'/api/template',items});
     }
-    const m=url.pathname.match(/^\/api\/series\/(ERT_[A-Z0-9_]+_E\d+)$/i);
+    const m=url.pathname.match(/^\/api\/series\/(ERT_[A-Z0-9_]+_E0)$/i);
     if(m){
-      const id=validId(m[1]);if(!id||!/_E0$/i.test(id))return reply({error:'Series id required'},400);
-      const body=await fetchHtml('/details/'+id);
-      return reply({ok:true,service:SERVICE,version:VERSION,deploySha:String(env.DEPLOY_SHA||''),provider:'ertflix',series:seriesFromHtml(body,id)});
+      const id=validSeriesId(m[1]);if(!id)return reply({error:'Series id required'},400);
+      const series=await details(id);
+      return reply({ok:true,service:SERVICE,version:VERSION,deploySha:String(env.DEPLOY_SHA||''),provider:'ertflix',source:ORIGIN+'/api/details',series});
     }
     return reply({error:'Not found'},404);
   }catch(error){return reply({ok:false,service:SERVICE,version:VERSION,error:error?.message||String(error)},502);}
 }};
 
-export {refs,seriesFromHtml,validId,pageTitle};
+export {validSeriesId,normalizeCatalog,normalizeDetails,episodeNumber,imageUrl};
