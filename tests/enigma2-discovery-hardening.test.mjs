@@ -1,3 +1,14 @@
 import assert from 'node:assert/strict';
-assert.equal(1,1);
-console.log('Enigma2 hardening test placeholder PASS');
+import fs from 'node:fs';
+const w=fs.readFileSync(new URL('../workers/webtv-source-discovery.js',import.meta.url),'utf8');
+assert.ok(w.includes('service.decodedReference'));
+assert.ok(w.includes('service.embeddedReference'));
+assert.ok(w.includes('service.description'));
+assert.ok(w.includes('service.inlineName'));
+assert.ok(w.includes('sourceOriginUrl'));
+assert.ok(w.includes("inputFormatId:'enigma2'"));
+assert.ok(w.includes('enigma2ServiceType'));
+assert.ok(w.includes('enigma2Description'));
+assert.ok(w.includes('enigma2InlineName'));
+assert.ok(w.includes('enigma2Bouquet'));
+console.log('Enigma2 Discovery hardening contract PASS');
