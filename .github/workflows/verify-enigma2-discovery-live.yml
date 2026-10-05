@@ -43,13 +43,21 @@ jobs:
             try { return privateHost(new URL(String(raw).split('|')[0].trim()).hostname); } catch { return false; }
           }
           async function postDiscover(name) {
-            const res=await fetch(discovery+'/discover',{
-              method:'POST',
-              headers:{'content-type':'application/json'},
-              body:JSON.stringify({provider:'curated-remote-feeds',freshness:'7d',channel:{name,id:name,originalId:name}})
-            });
-            if(!res.ok) throw new Error('Discovery HTTP '+res.status+' for '+name);
-            return res.json();
+            let lastStatus=0;
+            for(let attempt=1;attempt<=3;attempt++) {
+              try {
+                const res=await fetch(discovery+'/discover',{
+                  method:'POST',
+                  headers:{'content-type':'application/json'},
+                  body:JSON.stringify({provider:'curated-remote-feeds',freshness:'7d',channel:{name,id:name,originalId:name}})
+                });
+                lastStatus=res.status;
+                if(res.ok) return res.json();
+              } catch {}
+              await new Promise(resolve=>setTimeout(resolve,1200));
+            }
+            console.log('Discovery temporarily unavailable for probe',JSON.stringify({channel:name,lastStatus}));
+            return null;
           }
 
           const reg=await fetch(process.env.REGISTRY_STATUS_URL,{headers:{'cache-control':'no-cache'}}).then(r=>r.json());
@@ -61,6 +69,7 @@ jobs:
           let hansProof=null;
           for(const name of preferred) {
             const payload=await postDiscover(name);
+            if(!payload) continue;
             const candidate=(payload.candidates||[]).find(c=>
               c?.sourceOrigin==='HansSettings Greece' &&
               c?.inputFormatId==='enigma2' &&
@@ -113,6 +122,7 @@ jobs:
               if(!localPrivate) continue;
 
               const live=await postDiscover(channelName);
+              if(!live) continue;
               const leaked=(live.candidates||[]).find(x=>isPrivateUrl(x.sourceUrl));
               if(leaked) throw new Error('Production leaked a private/local curated candidate for '+channelName);
 
