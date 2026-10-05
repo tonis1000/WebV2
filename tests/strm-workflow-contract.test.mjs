@@ -23,8 +23,9 @@ assert.match(frontend, /node tests\/strm-duplicate-audit\.test\.mjs/);
 assert.match(discovery, /node tests\/strm-core\.test\.mjs/);
 assert.match(discovery, /node tests\/strm-specific-discovery-provider\.test\.mjs/);
 assert.match(discovery, /node tests\/source-discovery-smart-strm-parity\.test\.mjs/);
-assert.match(discovery, /"name":"ERT1"/, 'Discovery live STRM gate must remain ERT1-based');
-assert.match(discovery, /strmResolved/, 'Discovery live gate must still require successful STRM resolution');
+assert.match(discovery, /"name":"ERT1"/, 'Discovery live STRM gate must still exercise a real public ERT1 request');
+assert.match(discovery, /strmShapeOk/, 'Discovery live STRM gate must require a healthy bounded provider response shape');
+assert.doesNotMatch(discovery, /strmResolved/, 'Discovery live gate must not require one volatile third-party STRM resolution to exist forever');
 
 assert.match(hunt, /node tests\/strm-core\.test\.mjs/);
 assert.match(hunt, /node tests\/source-hunt-strm-parity\.test\.mjs/);

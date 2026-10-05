@@ -301,7 +301,7 @@ async function discover(request,env={}){
   if(provider===STRM_SPECIFIC_DISCOVERY_PROVIDER){
     if(String(env.DISABLE_STRM_SPECIFIC_DISCOVERY||'')==='1')return json({error:'Provider disabled',provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},503);
     try{
-      const result=await discoverStrmSpecific({channel,freshness,parseM3u,feeds:FEEDS.filter(feed=>feed.enabled!==false&&feed.format!=='enigma2')});
+      const result=await discoverStrmSpecific({channel,freshness,parseM3u,feeds:FEEDS.filter(feed=>feed.enabled!==false&&feed.format==='m3u')});
       return json({service:'WebTV Source Discovery',version:VERSION,enabled:true,...result});
     }catch(error){return json({error:error?.message||String(error),provider:STRM_SPECIFIC_DISCOVERY_PROVIDER},502);}
   }
