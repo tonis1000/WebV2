@@ -42,7 +42,8 @@ export function createDiscoveryProviderAdapter({discoverers=DEFAULT_DISCOVERERS}
       const discover=discoverers?.[provider];
       if(typeof discover!=='function')throw new Error(`Unsupported Discovery provider for unified search: ${provider}`);
       const freshness=String(source.freshness||'30d');
-      const result=await discover(target,{signal,freshness});
+      const allowPaidFallback=source.paidFallback===true;
+      const result=await discover(target,{signal,freshness,allowPaidFallback});
       if(signal?.aborted)throw signal.reason||new DOMException('Discovery search cancelled','AbortError');
       return normalizeResult(result);
     },
