@@ -1,0 +1,137 @@
+name: Verify Enigma2 Discovery Live
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-enigma2-discovery-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify deployed Hans candidate and curated private-target filtering
+        shell: bash
+        env:
+          DISCOVERY_URL: https://webtv-source-discovery.atonis.workers.dev
+          EXPECTED_PROD_SHA: fad3d9b7c1eedf6c1e051ed177e811a45820e511
+          REGISTRY_STATUS_URL: https://webtv-registry.atonis.workers.dev/api/project-status
+        run: |
+          node --input-type=module <<'NODE'
+          import { CURATED_SOURCE_FEEDS } from './src/search/curated-source-catalog.js';
+          import { parseEnigma2Bouquet } from './src/core/enigma2-core.js';
+          import { parseEnigma2 } from './workers/webtv-source-discovery.js';
+
+          const discovery = process.env.DISCOVERY_URL;
+          const expectedSha = process.env.EXPECTED_PROD_SHA;
+
+          function privateHost(host='') {
+            const h=String(host).toLowerCase();
+            if(h==='localhost'||h==='0.0.0.0'||h==='::1'||h.endsWith('.local')||h==='169.254.169.254') return true;
+            const m=h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+            if(!m) return false;
+            const a=+m[1], b=+m[2];
+            return a===10||a===127||a===0||(a===169&&b===254)||(a===192&&b===168)||(a===172&&b>=16&&b<=31);
+          }
+          function isPrivateUrl(raw='') {
+            try { return privateHost(new URL(String(raw).split('|')[0].trim()).hostname); } catch { return false; }
+          }
+          async function postDiscover(name) {
+            const res=await fetch(discovery+'/discover',{
+              method:'POST',
+              headers:{'content-type':'application/json'},
+              body:JSON.stringify({provider:'curated-remote-feeds',freshness:'7d',channel:{name,id:name,originalId:name}})
+            });
+            if(!res.ok) throw new Error('Discovery HTTP '+res.status+' for '+name);
+            return res.json();
+          }
+
+          const reg=await fetch(process.env.REGISTRY_STATUS_URL,{headers:{'cache-control':'no-cache'}}).then(r=>r.json());
+          if(reg.commitSha!==expectedSha) throw new Error('Registry SHA mismatch: '+reg.commitSha);
+          const status=await fetch(discovery+'/?verify='+expectedSha).then(r=>r.json());
+          if(status.service!=='WebTV Source Discovery'||status.version!=='1.8') throw new Error('Unexpected live Source Discovery status');
+
+          const preferred=['ERT1','ERT 1','ERT Sports 4','Mega News','Nea TV','Blue Sky'];
+          let hansProof=null;
+          for(const name of preferred) {
+            const payload=await postDiscover(name);
+            const candidate=(payload.candidates||[]).find(c=>
+              c?.sourceOrigin==='HansSettings Greece' &&
+              c?.inputFormatId==='enigma2' &&
+              String(c?.sourceOriginUrl||'').includes('hanssettings') &&
+              !isPrivateUrl(c?.sourceUrl)
+            );
+            if(candidate) { hansProof={name,payload,candidate}; break; }
+          }
+          if(!hansProof) throw new Error('No live HansSettings Greece Enigma2 candidate found for preferred Greek channels');
+
+          const c=hansProof.candidate;
+          for(const key of ['sourceUrl','sourceOriginUrl','inputFormatId','enigma2ServiceType','enigma2Description','enigma2Bouquet']) {
+            if(!String(c?.[key]??'').trim()) throw new Error('Hans candidate missing '+key);
+          }
+          if(c.inputFormatId!=='enigma2') throw new Error('Hans candidate format mismatch');
+          if(c.sourceOrigin!=='HansSettings Greece') throw new Error('Hans provenance mismatch');
+          if(isPrivateUrl(c.sourceUrl)) throw new Error('Hans public proof unexpectedly private');
+          console.log('LIVE_HANS_PROOF=PASS');
+          console.log(JSON.stringify({
+            channel:hansProof.name,
+            sourceUrl:c.sourceUrl,
+            inputFormatId:c.inputFormatId,
+            sourceOrigin:c.sourceOrigin,
+            sourceOriginUrl:c.sourceOriginUrl,
+            enigma2ServiceType:c.enigma2ServiceType,
+            enigma2Description:c.enigma2Description,
+            enigma2InlineName:c.enigma2InlineName||'',
+            enigma2Bouquet:c.enigma2Bouquet
+          },null,2));
+
+          const enigmaFeeds=CURATED_SOURCE_FEEDS.filter(f=>f.enabled!==false&&f.format==='enigma2');
+          let privateProof=null;
+          for(const feed of enigmaFeeds) {
+            let text='';
+            try {
+              const res=await fetch(feed.url,{headers:{'user-agent':'WebV2 live verification'}});
+              if(!res.ok) continue;
+              text=await res.text();
+            } catch { continue; }
+            const bouquet=parseEnigma2Bouquet(text);
+            for(const service of bouquet.services) {
+              const sourceUrl=[service.decodedReference,service.embeddedReference,service.decodedReferenceOnce]
+                .find(v=>{try{return /^(https?):$/.test(new URL(String(v).split('|')[0].trim()).protocol);}catch{return false;}})||'';
+              if(!sourceUrl||!isPrivateUrl(sourceUrl)) continue;
+              const channelName=service.description||service.inlineName||service.inlineNameDecodedOnce||'';
+              if(!channelName) continue;
+
+              const localBase=parseEnigma2(text,{name:channelName,id:channelName,originalId:channelName},feed);
+              const localPrivate=localBase.find(x=>isPrivateUrl(x.sourceUrl));
+              if(!localPrivate) continue;
+
+              const live=await postDiscover(channelName);
+              const leaked=(live.candidates||[]).find(x=>isPrivateUrl(x.sourceUrl));
+              if(leaked) throw new Error('Production leaked a private/local curated candidate for '+channelName);
+
+              privateProof={
+                feed:feed.name,
+                channel:channelName,
+                hostClass:'private/local',
+                localBaseCandidate:true,
+                productionPrivateCandidates:0,
+                rejectionReported:(live.strmResolution?.reports||[]).some(r=>r?.error==='Non-public curated target rejected')
+              };
+              break;
+            }
+            if(privateProof) break;
+          }
+          if(!privateProof) {
+            throw new Error('No current curated Enigma2 private/local route was available to exercise the production filter');
+          }
+          console.log('LIVE_PRIVATE_FILTER_PROOF=PASS');
+          console.log(JSON.stringify(privateProof,null,2));
+          console.log('ENIGMA2_DISCOVERY_LIVE_ACCEPTANCE=PASS');
+          NODE
