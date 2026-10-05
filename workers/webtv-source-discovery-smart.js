@@ -71,12 +71,13 @@ async function resolveCuratedStrm(payload={}){
 }
 
 export default {async fetch(request,env,ctx){
+  const bodyRequest=request.method==='POST'?request.clone():null;
   const response=await baseWorker.fetch(request,env,ctx);const url=new URL(request.url);const type=response.headers.get('content-type')||'';
   if(!type.includes('application/json'))return response;
   let payload;try{payload=await response.clone().json();}catch{return response;}
   if(url.pathname==='/'&&response.ok)payload={...payload,version:VERSION,features:[...(payload.features||[]),'curated STRM pre-resolution']};
   else if(url.pathname==='/discover'&&response.ok&&request.method==='POST'){
-    let body={};try{body=await request.clone().json();}catch{}
+    let body={};try{body=bodyRequest?await bodyRequest.json():{};}catch{}
     if(String(body?.provider||'')==='curated-remote-feeds')payload=await resolveCuratedStrm(payload);else payload={...payload,version:VERSION};
   }
   return jsonResponse(response,payload);
