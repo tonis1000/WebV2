@@ -1,7 +1,7 @@
 import { GITHUB_PUBLIC_PLAYLISTS_PROVIDER, discoverGithubPublicPlaylists } from './source-discovery/github-public-playlists.js';
 import { RECENT_WEB_SEARCH_PROVIDER, discoverRecentWebSearch } from './source-discovery/recent-web-search.js';
 import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source-discovery/strm-specific-discovery.js';
-import { channelSignalsMatch, normalizeChannelText } from '../src/core/channel-identity-gr.js';
+import { channelSignalsMatch, createChannelSignalsMatcher, normalizeChannelText } from '../src/core/channel-identity-gr.js';
 import { selectM3uContainerEntries, splitM3uSourceAlternatives } from '../src/core/m3u-container.js';
 import { selectEnigma2BouquetServices } from '../src/core/enigma2-core.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
@@ -39,6 +39,10 @@ function titleOf(line=''){const index=String(line).lastIndexOf(',');return index
 function signalsMatch(signals=[],channel={}){
   return channel?.familyQuery===true?familySignalsMatch(signals,channel):channelSignalsMatch(signals,channel,'exact');
 }
+function prepareSignalsMatcher(channel={}){
+  if(channel?.familyQuery===true)return signals=>familySignalsMatch(signals,channel);
+  return createChannelSignalsMatcher(channel,'exact');
+}
 function candidateMatches(extinf='',channel={}){
   return signalsMatch([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')],channel);
 }
@@ -73,7 +77,8 @@ function makeCandidate({channel,sourceUrl,sourceOrigin,sourceOriginUrl='',freshn
 }
 function parseM3u(text='',channel={},feed={}){
   const results=[];
-  for(const entry of selectM3uContainerEntries(text,{acceptExtinf:extinf=>candidateMatches(extinf,channel),limit:MAX_RESULTS})){
+  const matches=prepareSignalsMatcher(channel);
+  for(const entry of selectM3uContainerEntries(text,{acceptExtinf:extinf=>matches([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')]),limit:MAX_RESULTS})){
     if(results.length>=MAX_RESULTS)break;
     const extinf=entry.extinf;
     if(entry.sourceOffset===null||entry.sourceOffset>=10)continue;
@@ -89,12 +94,13 @@ function parseM3u(text='',channel={},feed={}){
 }
 function parseEnigma2(text='',channel={},feed={}){
   const results=[];
+  const matches=prepareSignalsMatcher(channel);
   const bouquet=selectEnigma2BouquetServices(text,{
     acceptService:service=>{
       if(!['4097','5001','5002'].includes(service.serviceType))return false;
       const inlineName=service.inlineName||service.inlineNameDecodedOnce||'';
       const description=service.description||service.rawDescription||'';
-      return signalsMatch([inlineName,description],channel);
+      return matches([inlineName,description]);
     },
   });
   for(const service of bouquet.services){
