@@ -1,3 +1,4 @@
+import { lookupChannelSignalHealth } from './channel-signal-health.js';
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -285,6 +286,30 @@ export default {
         return textResponse("forbidden", "text/plain; charset=utf-8", 403);
       }
       return textResponse("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:6,\nsegment1.ts\n", "application/vnd.apple.mpegurl", 200);
+    }
+
+    // -------------------------
+    // GET /external-health?url=<exact-source-url>
+    // Advisory exact-URL second opinion from Free-TV/IPTV Channel Signal.
+    // Never changes canonical verifier, ranking, save or playback state.
+    // -------------------------
+    if (url.pathname === "/external-health" && request.method === "GET") {
+      const sourceUrl = String(url.searchParams.get("url") || "").trim();
+      if (!/^https?:\/\//i.test(sourceUrl)) {
+        return jsonResponse({ error: "Valid http/https url is required" }, 400);
+      }
+      try {
+        const evidence = await lookupChannelSignalHealth(sourceUrl);
+        return jsonResponse(evidence, 200);
+      } catch (error) {
+        return jsonResponse({
+          source: "channel-signal",
+          advisory: true,
+          state: "unavailable",
+          url: sourceUrl,
+          detail: error?.message || String(error),
+        }, 502);
+      }
     }
 
     // -------------------------
