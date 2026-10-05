@@ -1,0 +1,50 @@
+name: Verify Media Browser Production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/webtv-media.js'
+      - 'src/media-page.js'
+      - 'media.html'
+      - 'media.css'
+      - 'tests/media-*.test.mjs'
+      - '.github/workflows/deploy-webtv-media.yml'
+      - '.github/workflows/verify-media-browser.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-media-browser-production
+  cancel-in-progress: false
+
+env:
+  WORKER_URL: https://webtv-media.atonis.workers.dev
+  MEDIA_PAGE_URL: https://tonis1000.github.io/WebV2/media.html
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - name: Wait for exact-SHA Media Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --max-time 20 -H 'Cache-Control: no-cache' "$WORKER_URL/status?browser=$GITHUB_SHA-$attempt" -o /tmp/media-status.json &&
+               node -e "const j=require('/tmp/media-status.json');process.exit(j.ok===true&&j.deploySha===process.env.GITHUB_SHA?0:1)"; then
+              echo "Media Worker exact SHA verified: $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Media Worker did not reach exact SHA $GITHUB_SHA"
+          exit 1
+      - name: Verify production Media catalog in Chromium
+        env:
+          CHROME_BIN: google-chrome
+        run: node tests/media-production-browser.test.mjs
