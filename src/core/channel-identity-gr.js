@@ -128,11 +128,39 @@ export function channelMatchScore(text='',query='',mode='exact'){
   return containsTokenSequence(hay,q)?(mode==='broad'?3:5):0;
 }
 
-export function channelSignalsMatch(signals=[],channel={},mode='exact'){
+function compileIdentitySignalRule(identity,mode='exact'){
+  const rejectRules=(identity.reject||[]).map(value=>({tokens:tokens(value),compact:compact(value)}));
+  const aliasRules=(identity.aliases||[]).map(value=>({tokens:tokens(value),compact:compact(value)}));
+  const family=mode==='broad'?tokens(identity.canonicalName)[0]||'':'';
+  return hay=>{
+    if(!hay.length)return false;
+    for(const rule of rejectRules){
+      if(containsTokenSequence(hay,rule.tokens)||(rule.compact&&hay.includes(rule.compact)))return false;
+    }
+    for(const rule of aliasRules){
+      if(containsTokenSequence(hay,rule.tokens)||(rule.compact&&hay.includes(rule.compact)))return true;
+    }
+    return Boolean(family&&hay.includes(family));
+  };
+}
+
+export function createChannelSignalsMatcher(channel={},mode='exact'){
   const queries=[channel?.name,channel?.id,channel?.originalId,channel?.tvgId].filter(Boolean);
   const identity=queries.map(resolveGreekIdentity).find(Boolean);
-  if(identity)return (signals||[]).filter(Boolean).some(signal=>channelMatchScore(signal,identity.canonicalName,mode)>0);
-  return (signals||[]).filter(Boolean).some(signal=>queries.some(query=>channelMatchScore(signal,query,mode)>0));
+  if(identity){
+    const matchesHay=compileIdentitySignalRule(identity,mode);
+    return signals=>(signals||[]).filter(Boolean).some(signal=>matchesHay(tokens(signal)));
+  }
+  const queryRules=queries.map(query=>tokens(query)).filter(rule=>rule.length);
+  return signals=>(signals||[]).filter(Boolean).some(signal=>{
+    const hay=tokens(signal);
+    if(!hay.length)return false;
+    return queryRules.some(rule=>containsTokenSequence(hay,rule));
+  });
+}
+
+export function channelSignalsMatch(signals=[],channel={},mode='exact'){
+  return createChannelSignalsMatcher(channel,mode)(signals);
 }
 
 export function canonicalGreekChannelName(query=''){return resolveGreekIdentity(query)?.canonicalName||String(query||'').trim();}
