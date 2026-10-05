@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - 'workers/tv-cache.js'
+      - 'workers/channel-signal-health.js'
+      - 'tests/channel-signal-health.test.mjs'
       - 'src/core/utils.js'
       - 'src/core/source-registry.js'
       - 'src/core/strm-resolver.js'
@@ -39,6 +41,7 @@ jobs:
           node --check src/core/strm-resolver.js
           node --check src/core/player.js
           node tests/header-aware-proxy.test.mjs
+          node tests/channel-signal-health.test.mjs
 
       - name: Build Wrangler config
         shell: bash
