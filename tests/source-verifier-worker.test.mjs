@@ -22,7 +22,7 @@ try{
       return new Response('#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     }
     if(value.includes('good.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:42\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
-    if(value.includes('vod.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n#EXT-X-ENDLIST\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
+    if(value.includes('hls-vod.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n#EXT-X-ENDLIST\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     if(value.includes('dash-live.test'))return new Response('<?xml version="1.0"?><MPD type="dynamic"><Period/></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
     if(value.includes('dash-vod.test'))return new Response('<?xml version="1.0"?><MPD type="static"><Period/></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
     if(value.includes('dead.test'))return new Response('gone',{status:404,headers:{'content-type':'text/plain'}});
@@ -68,7 +68,7 @@ try{
   assert.match(body.results[3].detail,/Private(?: IP|\/local) targets are not allowed/);
 
   const semanticsResponse=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidates:[
-    {candidateId:'vod-hls',sourceType:'hls',sourceUrl:'https://vod.test/movie.m3u8'},
+    {candidateId:'vod-hls',sourceType:'hls',sourceUrl:'https://hls-vod.test/movie.m3u8'},
     {candidateId:'live-dash',sourceType:'dash',sourceUrl:'https://dash-live.test/live.mpd'},
     {candidateId:'vod-dash',sourceType:'dash',sourceUrl:'https://dash-vod.test/movie.mpd'},
   ]})}),{});
