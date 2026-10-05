@@ -12,7 +12,7 @@ const css=fs.readFileSync(cssPath,'utf8');
 for(const required of [
   'unified-search-form','unified-search-query','unified-search-results','unified-search-report',
   'unified-search-report-summary','unified-search-report-timeline','unified-search-cancel',
-  'Copy report','Export JSON','Open source','Details','Play','unified-search-status-banner','unified-search-submit',
+  'Copy report','Export JSON','Open source','Details','Play','Save source','unified-search-status-banner','unified-search-submit',
 ])assert.ok(js.includes(required),`UI must include ${required}`);
 
 assert.equal(/Find Official|Official Sources|official-provider-lane|official-api-resolver/i.test(js),false,'Official discovery controls must not appear in Unified Search UI');
@@ -21,6 +21,11 @@ assert.ok(/noopener/.test(js)&&/noreferrer/.test(js),'source links must use noop
 assert.ok(/safePublicActionUrl/.test(js),'all public source/copy actions must use the canonical safe URL exposure policy');
 assert.equal(/writeText\?\.\(raw\.sourceUrl\)|writeText\(raw\.sourceUrl\)/.test(js),false,'UI must never copy a raw candidate URL directly');
 assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play action must use the existing playback boundary');
+assert.ok(/WebTVMyPlaylistAPI/.test(js)&&/addSourceToCurrent/.test(js),'Save source must reuse the existing My Playlist persistence owner');
+assert.ok(/playbackConfirmedCandidates/.test(js),'Save source must be gated by successful candidate playback');
+assert.ok(/normalizedSelectedChannelKeys/.test(js),'Save source must bind to the selected sidebar channel identity');
+assert.ok(/xtreamContext|sourceType[^\n]*xtream/.test(js),'generic Save source must preserve the Xtream persistence boundary');
+assert.equal(/registryFetch|\/api\/my-playlist/.test(js),false,'Unified Search UI must not write Registry/D1 directly');
 assert.ok(/groupCandidatesByChannel/.test(js),'results must render grouped by channel');
 assert.ok(/snapshot\.leads|renderLeads/.test(js),'exploration leads must remain visible after legacy Hunt UI retirement');
 assert.ok(/activeRun\s*!==\s*run|run\s*!==\s*activeRun/.test(js),'superseded search completion must not overwrite the active run UI');
