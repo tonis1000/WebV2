@@ -1,4 +1,5 @@
 export const CURATED_SOURCE_FEEDS=Object.freeze([
+  Object.freeze({id:'alivegr-live',name:'AliveGR',label:'AliveGR live intelligence',url:'https://gist.githubusercontent.com/Twilight0/c52b15df1d738d01a84a4d46ff74b4bf/raw/gr_ch.json',format:'alivegr-json',tier:'intelligence',enabled:true,priority:'high'}),
   Object.freeze({id:'hitnickgr-iptv',name:'hitnickgr/iptv',label:'hitnickgr/iptv',url:'https://raw.githubusercontent.com/hitnickgr/iptv/refs/heads/main/GreekChannels',format:'m3u',tier:'primary',enabled:true,priority:'high'}),
   Object.freeze({id:'jimgate07-grtv',name:'jimgate07/grtv',label:'jimgate07/grtv',url:'https://raw.githubusercontent.com/jimgate07/grtv/refs/heads/master/android.m3u',format:'m3u',tier:'primary',enabled:true,priority:'high'}),
   Object.freeze({id:'jimgate07-grtv-multi',name:'jimgate07/grtv multi',label:'jimgate07/grtv multi',url:'https://raw.githubusercontent.com/jimgate07/grtv/refs/heads/master/griptv.m3u',format:'m3u',tier:'primary',enabled:true,priority:'high'}),

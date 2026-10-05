@@ -36,7 +36,7 @@ function stableId(parts=[]) {
 
 function cleanHeaders(headers={}) {
   if (!headers || typeof headers !== 'object') return {};
-  const allowed=new Set(['User-Agent','Referer','Origin']);
+  const allowed=new Set(['User-Agent','Referer','Origin','X-Roku-Reserved-Dev-Id']);
   const out={};
   for (const [key,value] of Object.entries(headers)) {
     const canonical=[...allowed].find(item=>item.toLowerCase()===String(key).toLowerCase());
