@@ -6,17 +6,14 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0b0d10">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src https://webtv-media.atonis.workers.dev; object-src 'none'; base-uri 'self'; form-action 'self';">
   <title>WebTV Media</title>
-  <link rel="stylesheet" href="./media.css?v=20261006-media-shell-a">
+  <link rel="stylesheet" href="./media.css?v=20261006-ertflix-a">
 </head>
 <body>
   <header class="media-topbar">
     <a class="back-link" href="./index.html">← WebTV</a>
-    <div>
-      <p class="eyebrow">TONI'S WEBTV</p>
-      <h1>MEDIA</h1>
-    </div>
+    <div><p class="eyebrow">TONI'S WEBTV</p><h1>MEDIA</h1></div>
     <span class="media-state">Σειρές &amp; Ταινίες</span>
   </header>
 
@@ -25,51 +22,43 @@
       <div>
         <p class="eyebrow">MEDIA LIBRARY</p>
         <h2>Σειρές &amp; Ταινίες</h2>
-        <p class="lead">Ξεχωριστή περιοχή για on-demand περιεχόμενο. Δεν χρησιμοποιεί το live “Find channels &amp; sources” και δεν δημιουργεί δεύτερο Player.</p>
+        <p class="lead">Πρώτη ενεργή πηγή: επίσημο ERTFlix catalog. Αυτό το στάδιο είναι μόνο catalog / series / episodes. Playback και αποθήκευση δεν έχουν ενεργοποιηθεί ακόμη.</p>
       </div>
-      <div class="media-search-shell" aria-label="Μελλοντική αναζήτηση Media">
-        <input type="search" placeholder="Αναζήτηση σειράς, επεισοδίου ή ταινίας" disabled>
-        <button type="button" disabled>Αναζήτηση</button>
+      <div class="media-search-shell">
+        <input id="media-search" type="search" placeholder="Αναζήτηση σειράς" autocomplete="off">
       </div>
     </section>
 
     <section class="media-grid" aria-label="Κατηγορίες Media">
-      <article class="media-card panel">
-        <span class="media-icon" aria-hidden="true">▦</span>
-        <div>
-          <p class="eyebrow">SERIES</p>
-          <h2>Ελληνικές Σειρές</h2>
-          <p>Σειρές με σεζόν, επεισόδια και ακριβή ταυτότητα επεισοδίου.</p>
-        </div>
-      </article>
+      <article class="media-card panel"><span class="media-icon">▦</span><div><p class="eyebrow">SERIES</p><h2>Ελληνικές Σειρές</h2><p>Σειρές με επεισόδια και επίσημη ERTFlix provenance.</p></div></article>
+      <article class="media-card panel muted-card"><span class="media-icon">CC</span><div><p class="eyebrow">LATER</p><h2>Ξένες Σειρές</h2><p>Θα προστεθούν αργότερα μαζί με ξεχωριστό subtitle layer.</p></div></article>
+      <article class="media-card panel muted-card"><span class="media-icon">▶</span><div><p class="eyebrow">LATER</p><h2>Ταινίες</h2><p>Θα προστεθούν σε επόμενο bounded slice.</p></div></article>
+    </section>
 
-      <article class="media-card panel">
-        <span class="media-icon" aria-hidden="true">CC</span>
-        <div>
-          <p class="eyebrow">SERIES</p>
-          <h2>Ξένες Σειρές</h2>
-          <p>Ξένες σειρές όπου υπάρχουν Ελληνικοί υπότιτλοι και σωστό ταίριασμα release/episode.</p>
-        </div>
-      </article>
+    <section class="media-browser panel">
+      <div class="media-browser-head">
+        <div><p class="eyebrow">ERTFLIX</p><h2>Σειρές</h2></div>
+        <span id="media-status" class="media-status" data-tone="loading">Φόρτωση ERTFlix catalog…</span>
+      </div>
+      <div id="media-catalog" class="media-catalog" aria-live="polite"></div>
 
-      <article class="media-card panel">
-        <span class="media-icon" aria-hidden="true">▶</span>
-        <div>
-          <p class="eyebrow">MOVIES</p>
-          <h2>Ταινίες</h2>
-          <p>Ταινίες με προτεραιότητα σε νόμιμες/public ή user-authorized πηγές και Ελληνικούς υπότιτλους όπου υπάρχουν.</p>
+      <section id="media-detail" class="media-detail" hidden>
+        <div class="media-detail-head">
+          <button id="media-detail-back" type="button" class="back-link">← Σειρές</button>
+          <a id="media-official-link" class="back-link" href="https://live.ertflix.gr/" target="_blank" rel="noopener noreferrer">Official ERTFlix ↗</a>
         </div>
-      </article>
+        <h2 id="media-detail-title">Σειρά</h2>
+        <p id="media-detail-description" class="lead"></p>
+        <div id="media-episode-list" class="media-episode-list"></div>
+      </section>
     </section>
 
     <section class="media-proof panel">
-      <div>
-        <p class="eyebrow">PLAYBACK RULE</p>
-        <h2>Δεν αρκεί να υπάρχει στον κατάλογο</h2>
-      </div>
+      <div><p class="eyebrow">PLAYBACK RULE</p><h2>Δεν αρκεί να υπάρχει στον κατάλογο</h2></div>
       <p>FOUND_TITLE → IDENTIFIED → EPISODE_OR_MOVIE_MATCHED → SOURCE_FOUND → SUBTITLE_MATCHED → VERIFIED_MEDIA → PLAYBACK_CONFIRMED → SAVED</p>
-      <small>Οι κατάλογοι, τα URLs και οι υπότιτλοι είναι υποψήφια δεδομένα μέχρι να επιβεβαιωθεί το σωστό έργο/επεισόδιο και το πραγματικό playback.</small>
+      <small>Στη Phase 1 σταματάμε πριν από SOURCE_FOUND. Το κουμπί επεισοδίου ανοίγει μόνο την επίσημη ERTFlix σελίδα.</small>
     </section>
   </main>
+  <script type="module" src="./src/media-page.js?v=20261006-ertflix-a"></script>
 </body>
 </html>
