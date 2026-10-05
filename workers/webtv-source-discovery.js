@@ -53,7 +53,7 @@ function typeOf(url=''){
 function validPublicUrl(value=''){
   try{const url=new URL(String(value).split('|')[0].trim());return /^(https?|rtsp|rtsps|rtmp|rtmps):$/.test(url.protocol);}catch{return false;}
 }
-function makeCandidate({channel,sourceUrl,sourceOrigin,freshness='live-feed-check'}){
+function makeCandidate({channel,sourceUrl,sourceOrigin,sourceOriginUrl='',freshness='live-feed-check',extra={}}){
   return {
     channelName:String(channel.name||''),
     sourceType:typeOf(sourceUrl),
@@ -65,6 +65,8 @@ function makeCandidate({channel,sourceUrl,sourceOrigin,freshness='live-feed-chec
     matchConfidence:'HIGH',
     saveEligible:!['rtsp','rtmp'].includes(typeOf(sourceUrl)),
     verificationDetail:['rtsp','rtmp'].includes(typeOf(sourceUrl))?'Requires an authorized RTSP/RTMP to HLS gateway; browser playback has not been tested':'',
+    sourceOriginUrl,
+    ...extra,
   };
 }
 function parseM3u(text='',channel={},feed={}){
@@ -89,14 +91,27 @@ function parseEnigma2(text='',channel={},feed={}){
   for(const service of parseEnigma2Bouquet(text).services){
     if(results.length>=MAX_RESULTS)break;
     if(!['4097','5001','5002'].includes(service.serviceType))continue;
-    const sourceUrl=service.decodedReferenceOnce;
-    const inlineName=service.inlineNameDecodedOnce;
-    const description=service.rawDescription;
-    if(!validPublicUrl(sourceUrl))continue;
+    const sourceUrl=[service.decodedReference,service.embeddedReference,service.decodedReferenceOnce].find(validPublicUrl)||'';
+    const inlineName=service.inlineName||service.inlineNameDecodedOnce||'';
+    const description=service.description||service.rawDescription||'';
+    if(!sourceUrl)continue;
     if(!signalsMatch([inlineName,description],channel))continue;
     const matchedName=description||inlineName||channel.name||'';
     const resultName=channel.familyQuery===true?matchedName:(channel.name||matchedName);
-    results.push(makeCandidate({channel:{...channel,name:resultName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
+    results.push(makeCandidate({
+      channel:{...channel,name:resultName},
+      sourceUrl,
+      sourceOrigin:feed.name,
+      sourceOriginUrl:feed.url||'',
+      freshness:feed.freshness||'live-feed-check',
+      extra:{
+        inputFormatId:'enigma2',
+        enigma2ServiceType:service.serviceType,
+        enigma2Description:description,
+        enigma2InlineName:inlineName,
+        enigma2Bouquet:parseEnigma2Bouquet(text).name||'',
+      },
+    }));
   }
   return results;
 }
