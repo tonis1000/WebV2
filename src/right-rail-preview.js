@@ -191,6 +191,7 @@ if (!enabled || window.__webtvRightRailInstalled) {
     const repairLogos = document.getElementById('channel-logo-repair-missing');
     const epgGuide = document.getElementById('epg-guide-toggle');
     const sport = document.getElementById('sport-toggle');
+    const media = document.getElementById('media-toggle');
     const hunt = document.getElementById('source-hunt-toggle');
     const diagnostics = document.getElementById('diagnostics-toggle');
     const favorite = document.getElementById('favorite-channel');
@@ -199,12 +200,12 @@ if (!enabled || window.__webtvRightRailInstalled) {
     [brand,catalog,clock].filter(Boolean).forEach(node=>rememberAndMove(node,dock));
     [playlists].filter(Boolean).forEach(node=>rememberAndMove(node,library));
     [search,findLogo,repairLogos].filter(Boolean).forEach(node=>rememberAndMove(node,discovery));
-    [epgGuide,sport,hunt,diagnostics].filter(Boolean).forEach(node=>rememberAndMove(node,tools));
+    [epgGuide,sport,media,hunt,diagnostics].filter(Boolean).forEach(node=>rememberAndMove(node,tools));
     [favorite,myAction].filter(Boolean).forEach(node=>rememberAndMove(node,channel));
 
     if (brand) brand.classList.add('rail-brand');
     if (clock) clock.classList.add('rail-clock');
-    [playlists,search,findLogo,repairLogos,epgGuide,sport,hunt,diagnostics,favorite,myAction].forEach(node => node?.classList.add('rail-control'));
+    [playlists,search,findLogo,repairLogos,epgGuide,sport,media,hunt,diagnostics,favorite,myAction].forEach(node => node?.classList.add('rail-control'));
     if (catalog) { normalizeCatalogBadge(catalog); catalog.classList.add('header-catalog-badge'); }
     installFloatingPanels();
     if (favorite) favorite.classList.add('rail-favorite');
@@ -322,6 +323,7 @@ if (!enabled || window.__webtvRightRailInstalled) {
     html.rail-preview #channel-logo-repair-missing.rail-control{background:#17372d;border-color:#347a60;color:#c9f6df}
     html.rail-preview #epg-guide-toggle.rail-control{background:#16334a;border-color:#3d80a8;color:#d9f3ff}
     html.rail-preview #sport-toggle.rail-control{background:#243214;border-color:#668536;color:#e5ffc7}
+    html.rail-preview #media-toggle.rail-control{background:#291d3d;border-color:#7051a5;color:#eadcff}
     html.rail-preview #source-hunt-toggle.rail-control{background:#33250e;border-color:#86651f;color:#ffe0a0}
     html.rail-preview #diagnostics-toggle.rail-control{background:#111820;border-color:#3a4652;color:#e8eef4}
     html.rail-preview #favorite-channel.rail-control{background:#33270d;border-color:#886817;color:#ffe39b}

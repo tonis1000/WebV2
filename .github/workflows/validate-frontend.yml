@@ -8,6 +8,8 @@ on:
       - 'index.html'
       - 'sport.html'
       - 'sport.css'
+      - 'media.html'
+      - 'media.css'
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'tests/**/*.html'
@@ -42,6 +44,8 @@ on:
       - 'index.html'
       - 'sport.html'
       - 'sport.css'
+      - 'media.html'
+      - 'media.css'
       - 'src/**/*.js'
       - 'tests/**/*.mjs'
       - 'tests/**/*.html'
@@ -148,6 +152,8 @@ jobs:
         run: node tests/admin-tool-rail-layout.test.mjs
       - name: Run floating admin tool window regression test
         run: node tests/admin-floating-panels.test.mjs
+      - name: Run Media Library entry regression test
+        run: node tests/media-library-entry.test.mjs
       - name: Run SPORT iframe surface regression test
         run: node tests/sport-iframe-surface.test.mjs
       - name: Run SPORT feed worker regression test

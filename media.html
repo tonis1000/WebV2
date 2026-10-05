@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0d10">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <title>WebTV Media</title>
+  <link rel="stylesheet" href="./media.css?v=20261006-media-shell-a">
+</head>
+<body>
+  <header class="media-topbar">
+    <a class="back-link" href="./index.html">← WebTV</a>
+    <div>
+      <p class="eyebrow">TONI'S WEBTV</p>
+      <h1>MEDIA</h1>
+    </div>
+    <span class="media-state">Σειρές &amp; Ταινίες</span>
+  </header>
+
+  <main class="media-layout">
+    <section class="media-hero panel">
+      <div>
+        <p class="eyebrow">MEDIA LIBRARY</p>
+        <h2>Σειρές &amp; Ταινίες</h2>
+        <p class="lead">Ξεχωριστή περιοχή για on-demand περιεχόμενο. Δεν χρησιμοποιεί το live “Find channels &amp; sources” και δεν δημιουργεί δεύτερο Player.</p>
+      </div>
+      <div class="media-search-shell" aria-label="Μελλοντική αναζήτηση Media">
+        <input type="search" placeholder="Αναζήτηση σειράς, επεισοδίου ή ταινίας" disabled>
+        <button type="button" disabled>Αναζήτηση</button>
+      </div>
+    </section>
+
+    <section class="media-grid" aria-label="Κατηγορίες Media">
+      <article class="media-card panel">
+        <span class="media-icon" aria-hidden="true">▦</span>
+        <div>
+          <p class="eyebrow">SERIES</p>
+          <h2>Ελληνικές Σειρές</h2>
+          <p>Σειρές με σεζόν, επεισόδια και ακριβή ταυτότητα επεισοδίου.</p>
+        </div>
+      </article>
+
+      <article class="media-card panel">
+        <span class="media-icon" aria-hidden="true">CC</span>
+        <div>
+          <p class="eyebrow">SERIES</p>
+          <h2>Ξένες Σειρές</h2>
+          <p>Ξένες σειρές όπου υπάρχουν Ελληνικοί υπότιτλοι και σωστό ταίριασμα release/episode.</p>
+        </div>
+      </article>
+
+      <article class="media-card panel">
+        <span class="media-icon" aria-hidden="true">▶</span>
+        <div>
+          <p class="eyebrow">MOVIES</p>
+          <h2>Ταινίες</h2>
+          <p>Ταινίες με προτεραιότητα σε νόμιμες/public ή user-authorized πηγές και Ελληνικούς υπότιτλους όπου υπάρχουν.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="media-proof panel">
+      <div>
+        <p class="eyebrow">PLAYBACK RULE</p>
+        <h2>Δεν αρκεί να υπάρχει στον κατάλογο</h2>
+      </div>
+      <p>FOUND_TITLE → IDENTIFIED → EPISODE_OR_MOVIE_MATCHED → SOURCE_FOUND → SUBTITLE_MATCHED → VERIFIED_MEDIA → PLAYBACK_CONFIRMED → SAVED</p>
+      <small>Οι κατάλογοι, τα URLs και οι υπότιτλοι είναι υποψήφια δεδομένα μέχρι να επιβεβαιωθεί το σωστό έργο/επεισόδιο και το πραγματικό playback.</small>
+    </section>
+  </main>
+</body>
+</html>
