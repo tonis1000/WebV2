@@ -13,7 +13,7 @@ const savePolicy=fs.readFileSync(new URL('../src/search/save-source-policy.js',i
 for(const required of [
   'unified-search-form','unified-search-query','unified-search-results','unified-search-report',
   'unified-search-report-summary','unified-search-report-timeline','unified-search-cancel',
-  'Copy report','Export JSON','Open source','Details','Play','Save source','unified-search-status-banner','unified-search-submit',
+  'Copy report','Export JSON','Open source','Details','Play','unified-search-status-banner','unified-search-submit',
 ])assert.ok(js.includes(required),`UI must include ${required}`);
 
 assert.equal(/Find Official|Official Sources|official-provider-lane|official-api-resolver/i.test(js),false,'Official discovery controls must not appear in Unified Search UI');
@@ -21,6 +21,7 @@ assert.ok(js.includes("target='_blank'")||js.includes('target="_blank"')||js.inc
 assert.ok(/noopener/.test(js)&&/noreferrer/.test(js),'source links must use noopener/noreferrer');
 assert.ok(/safePublicActionUrl/.test(js),'all public source/copy actions must use the canonical safe URL exposure policy');
 assert.equal(/writeText\?\.\(raw\.sourceUrl\)|writeText\(raw\.sourceUrl\)/.test(js),false,'UI must never copy a raw candidate URL directly');
+assert.ok(savePolicy.includes('Save source'),'Save source label must be owned by the save-source policy');
 assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play action must use the existing playback boundary');
 assert.ok(/WebTVMyPlaylistAPI/.test(js)&&/addSourceToCurrent/.test(js),'Save source must reuse the existing My Playlist persistence owner');
 assert.ok(/playbackConfirmedCandidates/.test(js),'Save source must be gated by successful candidate playback');
