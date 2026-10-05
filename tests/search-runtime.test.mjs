@@ -5,11 +5,16 @@ const lanes=listUnifiedSearchLanes();
 assert.deepEqual(lanes.map(item=>item.id),[
   'curated-remote-feeds',
   'github-public-playlists',
-  'recent-web-search',
   'strm-specific-discovery',
   'authorized-xtream',
   'hunt-exploration',
-]);
+],'default Unified Search must stay free-first and exclude paid Brave lanes');
+const paidFallback=listUnifiedSearchLanes({paidOnly:true});
+assert.deepEqual(paidFallback.map(item=>item.id),[
+  'recent-web-search',
+  'hunt-paid-fallback',
+],'paid Brave lanes must exist only behind an explicit fallback selection');
+assert.ok(paidFallback.every(item=>item.paidFallback===true),'every paid fallback lane must be marked explicitly');
 assert.equal(lanes.some(item=>/official/i.test(`${item.id} ${item.provider||''}`)),false,'Official lanes are excluded from unified runtime');
 assert.equal(lanes.filter(item=>item.provider==='curated-remote-feeds').length,1,'curated catalog must execute as one lane, not once per concrete feed');
 assert.ok(lanes.every(item=>item.enabled===true));
