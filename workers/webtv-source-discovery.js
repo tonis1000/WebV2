@@ -15,7 +15,7 @@ const MAX_CONCURRENCY=4;
 const MAX_RESULTS=12;
 const FALLBACK_TRIGGER_COUNT=3;
 const MAX_PRIMARY_FEEDS_PER_REQUEST=4;
-const MAX_FALLBACK_FEEDS_PER_REQUEST=3;
+const MAX_FALLBACK_FEEDS_PER_REQUEST=1;
 const ALLOWED_FRESHNESS=new Set(['24h','7d','30d']);
 const FEEDS=CURATED_SOURCE_FEEDS;
 
@@ -174,16 +174,24 @@ function selectCuratedFeedPlan(feeds=FEEDS){
   const primary=enabled.filter(feed=>(feed.tier||'primary')==='primary');
   const fallback=enabled.filter(feed=>feed.tier==='fallback');
   const hans=primary.find(feed=>feed.id==='hanssettings-gr');
+  const ciefp=fallback.find(feed=>feed.id==='ciefp-iptv-mix');
   const primaryPlan=[];
+  const fallbackPlan=[];
   if(hans)primaryPlan.push(hans);
   for(const feed of primary){
     if(primaryPlan.length>=MAX_PRIMARY_FEEDS_PER_REQUEST)break;
     if(feed===hans)continue;
     primaryPlan.push(feed);
   }
+  if(ciefp)fallbackPlan.push(ciefp);
+  for(const feed of fallback){
+    if(fallbackPlan.length>=MAX_FALLBACK_FEEDS_PER_REQUEST)break;
+    if(feed===ciefp)continue;
+    fallbackPlan.push(feed);
+  }
   return {
     primary:primaryPlan,
-    fallback:fallback.slice(0,MAX_FALLBACK_FEEDS_PER_REQUEST),
+    fallback:fallbackPlan,
     totalEnabled:enabled.length,
   };
 }
@@ -203,7 +211,7 @@ async function discoverCurated(channel,freshness,env={}){
   }
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
-    freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Curated feeds are checked live. Primary Greek-focused feeds run first; broad fallback feeds run only when fewer than three matches are found.',
+    freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Curated feeds are checked live. A bounded primary plan runs first; when fewer than three matches are found, one CPU-bounded fallback feed runs, prioritizing the Ciefp Enigma2 acceptance corpus.',
     limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,maxPrimaryFeedsPerRequest:MAX_PRIMARY_FEEDS_PER_REQUEST,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST},
     candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>({feed,tier,format,status,elapsedMs,count:candidates?.length||0,error:error||''})),
   });
