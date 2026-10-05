@@ -87,12 +87,12 @@ jobs:
           for attempt in $(seq 1 12); do
             curl --fail --silent --show-error "$WORKER_URL/?verify=$GITHUB_SHA" -o /tmp/source-hunt-status.json || true
             ROOT_OK=0
-            if node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/source-hunt-status.json','utf8'));process.exit(j.service==='WebTV Source Hunt Worker'&&j.version==='1.14'&&Array.isArray(j.features)&&j.features.includes('GitHub issue labels/state intelligence')?0:1)}catch{process.exit(1)}"; then ROOT_OK=1; fi
+            if node -e "const fs=require('fs');try{const j=JSON.parse(fs.readFileSync('/tmp/source-hunt-status.json','utf8'));process.exit(j.service==='WebTV Source Hunt Worker'&&j.version==='1.15'&&j.costPolicy==='free-first'&&Array.isArray(j.features)&&j.features.includes('GitHub issue labels/state intelligence')&&j.features.includes('free-first default')&&j.features.includes('explicit Brave fallback')?0:1)}catch{process.exit(1)}"; then ROOT_OK=1; fi
             BOUQUET_OK=0
             if curl --fail --silent --show-error --get --data-urlencode "url=$HANS" "$WORKER_URL/bouquet-proxy" -o /tmp/hans.tv && grep -q '^#SERVICE ' /tmp/hans.tv; then BOUQUET_OK=1; fi
             if [ "$ROOT_OK" = 1 ] && [ "$BOUQUET_OK" = 1 ]; then
               cat /tmp/source-hunt-status.json
-              echo "Source Hunt v1.14 + Enigma2 bouquet proxy are live."
+              echo "Source Hunt v1.15 free-first + Enigma2 bouquet proxy are live."
               exit 0
             fi
             echo "Waiting for Cloudflare propagation ($attempt/12)… root=$ROOT_OK bouquet=$BOUQUET_OK"
