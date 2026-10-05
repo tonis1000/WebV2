@@ -187,6 +187,32 @@ async function upsertMyChannel(channel,sources=[],{replaceSources=false,reason='
   await refreshPrimary({forceSidebar:true,reason});
   return target;
 }
+async function saveVerifiedSearchSource(channel,source={},options={}){
+  const {reason='',verified=false,streamKind='unknown',playbackConfirmed=false}=options||{};
+  if(reason!=='unified-search-best-source-save')throw new Error('Unified Search Best Source save reason is required');
+  if(!(playbackConfirmed===true&&verified===true&&String(streamKind).toLowerCase()==='live'))throw new Error('Best Source requires VERIFIED live media and playback confirmation');
+  if(Boolean(source?.drmDetected))throw new Error('DRM-marked Best Source cannot use generic My Playlist persistence');
+  if(source?.browserPlayable!==true)throw new Error('Best Source must be browser-playable before My Playlist persistence');
+  if(String(source?.sourceType||'').toLowerCase()==='xtream')throw new Error('Use Xtream Preview → Verify → Save Channel…');
+  const url=String(source?.url||'').trim();
+  if(!/^https?:\/\//i.test(url))throw new Error('Best Source requires a valid http/https media URL');
+  myCache=await fetchMyPlaylist();myCacheLoaded=true;
+  const key=normalize(channel?.id||channel?.originalId||channel?.name);
+  if(!key)throw new Error('Best Source channel identity is required');
+  let index=myCache.findIndex(item=>normalize(item.id||item.originalId||item.name)===key);
+  const existing=index>=0?myCache[index]:null;
+  const base=existing||{...channel,id:key,originalId:channel?.originalId||channel?.id||channel?.name,name:canonicalDefaultChannelName(channel||{}),logo:channel?.logo||'',group:channel?.group||'Other',directUrls:[]};
+  assertGenericMyMutationAllowed(base);
+  if(index<0)index=myCache.length;
+  const previousUrls=[...(base.directUrls||[])];
+  const directUrls=[...new Set([url,...previousUrls].map(value=>String(value||'').trim()).filter(Boolean))];
+  const target={...base,directUrls};
+  const sourceRows=directUrls.map((value,sourceIndex)=>({url:value,origin:value===url?`best-source:${String(source?.provider||source?.origin||'unified-search')}`:'curated',priority:value===url?50:100+sourceIndex}));
+  await putRegistryChannel(target,index,true,sourceRows);
+  log(`MY PLAYLIST BEST SOURCE ${existing?'UPDATE':'ADD'} · ${target.name} · ${url}`);
+  await refreshPrimary({forceSidebar:true,reason});
+  return target;
+}
 function ensureMyActionButton(){let b=$('my-playlist-channel-action');if(b)return b;const actions=document.querySelector('.channel-actions');if(!actions)return null;b=document.createElement('button');b.id='my-playlist-channel-action';b.type='button';b.className='button my-add';b.hidden=true;actions.prepend(b);b.addEventListener('click',toggleSelectedInMy);return b;}
 async function updateMyAction(){const b=ensureMyActionButton();if(!b)return;const channel=selectedChannel();if(!channel){b.hidden=true;return;}const inside=await myContains(channel);b.hidden=false;b.dataset.inside=inside?'1':'0';if(!inside&&isLoadedXtreamChannel(channel)){b.disabled=true;b.textContent='Save via Xtream Preview';b.title='Use Xtream Test / Preview → Verify → Save Channel…';return;}b.disabled=false;b.title='';b.textContent=inside?'Remove from My Playlist':'★ Add to My Playlist';}
 async function toggleSelectedInMy(){const channel=selectedChannel();if(!channel)return;if(await myContains(channel))await removeMyChannel(channel);else await addMyChannel(channel);}
@@ -204,6 +230,7 @@ function bind(){$('playlist-manager-toggle')?.addEventListener('click',()=>{cons
 window.WebTVMyPlaylistAPI={
   addCurrent:()=>{const c=selectedChannel();return c?addMyChannel(c):Promise.reject(new Error('No channel selected'));},
   upsertChannel:(channel,sources,options={})=>upsertMyChannel(channel,sources,options),
+  saveVerifiedSearchSource:(channel,source,options={})=>saveVerifiedSearchSource(channel,source,options),
   addSourceToCurrent:async(url)=>{const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);myCache=await fetchMyPlaylist();myCacheLoaded=true;const key=normalize(c.id||c.originalId||c.name);let index=myCache.findIndex(x=>normalize(x.id||x.originalId||x.name)===key);let target;if(index<0){target={...c,directUrls:[...(c.directUrls||[])]};index=myCache.length;}else target={...myCache[index],directUrls:[...(myCache[index].directUrls||[])]};target.directUrls=[...new Set([...target.directUrls,url].filter(Boolean))];await putRegistryChannel(target,index,true);log(`MY PLAYLIST SOURCE SAVED · ${target.name} · ${url}`);await refreshPrimary({reason:'source-save'});return target;},
   replaceSourcesForCurrent:async(urls,{reason='source-policy-save',allowEmpty=false}={})=>{
     const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);

@@ -21,6 +21,16 @@ export function genericSaveBlocked(candidate={}){
     || String(candidate.discoveryProvider||'').toLowerCase().includes('authorized-xtream');
 }
 
+export function bestSourceSaveEligibility({candidate={},playbackConfirmed=false}={}){
+  if(genericSaveBlocked(candidate))return{enabled:false,label:'Use Xtream Preview',title:'Authorized Xtream sources keep their existing Preview → Verify → Save boundary'};
+  if(String(candidate.verificationStatus||'').toUpperCase()!=='VERIFIED')return{enabled:false,label:'Use Best Source',title:'Best Source must reach VERIFIED_MEDIA first'};
+  if(String(candidate.streamKind||'unknown').toLowerCase()!=='live')return{enabled:false,label:'Use Best Source',title:'Best Source must be verifier-confirmed live media'};
+  if(Boolean(candidate.drmDetected))return{enabled:false,label:'Use Best Source',title:'DRM-marked candidates are not promoted by the generic Best Source flow'};
+  if(candidate.browserPlayable!==true)return{enabled:false,label:'Use Best Source',title:'This candidate is not playable by the current browser Player'};
+  if(!playbackConfirmed)return{enabled:false,label:'Use Best Source',title:'Play the Best Source successfully once before adding/updating My Playlist'};
+  return{enabled:true,label:'Use Best Source',title:'Add or promote this playback-confirmed live source through Playlist Manager'};
+}
+
 export function saveSourceEligibility({
   candidate={},
   channelName='',
