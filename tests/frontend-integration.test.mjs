@@ -186,6 +186,8 @@ assert.match(discoveryDeploy,/workers\/webtv-source-discovery\.js/, 'Source Disc
 assert.match(discoveryDeploy,/workers\/source-discovery\/\*\*\/\*\.js/, 'Source Discovery deploy must include provider module changes');
 assert.match(discoveryDeploy,/github-public-playlists/, 'Source Discovery live gate must cover the GitHub provider');
 assert.match(discoveryDeploy,/recent-web-search/, 'Source Discovery live gate must cover the Recent Web provider');
+assert.match(discoveryDeploy,/github-gists/, 'Source Discovery live gate must verify the GitHub Gist search lane explicitly');
+assert.match(discoveryDeploy,/reports\?\.gists/, 'Source Discovery live gate must require Gist instrumentation in the live response');
 assert.match(discoveryDeploy,/BRAVE_API_KEY/, 'Source Discovery live gate must explain the Brave secret dependency');
 assert.doesNotMatch(discoveryDeploy,/src\/main\.js|src\/core\/player\.js/, 'Frontend-only runtime changes must not trigger Source Discovery deploy');
 
