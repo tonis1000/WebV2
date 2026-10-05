@@ -69,14 +69,14 @@ function ensureUi(){
   const overlay=document.createElement('div');
   overlay.id='epg-guide-overlay';overlay.className='epg-guide-overlay';overlay.hidden=true;
   overlay.innerHTML=`
-    <section class="epg-guide-shell panel" role="dialog" aria-modal="true" aria-label="EPG Guide">
+    <section id="epg-guide-shell" class="epg-guide-shell panel" role="dialog" aria-modal="true" aria-label="EPG Guide">
       <header class="epg-guide-head">
         <div><p class="eyebrow">TV GUIDE</p><h2>Πρόγραμμα καναλιών</h2><p id="epg-guide-summary" class="muted small">Τα κανάλια του τρέχοντος sidebar</p></div>
         <div class="epg-guide-head-actions">
           <button id="epg-guide-prev" class="button ghost" type="button" aria-label="Προηγούμενες ώρες">←</button>
           <button id="epg-guide-today" class="button ghost" type="button">Σήμερα</button>
           <button id="epg-guide-next" class="button ghost" type="button" aria-label="Επόμενες ώρες">→</button>
-          <button id="epg-guide-close" class="button ghost" type="button" aria-label="Close EPG Guide">✕</button>
+          <button id="epg-guide-close" class="button ghost" type="button" aria-label="Close EPG Guide">Close</button>
         </div>
       </header>
       <div class="epg-guide-datebar"><nav id="epg-guide-day-tabs" class="epg-guide-day-tabs" aria-label="Ημέρες προγράμματος"></nav><span id="epg-guide-status" class="muted small">Ready</span></div>
