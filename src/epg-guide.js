@@ -1,4 +1,4 @@
-const BUILD_ID='20261004-guide-seven-days-a';
+const BUILD_ID='20261005-floating-tool-windows-a';
 const $=id=>document.getElementById(id);
 const DESKTOP_HOUR_WIDTH=225;
 const MOBILE_HOUR_WIDTH=132;
