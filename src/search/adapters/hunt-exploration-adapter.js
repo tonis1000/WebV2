@@ -63,6 +63,7 @@ export function createHuntExplorationAdapter({endpoint=DEFAULT_ENDPOINT,fetchImp
       const url=new URL(`${base}/hunt`);
       url.searchParams.set('channel',channel);
       url.searchParams.set('days',String(source.days||30));
+      if(source.paidFallback===true)url.searchParams.set('paid','1');
       const response=await fetchImpl(url.href,{cache:'no-store',signal});
       if(!response.ok){
         let detail='';
