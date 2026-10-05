@@ -30,6 +30,21 @@ assert.match(
   /assertGenericMyMutationAllowed/,
   'canonical loaded-Xtream mutation guard must remain'
 );
+assert.match(
+  manager,
+  /saveVerifiedSearchSource\s*:/,
+  'Playlist Manager must own bounded Best Source persistence for Unified Search'
+);
+assert.match(
+  manager,
+  /unified-search-best-source-save/,
+  'Best Source persistence must be explicitly reason-gated'
+);
+assert.match(
+  manager,
+  /playbackConfirmed[^\n]*verified[^\n]*streamKind|verified[^\n]*streamKind[^\n]*playbackConfirmed/s,
+  'Best Source persistence must require verifier live proof and playback confirmation'
+);
 
 assert.match(
   favorites,
