@@ -11,6 +11,7 @@ on:
       - 'src/discovery/candidate-model.js'
       - 'src/discovery/external-discovery-client.js'
       - 'workers/webtv-source-discovery.js'
+      - 'workers/webtv-source-discovery-smart.js'
       - 'tests/search-*.test.mjs'
       - 'tests/unified-*.test.mjs'
       - 'tests/discovery-entrypoint-ownership.test.mjs'
@@ -30,6 +31,7 @@ on:
       - 'src/discovery/candidate-model.js'
       - 'src/discovery/external-discovery-client.js'
       - 'workers/webtv-source-discovery.js'
+      - 'workers/webtv-source-discovery-smart.js'
       - 'tests/search-*.test.mjs'
       - 'tests/unified-*.test.mjs'
       - 'tests/discovery-entrypoint-ownership.test.mjs'
@@ -63,6 +65,7 @@ jobs:
           node --check src/discovery/external-discovery-client.js
           node --check src/search/curated-source-catalog.js
           node --input-type=module --check < workers/webtv-source-discovery.js
+          node --input-type=module --check < workers/webtv-source-discovery-smart.js
       - name: Run Unified Search contracts
         run: |
           set -euo pipefail
