@@ -5,6 +5,7 @@ import {
   parseM3u,
   parseEnigma2,
   parseFeed,
+  parseAliveGrJson,
   selectCuratedFeedPlan,
   MAX_PRIMARY_FEEDS_PER_REQUEST,
   MAX_FALLBACK_FEEDS_PER_REQUEST,
@@ -16,6 +17,7 @@ assert.ok(FEEDS.some(feed=>feed.name==='IPTV Nexus Greece'&&feed.tier==='primary
 assert.ok(FEEDS.some(feed=>feed.name==='Free-TV/IPTV Greece'&&feed.tier==='primary'&&/playlist_greece\.m3u8/.test(feed.url)),'Free-TV Greece-specific feed must replace broad global fallback');
 assert.equal(FEEDS.some(feed=>feed.name==='Free-TV/IPTV'&&/master\/playlist\.m3u8/.test(feed.url)),false,'broad Free-TV global playlist should not remain in curated catalog');
 assert.ok(FEEDS.some(feed=>feed.name==='HansSettings Greece'&&feed.format==='enigma2'));
+assert.ok(FEEDS.some(feed=>feed.id==='alivegr-live'&&feed.format==='alivegr-json'&&feed.tier==='primary'&&feed.priority==='high'),'AliveGR live JSON must be an enabled primary curated source');
 assert.ok(FEEDS.some(feed=>feed.name==='Ciefp IPTV Mix'&&feed.tier==='fallback'));
 assert.ok(FEEDS.some(feed=>feed.name==='b2og iptv-org All'&&feed.tier==='fallback'));
 assert.equal(FALLBACK_TRIGGER_COUNT,3);
@@ -25,6 +27,7 @@ const plan=selectCuratedFeedPlan(FEEDS);
 assert.equal(plan.primary.length,2);
 assert.equal(plan.fallback.length,1);
 assert.ok(plan.primary.some(feed=>feed.id==='hanssettings-gr'),'HansSettings Greece must stay inside the bounded primary runtime plan');
+assert.ok(plan.primary.some(feed=>feed.id==='alivegr-live'),'AliveGR must stay inside the bounded primary runtime plan');
 assert.equal(plan.fallback[0]?.id,'ciefp-iptv-mix','Ciefp private-route acceptance corpus must be the single bounded fallback runtime lane');
 assert.equal(plan.fallback.some(feed=>feed.id==='b2og-iptv-org-all'),false,'broad fourth fallback feed must stay outside the per-request CPU budget');
 
@@ -51,6 +54,44 @@ const headerAware=`#SERVICE 5002:0:1:0:0:0:0:0:0:0:https%3a//cdn.example.test/sk
 const headerCandidates=parseFeed(headerAware,channel,{name:'fixture-header',format:'enigma2'});
 assert.equal(headerCandidates.length,1);
 assert.ok(headerCandidates[0].sourceUrl.startsWith('https://cdn.example.test/skai/live.m3u8|Referer='));
+
+const alivegr=JSON.stringify({
+  updated:'05-10-2026',
+  channels:[
+    {
+      name:'ANT1',
+      streams:[
+        {
+          url:'http://15.235.41.165/hls/antenna.m3u8',
+          drm:null,
+          headers:{
+            'User-Agent':'Roku/DVP-15.6 (15.6.4.9914-CE)',
+            'x-roku-reserved-dev-id':'fixture-roku-id'
+          }
+        },
+        {
+          url:'https://drm.example.test/ant1/manifest.mpd',
+          drm:['org.w3.clearkey',{'kid':'key'}],
+          headers:null
+        }
+      ]
+    },
+    {
+      name:'MEGA',
+      streams:[{url:'https://cdn.example.test/mega/master.m3u8',drm:null,headers:null}]
+    }
+  ]
+});
+const alivegrCandidates=parseAliveGrJson(alivegr,{id:'ant1',name:'ANT1'},{id:'alivegr-live',name:'AliveGR',format:'alivegr-json',url:'https://example.test/alivegr.json'});
+assert.equal(alivegrCandidates.length,1,'DRM alternatives and wrong channels must not become AliveGR candidates');
+assert.equal(alivegrCandidates[0].sourceUrl,'http://15.235.41.165/hls/antenna.m3u8');
+assert.equal(alivegrCandidates[0].sourceOrigin,'AliveGR');
+assert.equal(alivegrCandidates[0].sourceOriginUrl,'https://example.test/alivegr.json');
+assert.equal(alivegrCandidates[0].inputFormatId,'alivegr-json');
+assert.deepEqual(alivegrCandidates[0].requiredHeaders,{
+  'User-Agent':'Roku/DVP-15.6 (15.6.4.9914-CE)',
+  'X-Roku-Reserved-Dev-Id':'fixture-roku-id'
+});
 
 const wrongChannel=parseEnigma2(enigma,{name:'MEGA'},{name:'fixture-enigma',format:'enigma2'});
 assert.equal(wrongChannel.length,0);
