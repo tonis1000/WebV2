@@ -21,6 +21,10 @@ function titleNear(html,pos,id){
 }
 function refs(html=''){
   const raw=decode(html);const out=[];const seen=new Set();
+  for(const a of raw.matchAll(/<a\b[^>]*href=["'][^"']*\/details\/(ERT_[A-Z0-9_]+_E\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi)){
+    const id=validId(a[1]);if(!id||seen.has(id))continue;seen.add(id);
+    out.push({id,title:text(a[2]).replace(/^Play\s*/i,'').trim(),officialUrl:pageUrl(id),provider:'ertflix'});
+  }
   for(const m of raw.matchAll(/\/details\/(ERT_[A-Z0-9_]+_E\d+)/gi)){
     const id=validId(m[1]);if(!id||seen.has(id))continue;seen.add(id);
     out.push({id,title:titleNear(raw,m.index||0,id),officialUrl:pageUrl(id),provider:'ertflix'});
