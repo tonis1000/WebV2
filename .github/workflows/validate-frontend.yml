@@ -315,3 +315,20 @@ jobs:
           probe STAR 'https://livestar.siliconweb.com/starvod/star4/star4newhd.m3u8'
           probe ACTION24 'https://actionlive.siliconweb.com/actionabr/actiontv/actionlive/actiontv_source/chunks.m3u8'
           probe ALPHA 'https://alphatvlive.siliconweb.com/1/Y2Rsd1lUcUVoajcv/UVdCN25h/hls/live/playlist.m3u8'
+
+      - name: Verification-only WebV2 Source Verifier probes
+        shell: bash
+        run: |
+          set -u -o pipefail
+          verify() {
+            name="$1"; url="$2"
+            payload=$(node -e 'console.log(JSON.stringify({candidate:{candidateId:process.argv[1].toLowerCase(),sourceType:"hls",sourceUrl:process.argv[2]}}))' "$name" "$url")
+            result=$(curl --max-time 15 --silent --show-error -X POST 'https://webtv-source-verifier.atonis.workers.dev/verify' -H 'content-type: application/json' --data "$payload" || true)
+            compact=$(RESULT="$result" node -e 'try{const j=JSON.parse(process.env.RESULT||"{}");const x=j.results?.[0]||{};console.log("VERIFY|"+process.argv[1]+"|status="+(x.status||"")+"|verified="+(x.verified===true)+"|http="+(x.lastHttpStatus??"")+"|media="+(x.mediaType||"")+"|streamKind="+(x.streamKind||"")+"|detail="+(x.detail||"")+"|finalHost="+(x.finalTarget?.host||""))}catch(e){console.log("VERIFY|"+process.argv[1]+"|parse-error")}' "$name")
+            echo "$compact"
+          }
+          verify SKAI 'https://skai-live.siliconweb.com/media/cambria4/index_media_bitrate2500K_avc1_mp4a.m3u8'
+          verify OPEN 'https://liveopen.siliconweb.com/openTvLive/liveopen/chunks.m3u8'
+          verify STAR 'https://livestar.siliconweb.com/starvod/star4/star4newhd.m3u8'
+          verify ACTION24 'https://actionlive.siliconweb.com/actionabr/actiontv/actionlive/actiontv_source/chunks.m3u8'
+          verify ALPHA 'https://alphatvlive.siliconweb.com/1/Y2Rsd1lUcUVoajcv/UVdCN25h/hls/live/playlist.m3u8'
