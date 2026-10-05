@@ -7,7 +7,7 @@ import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay } from '../discovery/candidate-model.js';
 
-const BUILD_ID='20261002-unified-search-status';
+const BUILD_ID='20261005-floating-tool-windows-a';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
 let activeRun=null;
