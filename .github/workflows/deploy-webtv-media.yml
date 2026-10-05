@@ -1,0 +1,99 @@
+name: Deploy WebTV Media Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/webtv-media.js'
+      - 'src/media-page.js'
+      - 'media.html'
+      - 'media.css'
+      - 'tests/media-*.test.mjs'
+      - '.github/workflows/deploy-webtv-media.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-webtv-media
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: c2275f5f50ccabe425a5cafe68128a9a
+  WORKER_NAME: webtv-media
+  WORKER_URL: https://webtv-media.atonis.workers.dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate Media Worker source
+        run: node --check workers/webtv-media.js
+
+      - name: Run Media regressions
+        run: |
+          node tests/media-library-entry.test.mjs
+          node tests/media-ertflix-catalog.test.mjs
+
+      - name: Build Wrangler config
+        shell: bash
+        run: |
+          cat > wrangler.media.ci.toml <<EOF
+          name = "webtv-media"
+          main = "workers/webtv-media.js"
+          compatibility_date = "2025-12-25"
+          workers_dev = true
+          preview_urls = false
+
+          [vars]
+          DEPLOY_SHA = "${GITHUB_SHA}"
+          EOF
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.media.ci.toml
+
+      - name: Verify exact-SHA catalog and series details
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 8); do
+            if curl --fail --silent --show-error --max-time 40 -H 'Cache-Control: no-cache' "$WORKER_URL/status?verify=$GITHUB_SHA-$attempt" -o /tmp/media-status.json &&
+               curl --fail --silent --show-error --max-time 60 -H 'Cache-Control: no-cache' "$WORKER_URL/api/catalog?verify=$GITHUB_SHA-$attempt" -o /tmp/media-catalog.json; then
+              if node - <<'NODE'
+          const fs=require('fs');
+          const status=JSON.parse(fs.readFileSync('/tmp/media-status.json','utf8'));
+          const catalog=JSON.parse(fs.readFileSync('/tmp/media-catalog.json','utf8'));
+          const items=Array.isArray(catalog.items)?catalog.items:[];
+          if(!(status.ok===true&&status.service==='WebTV Media Catalog'&&status.deploySha===process.env.GITHUB_SHA&&catalog.ok===true&&catalog.deploySha===process.env.GITHUB_SHA&&items.length>0))process.exit(1);
+          const first=items.find(x=>/^ERT_[A-Z0-9_]+_E0$/.test(x.id||'')&&typeof x.title==='string'&&x.title.length>1);
+          if(!first)process.exit(1);
+          fs.writeFileSync('/tmp/media-series-id.txt',first.id);
+          NODE
+              then
+                SERIES_ID="$(cat /tmp/media-series-id.txt)"
+                if curl --fail --silent --show-error --max-time 60 -H 'Cache-Control: no-cache' "$WORKER_URL/api/series/$SERIES_ID?verify=$GITHUB_SHA-$attempt" -o /tmp/media-series.json &&
+                   node - <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('/tmp/media-series.json','utf8'));
+          const s=j.series||{};
+          process.exit(j.ok===true&&j.deploySha===process.env.GITHUB_SHA&&s.provider==='ertflix'&&typeof s.title==='string'&&s.title.length>1&&Array.isArray(s.episodes)&&s.episodes.length>0?0:1);
+          NODE
+                then
+                  node -e "const c=require('/tmp/media-catalog.json');const s=require('/tmp/media-series.json');console.log('Verified Media ERTFlix · items='+c.items.length+' · series='+s.series.title+' · episodes='+s.series.episodes.length)"
+                  exit 0
+                fi
+              fi
+            fi
+            echo "Waiting for Media Worker verification · attempt $attempt/8"
+            sleep 5
+          done
+          echo "::error::Media Worker did not verify exact SHA with live ERTFlix catalog + episodes"
+          exit 1

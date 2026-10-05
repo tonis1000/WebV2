@@ -29,6 +29,7 @@ on:
       - 'workers/source-hunt*.js'
       - 'workers/epg-proxy-gr.js'
       - 'workers/webtv-sport.js'
+      - 'workers/webtv-media.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-registry.yml'
@@ -39,6 +40,7 @@ on:
       - '.github/workflows/deploy-source-hunt.yml'
       - '.github/workflows/deploy-epg-proxy-gr.yml'
       - '.github/workflows/deploy-webtv-sport.yml'
+      - '.github/workflows/deploy-webtv-media.yml'
   pull_request:
     paths:
       - 'index.html'
@@ -63,6 +65,7 @@ on:
       - 'workers/source-hunt*.js'
       - 'workers/epg-proxy-gr.js'
       - 'workers/webtv-sport.js'
+      - 'workers/webtv-media.js'
       - 'WEBTV_OPERATIONS.md'
       - '.github/workflows/validate-frontend.yml'
       - '.github/workflows/deploy-webtv-registry.yml'
@@ -73,6 +76,7 @@ on:
       - '.github/workflows/deploy-source-hunt.yml'
       - '.github/workflows/deploy-epg-proxy-gr.yml'
       - '.github/workflows/deploy-webtv-sport.yml'
+      - '.github/workflows/deploy-webtv-media.yml'
 
 permissions:
   contents: read
@@ -122,6 +126,8 @@ jobs:
         run: node --check workers/epg-proxy-gr.js
       - name: Validate SPORT Worker syntax
         run: node --check workers/webtv-sport.js
+      - name: Validate Media Worker syntax
+        run: node --check workers/webtv-media.js
       - name: Run Drive-canonical Project Brain retirement guard
         run: node tests/project-brain-drive-canonical.test.mjs
       - name: Run public Markdown surface guard
@@ -154,6 +160,8 @@ jobs:
         run: node tests/admin-floating-panels.test.mjs
       - name: Run Media Library entry regression test
         run: node tests/media-library-entry.test.mjs
+      - name: Run ERTFlix Media catalog regression test
+        run: node tests/media-ertflix-catalog.test.mjs
       - name: Run SPORT iframe surface regression test
         run: node tests/sport-iframe-surface.test.mjs
       - name: Run SPORT feed worker regression test
