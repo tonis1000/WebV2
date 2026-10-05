@@ -44,8 +44,8 @@ export function rankBestSources(candidates=[],{
     })
     .sort((a,b)=>
       Number(b.playbackConfirmed)-Number(a.playbackConfirmed)
-      || b.healthScore-a.healthScore
       || Number(b.browserCompatible)-Number(a.browserCompatible)
+      || b.healthScore-a.healthScore
       || b.confidence-a.confidence
       || a.startupMs-b.startupMs
       || a.index-b.index
