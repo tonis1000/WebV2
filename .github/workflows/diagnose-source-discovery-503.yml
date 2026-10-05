@@ -21,28 +21,25 @@ jobs:
         shell: bash
         run: |
           set -u -o pipefail
-          probe(){
-            name="$1"; payload="$2"
-            if [ "$name" = "STATUS" ]; then
-              code=$(curl -sS -o "/tmp/$name.body" -w '%{http_code}' "$WORKER_URL/?diag=$GITHUB_SHA" || true)
-            else
-              code=$(curl -sS -o "/tmp/$name.body" -w '%{http_code}' -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data "$payload" || true)
-            fi
+          probe_get() {
+            name="$1"
+            code=$(curl -sS -o "/tmp/$name.body" -w '%{http_code}' "$WORKER_URL/?diag=$GITHUB_SHA" || true)
             bytes=$(wc -c < "/tmp/$name.body" | tr -d ' ')
-            ctype=$(python3 - <<PY
-import json
-from pathlib import Path
-p=Path('/tmp/$name.body')
-s=p.read_text(errors='replace')[:200]
-print(json.dumps(s))
-PY
-)
-            echo "$name HTTP=$code bytes=$bytes prefix=$ctype"
+            prefix=$(head -c 160 "/tmp/$name.body" | tr '\n' ' ')
+            echo "$name HTTP=$code bytes=$bytes prefix=$prefix"
           }
-          probe STATUS ''
-          probe CURATED '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
-          probe GITHUB '{"provider":"github-public-playlists","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
-          probe WEB '{"provider":"recent-web-search","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
-          probe STRM '{"provider":"strm-specific-discovery","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}'
-          probe FALLBACK_EMPTY '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"__WEBV2_NO_SUCH_CHANNEL__","id":"__webv2_no_such_channel__","originalId":"__WEBV2_NO_SUCH_CHANNEL__"}}'
-          probe FALLBACK_PRIVATE '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"Západoslovenská TV (Twich)","id":"zapadoslovenska-tv-twich","originalId":"Západoslovenská TV (Twich)"}}'
+          probe_post() {
+            name="$1"
+            payload="$2"
+            code=$(curl -sS -o "/tmp/$name.body" -w '%{http_code}' -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data "$payload" || true)
+            bytes=$(wc -c < "/tmp/$name.body" | tr -d ' ')
+            prefix=$(head -c 160 "/tmp/$name.body" | tr '\n' ' ')
+            echo "$name HTTP=$code bytes=$bytes prefix=$prefix"
+          }
+          probe_get STATUS
+          probe_post CURATED '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
+          probe_post GITHUB '{"provider":"github-public-playlists","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
+          probe_post WEB '{"provider":"recent-web-search","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
+          probe_post STRM '{"provider":"strm-specific-discovery","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}'
+          probe_post FALLBACK_EMPTY '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"__WEBV2_NO_SUCH_CHANNEL__","id":"__webv2_no_such_channel__","originalId":"__WEBV2_NO_SUCH_CHANNEL__"}}'
+          probe_post FALLBACK_PRIVATE '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"Západoslovenská TV (Twich)","id":"zapadoslovenska-tv-twich","originalId":"Západoslovenská TV (Twich)"}}'
