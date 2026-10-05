@@ -1,6 +1,6 @@
 const PARAM = 'layout';
 const DESKTOP = '(min-width: 900px)';
-const BUILD_ID = '20261005-header-brand-size-b';
+const BUILD_ID = '20261005-floating-tool-windows-a';
 
 const layoutMode = new URLSearchParams(location.search).get(PARAM);
 const enabled = layoutMode !== 'classic';
@@ -14,6 +14,14 @@ if (!enabled || window.__webtvRightRailInstalled) {
   let observer = null;
   let epgObserver = null;
   let active = false;
+  let floatingZ = 2300;
+  const floatingSpecs = [
+    {id:'playlist-manager',handle:'.playlist-manager-head',toggle:'playlist-manager-toggle',width:900,height:720,top:54},
+    {id:'unified-search-panel',handle:'.unified-search-head',toggle:'unified-search-toggle',width:780,height:700,top:58},
+    {id:'source-hunt',handle:'.section-heading',toggle:'source-hunt-toggle',width:620,height:460,top:72},
+    {id:'diagnostics',handle:'.section-heading',toggle:'diagnostics-toggle',width:760,height:620,top:72},
+    {id:'epg-guide-shell',handle:'.epg-guide-head',toggle:'epg-guide-toggle',host:'epg-guide-overlay',width:1180,height:780,top:28},
+  ];
 
   function rememberAndMove(node, target) {
     if (!node || !target || node.parentNode === target) return;
@@ -52,9 +60,17 @@ if (!enabled || window.__webtvRightRailInstalled) {
     return rail;
   }
 
+  function normalizeCatalogBadge(badge) {
+    if (!badge) return badge;
+    const text = String(badge.textContent || '').trim();
+    if (/^★?\s*My Playlist\s*:\s*My Playlist$/i.test(text)) badge.textContent = '★ My Playlist';
+    badge.title = 'Current catalog: My Playlist';
+    return badge;
+  }
+
   function ensureCatalogBadge() {
     let badge = document.getElementById('current-catalog-badge');
-    if (badge) return badge;
+    if (badge) return normalizeCatalogBadge(badge);
     badge = document.createElement('span');
     badge.id = 'current-catalog-badge';
     badge.className = 'current-catalog-badge';
@@ -62,7 +78,91 @@ if (!enabled || window.__webtvRightRailInstalled) {
     badge.title = 'Current catalog: My Playlist';
     const actions = document.querySelector('.topbar-actions');
     if (actions) actions.appendChild(badge);
-    return badge;
+    return normalizeCatalogBadge(badge);
+  }
+
+  function isFloatingVisible(panel, spec) {
+    const host = spec.host ? document.getElementById(spec.host) : panel;
+    return Boolean(host && !host.hidden);
+  }
+
+  function placeFloatingPanel(panel, spec, {force=false}={}) {
+    if (!active || !mq.matches || !panel || !isFloatingVisible(panel,spec)) return;
+    if (!force && panel.dataset.floatingPlaced === '1') return;
+    const margin = 16;
+    const railRect = rail?.getBoundingClientRect?.();
+    const rightBoundary = Math.max(margin + 360, (railRect?.left || window.innerWidth) - margin);
+    const maxWidth = Math.max(360, rightBoundary - margin);
+    const width = Math.min(Number(spec.width || 760), maxWidth);
+    const height = Math.min(Number(spec.height || 620), Math.max(240, window.innerHeight - margin * 2));
+    Object.assign(panel.style,{
+      position:'fixed',
+      right:'auto',
+      bottom:'auto',
+      left:`${Math.max(margin,rightBoundary-width)}px`,
+      top:`${Math.max(margin,Math.min(Number(spec.top||64),window.innerHeight-height-margin))}px`,
+      width:`${width}px`,
+      height:`${height}px`,
+      maxWidth:`calc(100vw - ${margin*2}px)`,
+      maxHeight:`calc(100vh - ${margin*2}px)`,
+      zIndex:String(++floatingZ),
+    });
+    panel.dataset.floatingPlaced='1';
+  }
+
+  function bindFloatingPanel(panel, spec) {
+    if (!panel || panel.dataset.floatingBound === '1') return;
+    panel.dataset.floatingBound='1';
+    panel.classList.add('rail-floating-panel');
+    const host = spec.host ? document.getElementById(spec.host) : panel;
+    host?.classList.add('rail-floating-host');
+    const handle = panel.querySelector(spec.handle);
+    if (handle) {
+      handle.classList.add('rail-floating-handle');
+      handle.addEventListener('pointerdown',event=>{
+        if(event.button!==0 || event.target.closest('button,a,input,select,textarea,label,summary'))return;
+        const rect=panel.getBoundingClientRect();
+        const dx=event.clientX-rect.left,dy=event.clientY-rect.top;
+        panel.style.zIndex=String(++floatingZ);
+        const move=moveEvent=>{
+          const maxLeft=Math.max(8,window.innerWidth-panel.offsetWidth-8);
+          const maxTop=Math.max(8,window.innerHeight-panel.offsetHeight-8);
+          panel.style.left=`${Math.max(8,Math.min(maxLeft,moveEvent.clientX-dx))}px`;
+          panel.style.top=`${Math.max(8,Math.min(maxTop,moveEvent.clientY-dy))}px`;
+          panel.style.right='auto';panel.style.bottom='auto';
+        };
+        const stop=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop);};
+        window.addEventListener('pointermove',move);
+        window.addEventListener('pointerup',stop,{once:true});
+        window.addEventListener('pointercancel',stop,{once:true});
+        event.preventDefault();
+      });
+    }
+    panel.addEventListener('pointerdown',()=>{panel.style.zIndex=String(++floatingZ);});
+    const toggle=document.getElementById(spec.toggle);
+    toggle?.addEventListener('click',()=>setTimeout(()=>placeFloatingPanel(panel,spec),0));
+    if(host){
+      new MutationObserver(()=>{if(isFloatingVisible(panel,spec))requestAnimationFrame(()=>placeFloatingPanel(panel,spec));})
+        .observe(host,{attributes:true,attributeFilter:['hidden']});
+    }
+  }
+
+  function installFloatingPanels(){
+    for(const spec of floatingSpecs){
+      const panel=document.getElementById(spec.id);
+      if(panel)bindFloatingPanel(panel,spec);
+    }
+  }
+
+  function resetFloatingPanels(){
+    for(const spec of floatingSpecs){
+      const panel=document.getElementById(spec.id);
+      if(!panel)continue;
+      panel.classList.remove('rail-floating-panel');
+      delete panel.dataset.floatingPlaced;
+      for(const prop of ['position','right','bottom','left','top','width','height','maxWidth','maxHeight','zIndex'])panel.style[prop]='';
+      if(spec.host)document.getElementById(spec.host)?.classList.remove('rail-floating-host');
+    }
   }
 
   function ensureHeaderDock(){
@@ -107,7 +207,8 @@ if (!enabled || window.__webtvRightRailInstalled) {
     if (brand) brand.classList.add('rail-brand');
     if (clock) clock.classList.add('rail-clock');
     [playlists,search,findLogo,repairLogos,epgGuide,sport,hunt,diagnostics,favorite,myAction].forEach(node => node?.classList.add('rail-control'));
-    if (catalog) catalog.classList.add('header-catalog-badge');
+    if (catalog) { normalizeCatalogBadge(catalog); catalog.classList.add('header-catalog-badge'); }
+    installFloatingPanels();
     if (favorite) favorite.classList.add('rail-favorite');
   }
 
@@ -177,6 +278,7 @@ if (!enabled || window.__webtvRightRailInstalled) {
     active = false;
     observer?.disconnect();
     observer = null;
+    resetFloatingPanels();
     restoreAll();
     document.documentElement.classList.remove('rail-preview');
     const desc = document.getElementById('program-description');
@@ -212,7 +314,7 @@ if (!enabled || window.__webtvRightRailInstalled) {
     html.rail-preview .player-header-admin{display:flex;align-items:center;justify-content:center;gap:12px;min-width:0;margin-left:auto}
     html.rail-preview .player-header-admin .rail-brand{flex:none}
     html.rail-preview .player-header-admin .rail-brand #admin-unlock-trigger{font-size:1.32rem;font-weight:900;letter-spacing:.13em;padding:7px 8px}
-    html.rail-preview .player-header-admin #current-catalog-badge.header-catalog-badge{display:inline-flex;align-items:center;justify-content:center;max-width:180px;padding:5px 9px;border:1px solid #315d7a;border-radius:999px;background:#0d1d29;color:#bfe0ff;font-size:.72rem;font-weight:800;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    html.rail-preview .player-header-admin #current-catalog-badge.header-catalog-badge{display:inline-flex;align-items:center;justify-content:center;max-width:180px;padding:4px 5px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#bfe0ff;font-size:.72rem;font-weight:800;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     html.rail-preview .player-header-admin .rail-clock{font-size:.78rem;white-space:nowrap;color:#d7e8f6}
     html.rail-preview .rail-control{width:100%;min-height:42px;display:flex!important;align-items:center;justify-content:center;text-align:center;margin:0!important;border-radius:11px;font-size:.82rem}
     html.rail-preview #playlist-manager-toggle.rail-control{background:#123f59;border-color:#2e83ad;color:#d9f3ff}
@@ -236,7 +338,13 @@ if (!enabled || window.__webtvRightRailInstalled) {
     html.rail-preview #program-description.expanded::after{content:'⌃'}
     html.rail-preview .next-programs{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
     html.rail-preview .next-card{height:100%;min-height:62px}
-    html.rail-preview #unified-search-panel:not([hidden]){position:fixed;top:64px;right:258px;width:min(780px,calc(100vw - 590px));max-height:calc(100vh - 82px);overflow:auto;z-index:1100;background:rgba(14,20,26,.995);border-color:#347da0;box-shadow:0 30px 100px rgba(0,0,0,.7)}
+    html.rail-preview #unified-search-panel:not([hidden]){position:fixed;overflow:auto;background:rgba(14,20,26,.995);border-color:#347da0;box-shadow:0 30px 100px rgba(0,0,0,.7)}
+    html.rail-preview .rail-floating-panel{resize:both!important;min-width:360px;min-height:220px;box-sizing:border-box}
+    html.rail-preview .rail-floating-handle{cursor:move;user-select:none;touch-action:none}
+    html.rail-preview .rail-floating-handle button,html.rail-preview .rail-floating-handle a,html.rail-preview .rail-floating-handle input,html.rail-preview .rail-floating-handle select,html.rail-preview .rail-floating-handle textarea{cursor:pointer;user-select:auto}
+    html.rail-preview #epg-guide-overlay.rail-floating-host:not([hidden]){display:block;padding:0;background:transparent;backdrop-filter:none;pointer-events:none}
+    html.rail-preview #epg-guide-shell.rail-floating-panel{pointer-events:auto;margin:0;overflow:hidden}
+    html.rail-preview #epg-guide-overlay.rail-floating-host .epg-program-dialog{position:fixed;inset:0;pointer-events:auto}
     @media(min-width:900px) and (max-width:1179px){
       html.rail-preview .app-shell{width:min(1500px,calc(100% - 10px));padding:5px 0 8px}
       html.rail-preview .layout{grid-template-columns:250px minmax(0,1fr) 170px;gap:8px}
@@ -247,7 +355,6 @@ if (!enabled || window.__webtvRightRailInstalled) {
       html.rail-preview .desktop-rail-group{gap:5px;padding-bottom:8px}
       html.rail-preview .sidebar{top:5px;height:calc(100vh - 10px)}
       html.rail-preview .player-stage{height:min(58vh,650px);min-height:280px}
-      html.rail-preview #unified-search-panel:not([hidden]){right:188px;width:min(680px,calc(100vw - 470px))}
     }
     @media(min-width:1800px){
       html.rail-preview .app-shell{width:min(2200px,calc(100% - 24px))}
