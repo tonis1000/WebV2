@@ -6,9 +6,11 @@ import { safePublicActionUrl } from './public-url-policy.js';
 import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay } from '../discovery/candidate-model.js';
-import { normalizedSelectedChannelKeys, saveSourceEligibility } from './save-source-policy.js';
+import { normalizedSelectedChannelKeys, saveSourceEligibility, bestSourceSaveEligibility } from './save-source-policy.js';
+import { rankBestSources, selectBestSource } from './best-source.js';
+import { normalizeChannelName } from '../discovery/candidate-model.js';
 
-const BUILD_ID='20261005-channel-signal-health-a';
+const BUILD_ID='20261005-best-source-a';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
 const playbackConfirmedCandidates=new Set();
@@ -120,6 +122,19 @@ function headersForPlayback(headers={}){const params=new URLSearchParams();for(c
 function playbackValue(candidate={}){const suffix=headersForPlayback(candidate.requiredHeaders);return `${candidate.sourceUrl||''}${suffix?`|${suffix}`:''}`;}
 function playableCandidate(candidate={}){return candidate.browserPlayable===true&&/^https?:\/\//i.test(String(candidate.sourceUrl||''));}
 function selectedChannel(){try{return window.WebTVPlaylistAPI?.getSelectedChannel?.()||null;}catch{return null;}}
+function candidateHealthScore(candidate={}){
+  const store=window.WebTVHealthStore;
+  try{store?.refresh?.();}catch{}
+  const values=[candidate.sourceUrl,playbackValue(candidate)].filter(Boolean);
+  return Math.max(0,...values.map(value=>Number(store?.score?.(value)||0)));
+}
+function bestSourceOptions(){
+  return {playbackConfirmedIds:playbackConfirmedCandidates,scoreHealth:candidateHealthScore,pageProtocol:location.protocol};
+}
+function playlistHasChannel(group={}){
+  const wanted=new Set([group.channelKey,group.channelName].map(normalizeChannelName).filter(Boolean));
+  return playlistChannels().some(channel=>[channel.id,channel.originalId,channel.name].map(normalizeChannelName).some(key=>wanted.has(key)));
+}
 function saveCandidateState(candidate={},channelName=''){
   normalizedSelectedChannelKeys(selectedChannel());
   return saveSourceEligibility({
@@ -173,13 +188,14 @@ function candidateReportEvents(candidateId=''){
   try{return activeRun?.reporter?.filterByCandidate?.(candidateId)||[];}catch{return[];}
 }
 
-function candidateRow(raw,channelName){
+function candidateRow(raw,channelName,{best=false,channelKey=''}={}){
   const candidate=candidateForDisplay(raw);const row=document.createElement('div');row.className='unified-candidate-row';
   const main=document.createElement('div');main.className='unified-candidate-main';
   const title=document.createElement('div');title.className='unified-candidate-title';
   const source=document.createElement('span');source.textContent=candidate.sourceOriginLabel||candidate.sourceOrigin||candidate.discoveryProvider||'Source';
   const capability=document.createElement('span');capability.className=candidate.browserPlayable?'unified-playable':'unified-unplayable';capability.textContent=candidate.browserPlayable?'Playable':'Not browser-playable';
   title.append(source,capability);
+  if(best){const badge=document.createElement('span');badge.className='unified-best-source-badge';badge.textContent='Best Source';title.appendChild(badge);row.classList.add('best-source');}
   const meta=document.createElement('div');meta.className='unified-candidate-meta';
   for(const text of [`${candidate.inputFormatId||candidate.sourceType||'unknown'} → ${candidate.resolvedMediaFormatId||'unknown'}`,`Verifier: ${candidate.verificationStatus||'UNVERIFIED'}`,`Via: ${candidate.discoveryProvider||'unknown'}`]){const span=document.createElement('span');span.textContent=text;meta.appendChild(span);}
   const url=document.createElement('code');url.className='unified-candidate-url';url.textContent=formatSource(raw.sourceUrl);
@@ -208,9 +224,38 @@ function candidateRow(raw,channelName){
   play.addEventListener('click',()=>playCandidate(raw,channelName,play));actions.appendChild(play);
   const saveState=saveCandidateState(raw,channelName);const save=document.createElement('button');save.type='button';save.className='button playlists';save.textContent=saveState.label;save.disabled=!saveState.enabled;save.title=saveState.title;
   save.addEventListener('click',()=>saveCandidateSource(raw,channelName,save));actions.appendChild(save);
+  if(best){
+    const bestState=bestSourceSaveEligibility({candidate:raw,playbackConfirmed:playbackConfirmedCandidates.has(raw.candidateId)});
+    const bestButton=document.createElement('button');bestButton.type='button';bestButton.className='button best-source-action';bestButton.textContent=bestState.enabled?(playlistHasChannel({channelKey,channelName})?'Use Best Source':'Add Best to My Playlist'):bestState.label;bestButton.disabled=!bestState.enabled;bestButton.title=bestState.title;
+    bestButton.addEventListener('click',()=>saveBestSource(raw,{channelKey,channelName},bestButton));actions.appendChild(bestButton);
+  }
   const safeOrigin=safePublicActionUrl(candidate.sourceOriginUrl);if(safeOrigin){const link=document.createElement('a');link.className='button ghost';link.href=safeOrigin;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Open source ↗';actions.appendChild(link);}
   const copyUrl=safePublicActionUrl(raw.sourceUrl);if(copyUrl&&!raw.xtreamContext){const copy=document.createElement('button');copy.type='button';copy.className='button ghost';copy.textContent='Copy URL';copy.addEventListener('click',()=>navigator.clipboard?.writeText?.(copyUrl));actions.appendChild(copy);}
   row.append(main,actions);return row;
+}
+
+async function saveBestSource(candidate,group={},button){
+  const state=bestSourceSaveEligibility({candidate,playbackConfirmed:playbackConfirmedCandidates.has(candidate.candidateId)});
+  if(!state.enabled){button.disabled=true;button.textContent=state.label;button.title=state.title;return;}
+  const api=window.WebTVMyPlaylistAPI;if(typeof api?.saveVerifiedSearchSource!=='function')return;
+  button.disabled=true;button.textContent='Saving Best…';
+  const channel={id:group.channelKey||candidate.normalizedChannelName||group.channelName,originalId:group.channelKey||candidate.channelName||group.channelName,name:group.channelName||candidate.channelName||'Channel',group:'Other',logo:''};
+  try{
+    await api.saveVerifiedSearchSource(channel,{url:playbackValue(candidate),origin:candidate.sourceOrigin||candidate.discoveryProvider||'best-source',provider:candidate.discoveryProvider||'',sourceType:candidate.sourceType||'',drmDetected:Boolean(candidate.drmDetected)},{
+      reason:'unified-search-best-source-save',
+      verified:String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED',
+      streamKind:String(candidate.streamKind||'unknown').toLowerCase(),
+      playbackConfirmed:playbackConfirmedCandidates.has(candidate.candidateId),
+    });
+    savedCandidateIds.add(candidate.candidateId);
+    activeRun?.reporter?.emit?.({type:'best-source.saved',severity:'OK',candidateId:candidate.candidateId,channelName:group.channelName||candidate.channelName||'',stage:'save',message:'Best Source saved through Playlist Manager'});
+    button.textContent='Best Source saved ✓';button.title='My Playlist updated through Playlist Manager';
+  }catch(error){
+    activeRun?.reporter?.emit?.({type:'best-source.save-failed',severity:'ERROR',candidateId:candidate.candidateId,channelName:group.channelName||candidate.channelName||'',stage:'save',message:error?.message||String(error)});
+    button.textContent='Best save failed';button.classList.add('danger');button.title=error?.message||String(error);
+    setTimeout(()=>{button.classList.remove('danger');renderResults(latestUpdate?.snapshot||{});},1500);
+  }
+  const report=activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[];renderReport(report,activeRun?.reporter?.summary?.()||latestUpdate?.summary||{});
 }
 
 function renderLeads(leads=[]){
@@ -243,7 +288,7 @@ function renderResults(snapshot={}){
   const root=$('unified-search-results');if(!root)return;
   const grouped=groupCandidatesByChannel(snapshot.candidates||[],snapshot.intent||latestIntent||{});const leads=Array.isArray(snapshot.leads)?snapshot.leads:[];root.replaceChildren();
   if(!grouped.length&&!leads.length){const empty=document.createElement('div');empty.className='unified-search-empty';empty.textContent=snapshot.status==='running'?'Searching sources… results will appear here as lanes finish.':snapshot.status==='completed'?'No candidates or leads found for this search.':'Search for a channel or group.';root.appendChild(empty);return;}
-  for(const group of grouped){const card=document.createElement('article');card.className='unified-channel-card';const head=document.createElement('div');head.className='unified-channel-head';const name=document.createElement('strong');name.textContent=group.channelName;const count=document.createElement('span');count.className='unified-channel-count';count.textContent=`${group.candidates.length} source${group.candidates.length===1?'':'s'}`;head.append(name,count);const list=document.createElement('div');list.className='unified-candidate-list';for(const candidate of group.candidates)list.appendChild(candidateRow(candidate,group.channelName));card.append(head,list);root.appendChild(card);}
+  for(const group of grouped){const card=document.createElement('article');card.className='unified-channel-card';const head=document.createElement('div');head.className='unified-channel-head';const name=document.createElement('strong');name.textContent=group.channelName;const ranked=rankBestSources(group.candidates,bestSourceOptions());const best=selectBestSource(group.candidates,bestSourceOptions());const count=document.createElement('span');count.className='unified-channel-count';count.textContent=`${group.candidates.length} source${group.candidates.length===1?'':'s'}${best?' · Best Source ready':''}`;head.append(name,count);const list=document.createElement('div');list.className='unified-candidate-list';const rankedIds=new Set(ranked.map(item=>item.candidate.candidateId));const ordered=[...ranked.map(item=>item.candidate),...group.candidates.filter(candidate=>!rankedIds.has(candidate.candidateId))];for(const candidate of ordered)list.appendChild(candidateRow(candidate,group.channelName,{best:Boolean(best&&candidate.candidateId===best.candidateId),channelKey:group.channelKey}));card.append(head,list);root.appendChild(card);}
   const leadCard=renderLeads(leads);if(leadCard)root.appendChild(leadCard);
 }
 
