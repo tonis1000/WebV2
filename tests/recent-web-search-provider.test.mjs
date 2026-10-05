@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { discoverRecentWebSearch, RECENT_WEB_SEARCH_PROVIDER, WEB_MAX_SEARCHES, WEB_MAX_PAGE_SCANS, WEB_MAX_GIST_SCANS, WEB_MAX_SUBREQUESTS } from '../workers/source-discovery/recent-web-search.js';
 import { parseM3u } from '../workers/webtv-source-discovery.js';
@@ -7,6 +8,8 @@ assert.equal(WEB_MAX_SEARCHES,3);
 assert.equal(WEB_MAX_PAGE_SCANS,3);
 assert.equal(WEB_MAX_GIST_SCANS,2);
 assert.equal(WEB_MAX_SUBREQUESTS,8);
+const discoveryDeploy=fs.readFileSync(new URL('../.github/workflows/deploy-source-discovery.yml',import.meta.url),'utf8');
+assert.equal(discoveryDeploy.includes('\\"provider\\":\\"recent-web-search\\"'),false,'deploy/live verification must never invoke paid Recent Web');
 
 const originalFetch=globalThis.fetch;
 const seen=[];
