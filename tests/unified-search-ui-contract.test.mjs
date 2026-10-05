@@ -13,10 +13,12 @@ const savePolicy=fs.readFileSync(new URL('../src/search/save-source-policy.js',i
 for(const required of [
   'unified-search-form','unified-search-query','unified-search-results','unified-search-report',
   'unified-search-report-summary','unified-search-report-timeline','unified-search-cancel',
-  'Copy report','Export JSON','Open source','Details','Play','Best Source','Use Best Source','unified-search-status-banner','unified-search-submit',
+  'Copy report','Export JSON','Open source','Details','Play','Best Source','Use Best Source','unified-search-status-banner','unified-search-submit','unified-search-paid-fallback','Deep web fallback (Brave)',
 ])assert.ok(js.includes(required),`UI must include ${required}`);
 
 assert.equal(/Find Official|Official Sources|official-provider-lane|official-api-resolver/i.test(js),false,'Official discovery controls must not appear in Unified Search UI');
+assert.ok(/includePaidFallback\s*:\s*true/.test(js),'Brave fallback must require an explicit UI action');
+assert.ok(/Free sources run first/.test(js),'UI must explain the free-first policy');
 assert.ok(js.includes("target='_blank'")||js.includes('target="_blank"')||js.includes("link.target='_blank'"),'source links must open in a new tab');
 assert.ok(/noopener/.test(js)&&/noreferrer/.test(js),'source links must use noopener/noreferrer');
 assert.ok(/safePublicActionUrl/.test(js),'all public source/copy actions must use the canonical safe URL exposure policy');
