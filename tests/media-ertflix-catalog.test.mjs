@@ -9,7 +9,7 @@ const client=fs.readFileSync(new URL('../src/media-page.js',import.meta.url),'ut
 assert.match(worker,/WebTV Media Catalog/,'media worker must have one explicit catalog-owner service identity');
 assert.match(worker,/live\.ertflix\.gr/,'ERTFlix adapter must use the current official public ERTFlix web surface');
 assert.match(worker,/\/api\/catalog/,'media worker must expose catalog read endpoint');
-assert.match(worker,/\/api\/series\//,'media worker must expose bounded series-details endpoint');
+assert.match(worker,/Series id required/,'media worker must expose a bounded series-details endpoint');
 assert.doesNotMatch(worker,/D1|\.prepare\(|\.put\(|\.delete\(/,'phase 1 media adapter must remain read-only and persistence-free');
 assert.doesNotMatch(worker,/api\.search\.brave|BRAVE_API_KEY/,'media catalog must not use paid Brave search');
 
