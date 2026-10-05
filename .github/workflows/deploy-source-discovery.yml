@@ -73,6 +73,7 @@ jobs:
           node tests/source-discovery-enigma2-parity.test.mjs
           node tests/discovery-external.test.mjs
           node tests/source-discovery-worker.test.mjs
+          node tests/source-discovery-bounded-read.test.mjs
           node tests/curated-remote-feeds.test.mjs
           node tests/search-source-addition-ergonomics.test.mjs
           node tests/search-family-query.test.mjs
