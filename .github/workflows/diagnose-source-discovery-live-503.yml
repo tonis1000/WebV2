@@ -1,0 +1,35 @@
+name: Diagnose Source Discovery live 503
+on:
+  pull_request:
+    paths: ['.github/workflows/diagnose-source-discovery-live-503.yml']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe production Source Discovery lanes separately
+        shell: bash
+        env:
+          WORKER_URL: https://webtv-source-discovery.atonis.workers.dev
+        run: |
+          set -u -o pipefail
+          probe() {
+            name="$1"
+            body="$2"
+            code=$(curl --silent --show-error --max-time 30 -o "/tmp/$name.body" -w '%{http_code}' -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data "$body" || true)
+            bytes=$(wc -c < "/tmp/$name.body" 2>/dev/null || echo 0)
+            echo "PROBE $name HTTP=$code BYTES=$bytes"
+            head -c 500 "/tmp/$name.body" 2>/dev/null || true
+            echo
+          }
+          code=$(curl --silent --show-error --max-time 15 -o /tmp/status.body -w '%{http_code}' "$WORKER_URL/" || true)
+          echo "PROBE status HTTP=$code BYTES=$(wc -c < /tmp/status.body)"
+          cat /tmp/status.body
+          probe curated '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
+          probe github '{"provider":"github-public-playlists","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
+          probe web '{"provider":"recent-web-search","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}'
+          probe strm '{"provider":"strm-specific-discovery","freshness":"7d","channel":{"name":"ERT1","id":"ert1","originalId":"ERT1"}}'
+          probe fallback_empty '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"__WEBV2_NO_SUCH_CHANNEL__","id":"__webv2_no_such_channel__","originalId":"__WEBV2_NO_SUCH_CHANNEL__"}}'
+          probe fallback_private '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"Západoslovenská TV (Twich)","id":"zapadoslovenska-tv-twich","originalId":"Západoslovenská TV (Twich)"}}'
