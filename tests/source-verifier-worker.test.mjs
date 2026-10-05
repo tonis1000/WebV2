@@ -21,7 +21,10 @@ try{
       assert.equal(headers.get('x-roku-reserved-dev-id'),'device-123');
       return new Response('#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     }
-    if(value.includes('good.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
+    if(value.includes('good.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:42\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
+    if(value.includes('vod.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n#EXT-X-ENDLIST\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
+    if(value.includes('dash-live.test'))return new Response('<?xml version="1.0"?><MPD type="dynamic"><Period/></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
+    if(value.includes('dash-vod.test'))return new Response('<?xml version="1.0"?><MPD type="static"><Period/></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
     if(value.includes('dead.test'))return new Response('gone',{status:404,headers:{'content-type':'text/plain'}});
     if(value.includes('drm.test'))return new Response('<?xml version="1.0"?><MPD><Period><ContentProtection schemeIdUri="urn:uuid:test"/></Period></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
     if(value.includes('html.test'))return new Response('<html>not media</html>',{status:200,headers:{'content-type':'text/html'}});
@@ -56,12 +59,24 @@ try{
   assert.equal(body.results[0].status,'VERIFIED');
   assert.equal(body.results[0].verified,true);
   assert.equal(body.results[0].mediaType,'hls');
+  assert.equal(body.results[0].streamKind,'live');
   assert.equal(body.results[1].status,'HTTP 404');
   assert.equal(body.results[1].verified,false);
   assert.equal(body.results[2].status,'DRM');
   assert.equal(body.results[2].drmDetected,true);
   assert.equal(body.results[3].status,'FAILED');
   assert.match(body.results[3].detail,/Private(?: IP|\/local) targets are not allowed/);
+
+  const semanticsResponse=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidates:[
+    {candidateId:'vod-hls',sourceType:'hls',sourceUrl:'https://vod.test/movie.m3u8'},
+    {candidateId:'live-dash',sourceType:'dash',sourceUrl:'https://dash-live.test/live.mpd'},
+    {candidateId:'vod-dash',sourceType:'dash',sourceUrl:'https://dash-vod.test/movie.mpd'},
+  ]})}),{});
+  const semanticsBody=await semanticsResponse.json();
+  assert.equal(semanticsBody.results[0].status,'VERIFIED');
+  assert.equal(semanticsBody.results[0].streamKind,'vod');
+  assert.equal(semanticsBody.results[1].streamKind,'live');
+  assert.equal(semanticsBody.results[2].streamKind,'vod');
 
   const htmlResponse=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidate:{candidateId:'html',sourceUrl:'https://html.test/live'}})}),{});
   const htmlBody=await htmlResponse.json();

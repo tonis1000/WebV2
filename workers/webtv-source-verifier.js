@@ -1,7 +1,7 @@
 import { detectSourceFormat, classifySourceBody, toLegacySourceType } from '../src/core/source-format-registry.js';
 import { parseIptvUrl } from '../src/core/utils.js';
 
-const VERSION='1.0';
+const VERSION='1.1';
 const ALLOWED_ORIGIN='*';
 const UPSTREAM_TIMEOUT_MS=6000;
 const MAX_BODY_BYTES=512000;
@@ -67,6 +67,22 @@ async function readLimited(response){
   for(const chunk of chunks){merged.set(chunk,offset);offset+=chunk.length;}
   return new TextDecoder().decode(merged);
 }
+function streamKindFromMedia(media='',body=''){
+  const text=String(body||'');
+  if(media==='direct-video')return 'vod';
+  if(media==='hls'){
+    if(/#EXT-X-PLAYLIST-TYPE\s*:\s*VOD/i.test(text)||/#EXT-X-ENDLIST\b/i.test(text))return 'vod';
+    if(/#EXT-X-MEDIA-SEQUENCE\s*:/i.test(text)&&/#EXTINF\s*:/i.test(text))return 'live';
+    return 'unknown';
+  }
+  if(media==='dash'){
+    const opening=text.match(/<MPD\b[^>]*>/i)?.[0]||'';
+    if(/\btype\s*=\s*["']dynamic["']/i.test(opening))return 'live';
+    if(/\btype\s*=\s*["']static["']/i.test(opening))return 'vod';
+    return 'unknown';
+  }
+  return 'unknown';
+}
 function mediaProbeResult(type,text='',contentType=''){
   const body=String(text||'');
   const ct=String(contentType||'').toLowerCase();
@@ -77,7 +93,7 @@ function mediaProbeResult(type,text='',contentType=''){
   if(type==='dash'&&media!=='dash')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not a valid DASH manifest'};
   if(type==='direct'&&media==='unknown')return{ok:false,mediaType:'',drmDetected:drm,reason:'Response is not recognized as playable media'};
   const mediaType=media==='hls'?'hls':media==='dash'?'dash':ct.split(';')[0]||type;
-  return{ok:true,mediaType,drmDetected:drm,reason:''};
+  return{ok:true,mediaType,streamKind:streamKindFromMedia(media,body),drmDetected:drm,reason:''};
 }
 function isRedirectStatus(status){return[301,302,303,307,308].includes(status);}
 async function fetchWithRedirectDiagnostics(target,headers,signal){
@@ -124,9 +140,9 @@ async function verifyOne(input={}){
     }
     const text=await readLimited(response);
     const classified=mediaProbeResult(type,text,response.headers.get('content-type')||'');
-    if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:true,detail:'DRM markers detected',redirects,finalTarget,finalResponseHeaders};
-    if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:classified.reason,redirects,finalTarget,finalResponseHeaders};
-    return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget,finalResponseHeaders};
+    if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:true,detail:'DRM markers detected',redirects,finalTarget,finalResponseHeaders};
+    if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:false,detail:classified.reason,redirects,finalTarget,finalResponseHeaders};
+    return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget,finalResponseHeaders};
   }catch(error){
     const timeout=error?.name==='AbortError';
     return{candidateId,status:timeout?'TIMEOUT':'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:timeout?`Upstream timeout after ${UPSTREAM_TIMEOUT_MS} ms`:error?.message||String(error),redirects,finalTarget,finalResponseHeaders};

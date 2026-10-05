@@ -78,6 +78,7 @@ export function createCandidate(input={}) {
   const resolvedMediaFormatId=canonicalMediaFormat(input,sourceUrl);
   const browserPlayable=mediaIsBrowserPlayable(resolvedMediaFormatId);
   const verificationStatus=VERIFICATION_STATES.has(input.verificationStatus) ? input.verificationStatus : 'UNVERIFIED';
+  const streamKind=['live','vod'].includes(String(input.streamKind||'').toLowerCase()) ? String(input.streamKind).toLowerCase() : 'unknown';
   const verified=verificationStatus === 'VERIFIED' && input.verified !== false;
   const matchConfidence=MATCH_CONFIDENCE.has(input.matchConfidence) ? input.matchConfidence : 'UNKNOWN';
   const requiredHeaders=cleanHeaders(input.requiredHeaders);
@@ -119,6 +120,7 @@ export function createCandidate(input={}) {
     startupMs:Number.isFinite(Number(input.startupMs)) ? Number(input.startupMs) : null,
     lastHttpStatus:Number.isFinite(Number(input.lastHttpStatus)) ? Number(input.lastHttpStatus) : null,
     mediaType:String(input.mediaType||''),
+    streamKind,
     drmDetected:Boolean(input.drmDetected),
     verificationDetail:String(input.verificationDetail||''),
     healthScore:Number.isFinite(Number(input.healthScore)) ? Number(input.healthScore) : null,
@@ -141,6 +143,7 @@ export function withVerification(candidate={},result={}) {
     lastHttpStatus:result.lastHttpStatus,
     mediaType:result.mediaType||candidate.mediaType,
     resolvedMediaFormatId:result.mediaType||candidate.resolvedMediaFormatId,
+    streamKind:result.streamKind||candidate.streamKind||'unknown',
     drmDetected:Boolean(result.drmDetected),
     verificationDetail:result.detail||'',
   });

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { saveSourceEligibility } from '../src/search/save-source-policy.js';
 
 const selected={id:'mega',originalId:'MEGA.gr',name:'MEGA'};
-const verified={candidateId:'cand_mega',channelName:'MEGA',normalizedChannelName:'mega',sourceType:'hls',discoveryProvider:'recent-web-search',verificationStatus:'VERIFIED'};
+const verified={candidateId:'cand_mega',channelName:'MEGA',normalizedChannelName:'mega',sourceType:'hls',discoveryProvider:'recent-web-search',verificationStatus:'VERIFIED',streamKind:'live'};
 
 assert.equal(saveSourceEligibility({candidate:verified,channelName:'MEGA',selectedChannel:selected,playbackConfirmed:false}).enabled,false,'verified source must not save before playback confirmation');
 assert.equal(saveSourceEligibility({candidate:{...verified,verificationStatus:'UNVERIFIED'},channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true}).enabled,false,'playback alone must not bypass verifier gate');
@@ -11,6 +11,16 @@ assert.equal(saveSourceEligibility({candidate:verified,channelName:'MEGA',select
 const eligible=saveSourceEligibility({candidate:verified,channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true});
 assert.equal(eligible.enabled,true,'verified + playback-confirmed + matching selected channel must be saveable');
 assert.equal(eligible.label,'Save source');
+
+const vod=saveSourceEligibility({candidate:{...verified,streamKind:'vod'},channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true});
+assert.equal(vod.enabled,false,'verified VOD must not be saveable as a live channel source');
+assert.match(vod.title,/on-demand|live/i);
+
+const unknownKind=saveSourceEligibility({candidate:{...verified,streamKind:'unknown'},channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true});
+assert.equal(unknownKind.enabled,false,'unknown live/VOD semantics must not be promoted into a linear channel');
+
+const directVideo=saveSourceEligibility({candidate:{...verified,sourceType:'direct',resolvedMediaFormatId:'direct-video',streamKind:'vod'},channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true});
+assert.equal(directVideo.enabled,false,'playable MP4/direct-video must not be saveable as a live channel source');
 
 const xtream=saveSourceEligibility({candidate:{...verified,sourceType:'xtream',xtreamContext:{accountRef:'acct'}},channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true});
 assert.equal(xtream.enabled,false,'generic save must reject Xtream candidates');
