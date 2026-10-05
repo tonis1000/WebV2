@@ -19,10 +19,10 @@ assert.ok(FEEDS.some(feed=>feed.name==='HansSettings Greece'&&feed.format==='eni
 assert.ok(FEEDS.some(feed=>feed.name==='Ciefp IPTV Mix'&&feed.tier==='fallback'));
 assert.ok(FEEDS.some(feed=>feed.name==='b2og iptv-org All'&&feed.tier==='fallback'));
 assert.equal(FALLBACK_TRIGGER_COUNT,3);
-assert.equal(MAX_PRIMARY_FEEDS_PER_REQUEST,4);
+assert.equal(MAX_PRIMARY_FEEDS_PER_REQUEST,2);
 assert.equal(MAX_FALLBACK_FEEDS_PER_REQUEST,1);
 const plan=selectCuratedFeedPlan(FEEDS);
-assert.equal(plan.primary.length,4);
+assert.equal(plan.primary.length,2);
 assert.equal(plan.fallback.length,1);
 assert.ok(plan.primary.some(feed=>feed.id==='hanssettings-gr'),'HansSettings Greece must stay inside the bounded primary runtime plan');
 assert.equal(plan.fallback[0]?.id,'ciefp-iptv-mix','Ciefp private-route acceptance corpus must be the single bounded fallback runtime lane');
