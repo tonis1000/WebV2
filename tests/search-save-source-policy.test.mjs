@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { saveSourceEligibility } from '../src/search/save-source-policy.js';
+import { saveSourceEligibility, bestSourceSaveEligibility } from '../src/search/save-source-policy.js';
 
 const selected={id:'mega',originalId:'MEGA.gr',name:'MEGA'};
 const verified={candidateId:'cand_mega',channelName:'MEGA',normalizedChannelName:'mega',sourceType:'hls',discoveryProvider:'recent-web-search',verificationStatus:'VERIFIED',streamKind:'live'};
@@ -29,5 +29,12 @@ assert.match(xtream.label,/Xtream Preview/);
 const saved=saveSourceEligibility({candidate:verified,channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true,alreadySaved:true});
 assert.equal(saved.enabled,false);
 assert.equal(saved.label,'Saved ✓');
+
+const bestBlocked=bestSourceSaveEligibility({candidate:verified,playbackConfirmed:false});
+assert.equal(bestBlocked.enabled,false,'Best Source must require real playback confirmation');
+const bestEligible=bestSourceSaveEligibility({candidate:{...verified,browserPlayable:true},playbackConfirmed:true});
+assert.equal(bestEligible.enabled,true,'verified live browser-playable playback-confirmed candidate should be usable as Best Source');
+const bestDrm=bestSourceSaveEligibility({candidate:{...verified,browserPlayable:true,drmDetected:true},playbackConfirmed:true});
+assert.equal(bestDrm.enabled,false,'DRM candidate must never use generic Best Source persistence');
 
 console.log('Unified Search Save source policy PASS');
