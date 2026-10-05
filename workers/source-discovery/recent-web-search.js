@@ -2,8 +2,9 @@ import { channelSignalsMatch, greekChannelAliases, normalizeChannelText } from '
 import { sanitizeCandidateUrl } from '../../src/core/source-candidate-url.js';
 export const RECENT_WEB_SEARCH_PROVIDER='recent-web-search';
 export const WEB_SEARCH_TIMEOUT_MS=6000;
-export const WEB_MAX_SEARCHES=2;
-export const WEB_MAX_PAGE_SCANS=4;
+export const WEB_MAX_SEARCHES=3;
+export const WEB_MAX_PAGE_SCANS=3;
+export const WEB_MAX_GIST_SCANS=2;
 export const WEB_MAX_RESULTS=12;
 export const WEB_MAX_SUBREQUESTS=8;
 
@@ -11,6 +12,10 @@ const BRAVE_FRESHNESS=Object.freeze({'24h':'pd','7d':'pw','30d':'pm'});
 const BLOCKED_HOSTS=/^(?:x\.com|twitter\.com|tiktok\.com|www\.tiktok\.com|facebook\.com|www\.facebook\.com|instagram\.com|www\.instagram\.com|youtube\.com|www\.youtube\.com|youtu\.be)$/i;
 const LIVE_URL=/https?:\/\/[^\s"'<>]+?\.(?:m3u8|mpd)(?:\?[^\s"'<>]*)?/gi;
 const TRUSTED_STREAM_HOST_HINT=/(?:^|\.)(?:siliconweb\.com|antennaplus\.gr|broadpeak-aas\.com|msvdn\.net|smart-tv-data\.com|streams\.ovh|crystalweb\.net|gwebstream\.eu)$/i;
+const GIST_HOST=/^(?:www\.)?gist\.github\.com$/i;
+const GIST_ID=/^[a-f0-9]+$/i;
+const GIST_FILE_NAME=/(?:\.m3u8?$|\.txt$|playlist|channels|iptv|greek.*tv|tv.*greek)/i;
+const CREDENTIAL_DUMP=/(?:\busername\s*=\s*[^\s&#]+[\s\S]{0,240}\bpassword\s*=\s*[^\s&#]+|\bpassword\s*=\s*[^\s&#]+[\s\S]{0,240}\busername\s*=\s*[^\s&#]+|\/(?:get|player_api|xmltv)\.php\?[^\s\"'<>]*(?:username|password)=|#EXTVLCOPT:http-(?:user|password)\s*=|portal[^\n]{0,160}\bmac\s*=)/i;
 
 function normalize(value=''){return normalizeChannelText(value);}
 function channelRelevant(text='',channel={}){
@@ -37,14 +42,16 @@ function safePublicUrl(raw=''){
 function unique(items=[],keyFn=item=>item?.sourceUrl){const seen=new Set(),out=[];for(const item of items){const key=String(keyFn(item)||'');if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=WEB_MAX_RESULTS)break;}return out;}
 function extractLive(text=''){return [...new Set((String(text).match(LIVE_URL)||[]).map(sanitizeCandidateUrl).filter(Boolean))];}
 function resultDate(result={}){for(const value of [result.page_age,result.age,result.published,result.updatedAt]){if(!value)continue;const t=Date.parse(value);if(Number.isFinite(t))return new Date(t).toISOString();}return null;}
+function isoDate(value=''){const t=Date.parse(value);return Number.isFinite(t)?new Date(t).toISOString():'';}
 function searchesFor(channel={}){
   const name=String(channel.name||channel.originalId||channel.tvgId||channel.id||'').trim();
   const aliases=[...new Set([name,...greekChannelAliases(name),channel.originalId,channel.tvgId].map(value=>String(value||'').trim()).filter(Boolean))];
   const technical=aliases[0]||name;
   const greekish=aliases.find(value=>/[Α-Ωα-ωΆΈΉΊΌΎΏάέήίόύώ]/.test(value))||aliases.find((value,index)=>index>0&&/\s/.test(value))||technical;
   return [
-    {query:`"${technical}" m3u8 mpd Greece`,language:'en'},
-    {query:`"${greekish}" ζωντανά τηλεόραση m3u8`,language:'el'},
+    {query:`"${technical}" m3u8 mpd Greece`,language:'en',kind:'web'},
+    {query:`"${greekish}" ζωντανά τηλεόραση m3u8`,language:'el',kind:'web'},
+    {query:`site:gist.github.com "${technical}" Greece m3u m3u8 mpd`,language:'en',kind:'github-gists'},
   ].slice(0,WEB_MAX_SEARCHES);
 }
 function braveError(body={}){
@@ -76,17 +83,64 @@ async function fetchPage(raw,budget){
     return {ok:true,status:response.status,elapsedMs:Date.now()-started,text:(await response.text()).slice(0,1200000),type:response.headers.get('content-type')||'',error:''};
   }catch(error){return {ok:false,status:error?.name==='AbortError'?408:0,elapsedMs:Date.now()-started,text:'',type:'',error:error?.message||String(error)};}
 }
+function gistIdFromUrl(raw=''){
+  try{
+    const url=safePublicUrl(raw);
+    if(!GIST_HOST.test(url.hostname))return '';
+    const parts=url.pathname.split('/').filter(Boolean);
+    const id=parts.at(-1)||'';
+    return GIST_ID.test(id)?id:'';
+  }catch{return '';}
+}
+async function fetchGist(gistId,budget){
+  budget.take();const started=Date.now();
+  const url=`https://api.github.com/gists/${encodeURIComponent(gistId)}`;
+  try{
+    const response=await timedFetch(url,{headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','user-agent':'WebTV-Discovery/1.3 Gist intelligence'}});
+    const body=await response.json().catch(()=>({}));
+    return {ok:response.ok,status:response.status,elapsedMs:Date.now()-started,body,error:response.ok?'':String(body?.message||'')};
+  }catch(error){return {ok:false,status:error?.name==='AbortError'?408:0,elapsedMs:Date.now()-started,body:{},error:error?.message||String(error)};}
+}
+function looksCredentialDump(text=''){return CREDENTIAL_DUMP.test(String(text||''));}
+function gistFileLooksUseful(file={}){
+  const name=String(file?.filename||'');
+  const text=String(file?.content||'');
+  return file?.truncated!==true&&text.length>0&&text.length<=1200000&&(GIST_FILE_NAME.test(name)||/#EXTINF:|\.m3u8(?:[?#\s]|$)|\.mpd(?:[?#\s]|$)/i.test(text));
+}
 function directCandidate(url,channel,result,freshness){const clean=sanitizeCandidateUrl(url);return clean?{channelName:String(channel.name||''),sourceType:typeOf(clean),sourceUrl:clean,sourceOrigin:`web:${new URL(result.url).hostname}`,discoveryProvider:RECENT_WEB_SEARCH_PROVIDER,discoveredAt:new Date().toISOString(),freshness:resultDate(result)?`result-date:${resultDate(result)}`:`brave-window:${freshness}`,matchConfidence:'MEDIUM'}:null;}
+function gistDirectCandidate(url,channel,{origin,originUrl,label,freshness}={}){
+  const clean=sanitizeCandidateUrl(url);if(!clean)return null;
+  return {channelName:String(channel.name||''),sourceType:typeOf(clean),sourceUrl:clean,sourceOrigin:origin,sourceOriginUrl:originUrl,sourceOriginLabel:label,discoveryProvider:RECENT_WEB_SEARCH_PROVIDER,discoveredAt:new Date().toISOString(),freshness,matchConfidence:'MEDIUM'};
+}
 function resultScore(result={},channel={}){const text=`${result.title||''} ${result.description||''} ${result.url||''}`;let score=channelRelevant(text,channel)?10:0;try{if(TRUSTED_STREAM_HOST_HINT.test(new URL(String(result.url||'')).hostname))score+=5;}catch{}if(/m3u8|mpd|hls|dash|live stream|ζωνταν/i.test(text))score+=3;if(/playlist|iptv|television|tv/i.test(text))score+=1;return score;}
 
 export async function discoverRecentWebSearch({channel,freshness='7d',env={},parseM3u}={}){
   if(typeof parseM3u!=='function')throw new Error('parseM3u dependency is required');
-  const braveFreshness=BRAVE_FRESHNESS[freshness]||'pw';const budget=new Budget();const searchReports=[];const pageReports=[];const candidates=[];const resultPool=[];
+  const braveFreshness=BRAVE_FRESHNESS[freshness]||'pw';const budget=new Budget();const searchReports=[];const pageReports=[];const gistReports=[];const candidates=[];const resultPool=[];const gistPool=[];
   for(const spec of searchesFor(channel)){
     const search=await braveSearch(env,spec,freshness,budget);
-    searchReports.push({query:spec.query,language:spec.language,status:search.status,elapsedMs:search.elapsedMs,count:search.results.length,error:search.error||''});
-    if(search.ok)resultPool.push(...search.results);
+    searchReports.push({query:spec.query,language:spec.language,kind:spec.kind||'web',status:search.status,elapsedMs:search.elapsedMs,count:search.results.length,error:search.error||''});
+    if(!search.ok)continue;
+    if(spec.kind==='github-gists')gistPool.push(...search.results);else resultPool.push(...search.results);
   }
+
+  const gistResults=unique(gistPool.filter(result=>gistIdFromUrl(result.url)&&channelRelevant(`${result.title||''} ${result.description||''} ${result.url||''}`,channel)),item=>gistIdFromUrl(item?.url)).slice(0,WEB_MAX_GIST_SCANS);
+  for(const result of gistResults){
+    if(budget.remaining()<=0||candidates.length>=WEB_MAX_RESULTS)break;
+    const gistId=gistIdFromUrl(result.url);const fetched=await fetchGist(gistId,budget);
+    if(!fetched.ok){gistReports.push({gistId,author:'',createdAt:'',updatedAt:'',status:fetched.status,elapsedMs:fetched.elapsedMs,filesScanned:0,credentialFilesRejected:0,matches:0,error:fetched.error||''});continue;}
+    const gist=fetched.body||{};const author=String(gist?.owner?.login||'anonymous');const originUrl=String(gist?.html_url||result.url||'');const updatedAt=isoDate(gist?.updated_at);const createdAt=isoDate(gist?.created_at);const gistFreshness=updatedAt?`gist-updated:${updatedAt}`:(resultDate(result)?`result-date:${resultDate(result)}`:`brave-window:${freshness}`);
+    let filesScanned=0,credentialFilesRejected=0,matches=0;
+    for(const file of Object.values(gist?.files||{})){
+      if(candidates.length>=WEB_MAX_RESULTS)break;if(!gistFileLooksUseful(file))continue;
+      const text=String(file.content||'');if(looksCredentialDump(text)){credentialFilesRejected++;continue;}filesScanned++;
+      const filename=String(file.filename||'gist-file');const origin=`gist:${author}/${gistId}/${filename}`;const label=`GitHub Gist ${author}/${gistId} · ${filename}`;
+      if(/#EXTINF:/i.test(text)){const found=parseM3u(text,channel,{name:origin,provider:RECENT_WEB_SEARCH_PROVIDER,freshness:gistFreshness}).map(item=>({...item,sourceOrigin:origin,sourceOriginUrl:originUrl,sourceOriginLabel:label,discoveryProvider:RECENT_WEB_SEARCH_PROVIDER,freshness:gistFreshness}));candidates.push(...found);matches+=found.length;}
+      if(channelRelevant(text,channel)){for(const url of extractLive(text)){const direct=gistDirectCandidate(url,channel,{origin,originUrl,label,freshness:gistFreshness});if(!direct)continue;candidates.push(direct);matches++;if(candidates.length>=WEB_MAX_RESULTS)break;}}
+    }
+    gistReports.push({gistId,author,createdAt,updatedAt,status:fetched.status,elapsedMs:fetched.elapsedMs,filesScanned,credentialFilesRejected,matches,error:''});
+  }
+
   const relevant=unique(resultPool.filter(result=>channelRelevant(`${result.title||''} ${result.description||''} ${result.url||''}`,channel)),item=>item?.url).sort((a,b)=>resultScore(b,channel)-resultScore(a,channel)).slice(0,WEB_MAX_PAGE_SCANS);
   for(const result of relevant){
     if(budget.remaining()<=0)break;
@@ -108,5 +162,5 @@ export async function discoverRecentWebSearch({channel,freshness='7d',env={},par
     pageReports.push({url:resultUrl,status:page.status,elapsedMs:page.elapsedMs,matches,error:page.error||''});
     if(candidates.length>=WEB_MAX_RESULTS)break;
   }
-  return {provider:RECENT_WEB_SEARCH_PROVIDER,freshnessRequested:freshness,freshnessApplied:true,freshnessNote:`Brave Search freshness=${braveFreshness}; undated results inherit only the search-window guarantee, not a fabricated publication timestamp.`,limits:{timeoutMs:WEB_SEARCH_TIMEOUT_MS,maxSearches:WEB_MAX_SEARCHES,maxPageScans:WEB_MAX_PAGE_SCANS,maxResults:WEB_MAX_RESULTS,maxSubrequests:WEB_MAX_SUBREQUESTS},candidates:unique(candidates),reports:{searches:searchReports,pages:pageReports,subrequestsUsed:budget.used}};
+  return {provider:RECENT_WEB_SEARCH_PROVIDER,freshnessRequested:freshness,freshnessApplied:true,freshnessNote:`Brave Search freshness=${braveFreshness}; GitHub Gist leads are resolved through the public Gist API and use canonical gist updated_at when available. Undated ordinary web results inherit only the search-window guarantee.`,limits:{timeoutMs:WEB_SEARCH_TIMEOUT_MS,maxSearches:WEB_MAX_SEARCHES,maxPageScans:WEB_MAX_PAGE_SCANS,maxGistScans:WEB_MAX_GIST_SCANS,maxResults:WEB_MAX_RESULTS,maxSubrequests:WEB_MAX_SUBREQUESTS},candidates:unique(candidates),reports:{searches:searchReports,pages:pageReports,gists:gistReports,subrequestsUsed:budget.used}};
 }

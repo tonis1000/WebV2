@@ -172,7 +172,11 @@ assert.match(githubProvider,/GITHUB_MAX_SUBREQUESTS=10/, 'GitHub provider must r
 assert.match(githubProvider,/pushed:>=/, 'GitHub provider must apply repository freshness at the search query');
 assert.doesNotMatch(githubProvider,/search\/code/, 'GitHub provider must not use credential-sensitive Code Search');
 assert.match(webProvider,/WEB_MAX_SUBREQUESTS=8/, 'Recent Web provider must retain a hard subrequest budget');
-assert.match(webProvider,/WEB_MAX_PAGE_SCANS=4/, 'Recent Web provider must retain a page scan cap');
+assert.match(webProvider,/WEB_MAX_PAGE_SCANS=3/, 'Recent Web provider must retain a bounded ordinary page scan cap');
+assert.match(webProvider,/WEB_MAX_GIST_SCANS=2/, 'Recent Web provider must keep GitHub Gist intelligence separately bounded');
+assert.match(webProvider,/site:gist\.github\.com/, 'Recent Web provider must use an explicit GitHub Gist discovery query');
+assert.match(webProvider,/api\.github\.com\/gists\//, 'Gist leads must resolve through the canonical public GitHub Gist API');
+assert.match(webProvider,/CREDENTIAL_DUMP/, 'Gist intelligence must reject credential-style dumps before candidate production');
 assert.match(webProvider,/api\.search\.brave\.com/, 'Recent Web provider must call Brave directly from the Worker');
 assert.match(webProvider,/freshness/, 'Recent Web provider must send an explicit search freshness window');
 assert.doesNotMatch(webProvider,/source-huntatonisworkersdev/, 'Recent Web provider must not route through legacy Source Hunt');
