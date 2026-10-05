@@ -7,7 +7,7 @@ import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay, normalizeChannelName } from '../discovery/candidate-model.js';
 
-const BUILD_ID='20261005-floating-tool-windows-a';
+const BUILD_ID='20261005-unified-save-source-a';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
 const playbackConfirmedCandidates=new Set();
