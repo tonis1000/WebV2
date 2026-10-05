@@ -17,7 +17,7 @@ assert.ok(FEEDS.some(feed=>feed.name==='IPTV Nexus Greece'&&feed.tier==='primary
 assert.ok(FEEDS.some(feed=>feed.name==='Free-TV/IPTV Greece'&&feed.tier==='primary'&&/playlist_greece\.m3u8/.test(feed.url)),'Free-TV Greece-specific feed must replace broad global fallback');
 assert.equal(FEEDS.some(feed=>feed.name==='Free-TV/IPTV'&&/master\/playlist\.m3u8/.test(feed.url)),false,'broad Free-TV global playlist should not remain in curated catalog');
 assert.ok(FEEDS.some(feed=>feed.name==='HansSettings Greece'&&feed.format==='enigma2'));
-assert.ok(FEEDS.some(feed=>feed.id==='alivegr-live'&&feed.format==='alivegr-json'&&feed.tier==='primary'&&feed.priority==='high'),'AliveGR live JSON must be an enabled primary curated source');
+assert.ok(FEEDS.some(feed=>feed.id==='alivegr-live'&&feed.format==='alivegr-json'&&feed.tier==='intelligence'&&feed.priority==='high'),'AliveGR live JSON must be an enabled bounded intelligence source inside Curated');
 assert.ok(FEEDS.some(feed=>feed.name==='Ciefp IPTV Mix'&&feed.tier==='fallback'));
 assert.ok(FEEDS.some(feed=>feed.name==='b2og iptv-org All'&&feed.tier==='fallback'));
 assert.equal(FALLBACK_TRIGGER_COUNT,3);
@@ -27,7 +27,8 @@ const plan=selectCuratedFeedPlan(FEEDS);
 assert.equal(plan.primary.length,2);
 assert.equal(plan.fallback.length,1);
 assert.ok(plan.primary.some(feed=>feed.id==='hanssettings-gr'),'HansSettings Greece must stay inside the bounded primary runtime plan');
-assert.ok(plan.primary.some(feed=>feed.id==='alivegr-live'),'AliveGR must stay inside the bounded primary runtime plan');
+assert.equal(plan.intelligence.length,1);
+assert.equal(plan.intelligence[0]?.id,'alivegr-live','AliveGR must stay inside the bounded intelligence runtime plan without displacing existing primary feeds');
 assert.equal(plan.fallback[0]?.id,'ciefp-iptv-mix','Ciefp private-route acceptance corpus must be the single bounded fallback runtime lane');
 assert.equal(plan.fallback.some(feed=>feed.id==='b2og-iptv-org-all'),false,'broad fourth fallback feed must stay outside the per-request CPU budget');
 
