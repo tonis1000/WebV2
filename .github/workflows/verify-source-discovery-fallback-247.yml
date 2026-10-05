@@ -35,3 +35,12 @@ jobs:
           }
           probe FALLBACK_EMPTY '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"__WEBV2_NO_SUCH_CHANNEL__","id":"__webv2_no_such_channel__","originalId":"__WEBV2_NO_SUCH_CHANNEL__"}}'
           probe FALLBACK_PRIVATE '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"Západoslovenská TV (Twich)","id":"zapadoslovenska-tv-twich","originalId":"Západoslovenská TV (Twich)"}}'
+          node - <<'NODE'
+          const fs=require('fs');
+          for(const name of ['FALLBACK_EMPTY','FALLBACK_PRIVATE']){
+            const j=JSON.parse(fs.readFileSync('/tmp/'+name+'.body','utf8'));
+            const privateUrls=(j.candidates||[]).map(x=>String(x.sourceUrl||'')).filter(u=>/^(?:https?:\/\/)?(?:127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|localhost)/i.test(u));
+            const ciefp=(j.reports||[]).find(x=>x.feed==='Ciefp IPTV Mix')||null;
+            console.log(name+' SUMMARY '+JSON.stringify({candidateCount:(j.candidates||[]).length,ciefp,privateUrls,limits:j.limits||null}));
+          }
+          NODE
