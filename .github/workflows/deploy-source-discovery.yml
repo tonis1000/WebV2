@@ -81,6 +81,7 @@ jobs:
           node tests/recent-web-search-provider.test.mjs
           node tests/strm-specific-discovery-provider.test.mjs
           node tests/source-discovery-smart-strm-parity.test.mjs
+          node tests/source-discovery-smart-private-filter.test.mjs
           node tests/official-discovery-retirement.test.mjs
 
       - name: Build Wrangler config
