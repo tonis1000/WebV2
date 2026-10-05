@@ -1,0 +1,45 @@
+name: Verify AliveGR Live
+
+on:
+  push:
+    branches: [verify-alivegr-live]
+    paths:
+      - '.github/workflows/verify-alivegr-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Inspect live Source Discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://webtv-source-discovery.atonis.workers.dev'
+          STATUS=$(curl --fail --silent --show-error "$URL/")
+          MEGA=$(curl --fail --silent --show-error -X POST "$URL/discover" -H 'content-type: application/json' --data '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"MEGA","id":"mega","originalId":"MEGA"}}')
+          ANT1=$(curl --fail --silent --show-error -X POST "$URL/discover" -H 'content-type: application/json' --data '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"ANT1","id":"ant1","originalId":"ANT1"}}')
+          node - "$STATUS" "$MEGA" "$ANT1" <<'NODE'
+          const [s,m,a]=process.argv.slice(2).map(JSON.parse);
+          const summarize=x=>({
+            version:x.version,
+            provider:x.provider,
+            reports:(x.reports||[]).map(r=>({feed:r.feed,tier:r.tier,format:r.format,status:r.status,count:r.count,error:r.error||''})),
+            candidates:(x.candidates||[]).map(c=>({
+              channelName:c.channelName,
+              sourceOrigin:c.sourceOrigin,
+              sourceType:c.sourceType,
+              sourceUrl:c.sourceUrl,
+              requiredHeaders:c.requiredHeaders||{},
+              inputFormatId:c.inputFormatId||'',
+              verificationDetail:c.verificationDetail||''
+            }))
+          });
+          console.log('STATUS',JSON.stringify(s));
+          console.log('MEGA',JSON.stringify(summarize(m),null,2));
+          console.log('ANT1',JSON.stringify(summarize(a),null,2));
+          NODE
