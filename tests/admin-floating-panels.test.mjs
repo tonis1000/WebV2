@@ -14,7 +14,7 @@ assert.match(rail,/pointerdown/,'desktop tool windows must support drag pointer 
 assert.match(rail,/placeFloatingPanel/,'tool windows must receive an initial position left of the right rail');
 assert.match(rail,/getBoundingClientRect\(\)/,'initial placement must use live rail/panel geometry');
 assert.match(rail,/current-catalog-badge\.header-catalog-badge\{[^}]*border:0/,'header My Playlist badge must have no visible border');
-assert.match(rail,/catalog\.textContent='★ My Playlist'/,'header badge must stay compact and not duplicate My Playlist text');
+assert.ok(rail.includes("badge.textContent = '★ My Playlist'")||rail.includes("catalog.textContent = '★ My Playlist'"),'header badge must stay compact and not duplicate My Playlist text');
 
 for(const closeId of ['playlist-manager-close','source-hunt-close','diagnostics-close']){
   assert.ok(index.includes(closeId),`index must expose explicit Close control ${closeId}`);
