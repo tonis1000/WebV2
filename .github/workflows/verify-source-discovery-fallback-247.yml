@@ -1,6 +1,10 @@
 name: Verify Source Discovery Fallback After 247
 
 on:
+  push:
+    branches: [verify-fallback-after-247]
+    paths:
+      - '.github/workflows/verify-source-discovery-fallback-247.yml'
   pull_request:
     paths:
       - '.github/workflows/verify-source-discovery-fallback-247.yml'
