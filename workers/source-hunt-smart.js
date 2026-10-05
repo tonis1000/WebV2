@@ -1,6 +1,6 @@
 import baseWorker from './source-huntatonisworkersdev.js';
 
-const VERSION='1.14';
+const VERSION='1.15';
 const MAX_ISSUES_PER_REQUEST=4;
 const GITHUB_ISSUE_RE=/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)(?:[/?#].*)?$/i;
 

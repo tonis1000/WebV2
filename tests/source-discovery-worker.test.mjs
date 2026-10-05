@@ -9,10 +9,12 @@ assert.equal(candidateMatches('#EXTINF:-1 tvg-id="MEGA-NEWS" tvg-name="MEGA News
 const statusResponse=await discovery.fetch(new Request('https://discovery.test/'),{BRAVE_API_KEY:'fixture-key'});
 assert.equal(statusResponse.status,200);
 const status=await statusResponse.json();
-assert.equal(status.version,'1.10');
+assert.equal(status.version,'1.11');
 assert.equal(status.providers['curated-remote-feeds'],true);
 assert.equal(status.providers['github-public-playlists'],true);
 assert.equal(status.providers['recent-web-search'],true);
+assert.equal(status.costPolicy,'free-first');
+assert.deepEqual(status.paidFallbackProviders,['recent-web-search']);
 assert.equal(status.providers['strm-specific-discovery'],true);
 assert.equal(Object.prototype.hasOwnProperty.call(status.providers,'official-provider-lane'),false);
 assert.equal(Object.prototype.hasOwnProperty.call(status.providers,'official-api-resolver'),false);
@@ -43,8 +45,9 @@ try{
   const response=await discovery.fetch(request,{});assert.equal(response.status,200);const body=await response.json();assert.equal(body.provider,'curated-remote-feeds');assert.equal(body.freshnessRequested,'24h');assert.equal(body.freshnessApplied,false);assert.equal(body.candidates.length,1,'dedupe should collapse same MEGA URL from all curated feeds');assert.equal(body.candidates[0].sourceUrl,'https://good.test/mega.m3u8');assert.ok(maxInFlight<=4,`expected max concurrency <=4, saw ${maxInFlight}`);
 
   const disabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'curated-remote-feeds',channel:{name:'MEGA'}})}),{DISABLE_CURATED_REMOTE_FEEDS:'1'});assert.equal(disabled.status,503);assert.equal((await disabled.json()).error,'Provider disabled');
-  const webMissingKey=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'recent-web-search',channel:{name:'MEGA'}})}),{});assert.equal(webMissingKey.status,503);assert.match((await webMissingKey.json()).error,/BRAVE_API_KEY/);
-  const webDisabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'recent-web-search',channel:{name:'MEGA'}})}),{BRAVE_API_KEY:'fixture-key',DISABLE_RECENT_WEB_SEARCH:'1'});assert.equal(webDisabled.status,503);assert.equal((await webDisabled.json()).error,'Provider disabled');
+  const webNoOptIn=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'recent-web-search',channel:{name:'MEGA'}})}),{BRAVE_API_KEY:'fixture-key'});assert.equal(webNoOptIn.status,409);assert.equal((await webNoOptIn.json()).paidFallbackRequired,true);
+  const webMissingKey=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'recent-web-search',allowPaidFallback:true,channel:{name:'MEGA'}})}),{});assert.equal(webMissingKey.status,503);assert.match((await webMissingKey.json()).error,/BRAVE_API_KEY/);
+  const webDisabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'recent-web-search',allowPaidFallback:true,channel:{name:'MEGA'}})}),{BRAVE_API_KEY:'fixture-key',DISABLE_RECENT_WEB_SEARCH:'1'});assert.equal(webDisabled.status,503);assert.equal((await webDisabled.json()).error,'Provider disabled');
   const strmDisabled=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:'strm-specific-discovery',channel:{name:'ERT1'}})}),{DISABLE_STRM_SPECIFIC_DISCOVERY:'1'});assert.equal(strmDisabled.status,503);assert.equal((await strmDisabled.json()).error,'Provider disabled');
   for(const provider of ['official-provider-lane','official-api-resolver','browser-resolved-official']){
     const retired=await discovery.fetch(new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider,channel:{name:'ERT1'}})}),{});

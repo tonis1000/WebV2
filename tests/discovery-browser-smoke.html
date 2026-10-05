@@ -48,7 +48,7 @@
       const {verifyCandidates}=await import('../src/discovery/verifier-client.js');
       const target={id:'mega',originalId:'MEGA',tvgId:'MEGA',name:'MEGA'};
       const lanes=listUnifiedSearchLanes().filter(l=>l.type==='discovery-provider');
-      const expected=['curated-remote-feeds','github-public-playlists','recent-web-search','strm-specific-discovery','authorized-xtream'];
+      const expected=['curated-remote-feeds','github-public-playlists','strm-specific-discovery','authorized-xtream'];
       const laneIds=lanes.map(l=>l.id);
       const results=[];
       for(const lane of lanes){
@@ -60,7 +60,9 @@
       const externalCandidates=candidates.filter(c=>c.discoveryProvider!=='authorized-xtream-expansion');
       const verified=await verifyCandidates(externalCandidates);
       const pass=
+        laneIds.length===expected.length &&
         expected.every(id=>laneIds.includes(id)) &&
+        !laneIds.includes('recent-web-search') &&
         results.every(r=>r.count===1) &&
         candidates.some(c=>c.discoveryProvider==='authorized-xtream-expansion') &&
         verified.length===externalCandidates.length &&

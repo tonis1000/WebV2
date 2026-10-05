@@ -27,11 +27,11 @@ const fetchImpl=async(url,options)=>{
 const channel={id:'mega',originalId:'MEGA',name:'MEGA',tvgId:'mega.gr'};
 const curated=await discoverCuratedRemoteFeeds(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'7d'});
 const github=await discoverGithubPublicPlaylists(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'24h'});
-const web=await discoverRecentWebSearch(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'30d'});
+const web=await discoverRecentWebSearch(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'30d',allowPaidFallback:true});
 const strm=await discoverStrmSpecific(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'7d'});
 assert.deepEqual(seenBodies[0],{provider:'curated-remote-feeds',freshness:'7d',channel});
 assert.deepEqual(seenBodies[1],{provider:'github-public-playlists',freshness:'24h',channel});
-assert.deepEqual(seenBodies[2],{provider:'recent-web-search',freshness:'30d',channel});
+assert.deepEqual(seenBodies[2],{provider:'recent-web-search',freshness:'30d',channel,allowPaidFallback:true});
 assert.deepEqual(seenBodies[3],{provider:'strm-specific-discovery',freshness:'7d',channel});
 for(const result of [curated,github,web,strm]){assert.equal(result.candidates.length,1);assert.equal(result.candidates[0].verificationStatus,'UNVERIFIED');assert.equal(result.candidates[0].verified,false);}
 assert.equal(curated.candidates[0].discoveryProvider,CURATED_REMOTE_FEEDS_PROVIDER);

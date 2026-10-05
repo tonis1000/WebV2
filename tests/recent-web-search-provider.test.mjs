@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { discoverRecentWebSearch, RECENT_WEB_SEARCH_PROVIDER, WEB_MAX_SEARCHES, WEB_MAX_PAGE_SCANS, WEB_MAX_GIST_SCANS, WEB_MAX_SUBREQUESTS } from '../workers/source-discovery/recent-web-search.js';
 import { parseM3u } from '../workers/webtv-source-discovery.js';
@@ -7,6 +8,11 @@ assert.equal(WEB_MAX_SEARCHES,3);
 assert.equal(WEB_MAX_PAGE_SCANS,3);
 assert.equal(WEB_MAX_GIST_SCANS,2);
 assert.equal(WEB_MAX_SUBREQUESTS,8);
+const discoveryDeploy=fs.readFileSync(new URL('../.github/workflows/deploy-source-discovery.yml',import.meta.url),'utf8');
+assert.equal(/^\s*WEB=.*"provider":"recent-web-search"/m.test(discoveryDeploy),false,'deploy/live verification must not run the old paid Recent Web smoke');
+assert.equal(discoveryDeploy.includes('"allowPaidFallback":true'),false,'deploy/live verification must never opt in to paid Brave');
+assert.match(discoveryDeploy,/PAID_GUARD_CODE=.*"provider":"recent-web-search"/,'deploy may exercise only the no-opt-in Recent Web guard');
+assert.match(discoveryDeploy,/guardCode===['"]409['"]/,'deploy must require the paid guard to stop before Brave');
 
 const originalFetch=globalThis.fetch;
 const seen=[];

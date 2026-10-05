@@ -7,7 +7,7 @@ import { selectEnigma2BouquetServices } from '../src/core/enigma2-core.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
 
-const VERSION='1.10';
+const VERSION='1.11';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=3500;
 const MAX_FETCH_BYTES=4000000;
@@ -292,6 +292,7 @@ async function discover(request,env={}){
   }
   if(provider===RECENT_WEB_SEARCH_PROVIDER){
     if(String(env.DISABLE_RECENT_WEB_SEARCH||'')==='1')return json({error:'Provider disabled',provider:RECENT_WEB_SEARCH_PROVIDER},503);
+    if(body?.allowPaidFallback!==true)return json({error:'Explicit paid fallback opt-in is required',provider:RECENT_WEB_SEARCH_PROVIDER,paidFallbackRequired:true},409);
     if(!env.BRAVE_API_KEY)return json({error:'BRAVE_API_KEY is not configured for Source Discovery',provider:RECENT_WEB_SEARCH_PROVIDER},503);
     try{
       const result=await discoverRecentWebSearch({channel,freshness,env,parseM3u});
@@ -312,7 +313,7 @@ export default {
   async fetch(request,env){
     if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors()});
     const url=new URL(request.url);
-    if(request.method==='GET'&&url.pathname==='/')return json({service:'WebTV Source Discovery',version:VERSION,providers:{
+    if(request.method==='GET'&&url.pathname==='/')return json({service:'WebTV Source Discovery',version:VERSION,costPolicy:'free-first',paidFallbackProviders:[RECENT_WEB_SEARCH_PROVIDER],providers:{
       [CURATED_REMOTE_FEEDS_PROVIDER]:String(env?.DISABLE_CURATED_REMOTE_FEEDS||'')!=='1',
       [GITHUB_PUBLIC_PLAYLISTS_PROVIDER]:String(env?.DISABLE_GITHUB_PUBLIC_PLAYLISTS||'')!=='1',
       [RECENT_WEB_SEARCH_PROVIDER]:String(env?.DISABLE_RECENT_WEB_SEARCH||'')!=='1'&&Boolean(env?.BRAVE_API_KEY),
