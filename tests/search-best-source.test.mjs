@@ -25,10 +25,10 @@ const ranked=rankBestSources([weak,http,healthy,vod,drm,failed],{
   playbackConfirmedIds:new Set(),
   pageProtocol:'https:',
 });
-assert.deepEqual(ranked.map(row=>row.candidate.candidateId),['healthy','http','weak'],'only verified live non-DRM browser candidates should rank');
+assert.deepEqual(ranked.map(row=>row.candidate.candidateId),['healthy','weak','http'],'verified live candidates should prefer HTTPS browser compatibility before historical Health');
 assert.equal(ranked[0].healthScore,85);
 assert.equal(ranked[0].browserCompatible,true);
-assert.equal(ranked[1].browserCompatible,false,'HTTP candidate should lose browser compatibility on an HTTPS page');
+assert.equal(ranked[2].browserCompatible,false,'HTTP candidate should rank behind HTTPS-compatible candidates on an HTTPS page even with stronger historical Health');
 
 const confirmed=selectBestSource([healthy,weak],{
   scoreHealth:candidate=>candidate.candidateId==='healthy'?95:-10,
