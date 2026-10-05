@@ -1,0 +1,33 @@
+name: Verify Source Discovery Fallback After 247
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/verify-source-discovery-fallback-247.yml'
+
+permissions:
+  contents: read
+
+env:
+  WORKER_URL: https://webtv-source-discovery.atonis.workers.dev
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Probe fallback acceptance
+        shell: bash
+        run: |
+          set -u -o pipefail
+          probe() {
+            name="$1"
+            payload="$2"
+            code=$(curl -sS -o "/tmp/$name.body" -w '%{http_code}' -X POST "$WORKER_URL/discover" -H 'content-type: application/json' --data "$payload" || true)
+            bytes=$(wc -c < "/tmp/$name.body" | tr -d ' ')
+            prefix=$(head -c 240 "/tmp/$name.body" | tr '\n' ' ')
+            echo "$name HTTP=$code bytes=$bytes prefix=$prefix"
+          }
+          probe FALLBACK_EMPTY '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"__WEBV2_NO_SUCH_CHANNEL__","id":"__webv2_no_such_channel__","originalId":"__WEBV2_NO_SUCH_CHANNEL__"}}'
+          probe FALLBACK_PRIVATE '{"provider":"curated-remote-feeds","freshness":"7d","channel":{"name":"Západoslovenská TV (Twich)","id":"zapadoslovenska-tv-twich","originalId":"Západoslovenská TV (Twich)"}}'
