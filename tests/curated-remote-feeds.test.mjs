@@ -5,6 +5,9 @@ import {
   parseM3u,
   parseEnigma2,
   parseFeed,
+  selectCuratedFeedPlan,
+  MAX_PRIMARY_FEEDS_PER_REQUEST,
+  MAX_FALLBACK_FEEDS_PER_REQUEST,
 } from '../workers/webtv-source-discovery.js';
 
 assert.ok(FEEDS.some(feed=>feed.name==='iptv-org Greece'&&feed.format==='m3u'));
@@ -16,6 +19,14 @@ assert.ok(FEEDS.some(feed=>feed.name==='HansSettings Greece'&&feed.format==='eni
 assert.ok(FEEDS.some(feed=>feed.name==='Ciefp IPTV Mix'&&feed.tier==='fallback'));
 assert.ok(FEEDS.some(feed=>feed.name==='b2og iptv-org All'&&feed.tier==='fallback'));
 assert.equal(FALLBACK_TRIGGER_COUNT,3);
+assert.equal(MAX_PRIMARY_FEEDS_PER_REQUEST,4);
+assert.equal(MAX_FALLBACK_FEEDS_PER_REQUEST,3);
+const plan=selectCuratedFeedPlan(FEEDS);
+assert.equal(plan.primary.length,4);
+assert.equal(plan.fallback.length,3);
+assert.ok(plan.primary.some(feed=>feed.id==='hanssettings-gr'),'HansSettings Greece must stay inside the bounded primary runtime plan');
+assert.ok(plan.fallback.some(feed=>feed.id==='ciefp-iptv-mix'),'Ciefp private-route acceptance corpus must stay inside the bounded fallback runtime plan');
+assert.equal(plan.fallback.some(feed=>feed.id==='b2og-iptv-org-all'),false,'broad fourth fallback feed must stay outside the per-request CPU budget');
 
 const channel={id:'skai',originalId:'SKAI',name:'SKAI',tvgId:'Skai.gr'};
 const m3u=`#EXTM3U\n#EXTINF:-1 tvg-id="Skai.gr" tvg-name="SKAI HD",SKAI\nhttps://cdn.example.test/skai/master.m3u8\n`;
