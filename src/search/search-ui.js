@@ -9,6 +9,7 @@ import { candidateForDisplay } from '../discovery/candidate-model.js';
 import { normalizedSelectedChannelKeys, saveSourceEligibility, bestSourceSaveEligibility } from './save-source-policy.js';
 import { rankBestSources, selectBestSource } from './best-source.js';
 import { normalizeChannelName } from '../discovery/candidate-model.js';
+import { workerUrl } from '../core/utils.js';
 
 const BUILD_ID='20261005-best-source-a';
 const $=id=>document.getElementById(id);
@@ -24,7 +25,7 @@ function ensureStylesheet(){
   if(document.querySelector('link[data-unified-search-style]'))return;
   const link=document.createElement('link');
   link.rel='stylesheet';
-  link.href='./unified-search.css?v=20261002-search-status';
+  link.href='./unified-search.css?v=20261005-best-source-a';
   link.dataset.unifiedSearchStyle='1';
   document.head.appendChild(link);
 }
@@ -125,8 +126,12 @@ function selectedChannel(){try{return window.WebTVPlaylistAPI?.getSelectedChanne
 function candidateHealthScore(candidate={}){
   const store=window.WebTVHealthStore;
   try{store?.refresh?.();}catch{}
-  const values=[candidate.sourceUrl,playbackValue(candidate)].filter(Boolean);
-  return Math.max(0,...values.map(value=>Number(store?.score?.(value)||0)));
+  const values=[candidate.sourceUrl];
+  try{
+    if(String(candidate.sourceType||'').toLowerCase()==='hls')values.push(workerUrl(candidate.sourceUrl,candidate.requiredHeaders||{}));
+  }catch{}
+  const known=values.filter(value=>value&&store?.get?.(value)).map(value=>Number(store?.score?.(value)||0));
+  return known.length?Math.max(...known):0;
 }
 function bestSourceOptions(){
   return {playbackConfirmedIds:playbackConfirmedCandidates,scoreHealth:candidateHealthScore,pageProtocol:location.protocol};
@@ -241,7 +246,7 @@ async function saveBestSource(candidate,group={},button){
   button.disabled=true;button.textContent='Saving Best…';
   const channel={id:group.channelKey||candidate.normalizedChannelName||group.channelName,originalId:group.channelKey||candidate.channelName||group.channelName,name:group.channelName||candidate.channelName||'Channel',group:'Other',logo:''};
   try{
-    await api.saveVerifiedSearchSource(channel,{url:playbackValue(candidate),origin:candidate.sourceOrigin||candidate.discoveryProvider||'best-source',provider:candidate.discoveryProvider||'',sourceType:candidate.sourceType||'',drmDetected:Boolean(candidate.drmDetected)},{
+    await api.saveVerifiedSearchSource(channel,{url:playbackValue(candidate),origin:candidate.sourceOrigin||candidate.discoveryProvider||'best-source',provider:candidate.discoveryProvider||'',sourceType:candidate.sourceType||'',browserPlayable:candidate.browserPlayable===true,drmDetected:Boolean(candidate.drmDetected)},{
       reason:'unified-search-best-source-save',
       verified:String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED',
       streamKind:String(candidate.streamKind||'unknown').toLowerCase(),
