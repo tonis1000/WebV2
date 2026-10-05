@@ -26,7 +26,7 @@ jobs:
           node --input-type=module <<'NODE'
           import { CURATED_SOURCE_FEEDS } from './src/search/curated-source-catalog.js';
           import { parseEnigma2Bouquet } from './src/core/enigma2-core.js';
-          import { parseEnigma2 } from './workers/webtv-source-discovery.js';
+          import { parseEnigma2, parseFeed } from './workers/webtv-source-discovery.js';
 
           const discovery = process.env.DISCOVERY_URL;
           const expectedSha = process.env.EXPECTED_PROD_SHA;
@@ -65,20 +65,54 @@ jobs:
           const status=await fetch(discovery+'/?verify='+expectedSha).then(r=>r.json());
           if(status.service!=='WebTV Source Discovery'||status.version!=='1.8') throw new Error('Unexpected live Source Discovery status');
 
-          const preferred=['ERT1','ERT 1','ERT Sports 4','Mega News','Nea TV','Blue Sky'];
-          let hansProof=null;
-          for(const name of preferred) {
-            const payload=await postDiscover(name);
-            if(!payload) continue;
-            const candidate=(payload.candidates||[]).find(c=>
-              c?.sourceOrigin==='HansSettings Greece' &&
-              c?.inputFormatId==='enigma2' &&
-              String(c?.sourceOriginUrl||'').includes('hanssettings') &&
-              !isPrivateUrl(c?.sourceUrl)
-            );
-            if(candidate) { hansProof={name,payload,candidate}; break; }
+          const enabledFeeds=CURATED_SOURCE_FEEDS.filter(f=>f.enabled!==false);
+          const primaryFeeds=enabledFeeds.filter(f=>(f.tier||'primary')==='primary');
+          const fetchedFeeds=[];
+          for(const feed of primaryFeeds) {
+            try {
+              const res=await fetch(feed.url,{headers:{'user-agent':'WebV2 live verification'}});
+              fetchedFeeds.push({feed,text:res.ok?await res.text():''});
+            } catch {
+              fetchedFeeds.push({feed,text:''});
+            }
           }
-          if(!hansProof) throw new Error('No live HansSettings Greece Enigma2 candidate found for preferred Greek channels');
+          const hansRow=fetchedFeeds.find(x=>x.feed.name==='HansSettings Greece');
+          if(!hansRow?.text) throw new Error('HansSettings Greece feed could not be fetched by verifier');
+          const hansBouquet=parseEnigma2Bouquet(hansRow.text);
+          const preferredNames=['ERT 1','ERT Sports 4','Mega News','Nea TV','Blue Sky'];
+          const serviceNames=[
+            ...preferredNames,
+            ...hansBouquet.services.map(s=>s.description||s.inlineName||s.inlineNameDecodedOnce||'').filter(Boolean)
+          ];
+          let selectedName='';
+          for(const name of [...new Set(serviceNames)]) {
+            const candidates=[];
+            const seen=new Set();
+            for(const row of fetchedFeeds) {
+              if(!row.text) continue;
+              for(const item of parseFeed(row.text,{name,id:name,originalId:name},row.feed)) {
+                const key=String(item?.sourceUrl||'').trim();
+                if(!key||seen.has(key)) continue;
+                seen.add(key);
+                candidates.push(item);
+                if(candidates.length>=12) break;
+              }
+              if(candidates.length>=12) break;
+            }
+            const hans=candidates.find(x=>x?.sourceOrigin==='HansSettings Greece'&&x?.inputFormatId==='enigma2'&&!isPrivateUrl(x?.sourceUrl));
+            if(hans && candidates.length>=3) { selectedName=name; break; }
+          }
+          if(!selectedName) throw new Error('Could not select a Hans channel that survives current primary-feed dedupe without fallback');
+          const liveHansPayload=await postDiscover(selectedName);
+          if(!liveHansPayload) throw new Error('Production discovery unavailable for selected Hans proof channel');
+          const liveHansCandidate=(liveHansPayload.candidates||[]).find(c=>
+            c?.sourceOrigin==='HansSettings Greece' &&
+            c?.inputFormatId==='enigma2' &&
+            String(c?.sourceOriginUrl||'').includes('hanssettings') &&
+            !isPrivateUrl(c?.sourceUrl)
+          );
+          if(!liveHansCandidate) throw new Error('Selected Hans candidate did not survive production discovery');
+          const hansProof={name:selectedName,payload:liveHansPayload,candidate:liveHansCandidate};
 
           const c=hansProof.candidate;
           for(const key of ['sourceUrl','sourceOriginUrl','inputFormatId','enigma2ServiceType','enigma2Description','enigma2Bouquet']) {
