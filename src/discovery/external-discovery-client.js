@@ -46,14 +46,14 @@ function publicChannelRequest(channel={}){
   }
   return request;
 }
-async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOVERY_ENDPOINT,fetchImpl=fetch,signal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS}={}){
+async function discoverProvider(provider,channel,{freshness='7d',endpoint=DISCOVERY_ENDPOINT,fetchImpl=fetch,signal,timeoutMs=EXTERNAL_DISCOVERY_TIMEOUT_MS,allowPaidFallback=false}={}){
   if(!PROVIDER_FLAGS[provider])return {provider,disabled:true,candidates:[],reports:[]};
   if(!channel?.name)throw new Error('A selected channel is required');
   const timed=timeoutSignal(signal,timeoutMs);
   try{
     const response=await fetchImpl(`${String(endpoint).replace(/\/$/,'')}/discover`,{
       method:'POST',headers:{'content-type':'application/json'},signal:timed.signal,
-      body:JSON.stringify({provider,freshness,channel:publicChannelRequest(channel)}),
+      body:JSON.stringify({provider,freshness,channel:publicChannelRequest(channel),...(allowPaidFallback===true?{allowPaidFallback:true}:{})}),
     });
     const payload=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(payload?.error||`Discovery HTTP ${response.status}`);
