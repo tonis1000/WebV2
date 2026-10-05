@@ -1,6 +1,6 @@
 const PARAM = 'layout';
 const DESKTOP = '(min-width: 900px)';
-const BUILD_ID = '20261005-header-my-playlist-a';
+const BUILD_ID = '20261005-header-brand-size-b';
 
 const layoutMode = new URLSearchParams(location.search).get(PARAM);
 const enabled = layoutMode !== 'classic';
@@ -210,7 +210,8 @@ if (!enabled || window.__webtvRightRailInstalled) {
     html.rail-preview .desktop-rail-label{padding:0 3px;color:#7695a3;font-size:.64rem;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
     html.rail-preview .desktop-rail-group-stack{display:grid;gap:7px}
     html.rail-preview .player-header-admin{display:flex;align-items:center;justify-content:center;gap:12px;min-width:0;margin-left:auto}
-    html.rail-preview .player-header-admin .rail-brand{flex:none;font-size:1.05rem;font-weight:900;letter-spacing:.14em;padding:7px 8px}
+    html.rail-preview .player-header-admin .rail-brand{flex:none}
+    html.rail-preview .player-header-admin .rail-brand #admin-unlock-trigger{font-size:1.32rem;font-weight:900;letter-spacing:.13em;padding:7px 8px}
     html.rail-preview .player-header-admin #current-catalog-badge.header-catalog-badge{display:inline-flex;align-items:center;justify-content:center;max-width:180px;padding:5px 9px;border:1px solid #315d7a;border-radius:999px;background:#0d1d29;color:#bfe0ff;font-size:.72rem;font-weight:800;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     html.rail-preview .player-header-admin .rail-clock{font-size:.78rem;white-space:nowrap;color:#d7e8f6}
     html.rail-preview .rail-control{width:100%;min-height:42px;display:flex!important;align-items:center;justify-content:center;text-align:center;margin:0!important;border-radius:11px;font-size:.82rem}
