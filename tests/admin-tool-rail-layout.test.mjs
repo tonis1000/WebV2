@@ -24,4 +24,9 @@ assert.match(gateCss,/#channel-logo-repair-missing/,'locked CSS must hide Repair
 assert.match(rail,/\.player-card\{width:100%/,'viewer player card should use available desktop width');
 assert.match(rail,/max-height:calc\(100vh - 300px\)|height:min\(/,'player stage must be viewport-bounded');
 
+assert.match(rail,/\[brand,catalog,clock\]/,'player header must order TONI\'S WEBTV, My Playlist, then clock');
+assert.doesNotMatch(rail,/\[playlists,catalog\]/,'My Playlist badge must not remain in the Library rail group');
+assert.match(rail,/\.player-header-admin \.rail-brand\{[^}]*font-size:/,'TONI\'S WEBTV must have an explicit larger header size');
+assert.match(rail,/#current-catalog-badge\.header-catalog-badge/,'My Playlist badge must use the compact player-header presentation');
+
 console.log('admin tool rail layout contract ok');
