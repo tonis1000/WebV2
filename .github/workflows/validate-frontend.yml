@@ -272,6 +272,8 @@ jobs:
         run: node tests/discovery-external.test.mjs
       - name: Run Source Discovery Worker regression test
         run: node tests/source-discovery-worker.test.mjs
+      - name: Run Source Discovery bounded-read regression test
+        run: node tests/source-discovery-bounded-read.test.mjs
       - name: Run Enigma2 Discovery hardening regression test
         run: node tests/enigma2-discovery-hardening.test.mjs
       - name: Run GitHub public playlist provider regression test
