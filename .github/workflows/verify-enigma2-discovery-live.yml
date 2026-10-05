@@ -45,12 +45,13 @@ jobs:
           }
           async function postDiscover(name) {
             let lastStatus=0;
-            for(let attempt=1;attempt<=3;attempt++) {
+            for(let attempt=1;attempt<=2;attempt++) {
               try {
                 const res=await fetch(discovery+'/discover',{
                   method:'POST',
                   headers:{'content-type':'application/json'},
-                  body:JSON.stringify({provider:'curated-remote-feeds',freshness:'7d',channel:{name,id:name,originalId:name}})
+                  body:JSON.stringify({provider:'curated-remote-feeds',freshness:'7d',channel:{name,id:name,originalId:name}}),
+                  signal:AbortSignal.timeout(12000)
                 });
                 lastStatus=res.status;
                 if(res.ok) return res.json();
@@ -106,7 +107,7 @@ jobs:
           options.sort((x,y)=>y.count-x.count);
           if(!options.length) throw new Error('Could not select a Hans channel that survives current primary-feed dedupe without fallback');
           let hansProof=null;
-          for(const option of options.slice(0,6)) {
+          for(const option of options.slice(0,4)) {
             const payload=await postDiscover(option.name);
             if(payload) {
               const candidate=(payload.candidates||[]).find(c=>
