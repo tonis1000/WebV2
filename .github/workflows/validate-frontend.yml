@@ -296,3 +296,22 @@ jobs:
         run: node tests/startup-nonblocking.test.mjs
       - name: Run frontend integration audit
         run: node tests/frontend-integration.test.mjs
+
+      - name: Verification-only Greek public source probes
+        shell: bash
+        run: |
+          set -u -o pipefail
+          probe() {
+            name="$1"; url="$2"
+            body="$(mktemp)"
+            code=$(curl -L --max-time 12 --silent --show-error --output "$body" --write-out '%{http_code}' -A 'Mozilla/5.0 WebV2-Verification' "$url" || true)
+            ctype=$(curl -L --max-time 12 --silent --show-error --output /dev/null --write-out '%{content_type}' -A 'Mozilla/5.0 WebV2-Verification' "$url" || true)
+            sig=$(head -c 120 "$body" | tr '\n\r' '  ')
+            echo "PROBE|$name|HTTP=$code|TYPE=$ctype|SIG=$sig"
+            rm -f "$body"
+          }
+          probe SKAI 'https://skai-live.siliconweb.com/media/cambria4/index_media_bitrate2500K_avc1_mp4a.m3u8'
+          probe OPEN 'https://liveopen.siliconweb.com/openTvLive/liveopen/chunks.m3u8'
+          probe STAR 'https://livestar.siliconweb.com/starvod/star4/star4newhd.m3u8'
+          probe ACTION24 'https://actionlive.siliconweb.com/actionabr/actiontv/actionlive/actiontv_source/chunks.m3u8'
+          probe ALPHA 'https://alphatvlive.siliconweb.com/1/Y2Rsd1lUcUVoajcv/UVdCN25h/hls/live/playlist.m3u8'
