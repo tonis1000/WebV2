@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { parseChannelSignalSnapshot, lookupChannelSignalUrl } from '../workers/channel-signal-health.js';
 
@@ -35,3 +36,12 @@ assert.equal(missing.state,'not-found');
 assert.equal(missing.advisory,true);
 
 console.log('Channel Signal external health policy PASS');
+
+const worker=fs.readFileSync(new URL('../workers/tv-cache.js',import.meta.url),'utf8');
+const ui=fs.readFileSync(new URL('../src/search/search-ui.js',import.meta.url),'utf8');
+const client=fs.readFileSync(new URL('../src/search/external-health-client.js',import.meta.url),'utf8');
+assert.match(worker,/\/external-health/,'TV Cache must own the external health endpoint');
+assert.match(worker,/lookupChannelSignalHealth/,'TV Cache endpoint must delegate to the Channel Signal adapter');
+assert.match(ui,/fetchExternalHealth/,'Unified Search details must use the external health client');
+assert.match(ui,/addEventListener\(['"]toggle['"]/,'Channel Signal lookup must be lazy on Details open');
+assert.doesNotMatch(client,/WebTVMyPlaylistAPI|testCandidate|recordSuccess|recordFailure/,'external health client must not own save, playback or canonical health mutation');
