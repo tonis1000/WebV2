@@ -14,6 +14,8 @@ const MAX_FETCH_BYTES=4000000;
 const MAX_CONCURRENCY=4;
 const MAX_RESULTS=12;
 const FALLBACK_TRIGGER_COUNT=3;
+const MAX_PRIMARY_FEEDS_PER_REQUEST=4;
+const MAX_FALLBACK_FEEDS_PER_REQUEST=3;
 const ALLOWED_FRESHNESS=new Set(['24h','7d','30d']);
 const FEEDS=CURATED_SOURCE_FEEDS;
 
@@ -167,11 +169,30 @@ function dedupe(candidates=[]){
   for(const item of candidates){const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=MAX_RESULTS)break;}
   return out;
 }
+function selectCuratedFeedPlan(feeds=FEEDS){
+  const enabled=feeds.filter(feed=>feed.enabled!==false);
+  const primary=enabled.filter(feed=>(feed.tier||'primary')==='primary');
+  const fallback=enabled.filter(feed=>feed.tier==='fallback');
+  const hans=primary.find(feed=>feed.id==='hanssettings-gr');
+  const primaryPlan=[];
+  if(hans)primaryPlan.push(hans);
+  for(const feed of primary){
+    if(primaryPlan.length>=MAX_PRIMARY_FEEDS_PER_REQUEST)break;
+    if(feed===hans)continue;
+    primaryPlan.push(feed);
+  }
+  return {
+    primary:primaryPlan,
+    fallback:fallback.slice(0,MAX_FALLBACK_FEEDS_PER_REQUEST),
+    totalEnabled:enabled.length,
+  };
+}
 async function discoverCurated(channel,freshness,env={}){
   if(String(env.DISABLE_CURATED_REMOTE_FEEDS||'')==='1')return json({error:'Provider disabled',provider:CURATED_REMOTE_FEEDS_PROVIDER},503);
   const enabledFeeds=FEEDS.filter(feed=>feed.enabled!==false);
-  const primaryFeeds=enabledFeeds.filter(feed=>(feed.tier||'primary')==='primary');
-  const fallbackFeeds=enabledFeeds.filter(feed=>feed.tier==='fallback');
+  const plan=selectCuratedFeedPlan(enabledFeeds);
+  const primaryFeeds=plan.primary;
+  const fallbackFeeds=plan.fallback;
   const primaryReports=await mapBounded(primaryFeeds,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
   let reports=[...primaryReports];
   let candidates=dedupe(primaryReports.flatMap(report=>report.candidates||[]));
@@ -183,7 +204,7 @@ async function discoverCurated(channel,freshness,env={}){
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
     freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Curated feeds are checked live. Primary Greek-focused feeds run first; broad fallback feeds run only when fewer than three matches are found.',
-    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT},
+    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,maxPrimaryFeedsPerRequest:MAX_PRIMARY_FEEDS_PER_REQUEST,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST},
     candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>({feed,tier,format,status,elapsedMs,count:candidates?.length||0,error:error||''})),
   });
 }
@@ -234,4 +255,4 @@ export default {
   }
 };
 
-export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseFeed };
+export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, MAX_PRIMARY_FEEDS_PER_REQUEST, MAX_FALLBACK_FEEDS_PER_REQUEST, selectCuratedFeedPlan, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseFeed };
