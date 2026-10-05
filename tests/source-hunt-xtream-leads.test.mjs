@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { buildQueries, freshEnoughForKind, rank, safeXtreamProviderLeadUrl, xtreamProviderEvidence } from '../workers/source-huntatonisworkersdev.js';
+import huntWorker, { buildQueries, freshEnoughForKind, rank, safeXtreamProviderLeadUrl, xtreamProviderEvidence } from '../workers/source-huntatonisworkersdev.js';
 
 const megaQueries=buildQueries('MEGA');
-assert.equal(megaQueries.length,3,'Source Hunt query budget stays at three Brave searches');
+assert.equal(megaQueries.length,3,'explicit paid Source Hunt fallback keeps the bounded three-query budget');
 const xtream=megaQueries.find(item=>item.kind==='xtream');
 assert.ok(xtream,'Source Hunt must include one Xtream provider/trial query');
 assert.equal(xtream.freshness,'py','provider/trial discovery uses an annual window while direct stream searches stay monthly');
@@ -33,3 +33,25 @@ const webRank=rank({_kind:'web',title:'MEGA IPTV playlist',description:'MEGA str
 assert.equal(webRank,-100,'ordinary web stream results stay on the 30-day freshness rule');
 
 console.log('Source Hunt Xtream provider/trial lead contract PASS');
+
+const originalFetch=globalThis.fetch;
+let braveCalls=0;
+try{
+  globalThis.fetch=async(input)=>{
+    const url=new URL(String(input));
+    if(url.hostname==='api.search.brave.com'){braveCalls+=1;return new Response(JSON.stringify({web:{results:[]}}),{status:200,headers:{'content-type':'application/json'}});}
+    if(url.hostname==='www.reddit.com')return new Response(JSON.stringify({data:{children:[]}}),{status:200,headers:{'content-type':'application/json'}});
+    return new Response('',{status:404,headers:{'content-type':'text/plain'}});
+  };
+  const freeResponse=await huntWorker.fetch(new Request('https://hunt.test/hunt?channel=MEGA&days=30&debug=1'),{BRAVE_API_KEY:'fixture-key'});
+  assert.equal(freeResponse.status,200);
+  const freePayload=await freeResponse.json();
+  assert.equal(freePayload.paidSearchEnabled,false,'normal Source Hunt must report paid search disabled');
+  assert.equal(braveCalls,0,'normal Source Hunt must not call Brave even when a key is configured');
+
+  const paidResponse=await huntWorker.fetch(new Request('https://hunt.test/hunt?channel=MEGA&days=30&debug=1&paid=1'),{BRAVE_API_KEY:'fixture-key'});
+  assert.equal(paidResponse.status,200);
+  const paidPayload=await paidResponse.json();
+  assert.equal(paidPayload.paidSearchEnabled,true,'paid Source Hunt must require explicit paid=1');
+  assert.equal(braveCalls,3,'explicit paid Source Hunt fallback may use only the bounded three Brave queries');
+}finally{globalThis.fetch=originalFetch;}
