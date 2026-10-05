@@ -59,7 +59,7 @@ try{
   assert.equal(result.reports.gists.length,1);
   assert.equal(result.reports.gists[0].gistId,'abc123');
   assert.equal(result.reports.gists[0].author,'fixture-author');
-  assert.equal(result.reports.gists[0].updatedAt,'2026-10-04T12:34:56Z');
+  assert.equal(result.reports.gists[0].updatedAt,'2026-10-04T12:34:56.000Z');
   assert.equal(result.reports.gists[0].filesScanned,1);
   assert.equal(result.reports.gists[0].credentialFilesRejected,1);
   assert.equal(result.reports.subrequestsUsed,5);
