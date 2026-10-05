@@ -11,7 +11,7 @@ import { rankBestSources, selectBestSource } from './best-source.js';
 import { normalizeChannelName } from '../discovery/candidate-model.js';
 import { workerUrl } from '../core/utils.js';
 
-const BUILD_ID='20261005-best-source-proof-b';
+const BUILD_ID='20261005-free-first-search-a';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
 const playbackConfirmedCandidates=new Set();
@@ -51,12 +51,13 @@ function createUi(){
   panel.setAttribute('aria-label','Unified source search');
   panel.innerHTML=`
     <div class="unified-search-head">
-      <div class="unified-search-head-copy"><p class="eyebrow">SEARCH</p><h2>Find channels & sources</h2><p class="muted small">Search one channel, a group such as ERT / Nova / Cosmote, or any free text. Search never changes the player by itself.</p></div>
+      <div class="unified-search-head-copy"><p class="eyebrow">SEARCH</p><h2>Find channels & sources</h2><p class="muted small">Free sources run first. Paid Brave search is used only when you explicitly choose the Deep web fallback. Search never changes the player by itself.</p></div>
       <div class="unified-search-head-actions"><div class="unified-search-now"><span>Now Playing</span><strong id="unified-search-now-playing">${escapeHtml(displayNowPlayingName())}</strong></div><button id="unified-search-close" class="button ghost" type="button">Close</button></div>
     </div>
     <form id="unified-search-form" class="unified-search-form">
       <input id="unified-search-query" type="search" autocomplete="off" placeholder="ERT1, ERT, Nova, Cosmote Sport…" aria-label="Search channels or groups">
       <button id="unified-search-submit" class="button" type="submit">Search</button>
+      <button id="unified-search-paid-fallback" class="button ghost" type="button" title="Explicit last-resort search using paid Brave API">Deep web fallback (Brave)</button>
       <button id="unified-search-cancel" class="button ghost unified-search-cancel" type="button" hidden>Cancel</button>
     </form>
     <div id="unified-search-status-banner" class="unified-search-status-banner" data-status="idle" aria-live="polite" aria-atomic="true">
@@ -158,9 +159,10 @@ function renderProgress(snapshot={},summary={}){
   const status=String(snapshot.status||'idle');
   const lanes=Object.values(snapshot.lanes||{});const done=lanes.filter(item=>item.status==='done').length;
   const candidateCount=snapshot.candidates?.length||0;
-  const banner=$('unified-search-status-banner'),title=$('unified-search-status-title'),detail=$('unified-search-status-detail'),submit=$('unified-search-submit');
+  const banner=$('unified-search-status-banner'),title=$('unified-search-status-title'),detail=$('unified-search-status-detail'),submit=$('unified-search-submit'),paidFallback=$('unified-search-paid-fallback');
   const running=status==='running';
   if(submit){submit.disabled=running;submit.textContent=running?'Searching…':'Search';}
+  if(paidFallback)paidFallback.disabled=running;
   if(banner)banner.dataset.status=status;
   if(title)title.textContent=running?'Searching…':status==='completed'?'Finished':status==='cancelled'?'Search cancelled':'Ready';
   if(detail){
@@ -337,18 +339,25 @@ async function playCandidate(candidate,channelName,button){
   finally{setTimeout(()=>{button.disabled=!playableCandidate(candidate);button.textContent=old;button.classList.remove('danger');const report=activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[];renderReport(report,activeRun?.reporter?.summary?.()||latestUpdate?.summary||{});},1200);}
 }
 
-function startSearch(event){
-  event?.preventDefault?.();const query=$('unified-search-query')?.value.trim();if(!query)return;
+function launchSearch(query,sources){
   playbackConfirmedCandidates.clear();savedCandidateIds.clear();activeRun?.cancel?.('superseded');const context=searchContext();
-  const run=runUnifiedSearch({query,context,sources:listUnifiedSearchLanes(),resolveAdapter:getUnifiedSearchRuntimeAdapter,verifyBatch:verifySearchCandidates,concurrency:3,laneTimeoutMs:10000,onUpdate:update=>{if(activeRun===run)renderUpdate(update);}});
+  const run=runUnifiedSearch({query,context,sources,resolveAdapter:getUnifiedSearchRuntimeAdapter,verifyBatch:verifySearchCandidates,concurrency:3,laneTimeoutMs:10000,onUpdate:update=>{if(activeRun===run)renderUpdate(update);}});
   activeRun=run;latestIntent=null;
   run.done.then(result=>{if(activeRun!==run)return;renderUpdate({snapshot:result.snapshot,report:result.report,summary:result.summary});}).catch(error=>{if(activeRun!==run)return;renderProgress({status:'cancelled',candidates:[],lanes:{}},{failed:1});console.error('[WebTV] Unified Search failed',error);});
+}
+function startSearch(event){
+  event?.preventDefault?.();const query=$('unified-search-query')?.value.trim();if(!query)return;
+  launchSearch(query,listUnifiedSearchLanes());
+}
+function startPaidFallback(){
+  const query=$('unified-search-query')?.value.trim();if(!query)return;
+  launchSearch(query,listUnifiedSearchLanes({includePaidFallback:true}));
 }
 
 async function copyReport(){const text=activeRun?.reporter?.exportText?.()||'';if(!text)return;await navigator.clipboard?.writeText?.(text);}
 function exportJson(){const json=activeRun?.reporter?.exportJson?.();if(!json)return;const blob=new Blob([json],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`webtv-search-report-${activeRun.searchId||'run'}.json`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
 
-function bind(){const form=$('unified-search-form');if(!form||form.dataset.bound==='1')return;form.dataset.bound='1';form.addEventListener('submit',startSearch);$('unified-search-close')?.addEventListener('click',()=>{const panel=$('unified-search-panel');if(panel)panel.hidden=true;$('unified-search-toggle')?.setAttribute('aria-expanded','false');});$('unified-search-cancel')?.addEventListener('click',()=>activeRun?.cancel?.('user'));$('unified-search-report-copy')?.addEventListener('click',()=>copyReport().catch(()=>{}));$('unified-search-report-json')?.addEventListener('click',exportJson);$('unified-search-report-source')?.addEventListener('change',()=>renderReport(activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[],activeRun?.reporter?.summary?.()||latestUpdate?.summary||{}));}
+function bind(){const form=$('unified-search-form');if(!form||form.dataset.bound==='1')return;form.dataset.bound='1';form.addEventListener('submit',startSearch);$('unified-search-paid-fallback')?.addEventListener('click',startPaidFallback);$('unified-search-close')?.addEventListener('click',()=>{const panel=$('unified-search-panel');if(panel)panel.hidden=true;$('unified-search-toggle')?.setAttribute('aria-expanded','false');});$('unified-search-cancel')?.addEventListener('click',()=>activeRun?.cancel?.('user'));$('unified-search-report-copy')?.addEventListener('click',()=>copyReport().catch(()=>{}));$('unified-search-report-json')?.addEventListener('click',exportJson);$('unified-search-report-source')?.addEventListener('change',()=>renderReport(activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[],activeRun?.reporter?.summary?.()||latestUpdate?.summary||{}));}
 
 export function installUnifiedSearchUI(){if(installed)return true;ensureStylesheet();const panel=createUi();if(!panel)return false;ensureSearchToggle();installed=true;bind();syncSearchQueryToSidebarSelection();window.addEventListener('webtv:channel-selected',()=>{nowPlayingState.sidebarChanged();syncSearchQueryToSidebarSelection();const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();});console.info(`[WebTV] Unified Search UI loaded · ${BUILD_ID}`);return true;}
 
