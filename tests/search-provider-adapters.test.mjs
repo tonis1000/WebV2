@@ -10,12 +10,13 @@ const discovery=createDiscoveryProviderAdapter({
   },
 });
 const controller=new AbortController();
-const web=await discovery.search({target:{id:'ert1',name:'ERT1'},source:{id:'recent-web',provider:'recent-web-search',freshness:'30d'},signal:controller.signal});
+const web=await discovery.search({target:{id:'ert1',name:'ERT1'},source:{id:'recent-web',provider:'recent-web-search',freshness:'30d',paidFallback:true},signal:controller.signal});
 assert.deepEqual(web.candidates,[{candidateId:'web1'}]);
 assert.deepEqual(web.leads,[]);
 assert.equal(calls[0].target.name,'ERT1');
 assert.equal(calls[0].options.freshness,'30d');
 assert.equal(calls[0].options.signal,controller.signal);
+assert.equal(calls[0].options.allowPaidFallback,true);
 await assert.rejects(()=>discovery.search({target:{name:'ERT1'},source:{id:'official',provider:'official-provider-lane'},signal:controller.signal}),/unsupported discovery provider/i,'Official must not sneak into unified adapter');
 
 const huntPayload={
@@ -33,10 +34,13 @@ const hunt=createHuntExplorationAdapter({endpoint:'https://hunt.test',fetchImpl:
 const huntResult=await hunt.search({target:{id:'ert1',name:'ERT1'},source:{id:'hunt-exploration',label:'Hunt Exploration'},signal:new AbortController().signal});
 assert.match(requested,/\/hunt\?/);
 assert.match(requested,/channel=ERT1/);
+assert.equal(new URL(requested).searchParams.has('paid'),false,'normal Hunt adapter must remain free-only');
 assert.equal(huntResult.candidates.length,1,'Hunt adapter must keep unique forum candidates only, not duplicate seed/web candidate lanes');
 assert.equal(huntResult.candidates[0].sourceUrl,'https://stream.test/forum.m3u8');
 assert.equal(huntResult.candidates[0].sourceOriginUrl,'https://www.reddit.com/r/test/comments/1/source');
 assert.equal(huntResult.leads.length,2);
 assert.ok(huntResult.leads.every(item=>item.sourceUrl),'leads must carry inspectable origin URLs');
+await hunt.search({target:{id:'ert1',name:'ERT1'},source:{id:'hunt-paid-fallback',label:'Deep Hunt',paidFallback:true},signal:new AbortController().signal});
+assert.equal(new URL(requested).searchParams.get('paid'),'1','paid Hunt requires an explicit adapter flag');
 
 console.log('unified search provider adapter contract PASS');
