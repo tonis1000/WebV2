@@ -9,7 +9,7 @@ assert.equal(WEB_MAX_PAGE_SCANS,3);
 assert.equal(WEB_MAX_GIST_SCANS,2);
 assert.equal(WEB_MAX_SUBREQUESTS,8);
 const discoveryDeploy=fs.readFileSync(new URL('../.github/workflows/deploy-source-discovery.yml',import.meta.url),'utf8');
-assert.equal(discoveryDeploy.includes('\\"provider\\":\\"recent-web-search\\"'),false,'deploy/live verification must never invoke paid Recent Web');
+assert.equal(discoveryDeploy.includes('"provider":"recent-web-search"'),false,'deploy/live verification must never invoke paid Recent Web');
 
 const originalFetch=globalThis.fetch;
 const seen=[];
