@@ -69,7 +69,7 @@ function ensureUi(){
   const overlay=document.createElement('div');
   overlay.id='epg-guide-overlay';overlay.className='epg-guide-overlay';overlay.hidden=true;
   overlay.innerHTML=`
-    <section id="epg-guide-shell" class="epg-guide-shell panel" role="dialog" aria-modal="true" aria-label="EPG Guide">
+    <section id="epg-guide-shell" class="epg-guide-shell panel" role="dialog" aria-modal="false" aria-label="EPG Guide">
       <header class="epg-guide-head">
         <div><p class="eyebrow">TV GUIDE</p><h2>Πρόγραμμα καναλιών</h2><p id="epg-guide-summary" class="muted small">Τα κανάλια του τρέχοντος sidebar</p></div>
         <div class="epg-guide-head-actions">
