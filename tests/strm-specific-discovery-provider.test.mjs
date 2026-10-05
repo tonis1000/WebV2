@@ -22,7 +22,8 @@ assert.match(router,/strm-specific-discovery\.js/,'Source Discovery router must 
 assert.match(router,/DISABLE_STRM_SPECIFIC_DISCOVERY/,'STRM provider must retain an independent Worker kill switch');
 assert.match(client,/strm-specific-discovery/,'Browser client must expose the STRM provider explicitly');
 assert.match(deploy,/strm-specific-discovery/,'Source Discovery live gate must exercise the STRM provider');
-assert.match(deploy,/"name":"ERT1"/,'STRM live gate must use the real public ERT1 resolution path');
+assert.match(deploy,/strmShapeOk/,'STRM live gate must verify live provider response shape without requiring one volatile third-party resolution');
+assert.match(router,/feed\.format==='m3u'/,'STRM-specific discovery must scan only M3U feeds, not unrelated external JSON intelligence feeds');
 assert.match(providerSource,/strm-core\.js/,'Discovery STRM provider must consume the shared STRM core');
 assert.doesNotMatch(providerSource,/function\s+parseStrm\s*\(/,'Discovery must not keep an independent STRM document parser');
 
