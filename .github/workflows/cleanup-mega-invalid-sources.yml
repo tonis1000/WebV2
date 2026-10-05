@@ -125,12 +125,14 @@ jobs:
           from pathlib import Path
           def q(v): return "'" + v.replace("'","''") + "'"
           hans=os.environ['HANS_MEGA_URL']
+          old1=os.environ['OLD_MEGA_URL_1']
+          old2=os.environ['OLD_MEGA_URL_2']
           sql=f"""
-          BEGIN TRANSACTION;
-          DELETE FROM channel_sources WHERE channel_id='mega';
           INSERT INTO channel_sources(channel_id,url,origin,priority,enabled,created_at,updated_at)
-          VALUES('mega',{q(hans)},'verified-hans-enigma2',100,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
-          COMMIT;
+          VALUES('mega',{q(hans)},'verified-hans-enigma2',100,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+          ON CONFLICT(channel_id,url) DO UPDATE SET origin=excluded.origin,priority=excluded.priority,enabled=1,updated_at=CURRENT_TIMESTAMP;
+          DELETE FROM channel_sources
+          WHERE channel_id='mega' AND url IN ({q(old1)},{q(old2)});
           """
           Path('/tmp/mega-cleanup.sql').write_text(sql)
           PY
