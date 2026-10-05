@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { saveSourceEligibility, bestSourceSaveEligibility } from '../src/search/save-source-policy.js';
 
 const selected={id:'mega',originalId:'MEGA.gr',name:'MEGA'};
-const verified={candidateId:'cand_mega',channelName:'MEGA',normalizedChannelName:'mega',sourceType:'hls',discoveryProvider:'recent-web-search',verificationStatus:'VERIFIED',streamKind:'live'};
+const verified={candidateId:'cand_mega',channelName:'MEGA',normalizedChannelName:'mega',sourceType:'hls',discoveryProvider:'recent-web-search',verified:true,verificationStatus:'VERIFIED',streamKind:'live'};
 
 assert.equal(saveSourceEligibility({candidate:verified,channelName:'MEGA',selectedChannel:selected,playbackConfirmed:false}).enabled,false,'verified source must not save before playback confirmation');
-assert.equal(saveSourceEligibility({candidate:{...verified,verificationStatus:'UNVERIFIED'},channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true}).enabled,false,'playback alone must not bypass verifier gate');
+assert.equal(saveSourceEligibility({candidate:{...verified,verified:false},channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true}).enabled,false,'verificationStatus VERIFIED without canonical verified=true proof must not save');
+assert.equal(saveSourceEligibility({candidate:{...verified,verificationStatus:'UNVERIFIED',verified:false},channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true}).enabled,false,'playback alone must not bypass verifier gate');
 assert.equal(saveSourceEligibility({candidate:verified,channelName:'MEGA',selectedChannel:{name:'SKAI'},playbackConfirmed:true}).enabled,false,'candidate must not save into a different selected sidebar channel');
 
 const eligible=saveSourceEligibility({candidate:verified,channelName:'MEGA',selectedChannel:selected,playbackConfirmed:true});
@@ -32,6 +33,8 @@ assert.equal(saved.label,'Saved ✓');
 
 const bestBlocked=bestSourceSaveEligibility({candidate:verified,playbackConfirmed:false});
 assert.equal(bestBlocked.enabled,false,'Best Source must require real playback confirmation');
+const bestFalseProof=bestSourceSaveEligibility({candidate:{...verified,verified:false,browserPlayable:true},playbackConfirmed:true});
+assert.equal(bestFalseProof.enabled,false,'Best Source must require canonical verified=true proof, not only a VERIFIED status label');
 const bestEligible=bestSourceSaveEligibility({candidate:{...verified,browserPlayable:true},playbackConfirmed:true});
 assert.equal(bestEligible.enabled,true,'verified live browser-playable playback-confirmed candidate should be usable as Best Source');
 const bestDrm=bestSourceSaveEligibility({candidate:{...verified,browserPlayable:true,drmDetected:true},playbackConfirmed:true});

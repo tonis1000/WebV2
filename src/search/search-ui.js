@@ -11,7 +11,7 @@ import { rankBestSources, selectBestSource } from './best-source.js';
 import { normalizeChannelName } from '../discovery/candidate-model.js';
 import { workerUrl } from '../core/utils.js';
 
-const BUILD_ID='20261005-best-source-a';
+const BUILD_ID='20261005-best-source-proof-b';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
 const playbackConfirmedCandidates=new Set();
@@ -248,7 +248,7 @@ async function saveBestSource(candidate,group={},button){
   try{
     await api.saveVerifiedSearchSource(channel,{url:playbackValue(candidate),origin:candidate.sourceOrigin||candidate.discoveryProvider||'best-source',provider:candidate.discoveryProvider||'',sourceType:candidate.sourceType||'',browserPlayable:candidate.browserPlayable===true,drmDetected:Boolean(candidate.drmDetected)},{
       reason:'unified-search-best-source-save',
-      verified:String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED',
+      verified:candidate.verified===true&&String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED',
       streamKind:String(candidate.streamKind||'unknown').toLowerCase(),
       playbackConfirmed:playbackConfirmedCandidates.has(candidate.candidateId),
     });

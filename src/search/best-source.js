@@ -10,7 +10,8 @@ function blockedGenericCandidate(candidate={}){
 }
 
 function eligible(candidate={}){
-  return String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED'
+  return candidate.verified===true
+    && String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED'
     && String(candidate.streamKind||'unknown').toLowerCase()==='live'
     && candidate.drmDetected!==true
     && candidate.browserPlayable===true
