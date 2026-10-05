@@ -56,3 +56,7 @@
 .unified-report-message{min-width:0;overflow-wrap:anywhere}
 @media(prefers-reduced-motion:reduce){.unified-search-status-banner[data-status="running"] .unified-search-spinner{animation:none}}
 @media(max-width:780px){.unified-search-head{align-items:stretch;flex-direction:column}.unified-search-head-actions{justify-content:flex-start}.unified-search-now{align-self:flex-start}.unified-search-form{grid-template-columns:1fr auto}.unified-search-status-banner{grid-template-columns:auto 1fr}.unified-search-status-banner>span:last-child{grid-column:1/-1}.unified-search-form .unified-search-cancel{grid-column:1/-1;justify-self:start}.unified-candidate-row{grid-template-columns:1fr}.unified-candidate-actions{justify-content:flex-start}.unified-detail-grid{grid-template-columns:1fr}.unified-report-event{grid-template-columns:auto minmax(0,1fr)}.unified-report-event time{display:none}}
+
+.unified-candidate-row.best-source{outline:1px solid rgba(255,255,255,.24);outline-offset:-1px}
+.unified-best-source-badge{display:inline-flex;align-items:center;border:1px solid currentColor;border-radius:999px;padding:.1rem .45rem;font-size:.72rem;font-weight:700;letter-spacing:.02em}
+.best-source-action{font-weight:700}
