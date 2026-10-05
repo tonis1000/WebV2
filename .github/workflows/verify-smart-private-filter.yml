@@ -1,0 +1,19 @@
+name: Verify Smart Private Filter
+
+on:
+  push:
+    branches: [fix-curated-private-filter-request-body]
+    paths:
+      - 'tests/source-discovery-smart-private-filter.test.mjs'
+      - 'workers/webtv-source-discovery-smart.js'
+      - '.github/workflows/verify-smart-private-filter.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: node tests/source-discovery-smart-private-filter.test.mjs
