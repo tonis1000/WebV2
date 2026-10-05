@@ -29,4 +29,5 @@ assert.doesNotMatch(rail,/\[playlists,catalog\]/,'My Playlist badge must not rem
 assert.match(rail,/\.player-header-admin \.rail-brand\{[^}]*font-size:/,'TONI\'S WEBTV must have an explicit larger header size');
 assert.match(rail,/#current-catalog-badge\.header-catalog-badge/,'My Playlist badge must use the compact player-header presentation');
 
+assert.match(rail,/\.player-header-admin \.rail-brand #admin-unlock-trigger\{[^}]*font-size:/,'TONI\'S WEBTV size rule must target the actual admin button, not only its wrapper');
 console.log('admin tool rail layout contract ok');
