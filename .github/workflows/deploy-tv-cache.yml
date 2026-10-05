@@ -85,3 +85,8 @@ jobs:
           echo "::error::tv-cache verification failed"
           cat /tmp/tv-cache-status.json 2>/dev/null || true
           exit 1
+
+      - name: Verify Channel Signal live endpoint
+        env:
+          TV_CACHE_URL: ${{ env.WORKER_URL }}
+        run: node tests/channel-signal-live-smoke.mjs
