@@ -13,6 +13,7 @@ assert.equal(typeof identity.validateGreekChannelIdentityDefinition, 'function',
 assert.equal(typeof identity.listGreekChannelIdentities, 'function');
 assert.equal(typeof identity.resolveGreekIdentity, 'function');
 assert.equal(typeof identity.channelMatchScore, 'function');
+assert.equal(typeof identity.createChannelSignalsMatcher, 'function', 'identity core must expose a prepared signal matcher for repeated scans');
 
 const rows = identity.listGreekChannelIdentities();
 assert.ok(rows.length >= ACTIVE_PLAYLIST_CHANNELS.length, 'identity registry must cover at least the active D1 playlist');
@@ -67,6 +68,19 @@ assert.equal(identity.channelMatchScore('ANT1 Cyprus','ANT1','exact'), 0, 'ANT1 
 assert.equal(identity.channelMatchScore('ANT1 Κύπρου','ANT1','exact'), 0, 'ANT1 Greece must reject ANT1 Κύπρου');
 assert.equal(identity.channelMatchScore('https://l2.cloudskep.com/alphacyp/acy/playlist.m3u8','Alpha TV','exact'), 0, 'Alpha Greece must reject alphacyp routes');
 assert.equal(identity.channelMatchScore('Alpha Cyprus','Alpha TV','broad'), 0, 'Alpha Greece broad matching must still reject Cyprus variant');
+
+const preparedCases=[
+  {channel:{name:'MEGA',id:'mega',originalId:'MEGA'},signals:['MEGA HD'],mode:'exact'},
+  {channel:{name:'MEGA',id:'mega',originalId:'MEGA'},signals:['MEGA NEWS'],mode:'exact'},
+  {channel:{name:'ANT1',id:'ant1',originalId:'ANT1'},signals:['ANT1 Cyprus'],mode:'exact'},
+  {channel:{name:'SKAI',id:'skai',originalId:'SKAI',tvgId:'Skai.gr'},signals:['ΣΚΑΪ HD'],mode:'exact'},
+  {channel:{name:'Západoslovenská TV (Twich)',id:'zapadoslovenska-tv-twich',originalId:'Západoslovenská TV (Twich)'},signals:['Západoslovenská TV (Twich)'],mode:'exact'},
+  {channel:{name:'__WEBV2_NO_SUCH_CHANNEL__',id:'__webv2_no_such_channel__',originalId:'__WEBV2_NO_SUCH_CHANNEL__'},signals:['Some Other Channel'],mode:'exact'},
+];
+for(const item of preparedCases){
+  const prepared=identity.createChannelSignalsMatcher(item.channel,item.mode);
+  assert.equal(prepared(item.signals),identity.channelSignalsMatch(item.signals,item.channel,item.mode),'prepared matcher must preserve channelSignalsMatch semantics');
+}
 
 assert.throws(() => identity.validateGreekChannelIdentityDefinition({ id:'new-tv', canonicalName:'New TV', aliases:['New TV'], officialNames:['New TV'], officialRefs:[] }, { throwOnError:true }), /official reference/i);
 assert.throws(() => identity.validateGreekChannelIdentityDefinition({ id:'new-tv', canonicalName:'New TV', aliases:[], officialNames:['New TV'], officialRefs:[{kind:'official-site',url:'https://new.example/'}] }, { throwOnError:true }), /alias/i);
