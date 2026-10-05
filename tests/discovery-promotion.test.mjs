@@ -31,12 +31,14 @@ assert.equal(promotedUnknown.metadataTrust,'imported-unprofiled');
 const expectedChannel={id:'mega',originalId:'MEGA',tvgId:'mega.gr',name:'MEGA'};
 const verified={
   candidateId:'cand_ok',channelName:'MEGA',sourceType:'hls',sourceUrl:'https://example.invalid/mega.m3u8',candidateKind:'media',saveEligible:true,
-  requiredHeaders:{},verificationStatus:'VERIFIED',verified:true,
+  requiredHeaders:{},verificationStatus:'VERIFIED',verified:true,streamKind:'live',
 };
 
 assert.equal(canPromoteCandidate(verified,expectedChannel,{id:'mega',name:'MEGA'}),true);
 assert.equal(promotionBlockReason({...verified,verificationStatus:'UNVERIFIED',verified:false},expectedChannel,expectedChannel),'Only VERIFIED candidates can be added');
 assert.equal(promotionBlockReason({...verified,saveEligible:false},expectedChannel,expectedChannel),'This candidate is not eligible for My Playlist');
+assert.match(promotionBlockReason({...verified,streamKind:'vod'},expectedChannel,expectedChannel),/live media/);
+assert.match(promotionBlockReason({...verified,streamKind:'unknown'},expectedChannel,expectedChannel),/live media/);
 assert.equal(promotionBlockReason({...verified,candidateKind:'official-page'},expectedChannel,expectedChannel),'Official fallback pages cannot be saved as media sources');
 assert.equal(promotionBlockReason({...verified,requiredHeaders:{Referer:'https://example.invalid/'}},expectedChannel,expectedChannel),'Persistent request-header metadata is not supported yet');
 assert.match(promotionBlockReason({...verified,sourceType:'rtsp',sourceUrl:'rtsp://example.test/live'},expectedChannel,expectedChannel),/tested HLS gateway/);
