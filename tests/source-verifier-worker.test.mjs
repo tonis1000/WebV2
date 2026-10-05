@@ -21,6 +21,8 @@ try{
       assert.equal(headers.get('x-roku-reserved-dev-id'),'device-123');
       return new Response('#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     }
+    if(value.includes('master-live.test/master.m3u8'))return new Response('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000\nmedia/live.m3u8\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
+    if(value.includes('master-live.test/media/live.m3u8'))return new Response('#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:42\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     if(value.includes('good.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:42\n#EXTINF:6,\nseg.ts\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     if(value.includes('hls-vod.test'))return new Response('#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg.ts\n#EXT-X-ENDLIST\n',{status:200,headers:{'content-type':'application/vnd.apple.mpegurl'}});
     if(value.includes('dash-live.test'))return new Response('<?xml version="1.0"?><MPD type="dynamic"><Period/></MPD>',{status:200,headers:{'content-type':'application/dash+xml'}});
@@ -77,6 +79,11 @@ try{
   assert.equal(semanticsBody.results[0].streamKind,'vod');
   assert.equal(semanticsBody.results[1].streamKind,'live');
   assert.equal(semanticsBody.results[2].streamKind,'vod');
+
+  const masterResponse=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidate:{candidateId:'master-live',sourceType:'hls',sourceUrl:'https://master-live.test/master.m3u8'}})}),{});
+  const masterBody=await masterResponse.json();
+  assert.equal(masterBody.results[0].status,'VERIFIED');
+  assert.equal(masterBody.results[0].streamKind,'live','HLS master playlist must derive live semantics from a child media playlist');
 
   const htmlResponse=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidate:{candidateId:'html',sourceUrl:'https://html.test/live'}})}),{});
   const htmlBody=await htmlResponse.json();

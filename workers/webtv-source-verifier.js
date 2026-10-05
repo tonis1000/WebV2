@@ -1,7 +1,7 @@
 import { detectSourceFormat, classifySourceBody, toLegacySourceType } from '../src/core/source-format-registry.js';
 import { parseIptvUrl } from '../src/core/utils.js';
 
-const VERSION='1.1';
+const VERSION='1.2';
 const ALLOWED_ORIGIN='*';
 const UPSTREAM_TIMEOUT_MS=6000;
 const MAX_BODY_BYTES=512000;
@@ -83,6 +83,34 @@ function streamKindFromMedia(media='',body=''){
   }
   return 'unknown';
 }
+function firstHlsVariantUrl(body='',baseUrl=''){
+  const lines=String(body||'').split(/\r?\n/).map(line=>line.trim());
+  for(let i=0;i<lines.length;i++){
+    if(!/^#EXT-X-STREAM-INF\s*:/i.test(lines[i]))continue;
+    for(let j=i+1;j<lines.length;j++){
+      const value=lines[j];
+      if(!value)continue;
+      if(value.startsWith('#'))break;
+      try{return safeHttpUrl(new URL(value,baseUrl).toString()).toString();}catch{return '';}
+    }
+  }
+  return '';
+}
+async function hlsStreamKindFromMaster(body='',baseUrl='',headers,signal){
+  let text=String(body||''),current=String(baseUrl||'');
+  for(let hop=0;hop<3;hop++){
+    const kind=streamKindFromMedia('hls',text);
+    if(kind!=='unknown')return kind;
+    const variant=firstHlsVariantUrl(text,current);
+    if(!variant)return 'unknown';
+    const fetched=await fetchWithRedirectDiagnostics(safeHttpUrl(variant),headers,signal);
+    const response=fetched.response;
+    if(!response.ok&&response.status!==206)return 'unknown';
+    text=await readLimited(response);
+    current=response.url||variant;
+  }
+  return streamKindFromMedia('hls',text);
+}
 function mediaProbeResult(type,text='',contentType=''){
   const body=String(text||'');
   const ct=String(contentType||'').toLowerCase();
@@ -140,6 +168,9 @@ async function verifyOne(input={}){
     }
     const text=await readLimited(response);
     const classified=mediaProbeResult(type,text,response.headers.get('content-type')||'');
+    if(classified.ok&&classified.mediaType==='hls'&&classified.streamKind==='unknown'){
+      classified.streamKind=await hlsStreamKindFromMaster(text,response.url||target.toString(),headers,controller.signal);
+    }
     if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:true,detail:'DRM markers detected',redirects,finalTarget,finalResponseHeaders};
     if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:false,detail:classified.reason,redirects,finalTarget,finalResponseHeaders};
     return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget,finalResponseHeaders};
