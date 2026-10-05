@@ -24,6 +24,10 @@ assert.match(source, /STRM_MAX_BYTES=256000/,
   'curated smart wrapper body limit remains local');
 assert.match(source, /function\s+privateHost\s*\(/,
   'private-host policy remains local to Discovery');
+assert.match(source, /function\s+isAllowedCuratedCandidate\s*\(/,
+  'curated candidates must pass the Discovery public-target gate');
+assert.match(source, /!privateHost\(url\.hostname\)/,
+  'curated candidate filtering must reuse the existing private-host policy');
 assert.match(source, /DRM-marked STRM is not auto-promoted/,
   'curated smart wrapper must retain DRM auto-promotion rejection');
 assert.match(source, /provider\|\|''\)===['"]curated-remote-feeds['"]/,

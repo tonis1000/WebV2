@@ -47,9 +47,17 @@ async function resolveStrm(raw,depth=0,chain=[]){
   let target;try{target=canonicalUrl(parsed.mediaUrl).toString();}catch(error){return{ok:false,error:error.message,chain:next};}
   return{ok:true,status:fetched.status,resolvedUrl:target,sourceType:typeOf(parsed.mediaUrl),requiredHeaders:parsed.requiredHeaders||{},chain:next};
 }
+function isAllowedCuratedCandidate(item={}){
+  try{
+    const raw=String(item?.sourceUrl||'').split('|')[0].trim();
+    const url=new URL(raw);
+    return !privateHost(url.hostname);
+  }catch{return false;}
+}
 async function resolveCuratedStrm(payload={}){
   const input=Array.isArray(payload.candidates)?payload.candidates:[],out=[],reports=[];let attempts=0;
   for(const item of input){
+    if(!isAllowedCuratedCandidate(item)){reports.push({reference:item?.sourceUrl||'',resolved:false,error:'Non-public curated target rejected'});continue;}
     if(item?.sourceType!=='strm'){out.push(item);continue;}
     if(attempts>=MAX_STRM_RESOLVES){reports.push({reference:item.sourceUrl,resolved:false,error:'STRM resolve limit reached'});continue;}
     attempts++;
