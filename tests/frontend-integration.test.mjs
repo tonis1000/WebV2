@@ -185,10 +185,10 @@ const discoveryDeploy=read('.github/workflows/deploy-source-discovery.yml');
 assert.match(discoveryDeploy,/workers\/webtv-source-discovery\.js/, 'Source Discovery deploy must be scoped to its canonical Worker');
 assert.match(discoveryDeploy,/workers\/source-discovery\/\*\*\/\*\.js/, 'Source Discovery deploy must include provider module changes');
 assert.match(discoveryDeploy,/github-public-playlists/, 'Source Discovery live gate must cover the GitHub provider');
-assert.match(discoveryDeploy,/recent-web-search/, 'Source Discovery live gate must cover the Recent Web provider');
-assert.match(discoveryDeploy,/github-gists/, 'Source Discovery live gate must verify the GitHub Gist search lane explicitly');
-assert.match(discoveryDeploy,/reports\?\.gists/, 'Source Discovery live gate must require Gist instrumentation in the live response');
-assert.match(discoveryDeploy,/BRAVE_API_KEY/, 'Source Discovery live gate must explain the Brave secret dependency');
+assert.match(discoveryDeploy,/recent-web-search/, 'Source Discovery live gate may probe only the explicit paid-fallback guard for Recent Web');
+assert.match(discoveryDeploy,/PAID_GUARD_CODE/, 'Source Discovery live gate must verify that Recent Web stops before paid Brave without opt-in');
+assert.doesNotMatch(discoveryDeploy,/reports\?\.gists/, 'deploy verification must not depend on a live paid Gist/Brave search response');
+assert.doesNotMatch(discoveryDeploy,/BRAVE_API_KEY/, 'deploy verification must not depend on the paid Brave secret');
 assert.doesNotMatch(discoveryDeploy,/src\/main\.js|src\/core\/player\.js/, 'Frontend-only runtime changes must not trigger Source Discovery deploy');
 
 for (const rel of [
