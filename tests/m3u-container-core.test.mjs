@@ -4,6 +4,7 @@ import {
   isM3uContainer,
   parseM3uAttributes,
   parseM3uContainer,
+  selectM3uContainerEntries,
   splitM3uSourceAlternatives,
 } from '../src/core/m3u-container.js';
 
@@ -125,6 +126,21 @@ assert.equal(malformed[0].title, 'Broken');
 assert.equal(malformed[0].duration, null);
 assert.equal(malformed[0].sourceLine, 'https://cdn.test/broken.m3u8');
 assert.equal(malformed[1].title, 'Good');
+
+const selective = selectM3uContainerEntries(`#EXTM3U
+#EXTINF:-1 tvg-id="NOPE",NOPE
+https://cdn.test/nope.m3u8
+#EXTINF:-1 tvg-id="MEGA",MEGA
+https://cdn.test/mega.m3u8
+#EXTINF:-1 tvg-id="LATE",LATE
+https://cdn.test/late.m3u8
+`, {
+  acceptExtinf: line => /tvg-id="MEGA"/.test(line),
+  limit: 1,
+});
+assert.equal(selective.length,1);
+assert.equal(selective[0].sourceLine,'https://cdn.test/mega.m3u8');
+assert.equal(selective[0].index,1,'selected entry retains structural index from the source container');
 
 const discoveryDeploy=fs.readFileSync(new URL('../.github/workflows/deploy-source-discovery.yml',import.meta.url),'utf8');
 assert.match(discoveryDeploy,/src\/core\/m3u-container\.js/,'shared M3U changes must trigger Source Discovery deploy');
