@@ -86,3 +86,12 @@ jobs:
           probe ANT1_DASH https://mcdn.antennaplus.gr/live/media0/Ant1/Dash/Ant1.mpd
           probe COMEDY_LCDN https://lcdn.antennaplus.gr/r2921141ed585493580aba05cf37a76cb/eu-central-1/6415884360001/playlist.m3u8
           probe DRAMA_LCDN https://lcdn.antennaplus.gr/r123fc9b6eb1b493fa0ac71004f572652/eu-central-1/6415884360001/playlist.m3u8
+          probe ANT1_LCDN_DVR https://lcdn.antennaplus.gr/r86d08d448885424196f6cd3ddc5d1489/eu-central-1/6415884360001/playlist_dvr.m3u8
+          probe COMEDY_LCDN_DVR https://lcdn.antennaplus.gr/r2921141ed585493580aba05cf37a76cb/eu-central-1/6415884360001/playlist_dvr.m3u8
+          probe DRAMA_LCDN_DVR https://lcdn.antennaplus.gr/r123fc9b6eb1b493fa0ac71004f572652/eu-central-1/6415884360001/playlist_dvr.m3u8
+          probe ANT1_VARIANT_180 https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1-avc1_800000=4249956612.m3u8
+          probe ANT1_VARIANT_540 https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1-avc1_1000000=3293880965.m3u8
+          probe ANT1_VARIANT_720 https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1-avc1_2000000=2246142959.m3u8
+          probe ANT1_VARIANT_1080 https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1-avc1_8000000=1141144780.m3u8
+          probe ANT1_AUDIO https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1-mp4a_128000_eng=2334241234.m3u8
+          probe ANT1_ROKU_HTTPS https://15.235.41.165/hls/antenna.m3u8 -k -H 'User-Agent: Roku/DVP-15.6 (15.6.4.9914-CE)' -H 'X-Roku-Reserved-Dev-Id: 75ab1929b0c20717db1fd855a37a03a6a621fc3f'
