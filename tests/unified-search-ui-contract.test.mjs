@@ -8,6 +8,7 @@ assert.equal(fs.existsSync(cssPath),true,'unified search stylesheet must exist')
 
 const js=fs.readFileSync(jsPath,'utf8');
 const css=fs.readFileSync(cssPath,'utf8');
+const savePolicy=fs.readFileSync(new URL('../src/search/save-source-policy.js',import.meta.url),'utf8');
 
 for(const required of [
   'unified-search-form','unified-search-query','unified-search-results','unified-search-report',
@@ -24,7 +25,7 @@ assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play a
 assert.ok(/WebTVMyPlaylistAPI/.test(js)&&/addSourceToCurrent/.test(js),'Save source must reuse the existing My Playlist persistence owner');
 assert.ok(/playbackConfirmedCandidates/.test(js),'Save source must be gated by successful candidate playback');
 assert.ok(/normalizedSelectedChannelKeys/.test(js),'Save source must bind to the selected sidebar channel identity');
-assert.ok(/xtreamContext|sourceType[^\n]*xtream/.test(js),'generic Save source must preserve the Xtream persistence boundary');
+assert.ok(/genericSaveBlocked/.test(savePolicy)&&/xtreamContext|sourceType[^\n]*xtream/.test(savePolicy),'generic Save source must preserve the Xtream persistence boundary');
 assert.equal(/registryFetch|\/api\/my-playlist/.test(js),false,'Unified Search UI must not write Registry/D1 directly');
 assert.ok(/groupCandidatesByChannel/.test(js),'results must render grouped by channel');
 assert.ok(/snapshot\.leads|renderLeads/.test(js),'exploration leads must remain visible after legacy Hunt UI retirement');
