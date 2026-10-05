@@ -75,6 +75,7 @@ jobs:
           node tests/unified-source-registry.test.mjs
           node tests/search-source-addition-ergonomics.test.mjs
           node tests/search-save-source-policy.test.mjs
+          node tests/search-best-source.test.mjs
           node tests/search-public-url-policy.test.mjs
           node tests/search-adapter-contract.test.mjs
           node tests/search-provider-adapters.test.mjs
