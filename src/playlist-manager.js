@@ -192,6 +192,7 @@ async function saveVerifiedSearchSource(channel,source={},options={}){
   if(reason!=='unified-search-best-source-save')throw new Error('Unified Search Best Source save reason is required');
   if(!(playbackConfirmed===true&&verified===true&&String(streamKind).toLowerCase()==='live'))throw new Error('Best Source requires VERIFIED live media and playback confirmation');
   if(Boolean(source?.drmDetected))throw new Error('DRM-marked Best Source cannot use generic My Playlist persistence');
+  if(source?.browserPlayable!==true)throw new Error('Best Source must be browser-playable before My Playlist persistence');
   if(String(source?.sourceType||'').toLowerCase()==='xtream')throw new Error('Use Xtream Preview → Verify → Save Channel…');
   const url=String(source?.url||'').trim();
   if(!/^https?:\/\//i.test(url))throw new Error('Best Source requires a valid http/https media URL');
