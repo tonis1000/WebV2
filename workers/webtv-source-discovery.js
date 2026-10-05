@@ -7,7 +7,7 @@ import { parseEnigma2Bouquet } from '../src/core/enigma2-core.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
 
-const VERSION='1.7';
+const VERSION='1.9';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=3500;
 const MAX_FETCH_BYTES=4000000;
@@ -124,12 +124,37 @@ async function timedFetch(url){
   const timer=setTimeout(()=>controller.abort(new DOMException('timeout','AbortError')),FETCH_TIMEOUT_MS);
   try{return await fetch(url,{redirect:'follow',signal:controller.signal,headers:{'user-agent':`WebTV-Discovery/${VERSION}`,'accept':'text/plain,application/vnd.apple.mpegurl,application/x-mpegURL,*/*'}});}finally{clearTimeout(timer);}
 }
+async function readTextBounded(response,maxBytes=MAX_FETCH_BYTES){
+  if(!response?.body||typeof response.body.getReader!=='function'){
+    return (await response.text()).slice(0,maxBytes);
+  }
+  const reader=response.body.getReader();
+  const decoder=new TextDecoder();
+  let text='',used=0,reachedLimit=false;
+  try{
+    while(used<maxBytes){
+      const {done,value}=await reader.read();
+      if(done)break;
+      if(!value?.byteLength)continue;
+      const remaining=maxBytes-used;
+      const chunk=value.byteLength>remaining?value.subarray(0,remaining):value;
+      text+=decoder.decode(chunk,{stream:true});
+      used+=chunk.byteLength;
+      if(value.byteLength>remaining||used>=maxBytes){reachedLimit=true;break;}
+    }
+    if(!reachedLimit)text+=decoder.decode();
+  }finally{
+    if(reachedLimit){try{await reader.cancel('Source Discovery byte budget reached');}catch{}}
+    try{reader.releaseLock();}catch{}
+  }
+  return text;
+}
 async function scanFeed(feed,channel){
   const started=Date.now();
   try{
     const response=await timedFetch(feed.url);
     if(!response.ok)return {feed:feed.name,tier:feed.tier||'primary',format:feed.format||'m3u',status:response.status,candidates:[],elapsedMs:Date.now()-started};
-    const text=(await response.text()).slice(0,MAX_FETCH_BYTES);
+    const text=await readTextBounded(response,MAX_FETCH_BYTES);
     return {feed:feed.name,tier:feed.tier||'primary',format:feed.format||'m3u',status:response.status,candidates:parseFeed(text,channel,{...feed,provider:CURATED_REMOTE_FEEDS_PROVIDER}),elapsedMs:Date.now()-started};
   }catch(error){return {feed:feed.name,tier:feed.tier||'primary',format:feed.format||'m3u',status:error?.name==='AbortError'?408:0,candidates:[],elapsedMs:Date.now()-started,error:error?.message||String(error)};}
 }
@@ -210,4 +235,4 @@ export default {
   }
 };
 
-export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseFeed };
+export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseFeed };
