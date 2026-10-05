@@ -1,0 +1,39 @@
+name: Probe ERTFlix Public Contract
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/probe-ertflix-public.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Inspect public ERTFlix page and client bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 'https://live.ertflix.gr/series' -o /tmp/series.html
+          echo "RAW_HTML_BYTES=$(wc -c </tmp/series.html)"
+          grep -oE '/_next/static/[^"'"'"' ]+\.js' /tmp/series.html | sort -u | head -n 30 >/tmp/chunks.txt || true
+          echo "CHUNKS=$(wc -l </tmp/chunks.txt)"
+          : >/tmp/all.js
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            echo "FETCH_CHUNK $path"
+            curl --fail --silent --show-error --max-time 30 "https://live.ertflix.gr$path" >>/tmp/all.js || true
+            printf '\n' >>/tmp/all.js
+          done </tmp/chunks.txt
+          echo "BUNDLE_BYTES=$(wc -c </tmp/all.js)"
+          echo "=== ABSOLUTE URL CANDIDATES ==="
+          grep -oE 'https://[^"'"'"'[:space:]\\]+' /tmp/all.js | sed 's/[),;]$//' | sort -u | grep -Ei 'ertflix|api|content|catalog|series|tile|player' | head -n 120 || true
+          echo "=== ENDPOINT STRING CANDIDATES ==="
+          grep -oE '["'"'"'][^"'"'"']{0,120}(api|series|detail|catalog|content|tile|player)[^"'"'"']{0,120}["'"'"']' /tmp/all.js | head -n 200 || true
+          echo "=== PAGE MARKERS ==="
+          grep -oE '__NEXT_DATA__|self\.__next_f|/_next/data/[^"'"'"' ]+' /tmp/series.html | head -n 50 || true
