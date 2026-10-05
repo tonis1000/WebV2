@@ -158,10 +158,8 @@ if (!enabled || window.__webtvRightRailInstalled) {
     for(const spec of floatingSpecs){
       const panel=document.getElementById(spec.id);
       if(!panel)continue;
-      panel.classList.remove('rail-floating-panel');
       delete panel.dataset.floatingPlaced;
       for(const prop of ['position','right','bottom','left','top','width','height','maxWidth','maxHeight','zIndex'])panel.style[prop]='';
-      if(spec.host)document.getElementById(spec.host)?.classList.remove('rail-floating-host');
     }
   }
 
@@ -341,6 +339,7 @@ if (!enabled || window.__webtvRightRailInstalled) {
     html.rail-preview #unified-search-panel:not([hidden]){position:fixed;overflow:auto;background:rgba(14,20,26,.995);border-color:#347da0;box-shadow:0 30px 100px rgba(0,0,0,.7)}
     html.rail-preview .rail-floating-panel{resize:both!important;min-width:360px;min-height:220px;box-sizing:border-box}
     html.rail-preview .rail-floating-handle{cursor:move;user-select:none;touch-action:none}
+    html.rail-preview .section-heading-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     html.rail-preview .rail-floating-handle button,html.rail-preview .rail-floating-handle a,html.rail-preview .rail-floating-handle input,html.rail-preview .rail-floating-handle select,html.rail-preview .rail-floating-handle textarea{cursor:pointer;user-select:auto}
     html.rail-preview #epg-guide-overlay.rail-floating-host:not([hidden]){display:block;padding:0;background:transparent;backdrop-filter:none;pointer-events:none}
     html.rail-preview #epg-guide-shell.rail-floating-panel{pointer-events:auto;margin:0;overflow:hidden}
