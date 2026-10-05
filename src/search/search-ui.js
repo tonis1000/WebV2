@@ -5,7 +5,8 @@ import { UnifiedNowPlayingState } from './now-playing-state.js';
 import { safePublicActionUrl } from './public-url-policy.js';
 import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
-import { candidateForDisplay, normalizeChannelName } from '../discovery/candidate-model.js';
+import { candidateForDisplay } from '../discovery/candidate-model.js';
+import { normalizedSelectedChannelKeys, saveSourceEligibility } from './save-source-policy.js';
 
 const BUILD_ID='20261005-unified-save-source-a';
 const $=id=>document.getElementById(id);
@@ -118,25 +119,16 @@ function formatSource(value=''){
 function headersForPlayback(headers={}){const params=new URLSearchParams();for(const [key,value] of Object.entries(headers||{}))if(value)params.set(key,value);return params.toString();}
 function playbackValue(candidate={}){const suffix=headersForPlayback(candidate.requiredHeaders);return `${candidate.sourceUrl||''}${suffix?`|${suffix}`:''}`;}
 function playableCandidate(candidate={}){return candidate.browserPlayable===true&&/^https?:\/\//i.test(String(candidate.sourceUrl||''));}
-function normalizedSelectedChannelKeys(){
-  let selected=null;try{selected=window.WebTVPlaylistAPI?.getSelectedChannel?.()||null;}catch{}
-  return new Set([selected?.id,selected?.originalId,selected?.name].map(value=>normalizeChannelName(value||'')).filter(Boolean));
-}
-function candidateMatchesSelectedChannel(candidate={},channelName=''){
-  const selected=normalizedSelectedChannelKeys();if(!selected.size)return false;
-  const candidateKeys=[candidate.normalizedChannelName,candidate.channelName,channelName].map(value=>normalizeChannelName(value||'')).filter(Boolean);
-  return candidateKeys.some(key=>selected.has(key));
-}
-function genericSaveBlocked(candidate={}){
-  return Boolean(candidate.xtreamContext)||String(candidate.sourceType||'').toLowerCase()==='xtream'||String(candidate.discoveryProvider||'').toLowerCase().includes('authorized-xtream');
-}
+function selectedChannel(){try{return window.WebTVPlaylistAPI?.getSelectedChannel?.()||null;}catch{return null;}}
 function saveCandidateState(candidate={},channelName=''){
-  if(savedCandidateIds.has(candidate.candidateId))return{enabled:false,label:'Saved ✓',title:'This source is already saved in this search session'};
-  if(genericSaveBlocked(candidate))return{enabled:false,label:'Save via Xtream Preview',title:'Authorized Xtream sources must use Xtream Preview → Verify → Save Channel…'};
-  if(String(candidate.verificationStatus||'').toUpperCase()!=='VERIFIED')return{enabled:false,label:'Save source',title:'Wait for this source to reach VERIFIED_MEDIA first'};
-  if(!playbackConfirmedCandidates.has(candidate.candidateId))return{enabled:false,label:'Save source',title:'Play this source successfully before saving it'};
-  if(!candidateMatchesSelectedChannel(candidate,channelName))return{enabled:false,label:'Save source',title:`Select ${channelName||candidate.channelName||'this channel'} in the sidebar before saving`};
-  return{enabled:true,label:'Save source',title:'Save this playback-confirmed source to the selected My Playlist channel'};
+  normalizedSelectedChannelKeys(selectedChannel());
+  return saveSourceEligibility({
+    candidate,
+    channelName,
+    selectedChannel:selectedChannel(),
+    playbackConfirmed:playbackConfirmedCandidates.has(candidate.candidateId),
+    alreadySaved:savedCandidateIds.has(candidate.candidateId),
+  });
 }
 
 function renderProgress(snapshot={},summary={}){
