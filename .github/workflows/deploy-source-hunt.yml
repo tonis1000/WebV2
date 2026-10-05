@@ -67,9 +67,6 @@ jobs:
           workers_dev = true
           preview_urls = false
           keep_vars = true
-
-          [secrets]
-          required = ["BRAVE_API_KEY"]
           EOF
 
       - name: Deploy
