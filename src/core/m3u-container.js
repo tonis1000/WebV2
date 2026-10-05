@@ -48,40 +48,54 @@ function parseDuration(extinf = '') {
   return Number.isFinite(value) ? value : null;
 }
 
-export function parseM3uContainer(text = '') {
+function materializeEntry(lines, i, index, extinf) {
+  const directivesBeforeSource = [];
+  const sourceCandidates = [];
+  for (let j = i + 1; j < lines.length; j += 1) {
+    const next = lines[j].trim();
+    if (!next) continue;
+    if (/^#EXTINF\s*:/i.test(next)) break;
+    if (next.startsWith('#')) {
+      if (!sourceCandidates.length) directivesBeforeSource.push(next);
+      continue;
+    }
+    sourceCandidates.push({ line: next, offset: j - i });
+  }
+
+  const sourceLine = sourceCandidates[0]?.line || '';
+  const sourceOffset = sourceCandidates[0]?.offset ?? null;
+  const { title } = splitExtinfPayload(extinf);
+  return {
+    index,
+    extinf,
+    duration: parseDuration(extinf),
+    title,
+    attributes: parseM3uAttributes(extinf),
+    sourceLine,
+    sourceOffset,
+    sourceCandidates,
+    directivesBeforeSource,
+  };
+}
+
+export function selectM3uContainerEntries(text = '', { acceptExtinf = null, limit = Infinity } = {}) {
   const lines = String(text || '').replace(/\r/g, '').split('\n');
   const entries = [];
+  let structuralIndex = 0;
+  const max = Number.isFinite(Number(limit)) ? Math.max(0, Number(limit)) : Infinity;
+  if (max === 0) return entries;
+
   for (let i = 0; i < lines.length; i += 1) {
     const extinf = lines[i].trim();
     if (!/^#EXTINF\s*:/i.test(extinf)) continue;
-
-    const directivesBeforeSource = [];
-    const sourceCandidates = [];
-    for (let j = i + 1; j < lines.length; j += 1) {
-      const next = lines[j].trim();
-      if (!next) continue;
-      if (/^#EXTINF\s*:/i.test(next)) break;
-      if (next.startsWith('#')) {
-        if (!sourceCandidates.length) directivesBeforeSource.push(next);
-        continue;
-      }
-      sourceCandidates.push({ line: next, offset: j - i });
-    }
-
-    const sourceLine = sourceCandidates[0]?.line || '';
-    const sourceOffset = sourceCandidates[0]?.offset ?? null;
-    const { title } = splitExtinfPayload(extinf);
-    entries.push({
-      index: entries.length,
-      extinf,
-      duration: parseDuration(extinf),
-      title,
-      attributes: parseM3uAttributes(extinf),
-      sourceLine,
-      sourceOffset,
-      sourceCandidates,
-      directivesBeforeSource,
-    });
+    const index = structuralIndex++;
+    if (typeof acceptExtinf === 'function' && !acceptExtinf(extinf, index)) continue;
+    entries.push(materializeEntry(lines, i, index, extinf));
+    if (entries.length >= max) break;
   }
   return entries;
+}
+
+export function parseM3uContainer(text = '') {
+  return selectM3uContainerEntries(text);
 }
