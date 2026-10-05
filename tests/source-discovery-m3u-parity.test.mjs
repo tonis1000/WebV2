@@ -84,7 +84,7 @@ assert.equal(limited[11].sourceUrl,'https://cdn.test/11.m3u8');
 
 const worker=fs.readFileSync(new URL('../workers/webtv-source-discovery.js',import.meta.url),'utf8');
 assert.match(worker,/m3u-container\.js/,'Source Discovery must import the shared M3U container core');
-assert.match(worker,/parseM3uContainer/,'Source Discovery must consume parseM3uContainer');
+assert.match(worker,/selectM3uContainerEntries/,'Source Discovery must consume the shared selective M3U container API');
 assert.match(worker,/function\s+parseEnigma2\s*\(/,'E2 must leave Enigma2 parsing local and unchanged');
 assert.doesNotMatch(worker,/function\s+parseM3u\([^)]*\)\s*\{\s*const lines=/,'Source Discovery must not retain independent M3U line traversal');
 
