@@ -12,6 +12,7 @@ on:
       - 'tests/discovery-verifier.test.mjs'
       - 'tests/source-verifier-worker.test.mjs'
       - 'tests/fixtures/source-verifier-working.m3u8'
+      - 'tests/fixtures/source-verifier-vod.m3u8'
       - '.github/workflows/deploy-source-verifier.yml'
 
 permissions:
@@ -71,6 +72,7 @@ jobs:
           set -u -o pipefail
           GOOD_URL="https://raw.githubusercontent.com/tonis1000/WebV2/$GITHUB_SHA/tests/fixtures/source-verifier-working.m3u8"
           DEAD_URL="https://raw.githubusercontent.com/tonis1000/WebV2/$GITHUB_SHA/tests/fixtures/source-verifier-dead-does-not-exist.m3u8"
+          VOD_URL="https://raw.githubusercontent.com/tonis1000/WebV2/$GITHUB_SHA/tests/fixtures/source-verifier-vod.m3u8"
 
           for attempt in $(seq 1 12); do
             rm -f /tmp/verifier-status.json
@@ -79,10 +81,11 @@ jobs:
 
               GOOD=$(curl --fail --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"good\",\"sourceType\":\"hls\",\"sourceUrl\":\"$GOOD_URL\"}}" || true)
               DEAD=$(curl --fail --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"dead\",\"sourceType\":\"hls\",\"sourceUrl\":\"$DEAD_URL\"}}" || true)
+              VOD=$(curl --fail --silent --show-error -X POST "$WORKER_URL/verify" -H 'content-type: application/json' --data "{\"candidate\":{\"candidateId\":\"vod\",\"sourceType\":\"hls\",\"sourceUrl\":\"$VOD_URL\"}}" || true)
               HEADER_STATUS=$(curl --silent --show-error --output /tmp/verifier-header-aware.m3u8 --write-out '%{http_code}'                 -H 'User-Agent: Roku/DVP-14.6'                 -H 'X-Roku-Reserved-Dev-Id: device-123'                 "$WORKER_URL/fixture/header-aware.m3u8?verify=$GITHUB_SHA" || true)
 
-              if node -e "try{const good=JSON.parse(process.argv[1]),dead=JSON.parse(process.argv[2]);if(good.results?.[0]?.status!=='VERIFIED'||dead.results?.[0]?.status!=='HTTP 404')process.exit(1);}catch{process.exit(1)}" "$GOOD" "$DEAD"                 && [ "$HEADER_STATUS" = "200" ]                 && grep -q '#EXTM3U' /tmp/verifier-header-aware.m3u8; then
-                echo "Source Verifier v1.1 is live; controlled good/dead probes and direct header-aware fixture passed."
+              if node -e "try{const good=JSON.parse(process.argv[1]),dead=JSON.parse(process.argv[2]),vod=JSON.parse(process.argv[3]);if(good.results?.[0]?.status!=='VERIFIED'||good.results?.[0]?.streamKind!=='live'||dead.results?.[0]?.status!=='HTTP 404'||vod.results?.[0]?.status!=='VERIFIED'||vod.results?.[0]?.streamKind!=='vod')process.exit(1);}catch{process.exit(1)}" "$GOOD" "$DEAD" "$VOD"                 && [ "$HEADER_STATUS" = "200" ]                 && grep -q '#EXTM3U' /tmp/verifier-header-aware.m3u8; then
+                echo "Source Verifier v1.1 is live; controlled live/VOD/dead probes and direct header-aware fixture passed."
                 exit 0
               fi
             fi
