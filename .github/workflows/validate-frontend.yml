@@ -142,6 +142,8 @@ jobs:
         run: node tests/sidebar-row-presentation-ownership.test.mjs
       - name: Run clean viewer admin rail regression test
         run: node tests/admin-tool-rail-layout.test.mjs
+      - name: Run floating admin tool window regression test
+        run: node tests/admin-floating-panels.test.mjs
       - name: Run SPORT iframe surface regression test
         run: node tests/sport-iframe-surface.test.mjs
       - name: Run SPORT feed worker regression test

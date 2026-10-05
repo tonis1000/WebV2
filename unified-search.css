@@ -2,6 +2,7 @@
 .unified-search-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
 .unified-search-head h2{margin:2px 0 0;font-size:1.12rem}
 .unified-search-head-copy{min-width:0}
+.unified-search-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .unified-search-now{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:999px;background:#0b1117;color:var(--muted);font-size:.76rem;white-space:nowrap}
 .unified-search-now strong{color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis}
 .unified-search-form{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px}
@@ -54,4 +55,4 @@
 .unified-report-event time{color:#6f8092}.unified-report-event strong{font-size:.65rem}.unified-report-event[data-severity="OK"] strong{color:#8ce99a}.unified-report-event[data-severity="WARN"] strong,.unified-report-event[data-severity="TIMEOUT"] strong{color:#ffd166}.unified-report-event[data-severity="ERROR"] strong{color:#ff8787}
 .unified-report-message{min-width:0;overflow-wrap:anywhere}
 @media(prefers-reduced-motion:reduce){.unified-search-status-banner[data-status="running"] .unified-search-spinner{animation:none}}
-@media(max-width:780px){.unified-search-head{align-items:stretch;flex-direction:column}.unified-search-now{align-self:flex-start}.unified-search-form{grid-template-columns:1fr auto}.unified-search-status-banner{grid-template-columns:auto 1fr}.unified-search-status-banner>span:last-child{grid-column:1/-1}.unified-search-form .unified-search-cancel{grid-column:1/-1;justify-self:start}.unified-candidate-row{grid-template-columns:1fr}.unified-candidate-actions{justify-content:flex-start}.unified-detail-grid{grid-template-columns:1fr}.unified-report-event{grid-template-columns:auto minmax(0,1fr)}.unified-report-event time{display:none}}
+@media(max-width:780px){.unified-search-head{align-items:stretch;flex-direction:column}.unified-search-head-actions{justify-content:flex-start}.unified-search-now{align-self:flex-start}.unified-search-form{grid-template-columns:1fr auto}.unified-search-status-banner{grid-template-columns:auto 1fr}.unified-search-status-banner>span:last-child{grid-column:1/-1}.unified-search-form .unified-search-cancel{grid-column:1/-1;justify-self:start}.unified-candidate-row{grid-template-columns:1fr}.unified-candidate-actions{justify-content:flex-start}.unified-detail-grid{grid-template-columns:1fr}.unified-report-event{grid-template-columns:auto minmax(0,1fr)}.unified-report-event time{display:none}}

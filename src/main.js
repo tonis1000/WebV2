@@ -12,7 +12,7 @@ import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 
-const BUILD_ID = '20261004-startup-rail-recovery-a';
+const BUILD_ID = '20261005-floating-tool-windows-a';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const MY_PLAYLIST_STARTUP_CACHE_KEY = 'webtv_v2_my_playlist_startup_cache_v1';
 const MY_PLAYLIST_STARTUP_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -629,7 +629,9 @@ els.search.addEventListener('input',renderChannels);
 els.group.addEventListener('change',renderChannels);
 window.addEventListener('webtv:favorites-presentation-changed',renderChannels);
 els.diagToggle.addEventListener('click',()=>{els.diagnostics.hidden=!els.diagnostics.hidden;});
+$('diagnostics-close')?.addEventListener('click',()=>{els.diagnostics.hidden=true;els.diagToggle.setAttribute('aria-expanded','false');});
 els.sourceHuntToggle.addEventListener('click',()=>{if(selected){renderSourceHunt(selected);els.sourceHunt.hidden=!els.sourceHunt.hidden;}});
+$('source-hunt-close')?.addEventListener('click',()=>{els.sourceHunt.hidden=true;els.sourceHuntToggle.setAttribute('aria-expanded','false');});
 document.addEventListener('pointerdown',event=>{
   if(els.sourceHunt.hidden)return;
   if(els.sourceHunt.contains(event.target)||els.sourceHuntToggle.contains(event.target))return;
