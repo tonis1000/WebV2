@@ -1,4 +1,5 @@
 name: Cleanup MEGA invalid sources
+# Rerun safety gate against Source Verifier v1.2
 
 on:
   pull_request:
