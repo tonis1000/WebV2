@@ -20,6 +20,8 @@ on:
       - 'workers/xtream-preview-routes.js'
       - 'workers/webtv-xtream-mock.js'
       - 'workers/webtv-source-verifier.js'
+      - 'workers/tv-cache.js'
+      - 'workers/channel-signal-health.js'
       - 'workers/webtv-source-discovery.js'
       - 'workers/source-discovery/**/*.js'
       - 'workers/source-hunt*.js'
@@ -186,6 +188,8 @@ jobs:
         run: node tests/diagnostics-structured-state-ownership.test.mjs
       - name: Run Source Health route ownership regression test
         run: node tests/source-health-route-ownership.test.mjs
+      - name: Run Channel Signal external health regression test
+        run: node tests/channel-signal-health.test.mjs
       - name: Run Player ownership retirement regression test
         run: node tests/player-ownership-retirement.test.mjs
       - name: Run My Playlist action ownership regression test
