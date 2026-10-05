@@ -7,7 +7,7 @@ import { selectEnigma2BouquetServices } from '../src/core/enigma2-core.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
 
-const VERSION='1.9';
+const VERSION='1.10';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=3500;
 const MAX_FETCH_BYTES=4000000;
@@ -16,6 +16,7 @@ const MAX_RESULTS=12;
 const FALLBACK_TRIGGER_COUNT=3;
 const MAX_PRIMARY_FEEDS_PER_REQUEST=2;
 const MAX_FALLBACK_FEEDS_PER_REQUEST=1;
+const MAX_INTELLIGENCE_FEEDS_PER_REQUEST=1;
 const ALLOWED_FRESHNESS=new Set(['24h','7d','30d']);
 const FEEDS=CURATED_SOURCE_FEEDS;
 
@@ -128,8 +129,52 @@ function parseEnigma2(text='',channel={},feed={}){
   }
   return results;
 }
+function normalizeRequiredHeaders(headers={}){
+  if(!headers||typeof headers!=='object')return {};
+  const allowed=['User-Agent','Referer','Origin','X-Roku-Reserved-Dev-Id'];
+  const out={};
+  for(const [key,value] of Object.entries(headers)){
+    const canonical=allowed.find(item=>item.toLowerCase()===String(key).toLowerCase());
+    const text=String(value??'').trim();
+    if(canonical&&text&&!/[\r\n\0]/.test(text))out[canonical]=text;
+  }
+  return out;
+}
+function parseAliveGrJson(text='',channel={},feed={}){
+  let payload;
+  try{payload=JSON.parse(String(text||''));}catch{return [];}
+  const rows=Array.isArray(payload?.channels)?payload.channels:[];
+  const matches=prepareSignalsMatcher(channel);
+  const results=[];
+  for(const row of rows){
+    if(results.length>=MAX_RESULTS)break;
+    const name=String(row?.name||'').trim();
+    if(!name||!matches([name]))continue;
+    for(const stream of Array.isArray(row?.streams)?row.streams:[]){
+      if(results.length>=MAX_RESULTS)break;
+      const sourceUrl=String(stream?.url||'').trim();
+      if(!sourceUrl||!validPublicUrl(sourceUrl))continue;
+      if(stream?.drm)continue;
+      results.push(makeCandidate({
+        channel:{...channel,name:channel.familyQuery===true?name:(channel.name||name)},
+        sourceUrl,
+        sourceOrigin:feed.name||'AliveGR',
+        sourceOriginUrl:feed.url||'',
+        freshness:feed.freshness||'live-feed-check',
+        extra:{
+          inputFormatId:'alivegr-json',
+          requiredHeaders:normalizeRequiredHeaders(stream?.headers||{}),
+          verificationDetail:'AliveGR live intelligence candidate; final media still requires WebV2 verification and playback proof',
+        },
+      }));
+    }
+  }
+  return results;
+}
 function parseFeed(text='',channel={},feed={}){
-  return feed.format==='enigma2'?parseEnigma2(text,channel,feed):parseM3u(text,channel,feed);
+  if(feed.format==='enigma2')return parseEnigma2(text,channel,feed);
+  if(feed.format==='alivegr-json')return parseAliveGrJson(text,channel,feed);
+  return parseM3u(text,channel,feed);
 }
 async function timedFetch(url){
   const controller=new AbortController();
@@ -184,6 +229,7 @@ function selectCuratedFeedPlan(feeds=FEEDS){
   const enabled=feeds.filter(feed=>feed.enabled!==false);
   const primary=enabled.filter(feed=>(feed.tier||'primary')==='primary');
   const fallback=enabled.filter(feed=>feed.tier==='fallback');
+  const intelligence=enabled.filter(feed=>feed.tier==='intelligence').slice(0,MAX_INTELLIGENCE_FEEDS_PER_REQUEST);
   const hans=primary.find(feed=>feed.id==='hanssettings-gr');
   const ciefp=fallback.find(feed=>feed.id==='ciefp-iptv-mix');
   const primaryPlan=[];
@@ -203,6 +249,7 @@ function selectCuratedFeedPlan(feeds=FEEDS){
   return {
     primary:primaryPlan,
     fallback:fallbackPlan,
+    intelligence,
     totalEnabled:enabled.length,
   };
 }
@@ -212,7 +259,9 @@ async function discoverCurated(channel,freshness,env={}){
   const plan=selectCuratedFeedPlan(enabledFeeds);
   const primaryFeeds=plan.primary;
   const fallbackFeeds=plan.fallback;
-  const primaryReports=await mapBounded(primaryFeeds,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
+  const intelligenceFeeds=plan.intelligence||[];
+  const firstWave=[...intelligenceFeeds,...primaryFeeds];
+  const primaryReports=await mapBounded(firstWave,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
   let reports=[...primaryReports];
   let candidates=dedupe(primaryReports.flatMap(report=>report.candidates||[]));
   if(candidates.length<FALLBACK_TRIGGER_COUNT&&fallbackFeeds.length){
@@ -223,7 +272,7 @@ async function discoverCurated(channel,freshness,env={}){
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
     freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Curated feeds are checked live. A bounded primary plan runs first; when fewer than three matches are found, one CPU-bounded fallback feed runs, prioritizing the Ciefp Enigma2 acceptance corpus.',
-    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,maxPrimaryFeedsPerRequest:MAX_PRIMARY_FEEDS_PER_REQUEST,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST},
+    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,maxPrimaryFeedsPerRequest:MAX_PRIMARY_FEEDS_PER_REQUEST,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST},
     candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>({feed,tier,format,status,elapsedMs,count:candidates?.length||0,error:error||''})),
   });
 }
@@ -268,10 +317,10 @@ export default {
       [GITHUB_PUBLIC_PLAYLISTS_PROVIDER]:String(env?.DISABLE_GITHUB_PUBLIC_PLAYLISTS||'')!=='1',
       [RECENT_WEB_SEARCH_PROVIDER]:String(env?.DISABLE_RECENT_WEB_SEARCH||'')!=='1'&&Boolean(env?.BRAVE_API_KEY),
       [STRM_SPECIFIC_DISCOVERY_PROVIDER]:String(env?.DISABLE_STRM_SPECIFIC_DISCOVERY||'')!=='1',
-    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.filter(feed=>feed.enabled!==false).length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT}});
+    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.filter(feed=>feed.enabled!==false).length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST}});
     if(request.method==='POST'&&url.pathname==='/discover')return discover(request,env);
     return json({error:'Not found'},404);
   }
 };
 
-export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, MAX_PRIMARY_FEEDS_PER_REQUEST, MAX_FALLBACK_FEEDS_PER_REQUEST, selectCuratedFeedPlan, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseFeed };
+export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, MAX_PRIMARY_FEEDS_PER_REQUEST, MAX_FALLBACK_FEEDS_PER_REQUEST, MAX_INTELLIGENCE_FEEDS_PER_REQUEST, selectCuratedFeedPlan, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseAliveGrJson, parseFeed };
