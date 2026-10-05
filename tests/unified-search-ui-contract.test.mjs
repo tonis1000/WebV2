@@ -8,6 +8,7 @@ assert.equal(fs.existsSync(cssPath),true,'unified search stylesheet must exist')
 
 const js=fs.readFileSync(jsPath,'utf8');
 const css=fs.readFileSync(cssPath,'utf8');
+const savePolicy=fs.readFileSync(new URL('../src/search/save-source-policy.js',import.meta.url),'utf8');
 
 for(const required of [
   'unified-search-form','unified-search-query','unified-search-results','unified-search-report',
@@ -20,7 +21,13 @@ assert.ok(js.includes("target='_blank'")||js.includes('target="_blank"')||js.inc
 assert.ok(/noopener/.test(js)&&/noreferrer/.test(js),'source links must use noopener/noreferrer');
 assert.ok(/safePublicActionUrl/.test(js),'all public source/copy actions must use the canonical safe URL exposure policy');
 assert.equal(/writeText\?\.\(raw\.sourceUrl\)|writeText\(raw\.sourceUrl\)/.test(js),false,'UI must never copy a raw candidate URL directly');
+assert.ok(savePolicy.includes('Save source'),'Save source label must be owned by the save-source policy');
 assert.ok(/WebTVPlaybackAPI/.test(js)&&/testCandidate/.test(js),'explicit Play action must use the existing playback boundary');
+assert.ok(/WebTVMyPlaylistAPI/.test(js)&&/addSourceToCurrent/.test(js),'Save source must reuse the existing My Playlist persistence owner');
+assert.ok(/playbackConfirmedCandidates/.test(js),'Save source must be gated by successful candidate playback');
+assert.ok(/normalizedSelectedChannelKeys/.test(js),'Save source must bind to the selected sidebar channel identity');
+assert.ok(/genericSaveBlocked/.test(savePolicy)&&/xtreamContext|sourceType[^\n]*xtream/.test(savePolicy),'generic Save source must preserve the Xtream persistence boundary');
+assert.equal(/registryFetch|\/api\/my-playlist/.test(js),false,'Unified Search UI must not write Registry/D1 directly');
 assert.ok(/groupCandidatesByChannel/.test(js),'results must render grouped by channel');
 assert.ok(/snapshot\.leads|renderLeads/.test(js),'exploration leads must remain visible after legacy Hunt UI retirement');
 assert.ok(/activeRun\s*!==\s*run|run\s*!==\s*activeRun/.test(js),'superseded search completion must not overwrite the active run UI');

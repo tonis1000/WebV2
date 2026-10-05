@@ -6,10 +6,13 @@ import { safePublicActionUrl } from './public-url-policy.js';
 import { buildSearchContext } from './search-group-catalog.js';
 import { groupCandidatesByChannel } from './result-grouper.js';
 import { candidateForDisplay } from '../discovery/candidate-model.js';
+import { normalizedSelectedChannelKeys, saveSourceEligibility } from './save-source-policy.js';
 
-const BUILD_ID='20261005-floating-tool-windows-a';
+const BUILD_ID='20261005-unified-save-source-a';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
+const playbackConfirmedCandidates=new Set();
+const savedCandidateIds=new Set();
 let activeRun=null;
 let latestUpdate=null;
 let latestIntent=null;
@@ -116,6 +119,17 @@ function formatSource(value=''){
 function headersForPlayback(headers={}){const params=new URLSearchParams();for(const [key,value] of Object.entries(headers||{}))if(value)params.set(key,value);return params.toString();}
 function playbackValue(candidate={}){const suffix=headersForPlayback(candidate.requiredHeaders);return `${candidate.sourceUrl||''}${suffix?`|${suffix}`:''}`;}
 function playableCandidate(candidate={}){return candidate.browserPlayable===true&&/^https?:\/\//i.test(String(candidate.sourceUrl||''));}
+function selectedChannel(){try{return window.WebTVPlaylistAPI?.getSelectedChannel?.()||null;}catch{return null;}}
+function saveCandidateState(candidate={},channelName=''){
+  normalizedSelectedChannelKeys(selectedChannel());
+  return saveSourceEligibility({
+    candidate,
+    channelName,
+    selectedChannel:selectedChannel(),
+    playbackConfirmed:playbackConfirmedCandidates.has(candidate.candidateId),
+    alreadySaved:savedCandidateIds.has(candidate.candidateId),
+  });
+}
 
 function renderProgress(snapshot={},summary={}){
   const root=$('unified-search-progress');if(!root)return;
@@ -180,6 +194,8 @@ function candidateRow(raw,channelName){
   const actions=document.createElement('div');actions.className='unified-candidate-actions';
   const play=document.createElement('button');play.type='button';play.className='button';play.textContent='Play';play.disabled=!playableCandidate(raw);play.title=play.disabled?'This resolved format is not playable by the current browser Player':'Play this candidate';
   play.addEventListener('click',()=>playCandidate(raw,channelName,play));actions.appendChild(play);
+  const saveState=saveCandidateState(raw,channelName);const save=document.createElement('button');save.type='button';save.className='button playlists';save.textContent=saveState.label;save.disabled=!saveState.enabled;save.title=saveState.title;
+  save.addEventListener('click',()=>saveCandidateSource(raw,channelName,save));actions.appendChild(save);
   const safeOrigin=safePublicActionUrl(candidate.sourceOriginUrl);if(safeOrigin){const link=document.createElement('a');link.className='button ghost';link.href=safeOrigin;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Open source ↗';actions.appendChild(link);}
   const copyUrl=safePublicActionUrl(raw.sourceUrl);if(copyUrl&&!raw.xtreamContext){const copy=document.createElement('button');copy.type='button';copy.className='button ghost';copy.textContent='Copy URL';copy.addEventListener('click',()=>navigator.clipboard?.writeText?.(copyUrl));actions.appendChild(copy);}
   row.append(main,actions);return row;
@@ -231,20 +247,37 @@ function renderReport(report=[],summary={}){
 
 function renderUpdate(update={}){latestUpdate=update;latestIntent=update.snapshot?.intent||latestIntent;renderProgress(update.snapshot||{},update.summary||{});renderResults(update.snapshot||{});renderReport(update.report||[],update.summary||{});const cancel=$('unified-search-cancel');if(cancel)cancel.hidden=update.snapshot?.status!=='running';const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();}
 
+async function saveCandidateSource(candidate,channelName,button){
+  const state=saveCandidateState(candidate,channelName);if(!state.enabled){button.disabled=true;button.textContent=state.label;button.title=state.title;return;}
+  const api=window.WebTVMyPlaylistAPI;if(typeof api?.addSourceToCurrent!=='function')return;
+  button.disabled=true;const old=button.textContent;button.textContent='Saving…';
+  try{
+    await api.addSourceToCurrent(playbackValue(candidate));
+    savedCandidateIds.add(candidate.candidateId);
+    activeRun?.reporter?.emit?.({type:'source.saved',severity:'OK',candidateId:candidate.candidateId,channelName,stage:'save',message:'Saved to My Playlist'});
+    button.textContent='Saved ✓';button.title='Saved to My Playlist';
+  }catch(error){
+    activeRun?.reporter?.emit?.({type:'source.save-failed',severity:'ERROR',candidateId:candidate.candidateId,channelName,stage:'save',message:error?.message||String(error)});
+    button.textContent='Save failed';button.classList.add('danger');button.title=error?.message||String(error);
+    setTimeout(()=>{const retry=saveCandidateState(candidate,channelName);button.disabled=!retry.enabled;button.textContent=old;button.title=retry.title;button.classList.remove('danger');},1400);
+  }
+  const report=activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[];renderReport(report,activeRun?.reporter?.summary?.()||latestUpdate?.summary||{});
+}
+
 async function playCandidate(candidate,channelName,button){
   const api=window.WebTVPlaybackAPI;if(!api?.testCandidate)return;button.disabled=true;const old=button.textContent;button.textContent='Connecting…';
   try{
     activeRun?.reporter?.emit?.({type:'playback.requested',severity:'INFO',candidateId:candidate.candidateId,channelName,stage:'playback'});
     const result=await api.testCandidate(playbackValue(candidate),{channel:{id:candidate.normalizedChannelName||channelName,name:channelName,originalId:channelName}});
     activeRun?.reporter?.emit?.({type:'playback.completed',severity:'OK',candidateId:candidate.candidateId,channelName,stage:'playback',durationMs:result?.startupMs||null,detail:{player:result?.player||'',route:result?.route||''}});
-    nowPlayingState.setCandidate(channelName);button.textContent='Playing';const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();
+    playbackConfirmedCandidates.add(candidate.candidateId);nowPlayingState.setCandidate(channelName);button.textContent='Playing';const now=$('unified-search-now-playing');if(now)now.textContent=displayNowPlayingName();renderResults(latestUpdate?.snapshot||{});
   }catch(error){activeRun?.reporter?.emit?.({type:'playback.completed',severity:'ERROR',candidateId:candidate.candidateId,channelName,stage:'playback',message:error?.message||String(error)});button.textContent='Failed';button.classList.add('danger');}
   finally{setTimeout(()=>{button.disabled=!playableCandidate(candidate);button.textContent=old;button.classList.remove('danger');const report=activeRun?.reporter?.snapshot?.()||latestUpdate?.report||[];renderReport(report,activeRun?.reporter?.summary?.()||latestUpdate?.summary||{});},1200);}
 }
 
 function startSearch(event){
   event?.preventDefault?.();const query=$('unified-search-query')?.value.trim();if(!query)return;
-  activeRun?.cancel?.('superseded');const context=searchContext();
+  playbackConfirmedCandidates.clear();savedCandidateIds.clear();activeRun?.cancel?.('superseded');const context=searchContext();
   const run=runUnifiedSearch({query,context,sources:listUnifiedSearchLanes(),resolveAdapter:getUnifiedSearchRuntimeAdapter,verifyBatch:verifySearchCandidates,concurrency:3,laneTimeoutMs:10000,onUpdate:update=>{if(activeRun===run)renderUpdate(update);}});
   activeRun=run;latestIntent=null;
   run.done.then(result=>{if(activeRun!==run)return;renderUpdate({snapshot:result.snapshot,report:result.report,summary:result.summary});}).catch(error=>{if(activeRun!==run)return;renderProgress({status:'cancelled',candidates:[],lanes:{}},{failed:1});console.error('[WebTV] Unified Search failed',error);});
