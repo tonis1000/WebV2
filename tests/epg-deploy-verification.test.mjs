@@ -5,7 +5,8 @@ import epgWorker from '../workers/epg-proxy-gr.js';
 const workflow=fs.readFileSync('.github/workflows/deploy-epg-proxy-gr.yml','utf8');
 
 assert.match(workflow,/\$WORKER_URL\/epg\.xml\?[^\"\n]*channels=[^\"\n]*verify=/,'EPG deploy verification must request the real scoped /epg.xml feed');
-assert.match(workflow,/\$WORKER_URL\/status\?[^\"\n]*channels=[^\"\n]*verify=/,'EPG deploy verification must request the scoped /status diagnostic');\nassert.match(workflow,/\$WORKER_URL\/now-next\.json\?[^\"\n]*channels=/,'EPG deploy verification must exercise the compact viewer endpoint');
+assert.match(workflow,/\$WORKER_URL\/status\?[^\"\n]*channels=[^\"\n]*verify=/,'EPG deploy verification must request the scoped /status diagnostic');
+assert.match(workflow,/\$WORKER_URL\/now-next\.json\?[^\"\n]*channels=/,'EPG deploy verification must exercise the compact viewer endpoint');
 assert.match(workflow,/--max-time\s+\d+/,'EPG feed verification must have a bounded curl timeout');
 assert.match(workflow,/<tv/,'EPG deploy verification must require an XMLTV <tv> root');
 assert.match(workflow,/<channel/,'EPG deploy verification must require at least one channel');
