@@ -1,4 +1,4 @@
-import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20260920-1021';
+import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20261006-m3u-import-a';
 import { diffRemovedUrls, cleanupRemovedXtreamChannelSources } from './xtream-channel-lifecycle.js?v=20260926-1800';
 import { getCustomPlaylistChannels, customPlaylistExportUrl } from './custom-playlist-client.js';
 import { canonicalDefaultChannelName, savedChannelDisplayName } from './channel-display-name.js';
