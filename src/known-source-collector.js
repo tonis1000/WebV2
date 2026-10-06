@@ -1,4 +1,4 @@
-import { parseM3U } from './core/channel-catalog.js';
+import { parseM3U } from './core/channel-catalog.js?v=20261006-m3u-import-a';
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
 
 function clean(value=''){return String(value??'').trim();}
