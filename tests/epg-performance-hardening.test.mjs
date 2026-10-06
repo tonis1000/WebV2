@@ -13,6 +13,11 @@ assert.match(workerSource,/caches\.default|cache\.match/,'EPG Worker should use 
 
 assert.match(epgSource,/now-next\.json/,'Viewer EPG refresh must use the compact now-next endpoint');
 assert.match(epgSource,/refreshGuide/,'Full XMLTV guide refresh must be a separate explicit path');
+assert.match(epgSource,/guidePrograms/,'Guide schedules must be isolated from lightweight viewer Now\/Next state');
+assert.match(workerSource,/filterXmltvWindow/,'Guide requests must be trimmed to the requested visible day window');
+assert.match(workerSource,/dayOffsetsForWindow/,'Official provider fan-out must follow only the requested Guide day window');
+assert.match(guideSource,/refreshGuideForChannels/,'Guide day changes must request the canonical full Guide path');
+assert.match(guideSource,/from:start,to:end/,'Guide must request only the selected day window');
 
 assert.doesNotMatch(indexSource,/href="\.\/epg-guide\.css[^"]*"/,'EPG Guide CSS must not load in the locked viewer startup path');
 assert.doesNotMatch(indexSource,/src="\.\/src\/epg-guide\.js[^"]*"/,'EPG Guide module must not load in the locked viewer startup path');
