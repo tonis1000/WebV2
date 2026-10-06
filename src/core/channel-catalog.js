@@ -121,7 +121,7 @@ export function parseM3U(text = '') {
     const fallbackName = entry.title || '';
     const rawId = entry.attributes['tvg-id'] || '';
     const name = entry.attributes['tvg-name'] || fallbackName || rawId || 'Unknown';
-    const labelInfo = sourceLabelInfo(name || fallbackName);
+    const labelInfo = sourceLabelInfo(fallbackName || name);
     const canonical = canonicalIdentityFor({rawId,name,baseName:labelInfo.baseName});
     const identitySource = canonical ? 'canonical' : (unusableExternalId(rawId) ? 'name-fallback' : 'tvg-id');
     const idValue = canonical?.id || (identitySource==='tvg-id' ? rawId : (labelInfo.baseName || name));
