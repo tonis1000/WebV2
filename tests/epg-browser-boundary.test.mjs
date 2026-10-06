@@ -12,7 +12,9 @@ const index=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 assert.match(config,/epgUrl:\s*'https:\/\/epg-proxy-gr\.atonis\.workers\.dev\/epg\.xml'/,'browser EPG must use the canonical Worker');
 assert.doesNotMatch(config,/epgFallbackUrl:\s*'https:\/\/ext\.greektv\.app/,'browser config must not expose GreekTV as a direct fallback');
 assert.doesNotMatch(epg,/ext\.greektv\.app|epgshare01|digea\.gr|cosmotetv/i,'frontend EPG owner must not know upstream provider URLs');
-assert.match(epg,/const urls = \[primary\]/,'frontend EPG refresh must have one Worker-owned fetch lane');\nassert.match(epg,/now-next\.json/,'viewer EPG must use the compact Worker endpoint');\nassert.match(epg,/refreshGuide/,'full Guide refresh must remain explicit and Worker-owned');
+assert.match(epg,/const urls = \[primary\]/,'frontend EPG refresh must have one Worker-owned fetch lane');
+assert.match(epg,/now-next\.json/,'viewer EPG must use the compact Worker endpoint');
+assert.match(epg,/refreshGuide/,'full Guide refresh must remain explicit and Worker-owned');
 assert.match(guide,/webtv:admin-controls-changed/,'EPG Guide must notify presentation when its admin control is created');
 assert.match(rail,/webtv:admin-controls-changed/,'desktop rail must re-dock late-created admin controls');
 
