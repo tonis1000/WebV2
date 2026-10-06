@@ -143,8 +143,16 @@ export class EpgService {
           if (!response.ok) throw new Error(`${requestUrl} HTTP ${response.status}`);
           let merged=false;
           if(mode==='viewer'){
-            const data=await response.json();
-            merged=this.#mergeCompact(data);
+            const contentType=response.headers.get('content-type')||'';
+            if(contentType.includes('application/json')){
+              const data=await response.json();
+              merged=this.#mergeCompact(data);
+            }else{
+              const fallbackUrl=this.#scopedUrl(CONFIG.epgUrl,channels,{mode:'guide'});
+              const fallbackResponse=await fetch(fallbackUrl,{cache:'default'});
+              if(!fallbackResponse.ok)throw new Error(`${fallbackUrl} HTTP ${fallbackResponse.status}`);
+              merged=this.#merge(await fallbackResponse.text());
+            }
           }else{
             const xml = await response.text();
             merged=this.#merge(xml);
