@@ -1,8 +1,9 @@
 import './diagnostics-overlay-behavior.js?v=20260929-outside-close';
 import { CONFIG } from './config.js?v=20260923-2215';
 import { cleanUrl } from './core/utils.js?v=20260924-0900';
+import { summarizeHealthEntry } from './core/health-scoring.js?v=20261006-health-v2';
 
-const BUILD_ID = '20260924-2300';
+const BUILD_ID = '20261006-health-v2';
 let renderToken = 0;
 const $ = id => document.getElementById(id);
 
@@ -94,7 +95,9 @@ async function render(){
   const cooling = routedRows.filter(r => Number(r.entry?.cooldownUntil || 0) > Date.now());
   const speeds = tested.map(r => Number(r.entry?.avgStartupMs || 0)).filter(Boolean);
   const avg = speeds.length ? Math.round(speeds.reduce((a,b)=>a+b,0)/speeds.length) : 0;
-  summary.textContent = `${cloud?'D1':'LOCAL ONLY · D1 locked'} · ${tested.length}/${routedRows.length} tested${cooling.length?` · ${cooling.length} cooling`:''}${avg?` · ${avg} ms avg`:''}`;
+  const healthScores = tested.map(r => summarizeHealthEntry(r.entry).score);
+  const avgHealth = healthScores.length ? Math.round(healthScores.reduce((a,b)=>a+b,0)/healthScores.length) : 0;
+  summary.textContent = `${cloud?'D1':'LOCAL ONLY · D1 locked'} · ${tested.length}/${routedRows.length} tested${healthScores.length?` · health ${avgHealth}/100`:''}${cooling.length?` · ${cooling.length} cooling`:''}${avg?` · ${avg} ms avg`:''}`;
   list.innerHTML = '';
 
   if(!rows.length){
@@ -104,10 +107,12 @@ async function render(){
 
   for(const row of rows){
     const entry = row.entry || {};
-    const attempts = Number(entry.success||0)+Number(entry.fail||0);
+    const health = summarizeHealthEntry(row.entry || null);
+    const attempts = health.attempts;
     const successPct = pct(entry);
-    const coolingNow = Number(entry.cooldownUntil||0) > Date.now();
-    const status = row.unsupported ? 'Unsupported DRM' : row.reference ? (row.resolvedUrl ? 'Resolved' : 'Unresolved') : !attempts ? 'Untested' : coolingNow ? 'Cooldown' : successPct >= 80 ? 'Strong' : successPct >= 50 ? 'Mixed' : 'Weak';
+    const coolingNow = health.cooling;
+    const stateLabel = ({strong:'Strong',healthy:'Healthy',watch:'Watch',mixed:'Mixed',weak:'Weak',cooling:'Cooldown',unknown:'Untested'})[health.state] || 'Untested';
+    const status = row.unsupported ? 'Unsupported DRM' : row.reference ? (row.resolvedUrl ? 'Resolved' : 'Unresolved') : stateLabel;
 
     const planRow = !row.reference ? planByRoute.get(`${cleanUrl(row.source)}|${row.kind}`) : null;
     const item = document.createElement('div');
@@ -153,11 +158,13 @@ async function render(){
     }else{
       if(planRow) metrics.append(metric(`rank #${planRow.rank} · score ${planRow.score} · ${planRow.origin}`));
       metrics.append(
-        metric(`${successPct === null ? '—' : `${successPct}%`} success`),
+        metric(`health ${health.score}/100`),
+        metric(`${successPct === null ? '—' : `${successPct}%`} uptime`),
         metric(`${attempts} tries`),
         metric(`${entry.avgStartupMs ? `${entry.avgStartupMs} ms` : '—'} startup`),
-        metric(`last OK ${fmtWhen(entry.lastSuccess)}`)
+        metric(`last check ${fmtWhen(health.lastChecked)}`)
       );
+      if(health.failureKind) metrics.append(metric(`last failure ${health.failureKind}`));
     }
 
     item.append(main,metrics);
