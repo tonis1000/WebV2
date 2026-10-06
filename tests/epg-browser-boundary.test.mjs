@@ -23,7 +23,7 @@ assert.match(main,new RegExp(`core\\/epg\\.js\\?v=${recoveryVersion}`),'main mus
 assert.match(sidebar,new RegExp(`core\\/epg\\.js\\?v=${recoveryVersion}`),'sidebar must share the same recovery EPG core');
 assert.match(index,new RegExp(`main\\.js\\?v=${recoveryVersion}`),'page must cache-bust the canonical EPG runtime');
 assert.match(index,new RegExp(`sidebar-now\\.js\\?v=${recoveryVersion}`),'page must cache-bust the sidebar EPG consumer');
-assert.match(index,new RegExp(`src\\/core\\/epg\\.js\\?v=${recoveryVersion}`),'import map must not point EPG at an older cached runtime');
+assert.match(index,/"\.\/src\/core\/epg\.js"\s*:\s*"\.\/src\/core\/epg\.js\?v=20261003-epg-recovery-a"/,'core import map must preserve its single coherent build id while direct EPG consumers carry the performance cache-bust');
 assert.match(epg,/EPG_FETCH_RETRY_DELAYS_MS/,'EPG runtime must retry transient Worker failures');
 assert.match(epg,/sanitizeXmltvForBrowser/,'EPG runtime must recover from provider XML that is readable but not strict-browser-XML');
 assert.match(epg,/epg-retry/,'retry requests must bypass a stale cached Worker response');
