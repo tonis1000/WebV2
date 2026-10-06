@@ -182,6 +182,8 @@ jobs:
         run: node tests/epg-multisource-worker.test.mjs
       - name: Run EPG Guide UI regression test
         run: node tests/epg-guide-ui.test.mjs
+      - name: Run EPG performance hardening regression test
+        run: node tests/epg-performance-hardening.test.mjs
       - name: Run EPG browser boundary regression test
         run: node tests/epg-browser-boundary.test.mjs
       - name: Run Xtream source regression test

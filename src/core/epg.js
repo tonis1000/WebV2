@@ -89,8 +89,13 @@ export class EpgService {
     this.programs = new Map();
     this.resolveIndex = new Map();
     this.programKeyIndex = new Map();
+    this.guidePrograms = new Map();
+    this.guideResolveIndex = new Map();
+    this.guideProgramKeyIndex = new Map();
     this.refreshPromise = null;
     this.lastRefreshAt = 0;
+    this.lastGuideRefreshAt = 0;
+    this.lastGuideScopeKey = '';
     globalThis[GLOBAL_EPG_KEY] = this;
   }
 
@@ -98,13 +103,25 @@ export class EpgService {
     if (this.refreshPromise) return this.refreshPromise;
     if (!force && this.lastRefreshAt && (Date.now() - this.lastRefreshAt) < MIN_REFRESH_GAP_MS) return;
 
-    this.refreshPromise = this.#refreshNow(channels)
+    this.refreshPromise = this.#refreshNow(channels,{mode:'viewer'})
       .finally(() => { this.refreshPromise = null; });
     return this.refreshPromise;
   }
 
-  async #refreshNow(channels = []) {
-    const primary = this.#scopedUrl(CONFIG.epgUrl, channels);
+  async refreshGuide({ force = false, channels = [], from = null, to = null } = {}) {
+    if (this.refreshPromise) {
+      try { await this.refreshPromise; } catch {}
+    }
+    const scopeKey=`${from?new Date(from).getTime():''}|${to?new Date(to).getTime():''}|${(Array.isArray(channels)?channels:[]).map(channel=>channel?.id||channel?.originalId||channel?.name||'').join(',')}`;
+    if (!force && this.lastGuideScopeKey===scopeKey && this.lastGuideRefreshAt && (Date.now() - this.lastGuideRefreshAt) < MIN_REFRESH_GAP_MS) return;
+
+    this.refreshPromise = this.#refreshNow(channels,{mode:'guide',from,to,scopeKey})
+      .finally(() => { this.refreshPromise = null; });
+    return this.refreshPromise;
+  }
+
+  async #refreshNow(channels = [],{mode='viewer',from=null,to=null,scopeKey=''}={}) {
+    const primary = this.#scopedUrl(CONFIG.epgUrl, channels,{mode,from,to});
     const urls = [primary].filter(Boolean);
     const previous={
       programs:this.programs,
@@ -122,14 +139,40 @@ export class EpgService {
         try {
           const requestUrl=new URL(url);
           if(attempt>0)requestUrl.searchParams.set('epg-retry',`${Date.now()}-${attempt}`);
-          const response = await fetch(requestUrl.toString(), { cache: 'no-store' });
+          const response = await fetch(requestUrl.toString(), { cache: 'default' });
           if (!response.ok) throw new Error(`${requestUrl} HTTP ${response.status}`);
-          const xml = await response.text();
-          const merged = this.#merge(xml);
-          if (!merged) throw new Error(`${requestUrl}: empty/invalid XMLTV`);
+          let merged=false;
+          if(mode==='viewer'){
+            const contentType=response.headers.get('content-type')||'';
+            if(contentType.includes('application/json')){
+              const data=await response.json();
+              merged=this.#mergeCompact(data);
+            }else{
+              const fallbackUrl=this.#scopedUrl(CONFIG.epgUrl,channels,{mode:'guide'});
+              const fallbackResponse=await fetch(fallbackUrl,{cache:'default'});
+              if(!fallbackResponse.ok)throw new Error(`${fallbackUrl} HTTP ${fallbackResponse.status}`);
+              merged=this.#merge(await fallbackResponse.text());
+            }
+          }else{
+            const xml = await response.text();
+            merged=this.#merge(xml);
+          }
+          if (!merged) throw new Error(`${requestUrl}: empty/invalid EPG payload`);
           this.#finalize();
-          this.lastRefreshAt = Date.now();
-          globalThis.dispatchEvent?.(new CustomEvent('webtv:epg-updated', { detail: { at: this.lastRefreshAt } }));
+          const refreshedAt=Date.now();
+          if(mode==='guide'){
+            this.guidePrograms=this.programs;
+            this.guideResolveIndex=this.resolveIndex;
+            this.guideProgramKeyIndex=this.programKeyIndex;
+            this.programs=previous.programs;
+            this.resolveIndex=previous.resolveIndex;
+            this.programKeyIndex=previous.programKeyIndex;
+            this.lastGuideRefreshAt=refreshedAt;
+            this.lastGuideScopeKey=scopeKey;
+          }else{
+            this.lastRefreshAt=refreshedAt;
+          }
+          globalThis.dispatchEvent?.(new CustomEvent('webtv:epg-updated', { detail: { at: refreshedAt, mode } }));
           return;
         } catch (error) {
           errors.push(`attempt ${attempt+1}: ${error?.message || `EPG fetch failed · ${url}`}`);
@@ -143,15 +186,19 @@ export class EpgService {
     throw new Error(errors.join(' · ') || 'No usable EPG feed available');
   }
 
-  #scopedUrl(base, channels = []) {
+  #scopedUrl(base, channels = [],{mode='viewer',from=null,to=null}={}) {
     if (!base) return '';
     const terms = [...new Set((Array.isArray(channels) ? channels : []).map(channel =>
       String(channel?.id || channel?.originalId || channel?.name || '').trim()
     ).filter(Boolean))].slice(0, 80);
-    if (!terms.length) return base;
     try {
       const url = new URL(base);
-      url.searchParams.set('channels', terms.join(','));
+      if(mode==='viewer')url.pathname=url.pathname.replace(/\/(?:epg(?:\.xml)?)$/,'/now-next.json');
+      if(terms.length)url.searchParams.set('channels', terms.join(','));
+      if(mode==='guide'&&from&&to){
+        const fromMs=new Date(from).getTime(),toMs=new Date(to).getTime();
+        if(Number.isFinite(fromMs)&&Number.isFinite(toMs)&&toMs>fromMs){url.searchParams.set('from',String(fromMs));url.searchParams.set('to',String(toMs));}
+      }
       return url.toString();
     } catch {
       return base;
@@ -165,6 +212,26 @@ export class EpgService {
       const identity=resolveGreekIdentity(variant);
       if(identity)this.resolveIndex.set(identityIndexKey(identity.id),id);
     }
+  }
+
+  #mergeCompact(data) {
+    const rows=Array.isArray(data?.channels)?data.channels:[];
+    if(!rows.length)return false;
+    let count=0;
+    for(const row of rows){
+      const id=String(row?.id||'').trim();if(!id)continue;
+      this.#indexValue(id,id);
+      for(const name of Array.isArray(row?.names)?row.names:[])this.#indexValue(name,id);
+      const items=[row?.current,...(Array.isArray(row?.next)?row.next:[])].filter(Boolean);
+      for(const item of items){
+        const start=new Date(item?.start),stop=new Date(item?.stop),title=String(item?.title||'').trim();
+        if(Number.isNaN(start.getTime())||Number.isNaN(stop.getTime())||!title)continue;
+        if(!this.programs.has(id))this.programs.set(id,[]);
+        this.programs.get(id).push({start,stop,title,description:String(item?.description||''),category:String(item?.category||''),image:String(item?.image||'')});
+        count+=1;
+      }
+    }
+    return count>0;
   }
 
   #merge(xmlText) {
@@ -224,21 +291,21 @@ export class EpgService {
     }
   }
 
-  #resolve(channel) {
+  #resolve(channel,{resolveIndex=this.resolveIndex,programKeyIndex=this.programKeyIndex}={}) {
     const values=[channel?.id,channel?.originalId,channel?.name].map(value=>String(value||'').trim()).filter(Boolean);
     const {identity,conflict}=identityState(values);
     if(conflict)return null;
 
     const profile=identity&&!identity.legacy?getChannelProfileById(identity.id):null;
     const identityKey=identity?identityIndexKey(identity.id):'';
-    if(identityKey&&this.resolveIndex.has(identityKey))return this.resolveIndex.get(identityKey);
-    if(identityKey&&this.programKeyIndex.has(identityKey))return this.programKeyIndex.get(identityKey);
+    if(identityKey&&resolveIndex.has(identityKey))return resolveIndex.get(identityKey);
+    if(identityKey&&programKeyIndex.has(identityKey))return programKeyIndex.get(identityKey);
 
     for(const candidate of candidateValues(values,identity,profile)){
       for(const variant of epgVariants(candidate)){
         const norm=normalizeId(variant);
-        if(norm&&this.resolveIndex.has(norm))return this.resolveIndex.get(norm);
-        if(norm&&this.programKeyIndex.has(norm))return this.programKeyIndex.get(norm);
+        if(norm&&resolveIndex.has(norm))return resolveIndex.get(norm);
+        if(norm&&programKeyIndex.has(norm))return programKeyIndex.get(norm);
       }
     }
 
@@ -246,8 +313,11 @@ export class EpgService {
   }
 
   getSchedule(channel, { from = null, to = null, limit = 240 } = {}) {
-    const resolved = this.#resolve(channel);
-    const list = resolved ? (this.programs.get(resolved) || []) : [];
+    const useGuide=this.guidePrograms.size>0;
+    const resolved = useGuide
+      ? this.#resolve(channel,{resolveIndex:this.guideResolveIndex,programKeyIndex:this.guideProgramKeyIndex})
+      : this.#resolve(channel);
+    const list = resolved ? ((useGuide?this.guidePrograms:this.programs).get(resolved) || []) : [];
     const fromMs = from ? new Date(from).getTime() : -Infinity;
     const toMs = to ? new Date(to).getTime() : Infinity;
     return list

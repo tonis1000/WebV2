@@ -27,10 +27,14 @@ function dayTabLabel(offset=0){
   if(offset===0)return'Σήμερα';
   return dayBounds(offset).start.toLocaleDateString('el-GR',{weekday:'short',day:'2-digit',month:'2-digit'});
 }
-function selectGuideDay(offset){
+async function selectGuideDay(offset){
   const next=Math.max(0,Math.min(MAX_DAY_OFFSET,Number(offset)||0));
   dayOffset=next;
   closeProgram();
+  const channels=playlist()?.getChannels?.()||[];
+  const{start,end}=dayBounds(dayOffset);
+  const status=$('epg-guide-status');if(status)status.textContent='Loading EPG…';
+  try{await (api()?.refreshGuideForChannels?.(channels,{force:false,from:start,to:end})||api()?.refreshForChannels?.(channels,{force:false}));}catch{}
   renderGuide({focusNow:next===0,resetTimeline:next!==0});
 }
 function renderDayTabs(){
@@ -116,8 +120,9 @@ async function openGuide(){
   const overlay=$('epg-guide-overlay');overlay.hidden=false;$('epg-guide-toggle')?.setAttribute('aria-expanded','true');
   document.documentElement.classList.add('epg-guide-open');
   const channels=playlist()?.getChannels?.()||[];
+  const{start,end}=dayBounds(dayOffset);
   $('epg-guide-status').textContent='Loading EPG…';
-  try{await api()?.refreshForChannels?.(channels,{force:false});}catch{}
+  try{await (api()?.refreshGuideForChannels?.(channels,{force:false,from:start,to:end})||api()?.refreshForChannels?.(channels,{force:false}));}catch{}
   renderGuide({focusNow:true});
 }
 function currentChannelWidth(){
@@ -179,6 +184,18 @@ async function playProgramChannel(){
     setTimeout(()=>{button.disabled=false;button.textContent='▶ Play';},1600);
   }
 }
+function updateNowPresentation(){
+  if(dayOffset!==0)return;
+  const nowMs=Date.now(),now=new Date(),minutes=now.getHours()*60+now.getMinutes(),nowX=(minutes/60)*hourWidth();
+  const line=$('epg-guide-now-line');if(line)line.style.left=`calc(var(--epg-channel-width) + ${nowX}px)`;
+  for(const block of document.querySelectorAll('.epg-guide-program')){
+    const start=Number(block.dataset.start),stop=Number(block.dataset.stop);
+    const active=Number.isFinite(start)&&Number.isFinite(stop)&&nowMs>=start&&nowMs<stop;
+    block.classList.toggle('is-now',active);
+    if(active)block.setAttribute('aria-current','true');else block.removeAttribute('aria-current');
+  }
+  requestAnimationFrame(keepCurrentProgrammeCopyVisible);
+}
 function renderGuide({focusNow=false,resetTimeline=false}={}){
   ensureUi();
   const channels=playlist()?.getChannels?.()||[];
@@ -207,6 +224,7 @@ function renderGuide({focusNow=false,resetTimeline=false}={}){
       const pos=programmePosition(item,startMs,endMs);if(!pos)continue;programmeCount+=1;
       const block=document.createElement('button');block.type='button';block.className='epg-guide-program';block.style.left=`${pos.left}px`;block.style.width=`${pos.width}px`;block.dataset.left=String(pos.left);block.dataset.width=String(pos.width);
       const itemStart=new Date(item.start).getTime(),itemStop=new Date(item.stop).getTime();
+      block.dataset.start=String(itemStart);block.dataset.stop=String(itemStop);
       if(dayOffset===0&&nowMs>=itemStart&&nowMs<itemStop){block.classList.add('is-now');block.setAttribute('aria-current','true');}
       block.title=`${item.title} · ${new Date(item.start).toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'})}`;
       const copy=document.createElement('span');copy.className='epg-guide-program-copy';
@@ -227,9 +245,9 @@ function renderGuide({focusNow=false,resetTimeline=false}={}){
 function boot(){
   ensureToggle();ensureUi();
   window.addEventListener('webtv:admin-visibility',event=>{if(!event.detail?.unlocked)closeGuide();});
-  window.addEventListener('webtv:epg-updated',()=>{if(!$('epg-guide-overlay')?.hidden)renderGuide();});
+  window.addEventListener('webtv:epg-updated',event=>{if(event.detail?.mode==='guide'&&!$('epg-guide-overlay')?.hidden)renderGuide();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!$('epg-program-dialog')?.hidden)closeProgram();else if(!$('epg-guide-overlay')?.hidden)closeGuide();}});
-  if(!nowPresentationTimer)nowPresentationTimer=setInterval(()=>{if(!$('epg-guide-overlay')?.hidden&&dayOffset===0)renderGuide();},60000);
+  if(!nowPresentationTimer)nowPresentationTimer=setInterval(()=>{if(!$('epg-guide-overlay')?.hidden&&dayOffset===0)updateNowPresentation();},60000);
 }
 if(playlist()?.ready)boot();else window.addEventListener('webtv:ready',boot,{once:true});
 console.info(`[WebTV] EPG Guide loaded · ${BUILD_ID}`);

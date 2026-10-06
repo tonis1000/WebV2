@@ -27,7 +27,7 @@ assert.match(css,/position:fixed/,'EPG Guide must be an overlay rather than chan
 assert.match(ui,/epg-guide-now-line/,'Guide must render a current-time line');
 assert.match(ui,/ΤΩΡΑ/,'Guide must label the current-time marker');
 assert.match(ui,/classList\.add\('is-now'\)/,'Guide must mark currently airing programmes');
-assert.match(ui,/setInterval\([^\n]*renderGuide/,'Guide must refresh the current-time presentation while open');
+assert.match(ui,/setInterval\([^\n]*updateNowPresentation/,'Guide must refresh only NOW presentation while open');
 assert.match(css,/\.epg-guide-now-line/,'Guide must style the current-time line');
 assert.match(css,/\.epg-guide-program\.is-now/,'Guide must style currently airing programme cells');
 assert.match(css,/--epg-hour-width:225px/,'Desktop guide hour scale must be 1.5x larger');

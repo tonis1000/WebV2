@@ -6,7 +6,7 @@ import { resolveChannelLogo } from './core/channel-logo.js';
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
 import { HealthStore } from './core/health-store.js';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
-import { EpgService } from './core/epg.js?v=20261003-epg-recovery-a';
+import { EpgService } from './core/epg.js?v=20261006-epg-performance-a';
 import { PlayerController } from './core/player.js';
 import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/utils.js';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
@@ -428,6 +428,7 @@ window.WebTVPlaylistAPI={
 
 window.WebTVEPGAPI={
   refreshForChannels:(rows=channels,{force=false}={})=>epg.refresh({force,channels:Array.isArray(rows)?rows:channels}),
+  refreshGuideForChannels:(rows=channels,{force=false,from=null,to=null}={})=>epg.refreshGuide({force,from,to,channels:Array.isArray(rows)?rows:channels}),
   getSchedule:(channel,options={})=>epg.getSchedule(channel,options),
   getNow:(channel,now=new Date())=>epg.get(channel,now),
   getChannels:()=>channels.map(channel=>({...channel,directUrls:[...(channel.directUrls||[])]})),
