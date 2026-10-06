@@ -146,6 +146,8 @@ jobs:
         run: node tests/header-aware-proxy.test.mjs
       - name: Run source ranking regression test
         run: node tests/source-ranking.test.mjs
+      - name: Run resilient Health scoring regression test
+        run: node tests/health-scoring.test.mjs
       - name: Run Unified Search Best Source ranking regression test
         run: node tests/search-best-source.test.mjs
       - name: Run EPG deploy verification contract test
