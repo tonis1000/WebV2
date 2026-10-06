@@ -1,5 +1,5 @@
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
-import { collectKnownSources } from './known-source-collector.js';
+import { collectKnownSources } from './known-source-collector.js?v=20261006-m3u-import-a';
 import { materializePreviewChannel } from './xtream-preview-policy.js';
 import { saveXtreamChannelFromPreview, deleteXtreamChannelSource } from './xtream-client.js';
 import {
