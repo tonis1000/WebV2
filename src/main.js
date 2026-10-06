@@ -4,7 +4,7 @@ import { resolveChannelProfile } from './core/channel-profile-gr.js';
 import { canonicalDefaultChannelName } from './channel-display-name.js';
 import { resolveChannelLogo } from './core/channel-logo.js';
 import { promoteImportedChannel } from './core/import-promotion-policy.js';
-import { HealthStore } from './core/health-store.js';
+import { HealthStore } from './core/health-store.js?v=20261006-health-v2';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
 import { EpgService } from './core/epg.js?v=20261006-epg-performance-a';
 import { PlayerController } from './core/player.js';
