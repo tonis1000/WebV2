@@ -1,6 +1,6 @@
 import { CONFIG } from '../config.js';
 import { cleanUrl } from './utils.js';
-import { scoreHealthEntry } from './health-scoring.js';
+import { scoreHealthEntry } from './health-scoring.js?v=20261006-health-v2';
 
 const HEALTH_BACKUP_KEY_SUFFIX = '__backup';
 
