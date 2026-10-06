@@ -76,7 +76,7 @@ jobs:
               -H 'Cache-Control: no-cache' \
               "$WORKER_URL/status?channels=ant1,alpha,ert1&verify=${GITHUB_SHA}-${attempt}" \
               -o /tmp/epg-status.json; then
-              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/epg-status.json','utf8'));process.exit(j.ok===true&&j.valid===true&&j.service==='WebTV EPG Proxy'&&j.version==='multi-v4'&&j.source==='multi'&&Array.isArray(j.sourcesConfigured)&&j.sourcesConfigured.length>=5&&Array.isArray(j.sourceResults)&&j.sourceResults.some(s=>s.id==='digea'&&s.ok===true)&&Number(j.channels)>0&&Number(j.programmes)>0&&Number(j.bytes)>0?0:1)"; then
+              if node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('/tmp/epg-status.json','utf8'));process.exit(j.ok===true&&j.valid===true&&j.service==='WebTV EPG Proxy'&&j.version==='multi-v5'&&j.source==='multi'&&Array.isArray(j.sourcesConfigured)&&j.sourcesConfigured.length>=5&&Array.isArray(j.sourceResults)&&j.sourceResults.some(s=>s.id==='digea'&&s.ok===true)&&Number(j.channels)>0&&Number(j.programmes)>0&&Number(j.bytes)>0?0:1)"; then
                 status_ok=1
               fi
             fi
@@ -95,6 +95,27 @@ jobs:
           done
           echo "::error::EPG proxy did not return both valid /epg.xml and /status responses"
           exit 1
+
+      - name: Verify compact viewer EPG payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          channels='ert1,ert2,ert3,ertnews,ant1,alpha,skai,mega,open,meganews,star,action24,kontra,tv100,barazatvhdgreekhits,barazatvlaika,madtv,madworld,paniktv,realmusictv,ertsports1,ertsports2,ertsports3,ertsports4'
+          curl --fail --silent --show-error --max-time 45 \
+            -H 'Cache-Control: no-cache' \
+            "$WORKER_URL/now-next.json?channels=$channels&compact=${GITHUB_SHA}" \
+            -o /tmp/epg-now-next.json
+          node - /tmp/epg-now-next.json <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const ok=j.service==='WebTV EPG Proxy'&&j.version==='multi-v5'&&Array.isArray(j.channels)&&j.channels.length>0&&
+            Number(j.programmes)>0&&Number(j.programmes)<=j.channels.length*4&&
+            j.channels.every(row=>Array.isArray(row.next)&&row.next.length<=3);
+          console.log(JSON.stringify({channels:j.channels.length,programmes:j.programmes,sourcesUsed:j.sourcesUsed}));
+          process.exit(ok?0:1);
+          NODE
+          bytes=$(wc -c < /tmp/epg-now-next.json | tr -d ' ')
+          echo "Verified compact viewer EPG · bytes=$bytes"
 
       - name: Verify live full sidebar EPG scope
         shell: bash
