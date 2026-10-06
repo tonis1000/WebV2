@@ -1,5 +1,5 @@
 import { CONFIG, OFFICIAL_LIVE } from './config.js';
-import { parseM3U, dedupeChannels } from './core/channel-catalog.js';
+import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20261006-m3u-import-a';
 import { resolveChannelProfile } from './core/channel-profile-gr.js';
 import { canonicalDefaultChannelName } from './channel-display-name.js';
 import { resolveChannelLogo } from './core/channel-logo.js';
