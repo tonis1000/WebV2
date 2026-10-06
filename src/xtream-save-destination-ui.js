@@ -1,4 +1,4 @@
-import { saveVerifiedXtreamChannel } from './xtream-save-destination.js';
+import { saveVerifiedXtreamChannel } from './xtream-save-destination.js?v=20261006-m3u-import-a';
 import { listCustomPlaylists, getCustomPlaylistChannels } from './custom-playlist-client.js';
 
 const $=id=>document.getElementById(id);
