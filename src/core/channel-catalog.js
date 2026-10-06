@@ -91,11 +91,14 @@ function parseDirectiveHeaders(directives=[]) {
 function sourceWithDirectiveHeaders(rawSource='',directiveHeaders={}) {
   const raw=String(rawSource||'').trim();
   if(!raw||!Object.keys(directiveHeaders||{}).length)return raw;
+  const inlineHeaders=parseIptvUrl(raw).headers;
+  const missingHeaders=Object.entries(directiveHeaders).filter(([name])=>!inlineHeaders[name]);
+  if(!missingHeaders.length)return raw;
   const pipeIndex=raw.indexOf('|');
   const urlPart=(pipeIndex>=0?raw.slice(0,pipeIndex):raw).trim();
   const optionsPart=pipeIndex>=0?raw.slice(pipeIndex+1).trim():'';
   const params=new URLSearchParams();
-  for(const [name,value] of Object.entries(directiveHeaders))params.set(name,value);
+  for(const [name,value] of missingHeaders)params.set(name,value);
   const prefix=params.toString();
   return optionsPart?urlPart+'|'+prefix+'&'+optionsPart:urlPart+'|'+prefix;
 }
