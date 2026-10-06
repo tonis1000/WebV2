@@ -428,7 +428,7 @@ window.WebTVPlaylistAPI={
 
 window.WebTVEPGAPI={
   refreshForChannels:(rows=channels,{force=false}={})=>epg.refresh({force,channels:Array.isArray(rows)?rows:channels}),
-  refreshGuideForChannels:(rows=channels,{force=false}={})=>epg.refreshGuide({force,channels:Array.isArray(rows)?rows:channels}),
+  refreshGuideForChannels:(rows=channels,{force=false,from=null,to=null}={})=>epg.refreshGuide({force,from,to,channels:Array.isArray(rows)?rows:channels}),
   getSchedule:(channel,options={})=>epg.getSchedule(channel,options),
   getNow:(channel,now=new Date())=>epg.get(channel,now),
   getChannels:()=>channels.map(channel=>({...channel,directUrls:[...(channel.directUrls||[])]})),
@@ -623,11 +623,7 @@ async function boot(){
   window.dispatchEvent(new CustomEvent('webtv:ready'));
   await epgTask;
   setInterval(renderEpg,30000);
-  setInterval(()=>{
-    const guideOpen=document.documentElement.classList.contains('epg-guide-open');
-    const task=guideOpen?epg.refreshGuide({channels}):epg.refresh({channels});
-    task.then(renderEpg).catch(error=>log(`EPG refresh failed: ${error.message}`));
-  },CONFIG.epgRefreshMs);
+  setInterval(()=>epg.refresh({channels}).then(renderEpg).catch(error=>log(`EPG refresh failed: ${error.message}`)),CONFIG.epgRefreshMs);
 }
 
 els.search.addEventListener('input',renderChannels);
