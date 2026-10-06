@@ -10,7 +10,6 @@ const COSMOTE_CHANNELS_URL = "https://mwapi-prod.cosmotetvott.gr/api/v3.4/epg/ch
 const COSMOTE_LISTINGS_BASE = "https://mwapi-prod.cosmotetvott.gr/api/v3.4/epg/listings/el";
 const MAX_REQUESTED_CHANNELS=80;
 const MAX_COSMOTE_CHANNELS=35;
-const GUIDE_DAY_COUNT=2;
 
 const SOURCES=Object.freeze([
   {id:"digea",label:"Digea official EPG",kind:"official",country:"GR"},
@@ -181,7 +180,7 @@ function mergeXmltv(sourceRows=[],requested=[]){
     }
     if(keepIds.size)usedSources.push(row.id);
   }
-  return{xml:`<?xml version="1.0" encoding="UTF-8"?><tv generator-info-name="WebTV EPG multi-v4">${channels}${programmes}</tv>`,usedSources};
+  return{xml:`<?xml version="1.0" encoding="UTF-8"?><tv generator-info-name="WebTV EPG multi-v5">${channels}${programmes}</tv>`,usedSources};
 }
 async function textMaybeGzip(response,url=""){
   const buffer=await response.arrayBuffer();const bytes=new Uint8Array(buffer);
