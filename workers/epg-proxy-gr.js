@@ -1,5 +1,5 @@
 const SERVICE = "WebTV EPG Proxy";
-const VERSION = "multi-v4";
+const VERSION = "multi-v5";
 const SOURCE = "multi";
 const GREEKTV_URL = "https://ext.greektv.app/epg/epg.xml";
 const EPGSHARE_GR_URL = "https://epgshare01.online/epgshare01/epg_ripper_GR1.xml.gz";
@@ -55,6 +55,18 @@ function matchesCosmoteChannel(channel,requested=[]){
   const candidates=[channel?.title,channel?.callSign].map(normalizeMatch).filter(Boolean);
   return requested.some(term=>cosmoteRequestedVariants(term).some(q=>candidates.includes(q)));
 }
+const DIGEA_PRIMARY_TERMS=new Set(["ant1","alpha","skai","mega","open","star","action24","kontra"]);
+function planRequestedSources(requested=[]){
+  const plan={digea:[],cosmote:[],greektv:[],epgshareDe:[]};
+  for(const term of requested){
+    const raw=String(term||"").trim();const q=normalizeMatch(raw);if(!q)continue;
+    if(/\.de$/i.test(raw)){plan.epgshareDe.push(raw);continue;}
+    if(q.startsWith("cosmote")||q.startsWith("novasports")){plan.cosmote.push(raw);continue;}
+    if(DIGEA_PRIMARY_TERMS.has(q)){plan.digea.push(raw);continue;}
+    plan.greektv.push(raw);
+  }
+  return plan;
+}
 function attrValue(attrs="",name=""){
   const m=String(attrs).match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`,"i"));
   return m?.[1]||"";
@@ -76,9 +88,43 @@ function parseXmltv(xml=""){
   }
   const programmes=[];
   for(const m of String(xml).matchAll(/<programme\b([^>]*)>([\s\S]*?)<\/programme>/gi)){
-    const channel=attrValue(m[1],"channel");if(channel)programmes.push({channel,body:m[0]});
+    const channel=attrValue(m[1],"channel");if(channel)programmes.push({channel,attrs:m[1],inner:m[2],body:m[0]});
   }
   return{channels,programmes,byId};
+}
+function elementText(body="",tag=""){
+  const m=String(body).match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`,"i"));
+  return decodeXml((m?.[1]||"").replace(/<[^>]+>/g,"").trim());
+}
+function elementAttr(body="",tag="",name=""){
+  const m=String(body).match(new RegExp(`<${tag}\\b([^>]*)>`,"i"));
+  return m?attrValue(m[1],name):"";
+}
+function xmltvTimeMs(value=""){
+  const match=String(value).trim().match(/^(\d{14})(?:\s*([+-]\d{2}:?\d{2}|Z))?$/i);if(!match)return NaN;
+  const d=match[1];const nums=[d.slice(0,4),d.slice(4,6),d.slice(6,8),d.slice(8,10),d.slice(10,12),d.slice(12,14)].map(Number);
+  let ms=Date.UTC(nums[0],nums[1]-1,nums[2],nums[3],nums[4],nums[5]);const tz=(match[2]||"Z").toUpperCase();
+  if(tz!=="Z"){const t=tz.match(/^([+-])(\d{2}):?(\d{2})$/);if(!t)return NaN;const sign=t[1]==="-"?-1:1;ms-=sign*(Number(t[2])*60+Number(t[3]))*60000;}
+  return ms;
+}
+function buildNowNextPayload(xml="",{nowMs=Date.now(),maxNext=3}={}){
+  const parsed=parseXmltv(xml);const byChannel=new Map();
+  for(const p of parsed.programmes){
+    const startMs=xmltvTimeMs(attrValue(p.attrs,"start")),stopMs=xmltvTimeMs(attrValue(p.attrs,"stop"));
+    const title=elementText(p.inner,"title");if(!Number.isFinite(startMs)||!Number.isFinite(stopMs)||!title)continue;
+    const item={start:new Date(startMs).toISOString(),stop:new Date(stopMs).toISOString(),title,description:elementText(p.inner,"desc"),category:elementText(p.inner,"category"),image:elementAttr(p.inner,"icon","src")};
+    if(!byChannel.has(p.channel))byChannel.set(p.channel,[]);byChannel.get(p.channel).push(item);
+  }
+  const channels=[];let programmes=0;
+  for(const channel of parsed.channels){
+    const list=(byChannel.get(channel.id)||[]).sort((a,b)=>new Date(a.start)-new Date(b.start));
+    const current=list.find(item=>nowMs>=new Date(item.start).getTime()&&nowMs<new Date(item.stop).getTime())||null;
+    const next=list.filter(item=>new Date(item.start).getTime()>nowMs).slice(0,Math.max(0,Number(maxNext)||0));
+    if(!current&&!next.length)continue;
+    programmes+=(current?1:0)+next.length;
+    channels.push({id:channel.id,names:channel.names,current,next});
+  }
+  return{generatedAt:new Date(nowMs).toISOString(),channels,programmes};
 }
 function filterXmltv(xml="",requested=[]){
   if(!requested.length)return String(xml||"");
@@ -223,45 +269,68 @@ async function loadScopedMultiSource(requested=[]){
     const base=await fetchXmlSource("greektv",GREEKTV_URL,[]);
     return{xml:base.xml,usedSources:["greektv"],results:[base],errors:[]};
   }
-  const primary=await Promise.allSettled([
-    fetchDigea(requested),
-    fetchCosmote(requested),
-    fetchXmlSource("greektv",GREEKTV_URL,requested),
-  ]);
+  const plan=planRequestedSources(requested);const tasks=[];
+  if(plan.digea.length)tasks.push(fetchDigea(plan.digea));
+  if(plan.cosmote.length)tasks.push(fetchCosmote(plan.cosmote));
+  if(plan.greektv.length)tasks.push(fetchXmlSource("greektv",GREEKTV_URL,plan.greektv));
+  if(plan.epgshareDe.length)tasks.push(fetchXmlSource("epgshare-de",EPGSHARE_DE_URL,plan.epgshareDe));
+  const primary=await Promise.allSettled(tasks);
   const rows=[],errors=[];
   for(const result of primary){if(result.status==="fulfilled")rows.push(result.value);else errors.push(result.reason?.message||String(result.reason));}
   let merged=mergeXmltv(rows,requested);
   const missing=missingTerms(requested,merged.xml);
   if(missing.length){
-    const fallback=await Promise.allSettled([
-      fetchXmlSource("epgshare-gr",EPGSHARE_GR_URL,missing),
-      fetchXmlSource("epgshare-de",EPGSHARE_DE_URL,missing),
-    ]);
+    const deMissing=missing.filter(term=>/\.de$/i.test(String(term)));
+    const grMissing=missing.filter(term=>!deMissing.includes(term));
+    const fallbackTasks=[];
+    if(grMissing.length)fallbackTasks.push(fetchXmlSource("greektv",GREEKTV_URL,grMissing));
+    if(grMissing.length)fallbackTasks.push(fetchXmlSource("epgshare-gr",EPGSHARE_GR_URL,grMissing));
+    if(deMissing.length)fallbackTasks.push(fetchXmlSource("epgshare-de",EPGSHARE_DE_URL,deMissing));
+    const fallback=await Promise.allSettled(fallbackTasks);
     for(const result of fallback){if(result.status==="fulfilled")rows.push(result.value);else errors.push(result.reason?.message||String(result.reason));}
     merged=mergeXmltv(rows,requested);
   }
   const analysis=analyzeXmltv(merged.xml);
   if(!analysis.valid)throw new Error(errors.join(" · ")||"No usable EPG source for requested channels");
-  return{xml:merged.xml,usedSources:merged.usedSources,results:rows,errors};
+  return{xml:merged.xml,usedSources:merged.usedSources,results:rows,errors,plan};
+}
+async function withEdgeCache(request,build,ctx){
+  const cache=globalThis.caches?.default;
+  if(cache){
+    const hit=await cache.match(request);if(hit)return hit;
+  }
+  const response=await build();
+  if(cache&&response.ok){
+    const put=cache.put(request,response.clone());
+    if(ctx?.waitUntil)ctx.waitUntil(put);else await put;
+  }
+  return response;
 }
 
 export default{
-  async fetch(request){
+  async fetch(request,env,ctx){
     const url=new URL(request.url);
     if(request.method==="OPTIONS")return new Response(null,{status:204,headers:corsHeaders("text/plain; charset=utf-8")});
     if(request.method!=="GET")return new Response("Method not allowed",{status:405,headers:corsHeaders("text/plain; charset=utf-8")});
-    if(!["/epg","/epg.xml","/status"].includes(url.pathname))return new Response("OK. Use /epg, /epg.xml or /status",{status:200,headers:corsHeaders("text/plain; charset=utf-8")});
+    if(!["/epg","/epg.xml","/now-next.json","/status"].includes(url.pathname))return new Response("OK. Use /epg, /epg.xml, /now-next.json or /status",{status:200,headers:corsHeaders("text/plain; charset=utf-8")});
     const requested=requestedChannelTerms(url);
-    try{
-      const loaded=await loadScopedMultiSource(requested);const analysis=analyzeXmltv(loaded.xml);
-      if(url.pathname==="/status")return json({ok:true,valid:true,service:SERVICE,version:VERSION,source:SOURCE,channels:analysis.channels,programmes:analysis.programmes,bytes:analysis.bytes,requested:requested.length,sourcesConfigured:SOURCES,sourcesUsed:loaded.usedSources,sourceResults:(loaded.results||[]).map(row=>({id:row.id,channels:Number(row.analysis?.channels||0),programmes:Number(row.analysis?.programmes||0),ok:true})),warnings:loaded.errors});
-      return new Response(loaded.xml,{status:200,headers:{...corsHeaders(),"Cache-Control":"public, max-age=300","X-EPG-Source":SOURCE,"X-EPG-Sources-Used":loaded.usedSources.join(","),"X-EPG-Proxy-Version":VERSION}});
-    }catch(error){
-      const message=error?.message||"unknown error";
-      if(url.pathname==="/status")return json({ok:false,valid:false,service:SERVICE,version:VERSION,source:SOURCE,channels:0,programmes:0,bytes:0,requested:requested.length,sourcesConfigured:SOURCES,error:`EPG proxy error: ${message}`},502);
-      return new Response(`EPG proxy error: ${message}`,{status:502,headers:corsHeaders("text/plain; charset=utf-8")});
-    }
+    const build=async()=>{
+      try{
+        const loaded=await loadScopedMultiSource(requested);const analysis=analyzeXmltv(loaded.xml);
+        if(url.pathname==="/status")return json({ok:true,valid:true,service:SERVICE,version:VERSION,source:SOURCE,channels:analysis.channels,programmes:analysis.programmes,bytes:analysis.bytes,requested:requested.length,sourcesConfigured:SOURCES,sourcesUsed:loaded.usedSources,sourcePlan:loaded.plan||null,sourceResults:(loaded.results||[]).map(row=>({id:row.id,channels:Number(row.analysis?.channels||0),programmes:Number(row.analysis?.programmes||0),ok:true})),warnings:loaded.errors});
+        if(url.pathname==="/now-next.json"){
+          const compact=buildNowNextPayload(loaded.xml,{maxNext:3});
+          return new Response(JSON.stringify({...compact,service:SERVICE,version:VERSION,source:SOURCE,requested:requested.length,sourcesUsed:loaded.usedSources}),{status:200,headers:{...corsHeaders("application/json; charset=utf-8"),"Cache-Control":"public, max-age=120, stale-while-revalidate=300","X-EPG-Source":SOURCE,"X-EPG-Sources-Used":loaded.usedSources.join(","),"X-EPG-Proxy-Version":VERSION}});
+        }
+        return new Response(loaded.xml,{status:200,headers:{...corsHeaders(),"Cache-Control":"public, max-age=300, stale-while-revalidate=900","X-EPG-Source":SOURCE,"X-EPG-Sources-Used":loaded.usedSources.join(","),"X-EPG-Proxy-Version":VERSION}});
+      }catch(error){
+        const message=error?.message||"unknown error";
+        if(url.pathname==="/status")return json({ok:false,valid:false,service:SERVICE,version:VERSION,source:SOURCE,channels:0,programmes:0,bytes:0,requested:requested.length,sourcesConfigured:SOURCES,error:`EPG proxy error: ${message}`},502);
+        return new Response(`EPG proxy error: ${message}`,{status:502,headers:corsHeaders("text/plain; charset=utf-8")});
+      }
+    };
+    return url.pathname==="/status"?build():withEdgeCache(request,build,ctx);
   }
 };
 
-export{analyzeXmltv,requestedChannelTerms,filterXmltv,mergeXmltv,normalizeMatch,matchesCosmoteChannel,cosmoteDayRange};
+export{analyzeXmltv,requestedChannelTerms,filterXmltv,mergeXmltv,normalizeMatch,matchesCosmoteChannel,cosmoteDayRange,planRequestedSources,buildNowNextPayload};
