@@ -24,6 +24,10 @@ assert.equal(alert.originalId, 'Dummy');
 assert.equal(alert.sourceMeta.length, 2);
 assert.equal(alert.sourceMeta[1].wrapperHint, 'github');
 
+const titleHintWithTvgName = parseM3U(`#EXTM3U\n#EXTINF:-1 tvg-id="Dummy" tvg-name="ALERT TV",ALERT TV github\nhttps://raw.githubusercontent.com/example/alert-title-hint.m3u8\n`)[0];
+assert.equal(titleHintWithTvgName.id, 'alerttv');
+assert.equal(titleHintWithTvgName.sourceMeta[0].wrapperHint, 'github', 'source hint must come from the EXTINF title even when tvg-name is present');
+
 const bhma = identitySafe.find(row => /bhma/i.test(row.name));
 const egnatia = identitySafe.find(row => /egnatia/i.test(row.name));
 const ena = identitySafe.find(row => /ena channel/i.test(row.name));
