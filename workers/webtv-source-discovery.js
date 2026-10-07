@@ -340,6 +340,7 @@ function mergeCandidateEvidence(existing={},incoming={}){
     sourceObservations:mergeObservations(observationFor(existing),observationFor(incoming)),
     unsupportedDirectiveNames:mergeStringLists(existing.unsupportedDirectiveNames,incoming.unsupportedDirectiveNames,32),
     alternativeInputFormatIds:mergeStringLists([existing.inputFormatId], [incoming.inputFormatId],16),
+    sourceIntelligence:existing.sourceIntelligence||incoming.sourceIntelligence||null,
   };
 }
 function consolidateCuratedCandidates(candidates=[],{maxResults=MAX_CURATED_RETURNED_CANDIDATES}={}){

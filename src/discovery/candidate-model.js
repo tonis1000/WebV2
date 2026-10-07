@@ -69,6 +69,37 @@ function cleanSourceObservations(values=[]) {
   }));
 }
 
+function cleanSourceIntelligence(value={}){
+  const raw=value&&typeof value==='object'?value:{};
+  const media=raw.media&&typeof raw.media==='object'?raw.media:{};
+  const number=value=>Number.isFinite(Number(value))?Number(value):null;
+  return Object.freeze({
+    provider:String(raw.provider||'').trim(),
+    channelId:String(raw.channelId||'').trim(),
+    channelOnline:typeof raw.channelOnline==='boolean'?raw.channelOnline:null,
+    channelScore:number(raw.channelScore),
+    healthStatus:String(raw.healthStatus||'').trim(),
+    healthScore:number(raw.healthScore),
+    uptime:number(raw.uptime),
+    checkedAt:String(raw.checkedAt||'').trim(),
+    lastOnline:String(raw.lastOnline||'').trim(),
+    latencyMs:number(raw.latencyMs),
+    quality:String(raw.quality||'').trim(),
+    rank:number(raw.rank),
+    sources:cleanStringList(raw.sources,16),
+    media:Object.freeze({
+      width:number(media.width),
+      height:number(media.height),
+      resolution:String(media.resolution||'').trim(),
+      frameRate:number(media.frameRate),
+      bitrate:number(media.bitrate),
+      videoCodec:String(media.videoCodec||'').trim(),
+      audioCodec:String(media.audioCodec||'').trim(),
+      variants:number(media.variants),
+    }),
+  });
+}
+
 function canonicalMediaFormat(input={},sourceUrl='') {
   const explicit=String(input.resolvedMediaFormatId||input.mediaType||'').trim().toLowerCase();
   const explicitDescriptor=getSourceFormat(explicit);
@@ -107,6 +138,7 @@ export function createCandidate(input={}) {
   const sourceObservations=cleanSourceObservations(input.sourceObservations);
   const unsupportedDirectiveNames=cleanStringList(input.unsupportedDirectiveNames,32);
   const headerConflictKeys=cleanStringList(input.headerConflictKeys,8);
+  const sourceIntelligence=cleanSourceIntelligence(input.sourceIntelligence);
   const xtreamContext=input.xtreamContext && typeof input.xtreamContext === 'object' ? {
     server:String(input.xtreamContext.server||'').trim(),
     username:String(input.xtreamContext.username||'').trim(),
@@ -145,6 +177,7 @@ export function createCandidate(input={}) {
     sourceObservations,
     unsupportedDirectiveNames,
     headerConflictKeys,
+    sourceIntelligence,
     xtreamAccountRef:xtreamContext?.accountRef || String(input.xtreamAccountRef||''),
     xtreamStreamId:xtreamContext?.streamId || String(input.xtreamStreamId||''),
     xtreamContext:xtreamContext ? Object.freeze(xtreamContext) : null,

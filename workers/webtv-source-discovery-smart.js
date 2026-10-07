@@ -10,8 +10,15 @@ import {
   parseIptvOrgIdentity,
   selectIptvOrgStreamRows,
 } from './source-discovery/iptv-org-structured.js';
+import {
+  IPTV_NEXUS_BASE_URL,
+  IPTV_NEXUS_MAX_BYTES,
+  nexusCountryCodeFor,
+  selectNexusChannel,
+  nexusStreamCandidates,
+} from './source-discovery/iptv-nexus-intelligence.js';
 
-const VERSION='1.15';
+const VERSION='1.16';
 const MAX_STRM_RESOLVES=4;
 const STRM_TIMEOUT_MS=6000;
 const STRM_MAX_DEPTH=3;
@@ -19,6 +26,9 @@ const STRM_MAX_BYTES=256000;
 const IPTV_ORG_TIMEOUT_MS=6000;
 const IPTV_ORG_CACHE_TTL_MS=300000;
 let iptvOrgStreamsCache={text:'',expiresAt:0};
+const NEXUS_TIMEOUT_MS=4500;
+const NEXUS_CACHE_TTL_MS=300000;
+const nexusCountryCache=new Map();
 
 function jsonResponse(response,payload){
   const headers=new Headers(response.headers);headers.set('content-type','application/json;charset=utf-8');headers.set('cache-control','no-store');headers.set('x-webtv-source-discovery-smart',VERSION);
@@ -153,6 +163,74 @@ async function enrichIptvOrgStructured(payload={},channel={}){
   const actions=[...(Array.isArray(payload.actions)?payload.actions:[]),...consolidation.actions,{type:'structured.iptv-org.completed',message:'Structured iptv-org exact-stream enrichment completed',detail:{matched:structured.length,status:loaded.status,cacheHit:loaded.cacheHit}}];
   return {...payload,version:VERSION,candidates:consolidation.candidates,actions,planning:{...(payload.planning||{}),structuredIptvOrg:true,structuredRawCandidateCount:structured.length,structuredReturnedCandidateCount:consolidation.candidates.length,structuredTruncatedCandidateCount:consolidation.truncatedCount},structuredIptvOrg:{attempted:true,status:loaded.status,count:structured.length,elapsedMs:Date.now()-started,maxBytes:IPTV_ORG_STRUCTURED_MAX_BYTES,cacheHit:loaded.cacheHit,cacheTtlMs:IPTV_ORG_CACHE_TTL_MS}};
 }
+async function loadNexusCountry(countryCode=''){
+  const code=String(countryCode||'').trim().toLowerCase();
+  if(!/^[a-z]{2}$/.test(code))return{ok:false,status:400,rows:[],cacheHit:false,error:'invalid country code'};
+  const now=Date.now(),cached=nexusCountryCache.get(code);
+  if(cached?.rows&&cached.expiresAt>now)return{ok:true,status:200,rows:cached.rows,cacheHit:true,url:cached.url};
+  const url=`${IPTV_NEXUS_BASE_URL}/api/v1/by-country/${code}.json`;
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(new DOMException('timeout','AbortError')),NEXUS_TIMEOUT_MS);
+  try{
+    const response=await fetch(url,{redirect:'follow',signal:controller.signal,headers:{'user-agent':`WebTV-Discovery/${VERSION} IPTV Nexus intelligence`,accept:'application/json'}});
+    if(!response.ok)return{ok:false,status:response.status,rows:[],cacheHit:false,url};
+    const declared=Number(response.headers.get('content-length')||0);
+    if(declared>IPTV_NEXUS_MAX_BYTES)return{ok:false,status:413,rows:[],cacheHit:false,url,error:'dataset exceeds byte budget'};
+    const text=await readBoundedText(response,IPTV_NEXUS_MAX_BYTES);
+    let rows;try{rows=JSON.parse(text);}catch{return{ok:false,status:502,rows:[],cacheHit:false,url,error:'invalid Nexus JSON'};}
+    if(!Array.isArray(rows))return{ok:false,status:502,rows:[],cacheHit:false,url,error:'unexpected Nexus JSON shape'};
+    nexusCountryCache.set(code,{rows,expiresAt:Date.now()+NEXUS_CACHE_TTL_MS,url});
+    return{ok:true,status:response.status,rows,cacheHit:false,url};
+  }catch(error){
+    return{ok:false,status:error?.name==='AbortError'?408:0,rows:[],cacheHit:false,url,error:error?.message||String(error)};
+  }finally{clearTimeout(timer);}
+}
+
+function sameMediaUrl(a='',b=''){
+  return String(a||'').trim()===String(b||'').trim();
+}
+
+async function enrichNexusIntelligence(payload={},channel={}){
+  const countryCode=nexusCountryCodeFor(channel,payload?.planning||{});
+  if(!countryCode)return{...payload,version:VERSION,nexusIntelligence:{attempted:false,status:0,countryCode:'',matched:false,count:0,error:'country unavailable'}};
+  const started=Date.now(),loaded=await loadNexusCountry(countryCode);
+  if(!loaded.ok)return{...payload,version:VERSION,nexusIntelligence:{attempted:true,status:loaded.status,countryCode,matched:false,count:0,elapsedMs:Date.now()-started,cacheHit:false,error:loaded.error||''}};
+  const matched=selectNexusChannel(loaded.rows,channel);
+  if(!matched){const elapsedMs=Date.now()-started;return{...payload,version:VERSION,reports:[...(Array.isArray(payload.reports)?payload.reports:[]),{feed:'IPTV Nexus JSON',tier:'intelligence',format:'json',status:loaded.status,elapsedMs,count:0,requiredHeaderCandidateCount:0,requiredHeaderNames:[],unsupportedDirectiveNames:[],error:''}],nexusIntelligence:{attempted:true,status:loaded.status,countryCode,matched:false,count:0,elapsedMs,cacheHit:loaded.cacheHit,error:''},actions:[...(Array.isArray(payload.actions)?payload.actions:[]),{type:'intelligence.nexus.no-match',message:'IPTV Nexus intelligence had no exact unambiguous channel match',detail:{countryCode}}]};}
+  const familyId=`iptv-nexus-${countryCode}`,nexus=nexusStreamCandidates(matched,{channelName:channel?.name||matched?.name||'',sourceFamilyId:familyId,sourceOriginUrl:loaded.url,maxStreams:12}).filter(isAllowedCuratedCandidate);
+  const existing=Array.isArray(payload.candidates)?payload.candidates:[];
+  const requestedFamilies=Array.isArray(payload?.planning?.sourceFamilyIds)?payload.planning.sourceFamilyIds.map(value=>String(value||'').trim()).filter(Boolean):[];
+  const enrichmentVariants=[],newCandidates=[];let enrichedRouteCount=0;
+  for(const intelligenceCandidate of nexus){
+    const same=existing.filter(candidate=>sameMediaUrl(candidate?.sourceUrl,intelligenceCandidate.sourceUrl));
+    if(same.length){
+      for(const candidate of same){
+        const requiredHeaders={...(candidate?.requiredHeaders||{}),...(intelligenceCandidate.requiredHeaders||{})};
+        enrichmentVariants.push({
+          ...candidate,
+          requiredHeaders,
+          sourceIntelligence:intelligenceCandidate.sourceIntelligence,
+          sourceObservations:[...(Array.isArray(candidate?.sourceObservations)?candidate.sourceObservations:[]),...(intelligenceCandidate.sourceObservations||[])],
+          verificationDetail:[candidate?.verificationDetail,'IPTV Nexus route intelligence enriched this candidate; advisory Nexus health does not replace WebTV verification/playback proof'].filter(Boolean).join(' · '),
+        });
+        enrichedRouteCount++;
+      }
+    }else if(!requestedFamilies.length||requestedFamilies.includes(familyId)){
+      newCandidates.push(intelligenceCandidate);
+    }
+  }
+  const consolidation=consolidateCuratedCandidates([...existing,...enrichmentVariants,...newCandidates],{maxResults:MAX_CURATED_RETURNED_CANDIDATES});
+  const intelligenceAction={type:'intelligence.nexus.completed',message:'IPTV Nexus source intelligence enrichment completed',detail:{countryCode,channelId:String(matched?.id||''),streams:nexus.length,enrichedRouteCount,newCandidateCount:newCandidates.length,status:loaded.status,cacheHit:loaded.cacheHit}};
+  return {
+    ...payload,
+    version:VERSION,
+    candidates:consolidation.candidates,
+    reports:[...(Array.isArray(payload.reports)?payload.reports:[]),{feed:'IPTV Nexus JSON',tier:'intelligence',format:'json',status:loaded.status,elapsedMs:Date.now()-started,count:nexus.length,requiredHeaderCandidateCount:nexus.filter(item=>Object.keys(item?.requiredHeaders||{}).length>0).length,requiredHeaderNames:[...new Set(nexus.flatMap(item=>Object.keys(item?.requiredHeaders||{})))],unsupportedDirectiveNames:[],error:''}],
+    actions:[...(Array.isArray(payload.actions)?payload.actions:[]),...consolidation.actions,intelligenceAction],
+    planning:{...(payload.planning||{}),nexusIntelligence:true,nexusMatchedChannelId:String(matched?.id||''),nexusStreamCount:nexus.length,nexusEnrichedRouteCount:enrichedRouteCount,nexusNewCandidateCount:newCandidates.length,nexusReturnedCandidateCount:consolidation.candidates.length,nexusTruncatedCandidateCount:consolidation.truncatedCount},
+    nexusIntelligence:{attempted:true,status:loaded.status,countryCode,matched:true,channelId:String(matched?.id||''),channelName:String(matched?.name||''),count:nexus.length,enrichedRouteCount,newCandidateCount:newCandidates.length,elapsedMs:Date.now()-started,maxBytes:IPTV_NEXUS_MAX_BYTES,cacheHit:loaded.cacheHit,cacheTtlMs:NEXUS_CACHE_TTL_MS,sourceUrl:loaded.url},
+  };
+}
+
 async function resolveCuratedStrm(payload={}){
   const input=Array.isArray(payload.candidates)?payload.candidates:[],out=[],reports=[];let attempts=0;
   for(const item of input){
@@ -175,10 +253,10 @@ export default {async fetch(request,env,ctx){
   const response=await baseWorker.fetch(request,env,ctx);const url=new URL(request.url);const type=response.headers.get('content-type')||'';
   if(!type.includes('application/json'))return response;
   let payload;try{payload=await response.clone().json();}catch{return response;}
-  if(url.pathname==='/'&&response.ok)payload={...payload,version:VERSION,features:[...(payload.features||[]),'curated STRM pre-resolution','iptv-org structured exact streams']};
+  if(url.pathname==='/'&&response.ok)payload={...payload,version:VERSION,features:[...(payload.features||[]),'curated STRM pre-resolution','iptv-org structured exact streams','IPTV Nexus source intelligence enrichment']};
   else if(url.pathname==='/discover'&&response.ok&&request.method==='POST'){
     let body={};try{body=bodyRequest?await bodyRequest.json():{};}catch{}
-    if(String(body?.provider||'')==='curated-remote-feeds'){payload=await enrichIptvOrgStructured(payload,body?.channel||{});payload=await resolveCuratedStrm(payload);}else payload={...payload,version:VERSION};
+    if(String(body?.provider||'')==='curated-remote-feeds'){payload=await enrichIptvOrgStructured(payload,body?.channel||{});payload=await enrichNexusIntelligence(payload,body?.channel||{});payload=await resolveCuratedStrm(payload);}else payload={...payload,version:VERSION};
   }
   return jsonResponse(response,payload);
 }};
