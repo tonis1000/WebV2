@@ -9,7 +9,7 @@ assert.equal(candidateMatches('#EXTINF:-1 tvg-id="MEGA-NEWS" tvg-name="MEGA News
 const statusResponse=await discovery.fetch(new Request('https://discovery.test/'),{BRAVE_API_KEY:'fixture-key'});
 assert.equal(statusResponse.status,200);
 const status=await statusResponse.json();
-assert.equal(status.version,'1.12');
+assert.equal(status.version,'1.13');
 assert.equal(status.providers['curated-remote-feeds'],true);
 assert.equal(status.providers['github-public-playlists'],true);
 assert.equal(status.providers['recent-web-search'],true);

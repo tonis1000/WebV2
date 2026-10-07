@@ -52,6 +52,42 @@ assert.equal(m3uCandidates.length,1);
 assert.equal(m3uCandidates[0].sourceUrl,'https://cdn.example.test/skai/master.m3u8');
 assert.equal(m3uCandidates[0].sourceType,'hls');
 assert.equal(m3uCandidates[0].sourceOrigin,'fixture-m3u');
+
+const m3uWithHeaders=`#EXTM3U
+#EXTINF:-1 tvg-id="Skai.gr" tvg-name="SKAI" http-referrer="https://attr.example/watch" http-user-agent="AttrUA",SKAI
+#EXTVLCOPT:http-referrer=https://directive.example/watch
+#EXTVLCOPT:http-user-agent=DirectiveUA
+https://cdn.example.test/skai/headers.m3u8
+`;
+const m3uHeaderCandidates=parseM3u(m3uWithHeaders,channel,{name:'fixture-m3u-headers'});
+assert.equal(m3uHeaderCandidates.length,1);
+assert.deepEqual(m3uHeaderCandidates[0].requiredHeaders,{
+  'User-Agent':'AttrUA',
+  Referer:'https://attr.example/watch',
+},'EXTINF http-* headers should be preserved and take precedence over equivalent EXTVLCOPT directives');
+
+const m3uDirectiveHeaders=`#EXTM3U
+#EXTINF:-1 tvg-id="Skai.gr" tvg-name="SKAI",SKAI
+#EXTVLCOPT:http-referrer=https://directive.example/watch
+#EXTVLCOPT:http-user-agent=DirectiveUA
+#EXTVLCOPT:http-cookie=secret=must-not-pass
+https://cdn.example.test/skai/directive.m3u8
+`;
+const directiveHeaderCandidates=parseM3u(m3uDirectiveHeaders,channel,{name:'fixture-m3u-directives'});
+assert.deepEqual(directiveHeaderCandidates[0].requiredHeaders,{
+  'User-Agent':'DirectiveUA',
+  Referer:'https://directive.example/watch',
+},'only safe Referer/User-Agent EXTVLCOPT directives should flow into requiredHeaders');
+
+const inlineHeaderCandidate=parseM3u(`#EXTM3U
+#EXTINF:-1 tvg-id="Skai.gr" tvg-name="SKAI" http-referrer="https://attr.example/watch" http-user-agent="AttrUA",SKAI
+#EXTVLCOPT:http-user-agent=DirectiveUA
+https://cdn.example.test/skai/inline.m3u8|User-Agent=InlineUA&Referer=https%3A%2F%2Finline.example%2F
+`,channel,{name:'fixture-m3u-inline'})[0];
+assert.deepEqual(inlineHeaderCandidate.requiredHeaders,{
+  'User-Agent':'InlineUA',
+  Referer:'https://inline.example/',
+},'inline IPTV URL headers should remain the most specific override');
 const rtspM3u=`#EXTM3U\n#EXTINF:-1 tvg-name="SKAI",SKAI\nrtsp://camera.example.test/live\n#EXTINF:-1 tvg-name="SKAI",SKAI\nrtmp://media.example.test/live/skai\n`;
 const gatewayCandidates=parseM3u(rtspM3u,channel,{name:'fixture-protocols'});
 assert.deepEqual(gatewayCandidates.map(item=>item.sourceType),['rtsp','rtmp']);

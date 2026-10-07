@@ -61,7 +61,7 @@ try{
 
   const request=new Request('https://discovery.test/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER,freshness:'24h',channel:{name:'MEGA',id:'mega',originalId:'MEGA'}})});
   const response=await discovery.fetch(request,{});assert.equal(response.status,200);const body=await response.json();
-  assert.equal(body.version,'1.12');
+  assert.equal(body.version,'1.13');
   assert.equal(body.provider,GITHUB_PUBLIC_PLAYLISTS_PROVIDER);
   assert.equal(body.freshnessRequested,'24h');assert.equal(body.freshnessApplied,true);
   assert.equal(body.candidates.length,2);

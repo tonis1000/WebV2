@@ -4,10 +4,11 @@ import { STRM_SPECIFIC_DISCOVERY_PROVIDER, discoverStrmSpecific } from './source
 import { channelSignalsMatch, createChannelSignalsMatcher, normalizeChannelText } from '../src/core/channel-identity-gr.js';
 import { selectM3uContainerEntries, splitM3uSourceAlternatives } from '../src/core/m3u-container.js';
 import { selectEnigma2BouquetServices } from '../src/core/enigma2-core.js';
+import { parseIptvUrl } from '../src/core/utils.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
 
-const VERSION='1.12';
+const VERSION='1.13';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=3500;
 const MAX_FETCH_BYTES=4000000;
@@ -76,6 +77,25 @@ function makeCandidate({channel,sourceUrl,sourceOrigin,sourceOriginUrl='',freshn
     ...extra,
   };
 }
+function curatedM3uRequiredHeaders(entry={},sourceUrl=''){
+  const directives={};
+  for(const directive of Array.isArray(entry?.directivesBeforeSource)?entry.directivesBeforeSource:[]){
+    const match=String(directive||'').match(/^#EXTVLCOPT:http-(user-agent|referr?er)=(.*)$/i);
+    if(!match)continue;
+    if(match[1].toLowerCase()==='user-agent')directives['User-Agent']=match[2];
+    else directives.Referer=match[2];
+  }
+  const attributes={
+    'User-Agent':entry?.attributes?.['http-user-agent']||'',
+    Referer:entry?.attributes?.['http-referrer']||entry?.attributes?.['http-referer']||'',
+  };
+  const inline=parseIptvUrl(sourceUrl).headers||{};
+  const merged={...normalizeRequiredHeaders(directives),...normalizeRequiredHeaders(attributes)};
+  for(const key of ['User-Agent','Referer']){
+    if(inline[key])merged[key]=inline[key];
+  }
+  return merged;
+}
 function parseM3u(text='',channel={},feed={}){
   const results=[];
   const matches=prepareSignalsMatcher(channel);
@@ -88,7 +108,14 @@ function parseM3u(text='',channel={},feed={}){
     for(const sourceUrl of splitM3uSourceAlternatives(entry.sourceLine)){
       if(results.length>=MAX_RESULTS)break;
       if(!validPublicUrl(sourceUrl))continue;
-      results.push(makeCandidate({channel:{...channel,name:resultName},sourceUrl,sourceOrigin:feed.name,freshness:feed.freshness||'live-feed-check'}));
+      const requiredHeaders=curatedM3uRequiredHeaders(entry,sourceUrl);
+      results.push(makeCandidate({
+        channel:{...channel,name:resultName},
+        sourceUrl,
+        sourceOrigin:feed.name,
+        freshness:feed.freshness||'live-feed-check',
+        extra:Object.keys(requiredHeaders).length?{requiredHeaders}:{},
+      }));
     }
   }
   return results;
