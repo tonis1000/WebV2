@@ -1,4 +1,4 @@
-import baseWorker from './webtv-source-discovery.js';
+import baseWorker, { consolidateCuratedCandidates, MAX_CURATED_RETURNED_CANDIDATES } from './webtv-source-discovery.js';
 import {
   canonicalizeStrmReference,
   isStrmReference,
@@ -11,7 +11,7 @@ import {
   selectIptvOrgStreamRows,
 } from './source-discovery/iptv-org-structured.js';
 
-const VERSION='1.14';
+const VERSION='1.15';
 const MAX_STRM_RESOLVES=4;
 const STRM_TIMEOUT_MS=6000;
 const STRM_MAX_DEPTH=3;
@@ -96,6 +96,16 @@ function structuredCandidate(row={},channel={}){
     quality:row.quality||'',
     labels:Array.isArray(row.labels)?row.labels:[],
     ...(Object.keys(requiredHeaders).length?{requiredHeaders}:{}),
+    sourceObservations:[{
+      sourceOrigin:'iptv-org structured streams',
+      sourceOriginUrl:IPTV_ORG_STRUCTURED_STREAMS_URL,
+      inputFormatId:'iptv-org-streams-json',
+      freshness:'live-api-check',
+      requiredHeaderNames:Object.keys(requiredHeaders),
+      unsupportedDirectiveNames:[],
+      enigma2ServiceType:'',
+      enigma2Bouquet:'',
+    }],
   };
 }
 async function readBoundedText(response,maxBytes){
@@ -139,8 +149,9 @@ async function enrichIptvOrgStructured(payload={},channel={}){
   const rows=selectIptvOrgStreamRows(loaded.text,channel,12);
   const structured=rows.map(row=>structuredCandidate(row,channel)).filter(Boolean);
   const existing=Array.isArray(payload.candidates)?payload.candidates:[];
-  const seen=new Set(),candidates=[...structured,...existing].filter(item=>{const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))return false;seen.add(key);return true;}).slice(0,12);
-  return {...payload,version:VERSION,candidates,planning:{...(payload.planning||{}),structuredIptvOrg:true},structuredIptvOrg:{attempted:true,status:loaded.status,count:structured.length,elapsedMs:Date.now()-started,maxBytes:IPTV_ORG_STRUCTURED_MAX_BYTES,cacheHit:loaded.cacheHit,cacheTtlMs:IPTV_ORG_CACHE_TTL_MS}};
+  const consolidation=consolidateCuratedCandidates([...structured,...existing],{maxResults:MAX_CURATED_RETURNED_CANDIDATES});
+  const actions=[...(Array.isArray(payload.actions)?payload.actions:[]),...consolidation.actions,{type:'structured.iptv-org.completed',message:'Structured iptv-org exact-stream enrichment completed',detail:{matched:structured.length,status:loaded.status,cacheHit:loaded.cacheHit}}];
+  return {...payload,version:VERSION,candidates:consolidation.candidates,actions,planning:{...(payload.planning||{}),structuredIptvOrg:true,structuredRawCandidateCount:structured.length,structuredReturnedCandidateCount:consolidation.candidates.length,structuredTruncatedCandidateCount:consolidation.truncatedCount},structuredIptvOrg:{attempted:true,status:loaded.status,count:structured.length,elapsedMs:Date.now()-started,maxBytes:IPTV_ORG_STRUCTURED_MAX_BYTES,cacheHit:loaded.cacheHit,cacheTtlMs:IPTV_ORG_CACHE_TTL_MS}};
 }
 async function resolveCuratedStrm(payload={}){
   const input=Array.isArray(payload.candidates)?payload.candidates:[],out=[],reports=[];let attempts=0;
@@ -154,8 +165,9 @@ async function resolveCuratedStrm(payload={}){
     if(!result.ok||!result.resolvedUrl)continue;
     out.push({...item,sourceUrl:result.resolvedUrl,sourceType:result.sourceType,sourceOrigin:`${item.sourceOrigin||'curated'} · STRM resolved`,requiredHeaders:result.requiredHeaders||{},resolvedFrom:item.sourceUrl,verificationDetail:'Resolved from STRM reference; final media still requires playback verification'});
   }
-  const seen=new Set(),deduped=out.filter(item=>{const key=String(item?.sourceUrl||'');if(!key||seen.has(key))return false;seen.add(key);return true;});
-  return {...payload,version:VERSION,candidates:deduped,strmResolution:{attempted:attempts,resolved:reports.filter(x=>x.resolved).length,rejected:reports.filter(x=>!x.resolved).length,reports}};
+  const consolidation=consolidateCuratedCandidates(out,{maxResults:MAX_CURATED_RETURNED_CANDIDATES});
+  const strmActions=reports.map(item=>({type:item.resolved?'strm.resolved':'strm.rejected',sourceUrl:item.resolvedUrl||item.reference||'',message:item.resolved?'STRM reference resolved to media candidate':'STRM reference rejected or unresolved',detail:{status:item.status||0,sourceType:item.sourceType||'',chainLength:item.chainLength||0,error:item.error||'',drmDetected:Boolean(item.drmDetected)}}));
+  return {...payload,version:VERSION,candidates:consolidation.candidates,actions:[...(Array.isArray(payload.actions)?payload.actions:[]),...strmActions,...consolidation.actions],planning:{...(payload.planning||{}),strmReturnedCandidateCount:consolidation.candidates.length,strmTruncatedCandidateCount:consolidation.truncatedCount},strmResolution:{attempted:attempts,resolved:reports.filter(x=>x.resolved).length,rejected:reports.filter(x=>!x.resolved).length,reports}};
 }
 
 export default {async fetch(request,env,ctx){

@@ -17,7 +17,7 @@ const adapter={
       }else{
         await sleep(source.delay||5);
       }
-      return {candidates:[{candidateId:`${source.id}:${target.id||target.name}`,channelName:target.name||target.query,sourceUrl:`https://stream.test/${source.id}.m3u8`}],leads:[],reports:source.id==='one'?[{feed:'iptv-org Greece',tier:'primary',format:'m3u',status:200,elapsedMs:17,count:1,requiredHeaderCandidateCount:1,requiredHeaderNames:['Referer'],error:''}]:[]};
+      return {candidates:[{candidateId:`${source.id}:${target.id||target.name}`,channelName:target.name||target.query,sourceUrl:`https://stream.test/${source.id}.m3u8`}],leads:[],reports:source.id==='one'?[{feed:'iptv-org Greece',tier:'primary',format:'m3u',status:200,elapsedMs:17,count:1,requiredHeaderCandidateCount:1,requiredHeaderNames:['Referer'],unsupportedDirectiveNames:['KODIPROP:inputstream'],error:''}]:[],actions:source.id==='one'?[{type:'candidate.merged',sourceUrl:'https://stream.test/one.m3u8',origins:['hitnickgr/iptv','iptv-org Greece'],detail:{observationCount:2}},{type:'candidate.header-conflict',sourceUrl:'https://stream.test/one.m3u8',origins:['feed-a','feed-b'],detail:{keys:['Referer']}}]:[]};
     }finally{active-=1;}
   },
 };
@@ -47,6 +47,9 @@ assert.equal(feedEvent.detail.status,200);
 assert.equal(feedEvent.detail.count,1);
 assert.equal(feedEvent.detail.requiredHeaderCandidateCount,1);
 assert.deepEqual(feedEvent.detail.requiredHeaderNames,['Referer']);
+assert.deepEqual(feedEvent.detail.unsupportedDirectiveNames,['KODIPROP:inputstream']);
+assert.ok(result.report.some(event=>event.type==='source.candidate.merged'&&event.detail?.observationCount===2),'candidate merge action must be visible in Search Report');
+assert.ok(result.report.some(event=>event.type==='source.candidate.header-conflict'&&event.detail?.keys?.includes('Referer')),'header conflict action must be visible in Search Report');
 
 let playerCalls=0;
 globalThis.WebTVPlaybackAPI={play(){playerCalls+=1;},stop(){playerCalls+=1;},testCandidate(){playerCalls+=1;}};

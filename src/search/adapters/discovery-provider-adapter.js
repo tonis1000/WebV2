@@ -30,6 +30,8 @@ function normalizeResult(result={}){
     candidates:Array.isArray(result?.candidates)?result.candidates:[],
     leads:Array.isArray(result?.leads)?result.leads:[],
     reports:Array.isArray(result?.reports)?result.reports:[],
+    actions:Array.isArray(result?.actions)?result.actions:[],
+    planning:result?.planning&&typeof result.planning==='object'?result.planning:{},
   };
 }
 

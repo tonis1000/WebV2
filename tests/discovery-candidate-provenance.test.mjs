@@ -58,4 +58,20 @@ const safeOrigin = candidateForDisplay(hls);
 assert.equal(safeOrigin.sourceOriginUrl, hls.sourceOriginUrl);
 assert.equal(safeOrigin.sourceOriginLabel, 'HansSettings Greece');
 
+const observed=createCandidate({
+  channelName:'ANT1',
+  sourceUrl:'https://stream.example/ant1.m3u8',
+  sourceOrigin:'hitnickgr/iptv',
+  requiredHeaders:{Referer:'https://www.antenna.gr/'},
+  sourceObservations:[
+    {sourceOrigin:'hitnickgr/iptv',sourceOriginUrl:'https://github.com/example/a',inputFormatId:'m3u',requiredHeaders:{}},
+    {sourceOrigin:'iptv-org Greece',sourceOriginUrl:'https://github.com/example/b',inputFormatId:'m3u',requiredHeaders:{Referer:'https://www.antenna.gr/'},unsupportedDirectiveNames:['KODIPROP:inputstream']},
+  ],
+  unsupportedDirectiveNames:['KODIPROP:inputstream'],
+  headerConflictKeys:['Origin'],
+});
+assert.equal(observed.sourceObservations.length,2,'candidate model must preserve merged source observations');
+assert.deepEqual(observed.unsupportedDirectiveNames,['KODIPROP:inputstream']);
+assert.deepEqual(observed.headerConflictKeys,['Origin']);
+
 console.log('discovery candidate provenance/capability contract PASS');

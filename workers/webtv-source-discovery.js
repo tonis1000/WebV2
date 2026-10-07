@@ -8,12 +8,14 @@ import { parseIptvUrl } from '../src/core/utils.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
 
-const VERSION='1.13';
+const VERSION='1.14';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=3500;
 const MAX_FETCH_BYTES=4000000;
 const MAX_CONCURRENCY=4;
-const MAX_RESULTS=12;
+const MAX_MATCHES_PER_FEED=12;
+const MAX_CURATED_RETURNED_CANDIDATES=48;
+const MAX_RESULTS=MAX_CURATED_RETURNED_CANDIDATES;
 const FALLBACK_TRIGGER_COUNT=3;
 const PRIMARY_FEED_POLICY='all-enabled';
 const MAX_FALLBACK_FEEDS_PER_REQUEST=1;
@@ -62,6 +64,19 @@ function validPublicUrl(value=''){
   try{const url=new URL(String(value).split('|')[0].trim());return /^(https?|rtsp|rtsps|rtmp|rtmps):$/.test(url.protocol);}catch{return false;}
 }
 function makeCandidate({channel,sourceUrl,sourceOrigin,sourceOriginUrl='',freshness='live-feed-check',extra={}}){
+  const requiredHeaders=normalizeRequiredHeaders(extra.requiredHeaders||{});
+  const unsupportedDirectiveNames=[...new Set((extra.unsupportedDirectiveNames||[]).map(value=>String(value||'').trim()).filter(Boolean))].slice(0,32);
+  const inputFormatId=String(extra.inputFormatId||'').trim().toLowerCase();
+  const sourceObservation={
+    sourceOrigin:String(sourceOrigin||''),
+    sourceOriginUrl:String(sourceOriginUrl||''),
+    inputFormatId,
+    freshness,
+    requiredHeaderNames:Object.keys(requiredHeaders),
+    unsupportedDirectiveNames,
+    enigma2ServiceType:String(extra.enigma2ServiceType||''),
+    enigma2Bouquet:String(extra.enigma2Bouquet||''),
+  };
   return {
     channelName:String(channel.name||''),
     sourceType:typeOf(sourceUrl),
@@ -75,46 +90,74 @@ function makeCandidate({channel,sourceUrl,sourceOrigin,sourceOriginUrl='',freshn
     verificationDetail:['rtsp','rtmp'].includes(typeOf(sourceUrl))?'Requires an authorized RTSP/RTMP to HLS gateway; browser playback has not been tested':'',
     sourceOriginUrl,
     ...extra,
+    ...(Object.keys(requiredHeaders).length?{requiredHeaders}:{}),
+    ...(unsupportedDirectiveNames.length?{unsupportedDirectiveNames}:{}),
+    sourceObservations:[sourceObservation],
   };
 }
 function curatedM3uRequiredHeaders(entry={},sourceUrl=''){
   const directives={};
   for(const directive of Array.isArray(entry?.directivesBeforeSource)?entry.directivesBeforeSource:[]){
-    const match=String(directive||'').match(/^#EXTVLCOPT:http-(user-agent|referr?er)=(.*)$/i);
+    const match=String(directive||'').match(/^#EXTVLCOPT:http-(user-agent|referr?er|origin)=(.*)$/i);
     if(!match)continue;
-    if(match[1].toLowerCase()==='user-agent')directives['User-Agent']=match[2];
+    const key=match[1].toLowerCase();
+    if(key==='user-agent')directives['User-Agent']=match[2];
+    else if(key==='origin')directives.Origin=match[2];
     else directives.Referer=match[2];
   }
   const attributes={
     'User-Agent':entry?.attributes?.['http-user-agent']||'',
     Referer:entry?.attributes?.['http-referrer']||entry?.attributes?.['http-referer']||'',
+    Origin:entry?.attributes?.['http-origin']||'',
   };
   const inline=parseIptvUrl(sourceUrl).headers||{};
   const merged={...normalizeRequiredHeaders(directives),...normalizeRequiredHeaders(attributes)};
-  for(const key of ['User-Agent','Referer']){
-    if(inline[key])merged[key]=inline[key];
-  }
+  for(const key of ['User-Agent','Referer','Origin','X-Roku-Reserved-Dev-Id'])if(inline[key])merged[key]=inline[key];
   return merged;
+}
+function curatedM3uUnsupportedDirectiveNames(entry={}){
+  const supported=new Set(['http-user-agent','http-referrer','http-referer','http-origin']);
+  const out=[];
+  for(const directive of Array.isArray(entry?.directivesBeforeSource)?entry.directivesBeforeSource:[]){
+    const text=String(directive||'').trim();
+    let match=text.match(/^#EXTVLCOPT:([^=:\s]+)\s*=/i);
+    if(match){
+      const key=String(match[1]||'').toLowerCase();
+      if(!supported.has(key))out.push(`EXTVLCOPT:${key}`);
+      continue;
+    }
+    match=text.match(/^#KODI(?:PROP):([^=\s]+)\s*=/i);
+    if(match){out.push(`KODIPROP:${String(match[1]||'').trim()}`);continue;}
+    match=text.match(/^#([A-Z0-9_.-]+)(?::|=|\s|$)/i);
+    if(match&&!/^EXT/i.test(match[1]))out.push(String(match[1]||'').toUpperCase());
+  }
+  return [...new Set(out)].slice(0,32);
 }
 function parseM3u(text='',channel={},feed={}){
   const results=[];
   const matches=prepareSignalsMatcher(channel);
-  for(const entry of selectM3uContainerEntries(text,{acceptExtinf:extinf=>matches([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')]),limit:MAX_RESULTS})){
-    if(results.length>=MAX_RESULTS)break;
+  for(const entry of selectM3uContainerEntries(text,{acceptExtinf:extinf=>matches([titleOf(extinf),attr(extinf,'tvg-name'),attr(extinf,'tvg-id')]),limit:MAX_MATCHES_PER_FEED})){
+    if(results.length>=MAX_MATCHES_PER_FEED)break;
     const extinf=entry.extinf;
     if(entry.sourceOffset===null||entry.sourceOffset>=10)continue;
     const matchedName=titleOf(extinf)||attr(extinf,'tvg-name')||attr(extinf,'tvg-id')||channel.name||'';
     const resultName=channel.familyQuery===true?matchedName:(channel.name||matchedName);
     for(const sourceUrl of splitM3uSourceAlternatives(entry.sourceLine)){
-      if(results.length>=MAX_RESULTS)break;
+      if(results.length>=MAX_MATCHES_PER_FEED)break;
       if(!validPublicUrl(sourceUrl))continue;
       const requiredHeaders=curatedM3uRequiredHeaders(entry,sourceUrl);
+      const unsupportedDirectiveNames=curatedM3uUnsupportedDirectiveNames(entry);
       results.push(makeCandidate({
         channel:{...channel,name:resultName},
         sourceUrl,
         sourceOrigin:feed.name,
+        sourceOriginUrl:feed.url||'',
         freshness:feed.freshness||'live-feed-check',
-        extra:Object.keys(requiredHeaders).length?{requiredHeaders}:{},
+        extra:{
+          ...(Object.keys(requiredHeaders).length?{requiredHeaders}:{}),
+          ...(unsupportedDirectiveNames.length?{unsupportedDirectiveNames}:{}),
+          inputFormatId:feed.format||'m3u',
+        },
       }));
     }
   }
@@ -132,7 +175,7 @@ function parseEnigma2(text='',channel={},feed={}){
     },
   });
   for(const service of bouquet.services){
-    if(results.length>=MAX_RESULTS)break;
+    if(results.length>=MAX_MATCHES_PER_FEED)break;
     const sourceUrl=[service.decodedReference,service.embeddedReference,service.decodedReferenceOnce].find(validPublicUrl)||'';
     const inlineName=service.inlineName||service.inlineNameDecodedOnce||'';
     const description=service.description||service.rawDescription||'';
@@ -174,11 +217,11 @@ function parseAliveGrJson(text='',channel={},feed={}){
   const matches=prepareSignalsMatcher(channel);
   const results=[];
   for(const row of rows){
-    if(results.length>=MAX_RESULTS)break;
+    if(results.length>=MAX_MATCHES_PER_FEED)break;
     const name=String(row?.name||'').trim();
     if(!name||!matches([name]))continue;
     for(const stream of Array.isArray(row?.streams)?row.streams:[]){
-      if(results.length>=MAX_RESULTS)break;
+      if(results.length>=MAX_MATCHES_PER_FEED)break;
       const sourceUrl=String(stream?.url||'').trim();
       if(!sourceUrl||!validPublicUrl(sourceUrl))continue;
       if(stream?.drm)continue;
@@ -252,20 +295,78 @@ function mergeRequiredHeaders(primary={},incoming={}){
   for(const [key,value] of Object.entries(incoming?.requiredHeaders||{}))if(!out[key]&&value)out[key]=value;
   return out;
 }
-function dedupeCuratedCandidates(candidates=[]){
-  const indexByUrl=new Map();const out=[];
-  for(const item of candidates){
-    const key=String(item?.sourceUrl||'').trim();if(!key)continue;
-    if(indexByUrl.has(key)){
-      const index=indexByUrl.get(key),existing=out[index],requiredHeaders=mergeRequiredHeaders(existing,item);
-      out[index]={...existing,...(Object.keys(requiredHeaders).length?{requiredHeaders}:{})};
-      continue;
-    }
-    if(out.length>=MAX_RESULTS)break;
-    indexByUrl.set(key,out.length);out.push(item);
+function headerConflictKeys(primary={},incoming={}){
+  const a=primary?.requiredHeaders||{},b=incoming?.requiredHeaders||{},keys=[];
+  for(const key of new Set([...Object.keys(a),...Object.keys(b)]))if(a[key]&&b[key]&&String(a[key])!==String(b[key]))keys.push(key);
+  return keys;
+}
+function observationFor(item={}){
+  const existing=Array.isArray(item?.sourceObservations)?item.sourceObservations:[];
+  if(existing.length)return existing.map(value=>({...value}));
+  return [{
+    sourceOrigin:String(item?.sourceOrigin||''),
+    sourceOriginUrl:String(item?.sourceOriginUrl||''),
+    inputFormatId:String(item?.inputFormatId||''),
+    freshness:item?.freshness??null,
+    requiredHeaderNames:Object.keys(item?.requiredHeaders||{}),
+    unsupportedDirectiveNames:Array.isArray(item?.unsupportedDirectiveNames)?item.unsupportedDirectiveNames:[],
+    enigma2ServiceType:String(item?.enigma2ServiceType||''),
+    enigma2Bouquet:String(item?.enigma2Bouquet||''),
+  }];
+}
+function mergeStringLists(a=[],b=[],limit=64){return [...new Set([...(a||[]),...(b||[])].map(value=>String(value||'').trim()).filter(Boolean))].slice(0,limit);}
+function mergeObservations(a=[],b=[]){
+  const out=[];const seen=new Set();
+  for(const item of [...a,...b]){
+    const normalized={...item,requiredHeaderNames:mergeStringLists(item?.requiredHeaderNames,[],8),unsupportedDirectiveNames:mergeStringLists(item?.unsupportedDirectiveNames,[],32)};
+    const key=JSON.stringify(normalized);
+    if(seen.has(key))continue;seen.add(key);out.push(normalized);
+    if(out.length>=64)break;
   }
   return out;
 }
+function mergeCandidateEvidence(existing={},incoming={}){
+  const requiredHeaders=mergeRequiredHeaders(existing,incoming);
+  return {
+    ...existing,
+    requiredHeaders,
+    sourceObservations:mergeObservations(observationFor(existing),observationFor(incoming)),
+    unsupportedDirectiveNames:mergeStringLists(existing.unsupportedDirectiveNames,incoming.unsupportedDirectiveNames,32),
+    alternativeInputFormatIds:mergeStringLists([existing.inputFormatId], [incoming.inputFormatId],16),
+  };
+}
+function consolidateCuratedCandidates(candidates=[],{maxResults=MAX_CURATED_RETURNED_CANDIDATES}={}){
+  const out=[];const indexesByUrl=new Map();const actions=[];
+  for(const raw of candidates){
+    const key=String(raw?.sourceUrl||'').trim();if(!key)continue;
+    const item={...raw,sourceObservations:observationFor(raw),unsupportedDirectiveNames:mergeStringLists(raw?.unsupportedDirectiveNames,[],32),headerConflictKeys:mergeStringLists(raw?.headerConflictKeys,[],8)};
+    const indexes=indexesByUrl.get(key)||[];
+    const compatible=indexes.find(index=>headerConflictKeys(out[index],item).length===0);
+    if(compatible!==undefined){
+      const before=out[compatible],merged=mergeCandidateEvidence(before,item);
+      out[compatible]=merged;
+      actions.push({type:'candidate.merged',sourceUrl:key,origins:mergeStringLists(observationFor(before).map(x=>x.sourceOrigin),observationFor(item).map(x=>x.sourceOrigin),32),message:'Same media URL merged with compatible source evidence',detail:{observationCount:merged.sourceObservations.length,requiredHeaderNames:Object.keys(merged.requiredHeaders||{}),unsupportedDirectiveNames:merged.unsupportedDirectiveNames||[]}});
+      continue;
+    }
+    if(indexes.length){
+      const conflicts=mergeStringLists([],indexes.flatMap(index=>headerConflictKeys(out[index],item)),8);
+      item.headerConflictKeys=conflicts;
+      for(const index of indexes)out[index]={...out[index],headerConflictKeys:mergeStringLists(out[index].headerConflictKeys,conflicts,8)};
+      actions.push({type:'candidate.header-conflict',sourceUrl:key,origins:mergeStringLists(indexes.flatMap(index=>observationFor(out[index]).map(x=>x.sourceOrigin)),observationFor(item).map(x=>x.sourceOrigin),32),message:'Same media URL retained as separate playback variant because required headers conflict',detail:{keys:conflicts}});
+    }else{
+      actions.push({type:'candidate.accepted',sourceUrl:key,origins:observationFor(item).map(x=>x.sourceOrigin),message:'Unique media candidate accepted',detail:{requiredHeaderNames:Object.keys(item.requiredHeaders||{}),unsupportedDirectiveNames:item.unsupportedDirectiveNames||[]}});
+    }
+    indexes.push(out.length);indexesByUrl.set(key,indexes);out.push(item);
+  }
+  const cap=Math.max(1,Number(maxResults)||MAX_CURATED_RETURNED_CANDIDATES);
+  const truncatedCount=Math.max(0,out.length-cap);
+  if(truncatedCount){
+    const omitted=out.slice(cap);
+    actions.push({type:'candidate.truncated',message:`${truncatedCount} candidate${truncatedCount===1?'':'s'} omitted by bounded return cap`,detail:{cap,omittedCount:truncatedCount,omittedOrigins:mergeStringLists([],omitted.flatMap(item=>observationFor(item).map(x=>x.sourceOrigin)),64)}});
+  }
+  return {candidates:out.slice(0,cap),actions,truncatedCount,rawUniqueCount:out.length};
+}
+function dedupeCuratedCandidates(candidates=[],options={}){return consolidateCuratedCandidates(candidates,options).candidates;}
 function iptvOrgCountryCode(channel={}){
   const value=String(channel?.tvgId||'').trim();
   const match=value.match(/\.([a-z]{2})(?:@[^@\s]+)?$/i);
@@ -338,18 +439,23 @@ async function discoverCurated(channel,freshness,env={}){
   const firstWave=[...intelligenceFeeds,...primaryFeeds];
   const primaryReports=await mapBounded(firstWave,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
   let reports=[...primaryReports];
-  let candidates=dedupeCuratedCandidates(primaryReports.flatMap(report=>report.candidates||[]));
-  if(candidates.length<FALLBACK_TRIGGER_COUNT&&fallbackFeeds.length){
+  let rawCandidates=primaryReports.flatMap(report=>report.candidates||[]);
+  let consolidation=consolidateCuratedCandidates(rawCandidates);
+  if(consolidation.candidates.length<FALLBACK_TRIGGER_COUNT&&fallbackFeeds.length){
     const fallbackReports=await mapBounded(fallbackFeeds,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
     reports=[...reports,...fallbackReports];
-    candidates=dedupeCuratedCandidates([...candidates,...fallbackReports.flatMap(report=>report.candidates||[])]);
+    rawCandidates=[...rawCandidates,...fallbackReports.flatMap(report=>report.candidates||[])];
+    consolidation=consolidateCuratedCandidates(rawCandidates);
   }
+  const candidates=consolidation.candidates;
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
-    freshnessRequested:freshness,freshnessApplied:false,freshnessNote:plan.strategy==='iptv-org-country'?'Curated feeds are checked live. A foreign exact tvg-id uses one bounded native iptv-org country playlist first, then b2og All only as the single mirror fallback when fewer than three matches are found.':'Curated feeds are checked live. All enabled Greece primary feeds run under the existing concurrency, timeout and byte budgets; when fewer than three matches are found, one CPU-bounded fallback feed runs, prioritizing the Ciefp Enigma2 acceptance corpus.',
-    planning:{strategy:plan.strategy||'greece-curated',countryCode:plan.countryCode||''},
-    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,primaryFeedPolicy:PRIMARY_FEED_POLICY,primaryFeedsPlanned:primaryFeeds.length,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST},
-    candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>{const rows=Array.isArray(candidates)?candidates:[];const requiredHeaderNames=[...new Set(rows.flatMap(item=>Object.keys(item?.requiredHeaders||{})))];return{feed,tier,format,status,elapsedMs,count:rows.length,requiredHeaderCandidateCount:rows.filter(item=>Object.keys(item?.requiredHeaders||{}).length>0).length,requiredHeaderNames,error:error||''};}),
+    freshnessRequested:freshness,freshnessApplied:false,freshnessNote:plan.strategy==='iptv-org-country'?'Curated feeds are checked live. A foreign exact tvg-id uses one bounded native iptv-org country playlist first, then b2og All only as the single mirror fallback when fewer than three matches are found.':'Curated feeds are checked live. All enabled Greece primary feeds run under the existing concurrency, timeout and byte budgets; duplicate media routes merge compatible evidence, conflicting header variants remain separate, and any safety-cap truncation is reported explicitly.',
+    planning:{strategy:plan.strategy||'greece-curated',countryCode:plan.countryCode||'',rawCandidateCount:rawCandidates.length,uniquePlaybackVariantCount:consolidation.rawUniqueCount,returnedCandidateCount:candidates.length,truncatedCandidateCount:consolidation.truncatedCount},
+    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_CURATED_RETURNED_CANDIDATES,maxMatchesPerFeed:MAX_MATCHES_PER_FEED,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,primaryFeedPolicy:PRIMARY_FEED_POLICY,primaryFeedsPlanned:primaryFeeds.length,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST},
+    candidates,
+    actions:consolidation.actions,
+    reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>{const rows=Array.isArray(candidates)?candidates:[];const requiredHeaderNames=[...new Set(rows.flatMap(item=>Object.keys(item?.requiredHeaders||{})))];const unsupportedDirectiveNames=[...new Set(rows.flatMap(item=>item?.unsupportedDirectiveNames||[]))];return{feed,tier,format,status,elapsedMs,count:rows.length,requiredHeaderCandidateCount:rows.filter(item=>Object.keys(item?.requiredHeaders||{}).length>0).length,requiredHeaderNames,unsupportedDirectiveNames,error:error||''};}),
   });
 }
 async function discover(request,env={}){
@@ -394,10 +500,10 @@ export default {
       [GITHUB_PUBLIC_PLAYLISTS_PROVIDER]:String(env?.DISABLE_GITHUB_PUBLIC_PLAYLISTS||'')!=='1',
       [RECENT_WEB_SEARCH_PROVIDER]:String(env?.DISABLE_RECENT_WEB_SEARCH||'')!=='1'&&Boolean(env?.BRAVE_API_KEY),
       [STRM_SPECIFIC_DISCOVERY_PROVIDER]:String(env?.DISABLE_STRM_SPECIFIC_DISCOVERY||'')!=='1',
-    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.filter(feed=>feed.enabled!==false).length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,primaryFeedPolicy:PRIMARY_FEED_POLICY,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST}});
+    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_CURATED_RETURNED_CANDIDATES,maxMatchesPerFeed:MAX_MATCHES_PER_FEED,feeds:FEEDS.filter(feed=>feed.enabled!==false).length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,primaryFeedPolicy:PRIMARY_FEED_POLICY,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST}});
     if(request.method==='POST'&&url.pathname==='/discover')return discover(request,env);
     return json({error:'Not found'},404);
   }
 };
 
-export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, PRIMARY_FEED_POLICY, MAX_FALLBACK_FEEDS_PER_REQUEST, MAX_INTELLIGENCE_FEEDS_PER_REQUEST, selectCuratedFeedPlan, dedupeCuratedCandidates, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseAliveGrJson, parseFeed };
+export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, MAX_MATCHES_PER_FEED, MAX_CURATED_RETURNED_CANDIDATES, FALLBACK_TRIGGER_COUNT, PRIMARY_FEED_POLICY, MAX_FALLBACK_FEEDS_PER_REQUEST, MAX_INTELLIGENCE_FEEDS_PER_REQUEST, selectCuratedFeedPlan, dedupeCuratedCandidates, consolidateCuratedCandidates, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseAliveGrJson, parseFeed };

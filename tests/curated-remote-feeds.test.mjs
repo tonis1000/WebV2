@@ -9,6 +9,7 @@ import {
   parseAliveGrJson,
   selectCuratedFeedPlan,
   dedupeCuratedCandidates,
+  consolidateCuratedCandidates,
   PRIMARY_FEED_POLICY,
   MAX_FALLBACK_FEEDS_PER_REQUEST,
 } from '../workers/webtv-source-discovery.js';
@@ -55,6 +56,35 @@ const dedupedHeaderCandidates=dedupeCuratedCandidates([
 ]);
 assert.equal(dedupedHeaderCandidates.length,1,'same media URL should still dedupe to one candidate');
 assert.deepEqual(dedupedHeaderCandidates[0].requiredHeaders,{Referer:'https://www.antenna.gr/'},'dedupe must preserve safe required headers observed by a later source');
+assert.equal(dedupedHeaderCandidates[0].sourceObservations.length,2,'same URL observations from multiple feeds must remain auditable after dedupe');
+assert.deepEqual(dedupedHeaderCandidates[0].sourceObservations.map(item=>item.sourceOrigin),['hitnickgr/iptv','iptv-org Greece']);
+
+const conflictingHeaderCandidates=dedupeCuratedCandidates([
+  {
+    channelName:'ANT1',
+    sourceUrl:'https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8',
+    sourceOrigin:'feed-a',
+    requiredHeaders:{Referer:'https://a.example/'},
+  },
+  {
+    channelName:'ANT1',
+    sourceUrl:'https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8',
+    sourceOrigin:'feed-b',
+    requiredHeaders:{Referer:'https://b.example/'},
+  },
+]);
+assert.equal(conflictingHeaderCandidates.length,2,'same URL with conflicting required header values must remain as separate playback variants');
+assert.ok(conflictingHeaderCandidates.every(item=>item.headerConflictKeys?.includes('Referer')),'header conflicts must be explicit evidence, not silent first-wins behavior');
+
+const consolidation=consolidateCuratedCandidates([
+  {channelName:'ANT1',sourceUrl:'https://cdn.example.test/1.m3u8',sourceOrigin:'feed-a',requiredHeaders:{}},
+  {channelName:'ANT1',sourceUrl:'https://cdn.example.test/1.m3u8',sourceOrigin:'feed-b',requiredHeaders:{Referer:'https://ref.example/'}},
+  {channelName:'ANT1',sourceUrl:'https://cdn.example.test/2.m3u8',sourceOrigin:'feed-c',requiredHeaders:{Referer:'https://a.example/'}},
+  {channelName:'ANT1',sourceUrl:'https://cdn.example.test/2.m3u8',sourceOrigin:'feed-d',requiredHeaders:{Referer:'https://b.example/'}},
+],{maxResults:8});
+assert.ok(consolidation.actions.some(item=>item.type==='candidate.merged'),'candidate evidence merge must be reported');
+assert.ok(consolidation.actions.some(item=>item.type==='candidate.header-conflict'),'header conflict variant retention must be reported');
+assert.equal(consolidation.truncatedCount,0);
 
 const foreignPlan=selectCuratedFeedPlan(FEEDS,{name:'CNN',id:'cnn',originalId:'CNN',tvgId:'CNN.us'});
 assert.equal(foreignPlan.primary.length,1,'foreign exact identities should avoid scanning Greece-only primaries');
@@ -94,14 +124,23 @@ const m3uDirectiveHeaders=`#EXTM3U
 #EXTINF:-1 tvg-id="Skai.gr" tvg-name="SKAI",SKAI
 #EXTVLCOPT:http-referrer=https://directive.example/watch
 #EXTVLCOPT:http-user-agent=DirectiveUA
+#EXTVLCOPT:http-origin=https://origin.example
 #EXTVLCOPT:http-cookie=secret=must-not-pass
+#KODIPROP:inputstream=inputstream.adaptive
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
 https://cdn.example.test/skai/directive.m3u8
 `;
 const directiveHeaderCandidates=parseM3u(m3uDirectiveHeaders,channel,{name:'fixture-m3u-directives'});
 assert.deepEqual(directiveHeaderCandidates[0].requiredHeaders,{
   'User-Agent':'DirectiveUA',
   Referer:'https://directive.example/watch',
-},'only safe Referer/User-Agent EXTVLCOPT directives should flow into requiredHeaders');
+  Origin:'https://origin.example',
+},'safe HTTP playback directives should flow into requiredHeaders');
+assert.deepEqual(directiveHeaderCandidates[0].unsupportedDirectiveNames.sort(),[
+  'EXTVLCOPT:http-cookie',
+  'KODIPROP:inputstream',
+  'KODIPROP:inputstream.adaptive.license_type',
+].sort(),'unsupported directive names must be retained for diagnostics without exposing their values');
 
 const inlineHeaderCandidate=parseM3u(`#EXTM3U
 #EXTINF:-1 tvg-id="Skai.gr" tvg-name="SKAI" http-referrer="https://attr.example/watch" http-user-agent="AttrUA",SKAI
