@@ -269,7 +269,7 @@ window.WebTVMyPlaylistAPI={
   upsertChannel:(channel,sources,options={})=>upsertMyChannel(channel,sources,options),
   saveVerifiedSearchSource:(channel,source,options={})=>saveVerifiedSearchSource(channel,source,options),
   autoRefreshVerifiedSource:(channel,source,options={})=>autoRefreshVerifiedSource(channel,source,options),
-  addSourceToCurrent:async(url)=>{const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);myCache=await fetchMyPlaylist();myCacheLoaded=true;const key=normalize(c.id||c.originalId||c.name);let index=myCache.findIndex(x=>normalize(x.id||x.originalId||x.name)===key);let target;if(index<0){target={...c,directUrls:[...(c.directUrls||[])]};index=myCache.length;}else target={...myCache[index],directUrls:[...(myCache[index].directUrls||[])]};target.directUrls=[...new Set([...target.directUrls,url].filter(Boolean))];await putRegistryChannel(target,index,true);log(`MY PLAYLIST SOURCE SAVED · ${target.name} · ${url}`);await refreshPrimary({reason:'source-save'});return target;},
+  addSourceToCurrent:async(url,sourceMeta={})=>{const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);myCache=await fetchMyPlaylist();myCacheLoaded=true;const key=normalize(c.id||c.originalId||c.name);let index=myCache.findIndex(x=>normalize(x.id||x.originalId||x.name)===key);let target;if(index<0){target={...c,directUrls:[...(c.directUrls||[])],sourceRows:Array.isArray(c.sourceRows)?c.sourceRows.map(row=>({...row})):[]};index=myCache.length;}else target={...myCache[index],directUrls:[...(myCache[index].directUrls||[])],sourceRows:Array.isArray(myCache[index].sourceRows)?myCache[index].sourceRows.map(row=>({...row})):[]};const cleanUrl=String(url||'').trim();target.directUrls=[...new Set([...target.directUrls,cleanUrl].filter(Boolean))];const byUrl=new Map((target.sourceRows||[]).map(row=>[String(row?.url||'').trim(),row]));const origin=sourceMeta&&typeof sourceMeta==='object'&&Object.keys(sourceMeta).length?buildRefreshOrigin(sourceMeta):String(byUrl.get(cleanUrl)?.origin||'curated');const sourceRows=target.directUrls.map((value,sourceIndex)=>value===cleanUrl?{url:value,origin,priority:50}:{url:value,origin:String(byUrl.get(value)?.origin||'curated'),priority:Number.isFinite(Number(byUrl.get(value)?.priority))?Number(byUrl.get(value).priority):100+sourceIndex});target.sourceRows=sourceRows;await putRegistryChannel(target,index,true,sourceRows);log(`MY PLAYLIST SOURCE SAVED · ${target.name} · ${cleanUrl} · ${origin}`);await refreshPrimary({reason:'source-save'});return target;},
   replaceSourcesForCurrent:async(urls,{reason='source-policy-save',allowEmpty=false}={})=>{
     const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);
     const cleanUrls=[...new Set((Array.isArray(urls)?urls:[]).map(v=>String(v||'').trim()).filter(v=>/^https?:\/\//i.test(v)))];
@@ -279,9 +279,12 @@ window.WebTVMyPlaylistAPI={
     let index=myCache.findIndex(x=>normalize(x.id||x.originalId||x.name)===key);
     let target;
     const previousUrls=index<0?[...(c.directUrls||[])]:[...(myCache[index].directUrls||[])];
-    if(index<0){target={...c,directUrls:cleanUrls};index=myCache.length;}
+    if(index<0){target={...c,directUrls:cleanUrls,sourceRows:[]};index=myCache.length;}
     else target={...myCache[index],directUrls:cleanUrls};
-    await putRegistryChannel(target,index,true);
+    const previousRows=new Map((Array.isArray(target.sourceRows)?target.sourceRows:[]).map(row=>[String(row?.url||'').trim(),row]));
+    const sourceRows=cleanUrls.map((value,sourceIndex)=>({url:value,origin:String(previousRows.get(value)?.origin||'curated'),priority:Number.isFinite(Number(previousRows.get(value)?.priority))?Number(previousRows.get(value).priority):100+sourceIndex}));
+    target.sourceRows=sourceRows;
+    await putRegistryChannel(target,index,true,sourceRows);
     log(`MY PLAYLIST SOURCES REPLACED · ${target.name} · ${cleanUrls.length} source(s) · ${reason}`);
     try{await refreshPrimary({forceSidebar:true,reason});}
     catch(error){log(`MY PLAYLIST REFRESH WARNING · ${target.name} · ${error.message}`);}
