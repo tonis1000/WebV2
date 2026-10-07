@@ -18,7 +18,9 @@ const loadBlock=source.split('async function loadSavedItem(item)')[1]?.split('as
 assert.match(loadBlock,/Saved Xtream account reference is invalid/,'malformed Xtream markers must fail clearly');
 assert.doesNotMatch(loadBlock,/item\.type\s*===\s*['"]xtream['"][\s\S]*return applyText\(item\.text/,'Xtream marker M3U must never be applied as a normal playlist');
 
-assert.doesNotMatch(renderBlock,/item\.name[\s\S]{0,120}xtreamAccount/i,'Xtream account identity must not be recovered from title text');
+assert.doesNotMatch(source,/xtreamAccountId\s*\([^)]*item\.name/i,'Xtream account identity must not be recovered from title text');
+assert.match(source,/reconcileXtreamLibraryRows/,'Playlist Manager must reconcile authorized Xtream accounts with Saved Playlist markers');
+assert.match(renderBlock,/Recovered authorized Xtream account/,'marker-less authorized accounts must render as recovered cards');
 assert.match(source,/deleteXtreamAccount/,'Playlist Manager must use canonical Xtream account deletion for Xtream Library cards');
 assert.match(renderBlock,/deleteXtreamAccount\s*\(accountId\)/,'Xtream card Delete must delete the underlying authorized account');
 console.log('Playlist Manager Xtream Library ownership PASS');
