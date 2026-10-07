@@ -137,8 +137,10 @@ export async function deleteXtreamChannelSource(id) {
 }
 
 export async function deleteXtreamAccount(id) {
-  if (!id) return;
-  await bridgeFetch(`/api/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const accountId=String(id||'').trim();
+  if(!accountId)throw new Error('Xtream account ID is required');
+  const result=await bridgeFetch(`/api/accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE' });
+  return {id:String(result.id||accountId),deleted:Boolean(result.deleted),reason:String(result.reason||''),references:Number(result.references||0)};
 }
 
 export async function loadXtreamChannels(accountId, { signal = null } = {}) {

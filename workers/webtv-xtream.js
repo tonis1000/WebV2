@@ -203,9 +203,30 @@ async function saveAccount(env, payload) {
   return { id, name, server, tested };
 }
 
+async function countAccountReferences(env,needle) {
+  const myRow=await env.DB.prepare(`SELECT COUNT(*) AS n FROM channel_sources s JOIN my_playlist m ON m.channel_id=s.channel_id WHERE s.enabled=1 AND instr(s.url, ?) > 0`).bind(needle).first();
+  const myReferences=Math.max(0,Number(myRow?.n||0));
+  let customReferences=0;
+  try {
+    const customRow=await env.DB.prepare(`SELECT COUNT(*) AS n FROM playlist_channel_sources WHERE instr(url, ?) > 0`).bind(needle).first();
+    customReferences=Math.max(0,Number(customRow?.n||0));
+  } catch(error) {
+    const message=String(error?.message||error).toLowerCase();
+    if(!(message.includes('no such table')||message.includes('playlist_channel_sources')))throw error;
+  }
+  return myReferences+customReferences;
+}
+
 async function deleteAccount(env, id) {
   await ensureTable(env);
-  await env.DB.prepare(`DELETE FROM xtream_accounts WHERE id=?`).bind(id).run();
+  const accountId=clean(id);
+  if(!accountId)throw new Error('Xtream account ID is required');
+  const existing=await env.DB.prepare(`SELECT id FROM xtream_accounts WHERE id=?`).bind(accountId).first();
+  if(!existing)return{id:accountId,deleted:false,reason:'not-found',references:0};
+  const references=await countAccountReferences(env,`/stream/${accountId}/`);
+  if(references>0)return{id:accountId,deleted:false,reason:'still-referenced',references};
+  await env.DB.prepare(`DELETE FROM xtream_accounts WHERE id=?`).bind(accountId).run();
+  return{id:accountId,deleted:true,reason:'deleted',references:0};
 }
 
 async function accountCredentials(env, row) {
@@ -386,8 +407,8 @@ export default {
       if (accountMatch && request.method === 'DELETE') {
         const denied = await requireAdmin(request, env, origin); if (denied) return denied;
         const id = decodeURIComponent(accountMatch[1]);
-        await deleteAccount(env, id);
-        return json({ ok: true, id }, 200, origin);
+        const result=await deleteAccount(env, id);
+        return json({ ok: true, ...result }, 200, origin);
       }
 
       return json({ error: 'Not found' }, 404, origin);
