@@ -8,6 +8,7 @@ import {
   parseFeed,
   parseAliveGrJson,
   selectCuratedFeedPlan,
+  dedupeCuratedCandidates,
   PRIMARY_FEED_POLICY,
   MAX_FALLBACK_FEEDS_PER_REQUEST,
 } from '../workers/webtv-source-discovery.js';
@@ -37,6 +38,23 @@ assert.equal(plan.intelligence.length,1);
 assert.equal(plan.intelligence[0]?.id,'alivegr-live','AliveGR must stay inside the bounded intelligence runtime plan without displacing existing primary feeds');
 assert.equal(plan.fallback[0]?.id,'ciefp-iptv-mix','Ciefp private-route acceptance corpus must be the single bounded fallback runtime lane');
 assert.equal(plan.fallback.some(feed=>feed.id==='b2og-iptv-org-all'),false,'broad fourth fallback feed must stay outside the per-request CPU budget');
+
+const dedupedHeaderCandidates=dedupeCuratedCandidates([
+  {
+    channelName:'ANT1',
+    sourceUrl:'https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8',
+    sourceOrigin:'hitnickgr/iptv',
+    requiredHeaders:{},
+  },
+  {
+    channelName:'ANT1',
+    sourceUrl:'https://mcdn.antennaplus.gr/live/media0/Ant1/HLS/Ant1.m3u8',
+    sourceOrigin:'iptv-org Greece',
+    requiredHeaders:{Referer:'https://www.antenna.gr/'},
+  },
+]);
+assert.equal(dedupedHeaderCandidates.length,1,'same media URL should still dedupe to one candidate');
+assert.deepEqual(dedupedHeaderCandidates[0].requiredHeaders,{Referer:'https://www.antenna.gr/'},'dedupe must preserve safe required headers observed by a later source');
 
 const foreignPlan=selectCuratedFeedPlan(FEEDS,{name:'CNN',id:'cnn',originalId:'CNN',tvgId:'CNN.us'});
 assert.equal(foreignPlan.primary.length,1,'foreign exact identities should avoid scanning Greece-only primaries');

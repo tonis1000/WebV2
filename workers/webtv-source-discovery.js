@@ -247,9 +247,23 @@ async function mapBounded(items,limit,task){
   const workers=Array.from({length:Math.min(limit,items.length)},async()=>{while(true){const index=next++;if(index>=items.length)return;out[index]=await task(items[index],index);}});
   await Promise.all(workers);return out;
 }
-function dedupe(candidates=[]){
-  const seen=new Set();const out=[];
-  for(const item of candidates){const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=MAX_RESULTS)break;}
+function mergeRequiredHeaders(primary={},incoming={}){
+  const out={...(primary?.requiredHeaders||{})};
+  for(const [key,value] of Object.entries(incoming?.requiredHeaders||{}))if(!out[key]&&value)out[key]=value;
+  return out;
+}
+function dedupeCuratedCandidates(candidates=[]){
+  const indexByUrl=new Map();const out=[];
+  for(const item of candidates){
+    const key=String(item?.sourceUrl||'').trim();if(!key)continue;
+    if(indexByUrl.has(key)){
+      const index=indexByUrl.get(key),existing=out[index],requiredHeaders=mergeRequiredHeaders(existing,item);
+      out[index]={...existing,...(Object.keys(requiredHeaders).length?{requiredHeaders}:{})};
+      continue;
+    }
+    if(out.length>=MAX_RESULTS)break;
+    indexByUrl.set(key,out.length);out.push(item);
+  }
   return out;
 }
 function iptvOrgCountryCode(channel={}){
@@ -324,18 +338,18 @@ async function discoverCurated(channel,freshness,env={}){
   const firstWave=[...intelligenceFeeds,...primaryFeeds];
   const primaryReports=await mapBounded(firstWave,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
   let reports=[...primaryReports];
-  let candidates=dedupe(primaryReports.flatMap(report=>report.candidates||[]));
+  let candidates=dedupeCuratedCandidates(primaryReports.flatMap(report=>report.candidates||[]));
   if(candidates.length<FALLBACK_TRIGGER_COUNT&&fallbackFeeds.length){
     const fallbackReports=await mapBounded(fallbackFeeds,MAX_CONCURRENCY,feed=>scanFeed(feed,channel));
     reports=[...reports,...fallbackReports];
-    candidates=dedupe([...candidates,...fallbackReports.flatMap(report=>report.candidates||[])]);
+    candidates=dedupeCuratedCandidates([...candidates,...fallbackReports.flatMap(report=>report.candidates||[])]);
   }
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
     freshnessRequested:freshness,freshnessApplied:false,freshnessNote:plan.strategy==='iptv-org-country'?'Curated feeds are checked live. A foreign exact tvg-id uses one bounded native iptv-org country playlist first, then b2og All only as the single mirror fallback when fewer than three matches are found.':'Curated feeds are checked live. All enabled Greece primary feeds run under the existing concurrency, timeout and byte budgets; when fewer than three matches are found, one CPU-bounded fallback feed runs, prioritizing the Ciefp Enigma2 acceptance corpus.',
     planning:{strategy:plan.strategy||'greece-curated',countryCode:plan.countryCode||''},
     limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,primaryFeedPolicy:PRIMARY_FEED_POLICY,primaryFeedsPlanned:primaryFeeds.length,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST},
-    candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>({feed,tier,format,status,elapsedMs,count:candidates?.length||0,error:error||''})),
+    candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>{const rows=Array.isArray(candidates)?candidates:[];const requiredHeaderNames=[...new Set(rows.flatMap(item=>Object.keys(item?.requiredHeaders||{})))];return{feed,tier,format,status,elapsedMs,count:rows.length,requiredHeaderCandidateCount:rows.filter(item=>Object.keys(item?.requiredHeaders||{}).length>0).length,requiredHeaderNames,error:error||''};}),
   });
 }
 async function discover(request,env={}){
@@ -386,4 +400,4 @@ export default {
   }
 };
 
-export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, PRIMARY_FEED_POLICY, MAX_FALLBACK_FEEDS_PER_REQUEST, MAX_INTELLIGENCE_FEEDS_PER_REQUEST, selectCuratedFeedPlan, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseAliveGrJson, parseFeed };
+export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, PRIMARY_FEED_POLICY, MAX_FALLBACK_FEEDS_PER_REQUEST, MAX_INTELLIGENCE_FEEDS_PER_REQUEST, selectCuratedFeedPlan, dedupeCuratedCandidates, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseAliveGrJson, parseFeed };
