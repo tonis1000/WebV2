@@ -47,6 +47,27 @@ function cleanHeaders(headers={}) {
   return out;
 }
 
+function cleanStringList(values=[],limit=32) {
+  return Object.freeze([...new Set((Array.isArray(values)?values:[]).map(value=>String(value||'').trim()).filter(Boolean))].slice(0,limit));
+}
+
+function cleanSourceObservations(values=[]) {
+  return Object.freeze((Array.isArray(values)?values:[]).slice(0,64).map(item=>{
+    const raw=item&&typeof item==='object'?item:{};
+    const requiredHeaderNames=cleanStringList(raw.requiredHeaderNames||Object.keys(raw.requiredHeaders||{}),8);
+    return Object.freeze({
+      sourceOrigin:String(raw.sourceOrigin||'').trim(),
+      sourceOriginUrl:String(raw.sourceOriginUrl||'').trim(),
+      inputFormatId:String(raw.inputFormatId||'').trim().toLowerCase(),
+      freshness:raw.freshness??null,
+      requiredHeaderNames,
+      unsupportedDirectiveNames:cleanStringList(raw.unsupportedDirectiveNames,16),
+      enigma2ServiceType:String(raw.enigma2ServiceType||'').trim(),
+      enigma2Bouquet:String(raw.enigma2Bouquet||'').trim(),
+    });
+  }));
+}
+
 function canonicalMediaFormat(input={},sourceUrl='') {
   const explicit=String(input.resolvedMediaFormatId||input.mediaType||'').trim().toLowerCase();
   const explicitDescriptor=getSourceFormat(explicit);
@@ -82,6 +103,9 @@ export function createCandidate(input={}) {
   const verified=verificationStatus === 'VERIFIED' && input.verified !== false;
   const matchConfidence=MATCH_CONFIDENCE.has(input.matchConfidence) ? input.matchConfidence : 'UNKNOWN';
   const requiredHeaders=cleanHeaders(input.requiredHeaders);
+  const sourceObservations=cleanSourceObservations(input.sourceObservations);
+  const unsupportedDirectiveNames=cleanStringList(input.unsupportedDirectiveNames,32);
+  const headerConflictKeys=cleanStringList(input.headerConflictKeys,8);
   const xtreamContext=input.xtreamContext && typeof input.xtreamContext === 'object' ? {
     server:String(input.xtreamContext.server||'').trim(),
     username:String(input.xtreamContext.username||'').trim(),
@@ -116,6 +140,9 @@ export function createCandidate(input={}) {
     discoveryProvider:String(input.discoveryProvider||'phase1-local'),
     freshness:input.freshness ?? null,
     requiredHeaders:Object.freeze(requiredHeaders),
+    sourceObservations,
+    unsupportedDirectiveNames,
+    headerConflictKeys,
     xtreamAccountRef:xtreamContext?.accountRef || String(input.xtreamAccountRef||''),
     xtreamStreamId:xtreamContext?.streamId || String(input.xtreamStreamId||''),
     xtreamContext:xtreamContext ? Object.freeze(xtreamContext) : null,
@@ -165,8 +192,10 @@ export function withVerification(candidate={},result={}) {
 export function candidateForDisplay(candidate={}) {
   const { xtreamContext, xtreamPreviewToken, ...rest } = candidate;
   const isPreview=String(rest.sourceType||'')==='xtream-preview';
+  const sourceObservations=Object.freeze((rest.sourceObservations||[]).map(item=>Object.freeze({...item,sourceOriginUrl:safePublicOriginUrl(item?.sourceOriginUrl||'')})));
   return {
     ...rest,
+    sourceObservations,
     sourceUrl:xtreamContext ? '[redacted Xtream source]' : isPreview ? '[temporary Xtream preview]' : redactUrlCredentials(rest.sourceUrl),
     sourceOriginUrl:safePublicOriginUrl(rest.sourceOriginUrl,{credentialed:Boolean(xtreamContext)||isPreview||rest.inputFormatId==='xtream'}),
     xtreamPreviewToken:xtreamPreviewToken ? '[opaque preview token]' : '',
