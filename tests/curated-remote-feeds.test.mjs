@@ -8,6 +8,7 @@ import {
   parseFeed,
   parseAliveGrJson,
   selectCuratedFeedPlan,
+  PRIMARY_FEED_POLICY,
   MAX_FALLBACK_FEEDS_PER_REQUEST,
 } from '../workers/webtv-source-discovery.js';
 
@@ -21,6 +22,7 @@ assert.ok(FEEDS.some(feed=>feed.id==='alivegr-live'&&feed.format==='alivegr-json
 assert.ok(FEEDS.some(feed=>feed.name==='Ciefp IPTV Mix'&&feed.tier==='fallback'));
 assert.ok(FEEDS.some(feed=>feed.name==='b2og iptv-org All'&&feed.tier==='fallback'));
 assert.equal(FALLBACK_TRIGGER_COUNT,3);
+assert.equal(PRIMARY_FEED_POLICY,'all-enabled');
 assert.equal(MAX_FALLBACK_FEEDS_PER_REQUEST,1);
 const plan=selectCuratedFeedPlan(FEEDS);
 const enabledPrimaryFeeds=FEEDS.filter(feed=>feed.enabled!==false&&(feed.tier||'primary')==='primary');
