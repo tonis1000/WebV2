@@ -7,7 +7,7 @@ import { selectEnigma2BouquetServices } from '../src/core/enigma2-core.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
 
-const VERSION='1.11';
+const VERSION='1.12';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=3500;
 const MAX_FETCH_BYTES=4000000;
@@ -225,10 +225,43 @@ function dedupe(candidates=[]){
   for(const item of candidates){const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))continue;seen.add(key);out.push(item);if(out.length>=MAX_RESULTS)break;}
   return out;
 }
-function selectCuratedFeedPlan(feeds=FEEDS){
+function iptvOrgCountryCode(channel={}){
+  const value=String(channel?.tvgId||'').trim();
+  const match=value.match(/\.([a-z]{2})(?:@[^@\s]+)?$/i);
+  return match?.[1]?.toLowerCase()||'';
+}
+function iptvOrgCountryFeed(countryCode=''){
+  const code=String(countryCode||'').trim().toLowerCase();
+  if(!/^[a-z]{2}$/.test(code))return null;
+  return Object.freeze({
+    id:`iptv-org-country-${code}`,
+    name:`iptv-org ${code.toUpperCase()}`,
+    label:`iptv-org ${code.toUpperCase()}`,
+    url:`https://iptv-org.github.io/iptv/countries/${code}.m3u`,
+    format:'m3u',
+    tier:'primary',
+    enabled:true,
+    priority:'high',
+    sourceRole:'query-aware-country',
+  });
+}
+function selectCuratedFeedPlan(feeds=FEEDS,channel={}){
   const enabled=feeds.filter(feed=>feed.enabled!==false);
   const primary=enabled.filter(feed=>(feed.tier||'primary')==='primary');
   const fallback=enabled.filter(feed=>feed.tier==='fallback');
+  const countryCode=iptvOrgCountryCode(channel);
+  if(countryCode&&countryCode!=='gr'){
+    const countryFeed=iptvOrgCountryFeed(countryCode);
+    const b2og=fallback.find(feed=>feed.id==='b2og-iptv-org-all');
+    return {
+      primary:countryFeed?[countryFeed]:[],
+      fallback:b2og?[b2og]:[],
+      intelligence:[],
+      totalEnabled:enabled.length,
+      strategy:'iptv-org-country',
+      countryCode,
+    };
+  }
   const intelligence=enabled.filter(feed=>feed.tier==='intelligence').slice(0,MAX_INTELLIGENCE_FEEDS_PER_REQUEST);
   const hans=primary.find(feed=>feed.id==='hanssettings-gr');
   const ciefp=fallback.find(feed=>feed.id==='ciefp-iptv-mix');
@@ -251,12 +284,14 @@ function selectCuratedFeedPlan(feeds=FEEDS){
     fallback:fallbackPlan,
     intelligence,
     totalEnabled:enabled.length,
+    strategy:'greece-curated',
+    countryCode:countryCode||'',
   };
 }
 async function discoverCurated(channel,freshness,env={}){
   if(String(env.DISABLE_CURATED_REMOTE_FEEDS||'')==='1')return json({error:'Provider disabled',provider:CURATED_REMOTE_FEEDS_PROVIDER},503);
   const enabledFeeds=FEEDS.filter(feed=>feed.enabled!==false);
-  const plan=selectCuratedFeedPlan(enabledFeeds);
+  const plan=selectCuratedFeedPlan(enabledFeeds,channel);
   const primaryFeeds=plan.primary;
   const fallbackFeeds=plan.fallback;
   const intelligenceFeeds=plan.intelligence||[];
@@ -271,7 +306,8 @@ async function discoverCurated(channel,freshness,env={}){
   }
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
-    freshnessRequested:freshness,freshnessApplied:false,freshnessNote:'Curated feeds are checked live. A bounded primary plan runs first; when fewer than three matches are found, one CPU-bounded fallback feed runs, prioritizing the Ciefp Enigma2 acceptance corpus.',
+    freshnessRequested:freshness,freshnessApplied:false,freshnessNote:plan.strategy==='iptv-org-country'?'Curated feeds are checked live. A foreign exact tvg-id uses one bounded native iptv-org country playlist first, then b2og All only as the single mirror fallback when fewer than three matches are found.':'Curated feeds are checked live. A bounded Greece-first primary plan runs first; when fewer than three matches are found, one CPU-bounded fallback feed runs, prioritizing the Ciefp Enigma2 acceptance corpus.',
+    planning:{strategy:plan.strategy||'greece-curated',countryCode:plan.countryCode||''},
     limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,maxPrimaryFeedsPerRequest:MAX_PRIMARY_FEEDS_PER_REQUEST,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST},
     candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>({feed,tier,format,status,elapsedMs,count:candidates?.length||0,error:error||''})),
   });
