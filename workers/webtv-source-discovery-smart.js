@@ -17,6 +17,8 @@ const STRM_TIMEOUT_MS=6000;
 const STRM_MAX_DEPTH=3;
 const STRM_MAX_BYTES=256000;
 const IPTV_ORG_TIMEOUT_MS=6000;
+const IPTV_ORG_CACHE_TTL_MS=300000;
+let iptvOrgStreamsCache={text:'',expiresAt:0};
 
 function jsonResponse(response,payload){
   const headers=new Headers(response.headers);headers.set('content-type','application/json;charset=utf-8');headers.set('cache-control','no-store');headers.set('x-webtv-source-discovery-smart',VERSION);
@@ -113,24 +115,32 @@ async function readBoundedText(response,maxBytes){
   }
   return out;
 }
+async function loadIptvOrgStreamsText(){
+  const now=Date.now();
+  if(iptvOrgStreamsCache.text&&iptvOrgStreamsCache.expiresAt>now)return{ok:true,status:200,text:iptvOrgStreamsCache.text,cacheHit:true};
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(new DOMException('timeout','AbortError')),IPTV_ORG_TIMEOUT_MS);
+  try{
+    const response=await fetch(IPTV_ORG_STRUCTURED_STREAMS_URL,{redirect:'follow',signal:controller.signal,headers:{'user-agent':`WebTV-Discovery/${VERSION} iptv-org structured`,accept:'application/json'}});
+    if(!response.ok)return{ok:false,status:response.status,text:'',cacheHit:false};
+    const declared=Number(response.headers.get('content-length')||0);
+    if(declared>IPTV_ORG_STRUCTURED_MAX_BYTES)return{ok:false,status:413,text:'',cacheHit:false,error:'dataset exceeds byte budget'};
+    const text=await readBoundedText(response,IPTV_ORG_STRUCTURED_MAX_BYTES);
+    iptvOrgStreamsCache={text,expiresAt:Date.now()+IPTV_ORG_CACHE_TTL_MS};
+    return{ok:true,status:response.status,text,cacheHit:false};
+  }catch(error){
+    return{ok:false,status:error?.name==='AbortError'?408:0,text:'',cacheHit:false,error:error?.message||String(error)};
+  }finally{clearTimeout(timer);}
+}
 async function enrichIptvOrgStructured(payload={},channel={}){
   const identity=parseIptvOrgIdentity(channel);
   if(!identity||identity.countryCode==='gr')return {...payload,version:VERSION};
-  const started=Date.now(),controller=new AbortController(),timer=setTimeout(()=>controller.abort(new DOMException('timeout','AbortError')),IPTV_ORG_TIMEOUT_MS);
-  try{
-    const response=await fetch(IPTV_ORG_STRUCTURED_STREAMS_URL,{redirect:'follow',signal:controller.signal,headers:{'user-agent':`WebTV-Discovery/${VERSION} iptv-org structured`,accept:'application/json'}});
-    if(!response.ok)return {...payload,version:VERSION,structuredIptvOrg:{attempted:true,status:response.status,count:0,elapsedMs:Date.now()-started}};
-    const declared=Number(response.headers.get('content-length')||0);
-    if(declared>IPTV_ORG_STRUCTURED_MAX_BYTES)return {...payload,version:VERSION,structuredIptvOrg:{attempted:true,status:413,count:0,elapsedMs:Date.now()-started,error:'dataset exceeds byte budget'}};
-    const text=await readBoundedText(response,IPTV_ORG_STRUCTURED_MAX_BYTES);
-    const rows=selectIptvOrgStreamRows(text,channel,12);
-    const structured=rows.map(row=>structuredCandidate(row,channel)).filter(Boolean);
-    const existing=Array.isArray(payload.candidates)?payload.candidates:[];
-    const seen=new Set(),candidates=[...structured,...existing].filter(item=>{const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))return false;seen.add(key);return true;}).slice(0,12);
-    return {...payload,version:VERSION,candidates,planning:{...(payload.planning||{}),structuredIptvOrg:true},structuredIptvOrg:{attempted:true,status:response.status,count:structured.length,elapsedMs:Date.now()-started,maxBytes:IPTV_ORG_STRUCTURED_MAX_BYTES}};
-  }catch(error){
-    return {...payload,version:VERSION,structuredIptvOrg:{attempted:true,status:error?.name==='AbortError'?408:0,count:0,elapsedMs:Date.now()-started,error:error?.message||String(error)}};
-  }finally{clearTimeout(timer);}
+  const started=Date.now(),loaded=await loadIptvOrgStreamsText();
+  if(!loaded.ok)return {...payload,version:VERSION,structuredIptvOrg:{attempted:true,status:loaded.status,count:0,elapsedMs:Date.now()-started,cacheHit:false,error:loaded.error||''}};
+  const rows=selectIptvOrgStreamRows(loaded.text,channel,12);
+  const structured=rows.map(row=>structuredCandidate(row,channel)).filter(Boolean);
+  const existing=Array.isArray(payload.candidates)?payload.candidates:[];
+  const seen=new Set(),candidates=[...structured,...existing].filter(item=>{const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))return false;seen.add(key);return true;}).slice(0,12);
+  return {...payload,version:VERSION,candidates,planning:{...(payload.planning||{}),structuredIptvOrg:true},structuredIptvOrg:{attempted:true,status:loaded.status,count:structured.length,elapsedMs:Date.now()-started,maxBytes:IPTV_ORG_STRUCTURED_MAX_BYTES,cacheHit:loaded.cacheHit,cacheTtlMs:IPTV_ORG_CACHE_TTL_MS}};
 }
 async function resolveCuratedStrm(payload={}){
   const input=Array.isArray(payload.candidates)?payload.candidates:[],out=[],reports=[];let attempts=0;
