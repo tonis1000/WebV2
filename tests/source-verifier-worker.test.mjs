@@ -62,6 +62,7 @@ try{
   assert.equal(body.results[0].verified,true);
   assert.equal(body.results[0].mediaType,'hls');
   assert.equal(body.results[0].streamKind,'live');
+  assert.match(body.results[0].finalRouteKey,/^sha256:[a-f0-9]{64}$/,'verified media must expose a non-reversible final-route fingerprint');
   assert.equal(body.results[1].status,'HTTP 404');
   assert.equal(body.results[1].verified,false);
   assert.equal(body.results[2].status,'DRM');
@@ -111,6 +112,7 @@ try{
   assert.equal(serialized.includes('initial=hidden'),false);
   assert.equal(serialized.includes('session=do-not-leak'),false);
   assert.equal(serialized.includes('Bearer realm'),false);
+  assert.match(redirected.finalRouteKey,/^sha256:[a-f0-9]{64}$/,'redirected targets must expose only a non-reversible final-route fingerprint');
 
   const tooMany=await verifier.fetch(new Request('https://verifier.test/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({candidates:Array.from({length:5},(_,i)=>({candidateId:String(i),sourceType:'hls',sourceUrl:`https://good.test/${i}.m3u8`}))})}),{});
   assert.equal(tooMany.status,413);

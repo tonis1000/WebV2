@@ -14,7 +14,16 @@ function normalizedHeaders(headers={}){
 }
 
 function playbackKey(candidate={}){
-  return `${String(candidate.sourceUrl||'').trim()}|${JSON.stringify(normalizedHeaders(candidate.requiredHeaders))}`;
+  const verified=Boolean(candidate.verified===true&&String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED');
+  const finalRouteKey=String(candidate.finalRouteKey||'').trim();
+  if(verified&&finalRouteKey)return `verified-final:${finalRouteKey}`;
+  return `source:${String(candidate.sourceUrl||'').trim()}|${JSON.stringify(normalizedHeaders(candidate.requiredHeaders))}`;
+}
+function mergeObservedSourceUrls(current=[],candidate={}){
+  const next=[...(current||[])];
+  const sourceUrl=String(candidate.sourceUrl||'').trim();
+  if(sourceUrl&&!next.includes(sourceUrl))next.push(sourceUrl);
+  return next;
 }
 
 function provenanceOf(candidate={}){
@@ -69,11 +78,12 @@ export function groupCandidatesByChannel(candidates=[],intent={}){
     const existingIndex=group.candidateIndex.get(key);
     if(existingIndex===undefined){
       const provenanceSources=mergeProvenance([],raw);
+      const observedSourceUrls=mergeObservedSourceUrls([],raw);
       group.candidateIndex.set(key,group.candidates.length);
-      group.candidates.push({...raw,provenanceSources});
+      group.candidates.push({...raw,provenanceSources,observedSourceUrls});
     }else{
       const current=group.candidates[existingIndex];
-      group.candidates[existingIndex]={...current,provenanceSources:mergeProvenance(current.provenanceSources,raw)};
+      group.candidates[existingIndex]={...current,provenanceSources:mergeProvenance(current.provenanceSources,raw),observedSourceUrls:mergeObservedSourceUrls(current.observedSourceUrls,raw)};
     }
   }
 
