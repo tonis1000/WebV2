@@ -25,11 +25,11 @@ const fetchImpl=async(url,options)=>{
   return new Response(JSON.stringify({provider:body.provider,recognized:true,available:true,freshnessRequested:body.freshness,freshnessApplied:[GITHUB_PUBLIC_PLAYLISTS_PROVIDER,RECENT_WEB_SEARCH_PROVIDER].includes(body.provider),candidates:[{channelName:'MEGA',sourceType:'hls',sourceUrl:`https://stream.test/${suffix}-mega.m3u8`,sourceOrigin:`fixture-${suffix}`,discoveryProvider:body.provider,freshness:[CURATED_REMOTE_FEEDS_PROVIDER,STRM_SPECIFIC_DISCOVERY_PROVIDER].includes(body.provider)?'live-feed-check':`${suffix}-window:${body.freshness}`,matchConfidence:body.provider===RECENT_WEB_SEARCH_PROVIDER?'MEDIUM':'HIGH',saveEligible:true,verified:true,verificationStatus:'VERIFIED'}],reports:[]}),{status:200,headers:{'content-type':'application/json'}});
 };
 const channel={id:'mega',originalId:'MEGA',name:'MEGA',tvgId:'mega.gr'};
-const curated=await discoverCuratedRemoteFeeds(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'7d'});
+const curated=await discoverCuratedRemoteFeeds(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'7d',sourceFamilyIds:['iptv-org-gr']});
 const github=await discoverGithubPublicPlaylists(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'24h'});
 const web=await discoverRecentWebSearch(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'30d',allowPaidFallback:true});
 const strm=await discoverStrmSpecific(channel,{endpoint:'https://discovery.test',fetchImpl,freshness:'7d'});
-assert.deepEqual(seenBodies[0],{provider:'curated-remote-feeds',freshness:'7d',channel});
+assert.deepEqual(seenBodies[0],{provider:'curated-remote-feeds',freshness:'7d',channel,sourceFamilyIds:['iptv-org-gr']});
 assert.deepEqual(seenBodies[1],{provider:'github-public-playlists',freshness:'24h',channel});
 assert.deepEqual(seenBodies[2],{provider:'recent-web-search',freshness:'30d',channel,allowPaidFallback:true});
 assert.deepEqual(seenBodies[3],{provider:'strm-specific-discovery',freshness:'7d',channel});
