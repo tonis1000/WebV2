@@ -316,7 +316,7 @@ async function saveCandidateSource(candidate,channelName,button){
   const api=window.WebTVMyPlaylistAPI;if(typeof api?.addSourceToCurrent!=='function')return;
   button.disabled=true;const old=button.textContent;button.textContent='Saving…';
   try{
-    await api.addSourceToCurrent(playbackValue(candidate));
+    await api.addSourceToCurrent(playbackValue(candidate),{provider:candidate.discoveryProvider||'',discoveryProvider:candidate.discoveryProvider||'',sourceFamilyId:candidate.sourceFamilyId||'',sourceObservations:Array.isArray(candidate.sourceObservations)?candidate.sourceObservations:[]});
     savedCandidateIds.add(candidate.candidateId);
     activeRun?.reporter?.emit?.({type:'source.saved',severity:'OK',candidateId:candidate.candidateId,channelName,stage:'save',message:'Saved to My Playlist'});
     button.textContent='Saved ✓';button.title='Saved to My Playlist';
