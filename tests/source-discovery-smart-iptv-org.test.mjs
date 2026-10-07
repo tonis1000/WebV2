@@ -65,7 +65,7 @@ try{
   const response=await smart.fetch(request,{});
   assert.equal(response.status,200);
   const body=await response.json();
-  assert.equal(body.version,'1.14');
+  assert.equal(body.version,'1.15');
   assert.equal(body.planning.strategy,'iptv-org-country');
   assert.equal(body.planning.countryCode,'us');
   assert.equal(body.planning.structuredIptvOrg,true);
@@ -86,9 +86,11 @@ try{
     Referer:'https://cnn.example/watch'
   });
   assert.equal(body.candidates.some(item=>item.iptvOrgFeedId==='East'),false);
+  assert.ok(body.actions.some(item=>item.type==='candidate.merged'),'structured/country duplicate merge must remain observable');
+  assert.ok(body.actions.some(item=>item.type==='structured.iptv-org.completed'),'structured enrichment action must be observable');
 
   const status=await (await smart.fetch(new Request('https://discovery.test/'),{})).json();
-  assert.equal(status.version,'1.14');
+  assert.equal(status.version,'1.15');
   assert.ok(status.features.includes('iptv-org structured exact streams'));
 
   console.log('Source Discovery smart iptv-org structured integration PASS');
