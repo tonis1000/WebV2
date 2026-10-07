@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {
   buildRefreshOrigin,
@@ -46,5 +47,16 @@ assert.equal(selfHealSaveEligibility({candidate:{...candidates[1],verified:false
 assert.equal(selfHealSaveEligibility({candidate:{...candidates[1],drmDetected:true},playbackConfirmed:true,existingSavedChannel:true}).enabled,false);
 assert.equal(selfHealSaveEligibility({candidate:candidates[1],playbackConfirmed:false,existingSavedChannel:true}).enabled,false);
 assert.equal(selfHealSaveEligibility({candidate:candidates[1],playbackConfirmed:true,existingSavedChannel:false}).enabled,false,'self-heal must never auto-save a new channel');
+
+const playlistManager=fs.readFileSync(new URL('../src/playlist-manager.js',import.meta.url),'utf8');
+const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+assert.match(playlistManager,/autoRefreshVerifiedSource/,'Playlist Manager must own automatic refresh persistence');
+assert.match(playlistManager,/reason!=='playback-self-heal'/,'automatic refresh persistence must be reason-gated');
+assert.match(playlistManager,/Self-heal can update only an existing My Playlist channel/,'self-heal must fail closed instead of creating a new channel');
+assert.match(playlistManager,/interactiveAuth:false/,'automatic refresh must not silently trigger an interactive auth flow');
+assert.match(main,/verifySearchCandidates/,'self-heal must use the canonical verifier client path');
+assert.match(main,/testCandidate\(playbackRef/,'self-heal playback proof must delegate to the canonical Player bridge');
+assert.match(main,/autoRefreshVerifiedSource/,'only playback-confirmed refresh should reach My Playlist persistence');
+assert.match(main,/allowOfficialFallback:false[\s\S]*attemptMyPlaylistSelfHeal[\s\S]*allowOfficialFallback:true/,'self-heal must run between saved-route failure and canonical official fallback');
 
 console.log('My Playlist source self-heal policy PASS');
