@@ -15,7 +15,7 @@ const MAX_FETCH_BYTES=4000000;
 const MAX_CONCURRENCY=4;
 const MAX_RESULTS=12;
 const FALLBACK_TRIGGER_COUNT=3;
-const MAX_PRIMARY_FEEDS_PER_REQUEST=2;
+const PRIMARY_FEED_POLICY='all-enabled';
 const MAX_FALLBACK_FEEDS_PER_REQUEST=1;
 const MAX_INTELLIGENCE_FEEDS_PER_REQUEST=1;
 const ALLOWED_FRESHNESS=new Set(['24h','7d','30d']);
@@ -296,7 +296,6 @@ function selectCuratedFeedPlan(feeds=FEEDS,channel={}){
   const fallbackPlan=[];
   if(hans)primaryPlan.push(hans);
   for(const feed of primary){
-    if(primaryPlan.length>=MAX_PRIMARY_FEEDS_PER_REQUEST)break;
     if(feed===hans)continue;
     primaryPlan.push(feed);
   }
@@ -333,9 +332,9 @@ async function discoverCurated(channel,freshness,env={}){
   }
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
-    freshnessRequested:freshness,freshnessApplied:false,freshnessNote:plan.strategy==='iptv-org-country'?'Curated feeds are checked live. A foreign exact tvg-id uses one bounded native iptv-org country playlist first, then b2og All only as the single mirror fallback when fewer than three matches are found.':'Curated feeds are checked live. A bounded Greece-first primary plan runs first; when fewer than three matches are found, one CPU-bounded fallback feed runs, prioritizing the Ciefp Enigma2 acceptance corpus.',
+    freshnessRequested:freshness,freshnessApplied:false,freshnessNote:plan.strategy==='iptv-org-country'?'Curated feeds are checked live. A foreign exact tvg-id uses one bounded native iptv-org country playlist first, then b2og All only as the single mirror fallback when fewer than three matches are found.':'Curated feeds are checked live. All enabled Greece primary feeds run under the existing concurrency, timeout and byte budgets; when fewer than three matches are found, one CPU-bounded fallback feed runs, prioritizing the Ciefp Enigma2 acceptance corpus.',
     planning:{strategy:plan.strategy||'greece-curated',countryCode:plan.countryCode||''},
-    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,maxPrimaryFeedsPerRequest:MAX_PRIMARY_FEEDS_PER_REQUEST,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST},
+    limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,primaryFeedPolicy:PRIMARY_FEED_POLICY,primaryFeedsPlanned:primaryFeeds.length,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST},
     candidates,reports:reports.map(({feed,tier,format,status,elapsedMs,candidates,error})=>({feed,tier,format,status,elapsedMs,count:candidates?.length||0,error:error||''})),
   });
 }
@@ -381,10 +380,10 @@ export default {
       [GITHUB_PUBLIC_PLAYLISTS_PROVIDER]:String(env?.DISABLE_GITHUB_PUBLIC_PLAYLISTS||'')!=='1',
       [RECENT_WEB_SEARCH_PROVIDER]:String(env?.DISABLE_RECENT_WEB_SEARCH||'')!=='1'&&Boolean(env?.BRAVE_API_KEY),
       [STRM_SPECIFIC_DISCOVERY_PROVIDER]:String(env?.DISABLE_STRM_SPECIFIC_DISCOVERY||'')!=='1',
-    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.filter(feed=>feed.enabled!==false).length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST}});
+    },limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_RESULTS,feeds:FEEDS.filter(feed=>feed.enabled!==false).length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,primaryFeedPolicy:PRIMARY_FEED_POLICY,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST}});
     if(request.method==='POST'&&url.pathname==='/discover')return discover(request,env);
     return json({error:'Not found'},404);
   }
 };
 
-export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, MAX_PRIMARY_FEEDS_PER_REQUEST, MAX_FALLBACK_FEEDS_PER_REQUEST, MAX_INTELLIGENCE_FEEDS_PER_REQUEST, selectCuratedFeedPlan, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseAliveGrJson, parseFeed };
+export { FEEDS, CURATED_REMOTE_FEEDS_PROVIDER as PROVIDER, GITHUB_PUBLIC_PLAYLISTS_PROVIDER, RECENT_WEB_SEARCH_PROVIDER, STRM_SPECIFIC_DISCOVERY_PROVIDER, FETCH_TIMEOUT_MS, MAX_FETCH_BYTES, MAX_CONCURRENCY, MAX_RESULTS, FALLBACK_TRIGGER_COUNT, PRIMARY_FEED_POLICY, MAX_FALLBACK_FEEDS_PER_REQUEST, MAX_INTELLIGENCE_FEEDS_PER_REQUEST, selectCuratedFeedPlan, readTextBounded, normalize, benignBase, candidateMatches, parseM3u, parseEnigma2, parseAliveGrJson, parseFeed };
