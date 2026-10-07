@@ -195,7 +195,7 @@ async function enrichNexusIntelligence(payload={},channel={}){
   const started=Date.now(),loaded=await loadNexusCountry(countryCode);
   if(!loaded.ok)return{...payload,version:VERSION,nexusIntelligence:{attempted:true,status:loaded.status,countryCode,matched:false,count:0,elapsedMs:Date.now()-started,cacheHit:false,error:loaded.error||''}};
   const matched=selectNexusChannel(loaded.rows,channel);
-  if(!matched)return{...payload,version:VERSION,nexusIntelligence:{attempted:true,status:loaded.status,countryCode,matched:false,count:0,elapsedMs:Date.now()-started,cacheHit:loaded.cacheHit,error:''},actions:[...(Array.isArray(payload.actions)?payload.actions:[]),{type:'intelligence.nexus.no-match',message:'IPTV Nexus intelligence had no exact unambiguous channel match',detail:{countryCode}}]};
+  if(!matched){const elapsedMs=Date.now()-started;return{...payload,version:VERSION,reports:[...(Array.isArray(payload.reports)?payload.reports:[]),{feed:'IPTV Nexus JSON',tier:'intelligence',format:'json',status:loaded.status,elapsedMs,count:0,requiredHeaderCandidateCount:0,requiredHeaderNames:[],unsupportedDirectiveNames:[],error:''}],nexusIntelligence:{attempted:true,status:loaded.status,countryCode,matched:false,count:0,elapsedMs,cacheHit:loaded.cacheHit,error:''},actions:[...(Array.isArray(payload.actions)?payload.actions:[]),{type:'intelligence.nexus.no-match',message:'IPTV Nexus intelligence had no exact unambiguous channel match',detail:{countryCode}}]};}
   const familyId=`iptv-nexus-${countryCode}`,nexus=nexusStreamCandidates(matched,{channelName:channel?.name||matched?.name||'',sourceFamilyId:familyId,sourceOriginUrl:loaded.url,maxStreams:12}).filter(isAllowedCuratedCandidate);
   const existing=Array.isArray(payload.candidates)?payload.candidates:[];
   const requestedFamilies=Array.isArray(payload?.planning?.sourceFamilyIds)?payload.planning.sourceFamilyIds.map(value=>String(value||'').trim()).filter(Boolean):[];
@@ -224,6 +224,7 @@ async function enrichNexusIntelligence(payload={},channel={}){
     ...payload,
     version:VERSION,
     candidates:consolidation.candidates,
+    reports:[...(Array.isArray(payload.reports)?payload.reports:[]),{feed:'IPTV Nexus JSON',tier:'intelligence',format:'json',status:loaded.status,elapsedMs:Date.now()-started,count:nexus.length,requiredHeaderCandidateCount:nexus.filter(item=>Object.keys(item?.requiredHeaders||{}).length>0).length,requiredHeaderNames:[...new Set(nexus.flatMap(item=>Object.keys(item?.requiredHeaders||{})))],unsupportedDirectiveNames:[],error:''}],
     actions:[...(Array.isArray(payload.actions)?payload.actions:[]),...consolidation.actions,intelligenceAction],
     planning:{...(payload.planning||{}),nexusIntelligence:true,nexusMatchedChannelId:String(matched?.id||''),nexusStreamCount:nexus.length,nexusEnrichedRouteCount:enrichedRouteCount,nexusNewCandidateCount:newCandidates.length,nexusReturnedCandidateCount:consolidation.candidates.length,nexusTruncatedCandidateCount:consolidation.truncatedCount},
     nexusIntelligence:{attempted:true,status:loaded.status,countryCode,matched:true,channelId:String(matched?.id||''),channelName:String(matched?.name||''),count:nexus.length,enrichedRouteCount,newCandidateCount:newCandidates.length,elapsedMs:Date.now()-started,maxBytes:IPTV_NEXUS_MAX_BYTES,cacheHit:loaded.cacheHit,cacheTtlMs:NEXUS_CACHE_TTL_MS,sourceUrl:loaded.url},
