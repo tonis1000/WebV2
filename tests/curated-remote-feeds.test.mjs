@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { selectIptvOrgStreamRows } from '../workers/source-discovery/iptv-org-structured.js';
 import {
   FEEDS,
   FALLBACK_TRIGGER_COUNT,
@@ -6,7 +7,6 @@ import {
   parseEnigma2,
   parseFeed,
   parseAliveGrJson,
-  parseIptvOrgStreamsJson,
   selectCuratedFeedPlan,
   MAX_PRIMARY_FEEDS_PER_REQUEST,
   MAX_FALLBACK_FEEDS_PER_REQUEST,
@@ -189,22 +189,16 @@ const structuredStreams=JSON.stringify([
     labels:[]
   }
 ]);
-const structuredCandidates=parseIptvOrgStreamsJson(structuredStreams,{name:'CNN',tvgId:'CNN.us@SD'});
+const structuredCandidates=selectIptvOrgStreamRows(structuredStreams,{name:'CNN',tvgId:'CNN.us@SD'});
 assert.equal(structuredCandidates.length,2,'exact iptv-org channel/feed identity should retain multiple distinct structured stream routes');
 assert.deepEqual(structuredCandidates.map(item=>item.sourceUrl),[
   'https://cdn.example.test/cnn/primary.m3u8',
   'https://cdn.example.test/cnn/alternate.m3u8',
 ]);
-assert.equal(structuredCandidates[0].sourceOrigin,'iptv-org structured streams');
-assert.equal(structuredCandidates[0].inputFormatId,'iptv-org-streams-json');
-assert.equal(structuredCandidates[0].iptvOrgChannelId,'CNN.us');
-assert.equal(structuredCandidates[0].iptvOrgFeedId,'SD');
+assert.equal(structuredCandidates[0].channel,'CNN.us');
+assert.equal(structuredCandidates[0].feed,'SD');
 assert.equal(structuredCandidates[0].quality,'1080p');
 assert.deepEqual(structuredCandidates[0].labels,['Geo-blocked']);
-assert.deepEqual(structuredCandidates[0].requiredHeaders,{
-  'User-Agent':'StructuredUA/1.0',
-  Referer:'https://cnn.example/watch',
-});
-assert.equal(structuredCandidates.some(item=>item.iptvOrgFeedId==='East'),false,'an explicit @feed suffix must prevent sibling-feed leakage');
+assert.equal(structuredCandidates.some(item=>item.feed==='East'),false,'an explicit @feed suffix must prevent sibling-feed leakage');
 
 console.log('curated remote feed parser tests PASS');
