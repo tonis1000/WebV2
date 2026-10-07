@@ -165,13 +165,13 @@ async function verifyOne(input={}){
   try{target=safeHttpUrl(sourceUrl);}catch(error){return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:error.message,redirects:[],finalTarget:null,finalResponseHeaders:null};}
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),UPSTREAM_TIMEOUT_MS);
-  let redirects=[];let finalTarget=safeUrlSummary(target);let finalResponseHeaders=null;
+  let redirects=[];let finalTarget=safeUrlSummary(target);let finalResponseHeaders=null;let finalRouteKey='';
   try{
     const headers=new Headers(cleanHeaders({...parsedSource.headers,...(input.requiredHeaders||{})}));
     if(!headers.has('user-agent'))headers.set('user-agent',`Mozilla/5.0 WebTV-SourceVerifier/${VERSION}`);
     headers.set('accept','application/vnd.apple.mpegurl,application/x-mpegURL,application/dash+xml,video/*,audio/*,*/*;q=0.5');
     const fetched=await fetchWithRedirectDiagnostics(target,headers,controller.signal);
-    const response=fetched.response;redirects=fetched.redirects;finalTarget=fetched.finalTarget;finalResponseHeaders=fetched.finalResponseHeaders;const finalRouteKey=await finalRouteFingerprint(fetched.finalUrl,headers);
+    const response=fetched.response;redirects=fetched.redirects;finalTarget=fetched.finalTarget;finalResponseHeaders=fetched.finalResponseHeaders;finalRouteKey=await finalRouteFingerprint(fetched.finalUrl,headers);
     const status=response.status;
     if(!response.ok&&status!==206){
       const mapped=status===403?'HTTP 403':status===404?'HTTP 404':'FAILED';
