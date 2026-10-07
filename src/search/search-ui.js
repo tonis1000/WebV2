@@ -248,7 +248,7 @@ async function saveBestSource(candidate,group={},button){
   button.disabled=true;button.textContent='Saving Best…';
   const channel={id:group.channelKey||candidate.normalizedChannelName||group.channelName,originalId:group.channelKey||candidate.channelName||group.channelName,name:group.channelName||candidate.channelName||'Channel',group:'Other',logo:''};
   try{
-    await api.saveVerifiedSearchSource(channel,{url:playbackValue(candidate),origin:candidate.sourceOrigin||candidate.discoveryProvider||'best-source',provider:candidate.discoveryProvider||'',sourceType:candidate.sourceType||'',browserPlayable:candidate.browserPlayable===true,drmDetected:Boolean(candidate.drmDetected)},{
+    await api.saveVerifiedSearchSource(channel,{url:playbackValue(candidate),origin:candidate.sourceOrigin||candidate.discoveryProvider||'best-source',provider:candidate.discoveryProvider||'',discoveryProvider:candidate.discoveryProvider||'',sourceFamilyId:candidate.sourceFamilyId||'',sourceObservations:Array.isArray(candidate.sourceObservations)?candidate.sourceObservations:[],sourceType:candidate.sourceType||'',browserPlayable:candidate.browserPlayable===true,drmDetected:Boolean(candidate.drmDetected)},{
       reason:'unified-search-best-source-save',
       verified:candidate.verified===true&&String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED',
       streamKind:String(candidate.streamKind||'unknown').toLowerCase(),
@@ -316,7 +316,7 @@ async function saveCandidateSource(candidate,channelName,button){
   const api=window.WebTVMyPlaylistAPI;if(typeof api?.addSourceToCurrent!=='function')return;
   button.disabled=true;const old=button.textContent;button.textContent='Saving…';
   try{
-    await api.addSourceToCurrent(playbackValue(candidate));
+    await api.addSourceToCurrent(playbackValue(candidate),{provider:candidate.discoveryProvider||'',discoveryProvider:candidate.discoveryProvider||'',sourceFamilyId:candidate.sourceFamilyId||'',sourceObservations:Array.isArray(candidate.sourceObservations)?candidate.sourceObservations:[]});
     savedCandidateIds.add(candidate.candidateId);
     activeRun?.reporter?.emit?.({type:'source.saved',severity:'OK',candidateId:candidate.candidateId,channelName,stage:'save',message:'Saved to My Playlist'});
     button.textContent='Saved ✓';button.title='Saved to My Playlist';

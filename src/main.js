@@ -11,8 +11,11 @@ import { PlayerController } from './core/player.js';
 import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/utils.js';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
+import { discoverCuratedRemoteFeeds, discoverGithubPublicPlaylists, discoverStrmSpecific } from './discovery/external-discovery-client.js';
+import { verifySearchCandidates } from './search/search-verification.js';
+import { refreshReferencesForSourceRows, runSourceSelfHeal } from './source-self-heal.js';
 
-const BUILD_ID = '20261005-floating-tool-windows-a';
+const BUILD_ID = '20261007-my-playlist-self-heal-a';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const MY_PLAYLIST_STARTUP_CACHE_KEY = 'webtv_v2_my_playlist_startup_cache_v1';
 const MY_PLAYLIST_STARTUP_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -50,6 +53,7 @@ let catalogMode = 'cloud';
 let selectionToken = 0;
 const channelRows = new Map();
 
+const selfHealHistory=[];
 let diagnosticsState={
   source:'',
   playbackUrl:'',
@@ -66,7 +70,8 @@ window.WebTVDiagnosticsAPI={
   lastRoutePlan:[],
   getSnapshot:()=>({...diagnosticsState}),
   getSourceHealthRows:channel=>sources.getCuratedRouteDiagnostics(channel),
-  healthSummary:()=>({entries:Object.keys(health.map||{}).length,storageKey:health.storageKey})
+  healthSummary:()=>({entries:Object.keys(health.map||{}).length,storageKey:health.storageKey}),
+  getSelfHealHistory:()=>selfHealHistory.map(item=>({...item,detail:item.detail&&typeof item.detail==='object'?{...item.detail}:item.detail})),
 };
 
 const player = new PlayerController({
@@ -282,6 +287,7 @@ function mapRegistryChannel(c){
     providedSourceKind:String(c.logoSourceKind||'').trim()||'registry-channel',
     providedSourceUrl:String(c.logoSourceUrl||'').trim(),
   });
+  const sourceRows=(c.sources||[]).map((source,index)=>({url:String(source?.url||'').trim(),origin:String(source?.origin||'curated').trim()||'curated',priority:Number.isFinite(Number(source?.priority))?Number(source.priority):100+index})).filter(source=>source.url);
   return {
     id,
     originalId: c.tvgId||c.id||c.name,
@@ -289,7 +295,8 @@ function mapRegistryChannel(c){
     logo: logoMeta.url,
     logoMeta,
     group: profile?.category?.primary||c.groupName||'Other',
-    directUrls: [...new Set((c.sources||[]).map(s=>s?.url).filter(Boolean))],
+    directUrls: [...new Set(sourceRows.map(source=>source.url))],
+    sourceRows,
     position: Number(c.position)||0,
     sourceTrust: 'curated'
   };
@@ -305,20 +312,20 @@ function loadStartupMyPlaylistCache(){
     }
     return parsed.channels
       .filter(row=>row&&typeof row==='object'&&row.id&&row.name)
-      .map(row=>({...row,directUrls:[...(row.directUrls||[])]}));
+      .map(row=>({...row,directUrls:[...(row.directUrls||[])],sourceRows:Array.isArray(row.sourceRows)?row.sourceRows.map(source=>({...source})):[]}));
   }catch{return[];}
 }
 function saveStartupMyPlaylistCache(rows){
   try{
     const channels=(Array.isArray(rows)?rows:[])
       .filter(row=>row&&typeof row==='object'&&row.id&&row.name)
-      .map(row=>({...row,directUrls:[...(row.directUrls||[])]}));
+      .map(row=>({...row,directUrls:[...(row.directUrls||[])],sourceRows:Array.isArray(row.sourceRows)?row.sourceRows.map(source=>({...source})):[]}));
     localStorage.setItem(MY_PLAYLIST_STARTUP_CACHE_KEY,JSON.stringify({savedAt:Date.now(),channels}));
   }catch{}
 }
 function applyCachedStartupPlaylist(rows){
   if(!Array.isArray(rows)||!rows.length)return false;
-  channels=rows.map(row=>({...row,directUrls:[...(row.directUrls||[])]}));
+  channels=rows.map(row=>({...row,directUrls:[...(row.directUrls||[])],sourceRows:Array.isArray(row.sourceRows)?row.sourceRows.map(source=>({...source})):[]}));
   catalogMode='cloud';
   clearSelectedIfMissing();
   renderGroups();
@@ -434,6 +441,73 @@ window.WebTVEPGAPI={
   getChannels:()=>channels.map(channel=>({...channel,directUrls:[...(channel.directUrls||[])]})),
 };
 
+function recordSelfHeal(type,channel,detail={}){
+  const event={at:new Date().toISOString(),type:String(type||'event'),channelId:String(channel?.id||channel?.originalId||channel?.name||''),channelName:String(channel?.name||''),detail:detail&&typeof detail==='object'?detail:{message:String(detail||'')}};
+  selfHealHistory.push(event);if(selfHealHistory.length>120)selfHealHistory.splice(0,selfHealHistory.length-120);
+  const summary=[event.type,event.channelName,event.detail?.provider,event.detail?.familyIds?.length?`families=${event.detail.familyIds.join(',')}`:'',event.detail?.message].filter(Boolean).join(' · ');
+  log(`SELF HEAL · ${summary}`);
+  window.dispatchEvent(new CustomEvent('webtv:source-self-heal-report',{detail:event}));
+  return event;
+}
+function selfHealDiscovery(provider=''){
+  if(provider==='curated-remote-feeds')return discoverCuratedRemoteFeeds;
+  if(provider==='github-public-playlists')return discoverGithubPublicPlaylists;
+  if(provider==='strm-specific-discovery')return discoverStrmSpecific;
+  return null;
+}
+function combinedRefreshRefs(channel={}){
+  const rows=refreshReferencesForSourceRows(channel?.sourceRows||[]);
+  if(!rows.length)return[{provider:'curated-remote-feeds',familyIds:[],urls:[...(channel?.directUrls||[])]}];
+  const by=new Map();
+  for(const row of rows){
+    const key=`${row.provider}|${(row.familyIds||[]).slice().sort().join(',')}`;
+    if(!by.has(key))by.set(key,{provider:row.provider,familyIds:[...(row.familyIds||[])],urls:[]});
+    if(row.url)by.get(key).urls.push(row.url);
+  }
+  return [...by.values()].map(ref=>({...ref,urls:[...new Set(ref.urls)]}));
+}
+async function attemptMyPlaylistSelfHeal(channel,{selectionTokenAtStart}={}){
+  if(catalogMode!=='cloud')return null;
+  const playlistApi=window.WebTVMyPlaylistAPI;
+  if(typeof playlistApi?.autoRefreshVerifiedSource!=='function')return null;
+  const existingRows=Array.isArray(channel?.sourceRows)?channel.sourceRows:[];
+  if(!((channel?.directUrls||[]).length||existingRows.length))return null;
+
+  setPlaybackState('loading','Refreshing source');
+  const refs=combinedRefreshRefs(channel);
+  const result=await runSourceSelfHeal({
+    channel,
+    refs,
+    failedSavedUrls:[...(channel?.directUrls||[])],
+    discoverProvider:provider=>{
+      const discover=selfHealDiscovery(provider);
+      if(!discover)return null;
+      return (target,ref)=>discover(target,{freshness:'24h',sourceFamilyIds:provider==='curated-remote-feeds'?ref.familyIds:[]});
+    },
+    verifyCandidates:candidates=>verifySearchCandidates(candidates,{concurrency:2}),
+    playCandidate:(_candidate,playbackRef)=>testCandidate(playbackRef,{channel}),
+    persistCandidate:(candidate,playbackRef,ref)=>playlistApi.autoRefreshVerifiedSource(channel,{
+      url:playbackRef,
+      provider:candidate.discoveryProvider||ref.provider,
+      discoveryProvider:candidate.discoveryProvider||ref.provider,
+      sourceFamilyId:candidate.sourceFamilyId||'',
+      sourceObservations:Array.isArray(candidate.sourceObservations)?candidate.sourceObservations:[],
+      browserPlayable:candidate.browserPlayable===true,
+      drmDetected:Boolean(candidate.drmDetected),
+    },{
+      reason:'playback-self-heal',
+      verified:true,
+      streamKind:String(candidate.streamKind||'unknown').toLowerCase(),
+      playbackConfirmed:true,
+      failedUrls:ref.urls?.length?ref.urls:[...(channel?.directUrls||[])],
+    }),
+    onEvent:(type,detail)=>recordSelfHeal(type,channel,detail),
+    isCurrent:()=>selectionTokenAtStart===selectionToken&&selected===channel,
+    maxVerifyCandidates:12,
+  });
+  return result?.ok?result.playbackResult:null;
+}
+
 async function selectChannel(channel){
   const token=++selectionToken;
   const previousId=selected?.id||'';
@@ -467,7 +541,23 @@ async function selectChannel(channel){
     log(`PLAYBACK PLAN · ${channel.name} · ${routePlan.map(r=>`#${r.rank} ${r.route} ${r.origin} score=${r.score} ${sourceLabel(r.source)}`).join(' | ')}`);
     const stats=sources.getStats(channel);
     log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
-    const result=await player.play(channel,routes);
+    let result;
+    if(catalogMode!=='cloud'){
+      result=await player.play(channel,routes);
+    }else{
+      try{
+        result=await player.play(channel,routes,{allowOfficialFallback:false});
+      }catch(primaryError){
+        if(token!==selectionToken||selected!==channel)return null;
+        recordSelfHeal('primary.failed',channel,{message:primaryError?.message||String(primaryError)});
+        const healed=await attemptMyPlaylistSelfHeal(channel,{selectionTokenAtStart:token});
+        if(healed)result=healed;
+        else{
+          recordSelfHeal('official-fallback.started',channel,{message:'Self-heal exhausted; delegating to canonical Player fallback'});
+          result=await player.play(channel,[],{allowOfficialFallback:true});
+        }
+      }
+    }
     const postPlan = routes.map((route,index) => ({
       rank:index+1,
       route:route.route,

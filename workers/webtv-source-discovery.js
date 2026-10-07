@@ -67,7 +67,9 @@ function makeCandidate({channel,sourceUrl,sourceOrigin,sourceOriginUrl='',freshn
   const requiredHeaders=normalizeRequiredHeaders(extra.requiredHeaders||{});
   const unsupportedDirectiveNames=[...new Set((extra.unsupportedDirectiveNames||[]).map(value=>String(value||'').trim()).filter(Boolean))].slice(0,32);
   const inputFormatId=String(extra.inputFormatId||'').trim().toLowerCase();
+  const sourceFamilyId=String(extra.sourceFamilyId||'').trim();
   const sourceObservation={
+    sourceFamilyId,
     sourceOrigin:String(sourceOrigin||''),
     sourceOriginUrl:String(sourceOriginUrl||''),
     inputFormatId,
@@ -82,6 +84,7 @@ function makeCandidate({channel,sourceUrl,sourceOrigin,sourceOriginUrl='',freshn
     sourceType:typeOf(sourceUrl),
     sourceUrl,
     sourceOrigin,
+    sourceFamilyId,
     discoveryProvider:CURATED_REMOTE_FEEDS_PROVIDER,
     discoveredAt:new Date().toISOString(),
     freshness,
@@ -157,6 +160,7 @@ function parseM3u(text='',channel={},feed={}){
           ...(Object.keys(requiredHeaders).length?{requiredHeaders}:{}),
           ...(unsupportedDirectiveNames.length?{unsupportedDirectiveNames}:{}),
           inputFormatId:feed.format||'m3u',
+          sourceFamilyId:feed.id||'',
         },
       }));
     }
@@ -190,6 +194,7 @@ function parseEnigma2(text='',channel={},feed={}){
       freshness:feed.freshness||'live-feed-check',
       extra:{
         inputFormatId:'enigma2',
+        sourceFamilyId:feed.id||'',
         enigma2ServiceType:service.serviceType,
         enigma2Description:description,
         enigma2InlineName:inlineName,
@@ -233,6 +238,7 @@ function parseAliveGrJson(text='',channel={},feed={}){
         freshness:feed.freshness||'live-feed-check',
         extra:{
           inputFormatId:'alivegr-json',
+          sourceFamilyId:feed.id||'',
           requiredHeaders:normalizeRequiredHeaders(stream?.headers||{}),
           verificationDetail:'AliveGR live intelligence candidate; final media still requires WebV2 verification and playback proof',
         },
@@ -304,6 +310,7 @@ function observationFor(item={}){
   const existing=Array.isArray(item?.sourceObservations)?item.sourceObservations:[];
   if(existing.length)return existing.map(value=>({...value}));
   return [{
+    sourceFamilyId:String(item?.sourceFamilyId||''),
     sourceOrigin:String(item?.sourceOrigin||''),
     sourceOriginUrl:String(item?.sourceOriginUrl||''),
     inputFormatId:String(item?.inputFormatId||''),
@@ -387,10 +394,16 @@ function iptvOrgCountryFeed(countryCode=''){
     sourceRole:'query-aware-country',
   });
 }
-function selectCuratedFeedPlan(feeds=FEEDS,channel={}){
+function selectCuratedFeedPlan(feeds=FEEDS,channel={},options={}){
   const enabled=feeds.filter(feed=>feed.enabled!==false);
   const primary=enabled.filter(feed=>(feed.tier||'primary')==='primary');
   const fallback=enabled.filter(feed=>feed.tier==='fallback');
+  const requestedFamilyIds=[...new Set((Array.isArray(options?.sourceFamilyIds)?options.sourceFamilyIds:[]).map(value=>String(value||'').trim()).filter(Boolean))].slice(0,12);
+  if(requestedFamilyIds.length){
+    const wanted=new Set(requestedFamilyIds);
+    const targeted=enabled.filter(feed=>wanted.has(String(feed.id||'')));
+    return {primary:targeted,fallback:[],intelligence:[],totalEnabled:enabled.length,strategy:'targeted-refresh',countryCode:'',sourceFamilyIds:requestedFamilyIds};
+  }
   const countryCode=iptvOrgCountryCode(channel);
   if(countryCode&&countryCode!=='gr'){
     const countryFeed=iptvOrgCountryFeed(countryCode);
@@ -429,10 +442,10 @@ function selectCuratedFeedPlan(feeds=FEEDS,channel={}){
     countryCode:countryCode||'',
   };
 }
-async function discoverCurated(channel,freshness,env={}){
+async function discoverCurated(channel,freshness,env={},options={}){
   if(String(env.DISABLE_CURATED_REMOTE_FEEDS||'')==='1')return json({error:'Provider disabled',provider:CURATED_REMOTE_FEEDS_PROVIDER},503);
   const enabledFeeds=FEEDS.filter(feed=>feed.enabled!==false);
-  const plan=selectCuratedFeedPlan(enabledFeeds,channel);
+  const plan=selectCuratedFeedPlan(enabledFeeds,channel,{sourceFamilyIds:options?.sourceFamilyIds||[]});
   const primaryFeeds=plan.primary;
   const fallbackFeeds=plan.fallback;
   const intelligenceFeeds=plan.intelligence||[];
@@ -451,7 +464,7 @@ async function discoverCurated(channel,freshness,env={}){
   return json({
     service:'WebTV Source Discovery',version:VERSION,provider:CURATED_REMOTE_FEEDS_PROVIDER,enabled:true,
     freshnessRequested:freshness,freshnessApplied:false,freshnessNote:plan.strategy==='iptv-org-country'?'Curated feeds are checked live. A foreign exact tvg-id uses one bounded native iptv-org country playlist first, then b2og All only as the single mirror fallback when fewer than three matches are found.':'Curated feeds are checked live. All enabled Greece primary feeds run under the existing concurrency, timeout and byte budgets; duplicate media routes merge compatible evidence, conflicting header variants remain separate, and any safety-cap truncation is reported explicitly.',
-    planning:{strategy:plan.strategy||'greece-curated',countryCode:plan.countryCode||'',rawCandidateCount:rawCandidates.length,uniquePlaybackVariantCount:consolidation.rawUniqueCount,returnedCandidateCount:candidates.length,truncatedCandidateCount:consolidation.truncatedCount},
+    planning:{strategy:plan.strategy||'greece-curated',countryCode:plan.countryCode||'',sourceFamilyIds:Array.isArray(plan.sourceFamilyIds)?plan.sourceFamilyIds:[],rawCandidateCount:rawCandidates.length,uniquePlaybackVariantCount:consolidation.rawUniqueCount,returnedCandidateCount:candidates.length,truncatedCandidateCount:consolidation.truncatedCount},
     limits:{timeoutMs:FETCH_TIMEOUT_MS,maxConcurrency:MAX_CONCURRENCY,maxResults:MAX_CURATED_RETURNED_CANDIDATES,maxMatchesPerFeed:MAX_MATCHES_PER_FEED,feeds:enabledFeeds.length,fallbackTriggerCount:FALLBACK_TRIGGER_COUNT,primaryFeedPolicy:PRIMARY_FEED_POLICY,primaryFeedsPlanned:primaryFeeds.length,maxFallbackFeedsPerRequest:MAX_FALLBACK_FEEDS_PER_REQUEST,maxIntelligenceFeedsPerRequest:MAX_INTELLIGENCE_FEEDS_PER_REQUEST},
     candidates,
     actions:consolidation.actions,
@@ -464,7 +477,7 @@ async function discover(request,env={}){
   const freshness=ALLOWED_FRESHNESS.has(body?.freshness)?body.freshness:'7d';
   const channel=body?.channel&&typeof body.channel==='object'?body.channel:{};
   if(!String(channel.name||'').trim())return json({error:'channel.name is required'},400);
-  if(provider===CURATED_REMOTE_FEEDS_PROVIDER)return discoverCurated(channel,freshness,env);
+  if(provider===CURATED_REMOTE_FEEDS_PROVIDER){const sourceFamilyIds=Array.isArray(body?.sourceFamilyIds)?body.sourceFamilyIds.map(value=>String(value||'').trim()).filter(Boolean).slice(0,12):[];return discoverCurated(channel,freshness,env,{sourceFamilyIds});}
   if(provider===GITHUB_PUBLIC_PLAYLISTS_PROVIDER){
     if(String(env.DISABLE_GITHUB_PUBLIC_PLAYLISTS||'')==='1')return json({error:'Provider disabled',provider:GITHUB_PUBLIC_PLAYLISTS_PROVIDER},503);
     try{
