@@ -83,6 +83,7 @@ jobs:
           node tests/source-discovery-smart-strm-parity.test.mjs
           node tests/source-discovery-smart-private-filter.test.mjs
           node tests/source-discovery-smart-iptv-org.test.mjs
+          node tests/source-discovery-nexus-intelligence.test.mjs
           node tests/official-discovery-retirement.test.mjs
 
       - name: Build Wrangler config
