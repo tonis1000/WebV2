@@ -9,6 +9,7 @@ import {
   selectCuratedFeedPlan,
   MAX_PRIMARY_FEEDS_PER_REQUEST,
   MAX_FALLBACK_FEEDS_PER_REQUEST,
+  parseIptvOrgStructuredPayloads,
 } from '../workers/webtv-source-discovery.js';
 
 assert.ok(FEEDS.some(feed=>feed.name==='iptv-org Greece'&&feed.format==='m3u'));
@@ -31,6 +32,39 @@ assert.equal(plan.intelligence.length,1);
 assert.equal(plan.intelligence[0]?.id,'alivegr-live','AliveGR must stay inside the bounded intelligence runtime plan without displacing existing primary feeds');
 assert.equal(plan.fallback[0]?.id,'ciefp-iptv-mix','Ciefp private-route acceptance corpus must be the single bounded fallback runtime lane');
 assert.equal(plan.fallback.some(feed=>feed.id==='b2og-iptv-org-all'),false,'broad fourth fallback feed must stay outside the per-request CPU budget');
+
+const structuredCandidates=parseIptvOrgStructuredPayloads({
+  channels:[
+    {id:'CNN.us',name:'CNN',alt_names:['Cable News Network'],network:'CNN',owners:['Warner Bros. Discovery'],country:'US',categories:['news'],is_nsfw:false,website:'https://www.cnn.com/'},
+    {id:'CNNEspanol.us',name:'CNN en Español',alt_names:[],country:'US',categories:['news'],is_nsfw:false}
+  ],
+  feeds:[
+    {channel:'CNN.us',id:'East',name:'East',alt_names:['Eastern'],is_main:true,broadcast_area:['c/US'],timezones:['America/New_York'],languages:['eng'],format:'1080i'}
+  ],
+  streams:[
+    {channel:'CNN.us',feed:null,title:'CNN SD',url:'https://cdn.example.test/cnn-sd.m3u8',referrer:null,user_agent:null,quality:'480p',labels:['Geo-blocked']},
+    {channel:'CNN.us',feed:'East',title:'CNN East HD',url:'https://cdn.example.test/cnn-hd.m3u8',referrer:'https://player.example.test/',user_agent:'FixtureUA',quality:'1080p',labels:['Not 24/7']},
+    {channel:'CNNEspanol.us',feed:null,title:'CNN en Español',url:'https://wrong.example.test/cnne.m3u8',referrer:null,user_agent:null,quality:'720p',labels:[]}
+  ],
+  logos:[
+    {channel:'CNN.us',feed:'East',in_use:true,tags:['horizontal'],width:1000,height:300,format:'SVG',url:'https://logo.example.test/cnn-east.svg'},
+    {channel:'CNN.us',feed:null,in_use:true,tags:['square'],width:500,height:500,format:'PNG',url:'https://logo.example.test/cnn.png'}
+  ],
+}, {name:'CNN',id:'cnn',originalId:'CNN',tvgId:'CNN.us'});
+assert.equal(structuredCandidates.length,2,'exact iptv-org channel id should retain multiple structured stream records');
+assert.deepEqual(structuredCandidates.map(x=>x.sourceUrl),['https://cdn.example.test/cnn-sd.m3u8','https://cdn.example.test/cnn-hd.m3u8']);
+assert.equal(structuredCandidates[1].sourceOrigin,'iptv-org API');
+assert.equal(structuredCandidates[1].inputFormatId,'iptv-org-api');
+assert.equal(structuredCandidates[1].upstreamChannelId,'CNN.us');
+assert.equal(structuredCandidates[1].upstreamFeedId,'East');
+assert.deepEqual(structuredCandidates[1].upstreamAltNames,['Cable News Network']);
+assert.equal(structuredCandidates[1].upstreamCountry,'US');
+assert.deepEqual(structuredCandidates[1].upstreamLanguages,['eng']);
+assert.equal(structuredCandidates[1].quality,'1080p');
+assert.deepEqual(structuredCandidates[1].labels,['Not 24/7']);
+assert.equal(structuredCandidates[1].logoUrl,'https://logo.example.test/cnn-east.svg');
+assert.deepEqual(structuredCandidates[1].requiredHeaders,{'User-Agent':'FixtureUA',Referer:'https://player.example.test/'});
+assert.equal(parseIptvOrgStructuredPayloads({channels:[],feeds:[],streams:[],logos:[]},{name:'CNN',tvgId:'cnn'}).length,0,'non iptv-org-style tvg-id must not trigger structured fuzzy matching');
 
 const foreignPlan=selectCuratedFeedPlan(FEEDS,{name:'CNN',id:'cnn',originalId:'CNN',tvgId:'CNN.us'});
 assert.equal(foreignPlan.primary.length,1,'foreign exact identities should avoid scanning Greece-only primaries');
