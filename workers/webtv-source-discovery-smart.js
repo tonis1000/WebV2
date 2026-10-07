@@ -5,7 +5,7 @@ import {
   parseStrmDocument,
 } from '../src/core/strm-core.js';
 
-const VERSION='1.11';
+const VERSION='1.12';
 const MAX_STRM_RESOLVES=4;
 const STRM_TIMEOUT_MS=6000;
 const STRM_MAX_DEPTH=3;
