@@ -64,13 +64,14 @@ const observed=createCandidate({
   sourceOrigin:'hitnickgr/iptv',
   requiredHeaders:{Referer:'https://www.antenna.gr/'},
   sourceObservations:[
-    {sourceOrigin:'hitnickgr/iptv',sourceOriginUrl:'https://github.com/example/a',inputFormatId:'m3u',requiredHeaders:{}},
-    {sourceOrigin:'iptv-org Greece',sourceOriginUrl:'https://github.com/example/b',inputFormatId:'m3u',requiredHeaders:{Referer:'https://www.antenna.gr/'},unsupportedDirectiveNames:['KODIPROP:inputstream']},
+    {sourceFamilyId:'hitnickgr-iptv',sourceOrigin:'hitnickgr/iptv',sourceOriginUrl:'https://github.com/example/a',inputFormatId:'m3u',requiredHeaders:{}},
+    {sourceFamilyId:'iptv-org-gr',sourceOrigin:'iptv-org Greece',sourceOriginUrl:'https://github.com/example/b',inputFormatId:'m3u',requiredHeaders:{Referer:'https://www.antenna.gr/'},unsupportedDirectiveNames:['KODIPROP:inputstream']},
   ],
   unsupportedDirectiveNames:['KODIPROP:inputstream'],
   headerConflictKeys:['Origin'],
 });
 assert.equal(observed.sourceObservations.length,2,'candidate model must preserve merged source observations');
+assert.deepEqual(observed.sourceObservations.map(item=>item.sourceFamilyId),['hitnickgr-iptv','iptv-org-gr'],'candidate model must preserve stable source-family ids for future refresh');
 assert.deepEqual(observed.unsupportedDirectiveNames,['KODIPROP:inputstream']);
 assert.deepEqual(observed.headerConflictKeys,['Origin']);
 
