@@ -6,6 +6,7 @@ import {
   candidatePlaybackReference,
   selectRefreshCandidates,
   selfHealSaveEligibility,
+  runSourceSelfHeal,
 } from '../src/source-self-heal.js';
 
 const origin=buildRefreshOrigin({
@@ -47,6 +48,45 @@ assert.equal(selfHealSaveEligibility({candidate:{...candidates[1],verified:false
 assert.equal(selfHealSaveEligibility({candidate:{...candidates[1],drmDetected:true},playbackConfirmed:true,existingSavedChannel:true}).enabled,false);
 assert.equal(selfHealSaveEligibility({candidate:candidates[1],playbackConfirmed:false,existingSavedChannel:true}).enabled,false);
 assert.equal(selfHealSaveEligibility({candidate:candidates[1],playbackConfirmed:true,existingSavedChannel:false}).enabled,false,'self-heal must never auto-save a new channel');
+
+const flowEvents=[];
+let persisted=null;
+const flow=await runSourceSelfHeal({
+  channel:{id:'ant1',name:'ANT1'},
+  refs:[{provider:'curated-remote-feeds',familyIds:['iptv-org-gr'],urls:['https://old.example/ant1.m3u8']}],
+  failedSavedUrls:['https://old.example/ant1.m3u8'],
+  discoverProvider:provider=>provider==='curated-remote-feeds'?async(_channel,ref)=>({
+    planning:{strategy:'targeted-refresh'},
+    reports:[{feed:'iptv-org Greece',status:200,count:1,elapsedMs:20}],
+    candidates:[{candidateId:'fresh',channelName:'ANT1',sourceUrl:'https://fresh.example/ant1.m3u8',discoveryProvider:'curated-remote-feeds',sourceFamilyId:'iptv-org-gr',sourceObservations:[{sourceFamilyId:'iptv-org-gr'}],requiredHeaders:{Referer:'https://antenna.gr/'},verified:false,verificationStatus:'UNVERIFIED',streamKind:'unknown',browserPlayable:true}],
+  }):null,
+  verifyCandidates:async candidates=>candidates.map(candidate=>({...candidate,verified:true,verificationStatus:'VERIFIED',streamKind:'live',browserPlayable:true})),
+  playCandidate:async(_candidate,playbackRef)=>({ok:true,playbackUrl:playbackRef,fallback:false}),
+  persistCandidate:async(candidate,playbackRef,ref)=>{persisted={candidate,playbackRef,ref};},
+  onEvent:(type,detail)=>flowEvents.push({type,detail}),
+});
+assert.equal(flow.ok,true);
+assert.equal(flow.saved,true);
+assert.equal(persisted.candidate.candidateId,'fresh');
+assert.match(persisted.playbackRef,/Referer=https%3A%2F%2Fantenna\.gr%2F/);
+assert.deepEqual(persisted.ref.familyIds,['iptv-org-gr']);
+assert.ok(flowEvents.some(event=>event.type==='feed.checked'));
+assert.ok(flowEvents.some(event=>event.type==='verification.completed'));
+assert.ok(flowEvents.some(event=>event.type==='playback.started'));
+assert.ok(flowEvents.some(event=>event.type==='persistence.saved'));
+
+let blockedPersistCalls=0;
+const failedPlaybackFlow=await runSourceSelfHeal({
+  channel:{id:'ant1',name:'ANT1'},
+  refs:[{provider:'curated-remote-feeds',familyIds:['iptv-org-gr'],urls:['https://old.example/ant1.m3u8']}],
+  failedSavedUrls:['https://old.example/ant1.m3u8'],
+  discoverProvider:()=>async()=>({candidates:[{candidateId:'fresh2',sourceUrl:'https://fresh.example/ant1-2.m3u8',discoveryProvider:'curated-remote-feeds',sourceFamilyId:'iptv-org-gr'}]}),
+  verifyCandidates:async candidates=>candidates.map(candidate=>({...candidate,verified:true,verificationStatus:'VERIFIED',streamKind:'live',browserPlayable:true})),
+  playCandidate:async()=>{throw new Error('browser playback failed');},
+  persistCandidate:async()=>{blockedPersistCalls+=1;},
+});
+assert.equal(failedPlaybackFlow.ok,false);
+assert.equal(blockedPersistCalls,0,'failed real playback must never auto-persist a refreshed source');
 
 const playlistManager=fs.readFileSync(new URL('../src/playlist-manager.js',import.meta.url),'utf8');
 const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
