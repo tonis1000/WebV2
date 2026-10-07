@@ -90,4 +90,77 @@ export function refreshReferencesForSourceRows(sourceRows=[]){
   return refs;
 }
 
+export async function runSourceSelfHeal({
+  channel={},
+  refs=[],
+  failedSavedUrls=[],
+  discoverProvider=()=>null,
+  verifyCandidates=async candidates=>candidates,
+  playCandidate=async()=>{throw new Error('playCandidate is required');},
+  persistCandidate=async()=>null,
+  onEvent=()=>{},
+  isCurrent=()=>true,
+  maxVerifyCandidates=12,
+}={}){
+  const failed=new Set((Array.isArray(failedSavedUrls)?failedSavedUrls:[]).map(value=>String(value||'').trim()).filter(Boolean));
+  const seenPlaybackRefs=new Set();
+  let verifiedBudget=0;
+  const emit=(type,detail={})=>{try{onEvent(type,detail);}catch{}};
+  emit('started',{providerCount:Array.isArray(refs)?refs.length:0,failedSourceCount:failed.size});
+
+  for(const rawRef of Array.isArray(refs)?refs:[]){
+    if(!isCurrent())return{ok:false,cancelled:true,saved:false};
+    const ref={provider:cleanToken(rawRef?.provider||CURATED_PROVIDER)||CURATED_PROVIDER,familyIds:unique(rawRef?.familyIds||[]).map(cleanToken).filter(Boolean),urls:unique(rawRef?.urls||[])};
+    const discover=discoverProvider(ref.provider);
+    if(typeof discover!=='function'){emit('provider.skipped',{provider:ref.provider,familyIds:ref.familyIds});continue;}
+    emit('discovery.started',{provider:ref.provider,familyIds:ref.familyIds});
+    let payload;
+    try{payload=await discover(channel,ref);}
+    catch(error){emit('discovery.failed',{provider:ref.provider,familyIds:ref.familyIds,message:error?.message||String(error)});continue;}
+    if(!isCurrent())return{ok:false,cancelled:true,saved:false};
+    for(const report of Array.isArray(payload?.reports)?payload.reports:[])if(report&&typeof report==='object')emit('feed.checked',{provider:ref.provider,familyIds:ref.familyIds,feed:report.feed||report.provider||'',status:report.status??null,count:report.count??null,elapsedMs:report.elapsedMs??null,error:report.error||''});
+    const discovered=selectRefreshCandidates(payload?.candidates||[],ref).filter(candidate=>{
+      const playbackRef=candidatePlaybackReference(candidate);
+      return playbackRef&&!failed.has(playbackRef)&&!seenPlaybackRefs.has(playbackRef);
+    });
+    emit('discovery.completed',{provider:ref.provider,familyIds:ref.familyIds,candidateCount:discovered.length,strategy:payload?.planning?.strategy||''});
+    if(!discovered.length)continue;
+
+    const remaining=Math.max(0,Number(maxVerifyCandidates)||12)-verifiedBudget;
+    if(!remaining)break;
+    const batch=discovered.slice(0,remaining);
+    verifiedBudget+=batch.length;
+    let verified=[];
+    try{verified=await verifyCandidates(batch,ref);}
+    catch(error){emit('verification.failed',{provider:ref.provider,familyIds:ref.familyIds,message:error?.message||String(error)});if(verifiedBudget>=maxVerifyCandidates)break;continue;}
+
+    for(const candidate of Array.isArray(verified)?verified:[]){
+      const playbackRef=candidatePlaybackReference(candidate);
+      if(!playbackRef||seenPlaybackRefs.has(playbackRef))continue;
+      seenPlaybackRefs.add(playbackRef);
+      emit('verification.completed',{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId||'',status:candidate.verificationStatus||'',streamKind:candidate.streamKind||'',browserPlayable:candidate.browserPlayable===true,sourceFamilyId:candidate.sourceFamilyId||''});
+      if(!(candidate.verified===true&&String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED'&&String(candidate.streamKind||'').toLowerCase()==='live'&&candidate.browserPlayable===true&&!candidate.drmDetected))continue;
+      if(!isCurrent())return{ok:false,cancelled:true,saved:false};
+      emit('playback.started',{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId||'',sourceFamilyId:candidate.sourceFamilyId||''});
+      let playbackResult;
+      try{playbackResult=await playCandidate(candidate,playbackRef,ref);}
+      catch(error){emit('playback.failed',{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId||'',message:error?.message||String(error)});continue;}
+      if(!playbackResult||playbackResult.fallback){emit('playback.failed',{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId||'',message:'Refreshed candidate did not confirm direct media playback'});continue;}
+      const eligibility=selfHealSaveEligibility({candidate,playbackConfirmed:true,existingSavedChannel:true});
+      if(!eligibility.enabled){emit('persistence.skipped',{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId||'',message:eligibility.reason});return{ok:true,saved:false,candidate,playbackResult,ref};}
+      try{
+        await persistCandidate(candidate,playbackRef,ref);
+        emit('persistence.saved',{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId||'',url:playbackRef});
+        return{ok:true,saved:true,candidate,playbackResult,ref};
+      }catch(error){
+        emit('persistence.failed',{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId||'',url:playbackRef,message:error?.message||String(error)});
+        return{ok:true,saved:false,candidate,playbackResult,ref,persistenceError:error};
+      }
+    }
+    if(verifiedBudget>=Math.max(0,Number(maxVerifyCandidates)||12))break;
+  }
+  emit('exhausted',{verifiedBudget});
+  return{ok:false,saved:false,verifiedBudget};
+}
+
 export { CURATED_PROVIDER as SELF_HEAL_CURATED_PROVIDER };
