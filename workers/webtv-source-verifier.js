@@ -1,7 +1,7 @@
 import { detectSourceFormat, classifySourceBody, toLegacySourceType } from '../src/core/source-format-registry.js';
 import { parseIptvUrl } from '../src/core/utils.js';
 
-const VERSION='1.2';
+const VERSION='1.3';
 const ALLOWED_ORIGIN='*';
 const UPSTREAM_TIMEOUT_MS=6000;
 const MAX_BODY_BYTES=512000;
@@ -48,6 +48,17 @@ function safeResponseHeaderSummary(headers){
   if(!headers||typeof headers.keys!=='function')return{headerNames:[],hasSetCookie:false,hasWwwAuthenticate:false};
   const headerNames=[...new Set([...headers.keys()].map(name=>String(name||'').trim().toLowerCase()).filter(Boolean))].sort().slice(0,40);
   return{headerNames,hasSetCookie:headerNames.includes('set-cookie'),hasWwwAuthenticate:headerNames.includes('www-authenticate')};
+}
+async function finalRouteFingerprint(finalUrl='',headers){
+  const allowlisted=['origin','referer','user-agent','x-roku-reserved-dev-id'];
+  const pairs=[];
+  for(const key of allowlisted){
+    const value=String(headers?.get?.(key)||'').trim();
+    if(value)pairs.push(`${key}:${value}`);
+  }
+  const payload=`${String(finalUrl||'').trim()}\n${pairs.join('\n')}`;
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(payload));
+  return `sha256:${[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('')}`;
 }
 async function readLimited(response){
   const reader=response.body?.getReader?.();
@@ -130,9 +141,9 @@ async function fetchWithRedirectDiagnostics(target,headers,signal){
   for(let hop=0;hop<=MAX_REDIRECTS;hop++){
     const response=await fetch(current.toString(),{method:'GET',redirect:'manual',cache:'no-store',headers,signal});
     const responseHeaders=safeResponseHeaderSummary(response.headers);
-    if(!isRedirectStatus(response.status))return{response,redirects,finalTarget:safeUrlSummary(current),finalResponseHeaders:responseHeaders};
+    if(!isRedirectStatus(response.status))return{response,redirects,finalTarget:safeUrlSummary(current),finalResponseHeaders:responseHeaders,finalUrl:current.toString()};
     const location=response.headers.get('location');
-    if(!location)return{response,redirects,finalTarget:safeUrlSummary(current),finalResponseHeaders:responseHeaders};
+    if(!location)return{response,redirects,finalTarget:safeUrlSummary(current),finalResponseHeaders:responseHeaders,finalUrl:current.toString()};
     if(hop>=MAX_REDIRECTS)throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
     const next=safeHttpUrl(new URL(location,current).toString());
     redirects.push({status:response.status,from:safeUrlSummary(current),to:safeUrlSummary(next),hostChanged:current.hostname.toLowerCase()!==next.hostname.toLowerCase(),responseHeaders});
@@ -160,23 +171,23 @@ async function verifyOne(input={}){
     if(!headers.has('user-agent'))headers.set('user-agent',`Mozilla/5.0 WebTV-SourceVerifier/${VERSION}`);
     headers.set('accept','application/vnd.apple.mpegurl,application/x-mpegURL,application/dash+xml,video/*,audio/*,*/*;q=0.5');
     const fetched=await fetchWithRedirectDiagnostics(target,headers,controller.signal);
-    const response=fetched.response;redirects=fetched.redirects;finalTarget=fetched.finalTarget;finalResponseHeaders=fetched.finalResponseHeaders;
+    const response=fetched.response;redirects=fetched.redirects;finalTarget=fetched.finalTarget;finalResponseHeaders=fetched.finalResponseHeaders;const finalRouteKey=await finalRouteFingerprint(fetched.finalUrl,headers);
     const status=response.status;
     if(!response.ok&&status!==206){
       const mapped=status===403?'HTTP 403':status===404?'HTTP 404':'FAILED';
-      return{candidateId,status:mapped,verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:'',drmDetected:false,detail:`Upstream HTTP ${status}`,redirects,finalTarget,finalResponseHeaders};
+      return{candidateId,status:mapped,verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:'',drmDetected:false,detail:`Upstream HTTP ${status}`,redirects,finalTarget,finalResponseHeaders,finalRouteKey};
     }
     const text=await readLimited(response);
     const classified=mediaProbeResult(type,text,response.headers.get('content-type')||'');
     if(classified.ok&&classified.mediaType==='hls'&&classified.streamKind==='unknown'){
       classified.streamKind=await hlsStreamKindFromMaster(text,response.url||target.toString(),headers,controller.signal);
     }
-    if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:true,detail:'DRM markers detected',redirects,finalTarget,finalResponseHeaders};
-    if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:false,detail:classified.reason,redirects,finalTarget,finalResponseHeaders};
-    return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget,finalResponseHeaders};
+    if(classified.drmDetected)return{candidateId,status:'DRM',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:true,detail:'DRM markers detected',redirects,finalTarget,finalResponseHeaders,finalRouteKey};
+    if(!classified.ok)return{candidateId,status:'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:false,detail:classified.reason,redirects,finalTarget,finalResponseHeaders,finalRouteKey};
+    return{candidateId,status:'VERIFIED',verified:true,startupMs:now()-started,lastHttpStatus:status,mediaType:classified.mediaType,streamKind:classified.streamKind||'unknown',drmDetected:false,detail:'Manifest/media probe succeeded',redirects,finalTarget,finalResponseHeaders,finalRouteKey};
   }catch(error){
     const timeout=error?.name==='AbortError';
-    return{candidateId,status:timeout?'TIMEOUT':'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:timeout?`Upstream timeout after ${UPSTREAM_TIMEOUT_MS} ms`:error?.message||String(error),redirects,finalTarget,finalResponseHeaders};
+    return{candidateId,status:timeout?'TIMEOUT':'FAILED',verified:false,startupMs:now()-started,lastHttpStatus:null,mediaType:'',drmDetected:false,detail:timeout?`Upstream timeout after ${UPSTREAM_TIMEOUT_MS} ms`:error?.message||String(error),redirects,finalTarget,finalResponseHeaders,finalRouteKey};
   }finally{clearTimeout(timer);}
 }
 async function mapBounded(items,limit,fn){
