@@ -8,7 +8,7 @@ import { parseIptvUrl } from '../src/core/utils.js';
 import { CURATED_SOURCE_FEEDS } from '../src/search/curated-source-catalog.js';
 import { familySignalsMatch } from '../src/search/family-matching.js';
 
-const VERSION='1.12';
+const VERSION='1.13';
 const CURATED_REMOTE_FEEDS_PROVIDER='curated-remote-feeds';
 const FETCH_TIMEOUT_MS=3500;
 const MAX_FETCH_BYTES=4000000;
