@@ -196,6 +196,8 @@ jobs:
         run: node tests/xtream-account-load-ownership.test.mjs
       - name: Run Playlist Manager Xtream Library ownership regression test
         run: node tests/playlist-manager-xtream-library.test.mjs
+      - name: Run Xtream Library reconciliation regression test
+        run: node tests/xtream-library-reconciliation.test.mjs
       - name: Run Xtream legacy enhancements retirement regression test
         run: node tests/xtream-legacy-enhancements-retirement.test.mjs
       - name: Run Xtream My Playlist persistence boundary regression test
