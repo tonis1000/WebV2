@@ -38,6 +38,8 @@ const workerSource=fs.readFileSync(new URL('../workers/webtv-source-verifier.js'
 assert.match(workerSource,/UPSTREAM_TIMEOUT_MS=6000/);
 assert.match(workerSource,/MAX_BATCH=4/);
 assert.match(workerSource,/MAX_CONCURRENCY=2/);
+assert.match(workerSource,/const VERSION='1\.3'/,'final-route fingerprinting requires Source Verifier v1.3 contract');
+assert.match(workerSource,/finalRouteFingerprint/);
 assert.match(workerSource,/Private\/local targets are not allowed/);
 assert.match(workerSource,/\['user-agent','User-Agent'\]/);
 assert.equal(workerSource.includes("['cookie','Cookie']"),false,'Cookie must never be accepted as a forwarded request header');
