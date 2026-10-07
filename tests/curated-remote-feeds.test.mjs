@@ -32,6 +32,19 @@ assert.equal(plan.intelligence[0]?.id,'alivegr-live','AliveGR must stay inside t
 assert.equal(plan.fallback[0]?.id,'ciefp-iptv-mix','Ciefp private-route acceptance corpus must be the single bounded fallback runtime lane');
 assert.equal(plan.fallback.some(feed=>feed.id==='b2og-iptv-org-all'),false,'broad fourth fallback feed must stay outside the per-request CPU budget');
 
+const foreignPlan=selectCuratedFeedPlan(FEEDS,{name:'CNN',id:'cnn',originalId:'CNN',tvgId:'CNN.us'});
+assert.equal(foreignPlan.primary.length,1,'foreign exact identities should avoid scanning Greece-only primaries');
+assert.equal(foreignPlan.primary[0]?.id,'iptv-org-country-us','foreign exact identity should use the bounded native iptv-org country feed first');
+assert.equal(foreignPlan.primary[0]?.url,'https://iptv-org.github.io/iptv/countries/us.m3u');
+assert.equal(foreignPlan.intelligence.length,0,'Greece-specific intelligence should not run for a foreign exact identity');
+assert.equal(foreignPlan.fallback.length,1);
+assert.equal(foreignPlan.fallback[0]?.id,'b2og-iptv-org-all','b2og All should be the bounded mirror fallback for an exact foreign identity');
+
+const greekPlan=selectCuratedFeedPlan(FEEDS,{name:'SKAI',id:'skai',originalId:'SKAI',tvgId:'Skai.gr'});
+assert.ok(greekPlan.primary.some(feed=>feed.id==='hanssettings-gr'),'Greek exact identity should retain the current Greece-first curated plan');
+assert.equal(greekPlan.intelligence[0]?.id,'alivegr-live');
+assert.equal(greekPlan.fallback[0]?.id,'ciefp-iptv-mix','Greek/no-country fallback exploration should retain Ciefp');
+
 const channel={id:'skai',originalId:'SKAI',name:'SKAI',tvgId:'Skai.gr'};
 const m3u=`#EXTM3U\n#EXTINF:-1 tvg-id="Skai.gr" tvg-name="SKAI HD",SKAI\nhttps://cdn.example.test/skai/master.m3u8\n`;
 const m3uCandidates=parseM3u(m3u,channel,{name:'fixture-m3u'});
