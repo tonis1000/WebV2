@@ -99,6 +99,12 @@ assert.ok(greekPlan.primary.some(feed=>feed.id==='hanssettings-gr'),'Greek exact
 assert.equal(greekPlan.intelligence[0]?.id,'alivegr-live');
 assert.equal(greekPlan.fallback[0]?.id,'ciefp-iptv-mix','Greek/no-country fallback exploration should retain Ciefp');
 
+const targetedRefreshPlan=selectCuratedFeedPlan(FEEDS,{name:'ANT1',id:'ant1',originalId:'ANT1',tvgId:'ANT1.gr'},{sourceFamilyIds:['iptv-org-gr']});
+assert.equal(targetedRefreshPlan.strategy,'targeted-refresh');
+assert.deepEqual(targetedRefreshPlan.primary.map(feed=>feed.id),['iptv-org-gr'],'saved source-family refresh must scan only the requested enabled feed');
+assert.equal(targetedRefreshPlan.fallback.length,0,'targeted refresh must not silently widen into fallback families');
+assert.equal(targetedRefreshPlan.intelligence.length,0,'targeted refresh must not silently widen into intelligence families');
+
 const channel={id:'skai',originalId:'SKAI',name:'SKAI',tvgId:'Skai.gr'};
 const m3u=`#EXTM3U\n#EXTINF:-1 tvg-id="Skai.gr" tvg-name="SKAI HD",SKAI\nhttps://cdn.example.test/skai/master.m3u8\n`;
 const m3uCandidates=parseM3u(m3u,channel,{name:'fixture-m3u'});
