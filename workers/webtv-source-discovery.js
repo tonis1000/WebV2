@@ -126,7 +126,7 @@ function curatedM3uUnsupportedDirectiveNames(entry={}){
       if(!supported.has(key))out.push(`EXTVLCOPT:${key}`);
       continue;
     }
-    match=text.match(/^#KODIPROP:([^=\s]+)\s*=/i);
+    match=text.match(/^#KODI(?:PROP):([^=\s]+)\s*=/i);
     if(match){out.push(`KODIPROP:${String(match[1]||'').trim()}`);continue;}
     match=text.match(/^#([A-Z0-9_.-]+)(?::|=|\s|$)/i);
     if(match&&!/^EXT/i.test(match[1]))out.push(String(match[1]||'').toUpperCase());
