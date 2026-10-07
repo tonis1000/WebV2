@@ -13,7 +13,7 @@ import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
 import { discoverCuratedRemoteFeeds, discoverGithubPublicPlaylists, discoverStrmSpecific } from './discovery/external-discovery-client.js';
 import { verifySearchCandidates } from './search/search-verification.js';
-import { candidatePlaybackReference, parseRefreshOrigin, refreshReferencesForSourceRows, selectRefreshCandidates, selfHealSaveEligibility } from './source-self-heal.js';
+import { refreshReferencesForSourceRows, runSourceSelfHeal } from './source-self-heal.js';
 
 const BUILD_ID = '20261005-floating-tool-windows-a';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
@@ -471,99 +471,41 @@ async function attemptMyPlaylistSelfHeal(channel,{selectionTokenAtStart}={}){
   const playlistApi=window.WebTVMyPlaylistAPI;
   if(typeof playlistApi?.autoRefreshVerifiedSource!=='function')return null;
   const existingRows=Array.isArray(channel?.sourceRows)?channel.sourceRows:[];
-  const existingSavedChannel=Boolean((channel?.directUrls||[]).length||existingRows.length);
-  if(!existingSavedChannel)return null;
+  if(!((channel?.directUrls||[]).length||existingRows.length))return null;
 
-  const failedSaved=new Set((channel?.directUrls||[]).map(value=>String(value||'').trim()).filter(Boolean));
+  setPlaybackState('loading','Refreshing source');
   const refs=combinedRefreshRefs(channel);
-  const seenPlaybackRefs=new Set();
-  let verifiedBudget=0;
-  recordSelfHeal('started',channel,{providerCount:refs.length,failedSourceCount:failedSaved.size,message:'Saved playback routes failed; starting bounded refresh'});
-
-  for(const ref of refs){
-    if(selectionTokenAtStart!==selectionToken||selected!==channel)return null;
-    const discover=selfHealDiscovery(ref.provider);
-    if(!discover){
-      recordSelfHeal('provider.skipped',channel,{provider:ref.provider,familyIds:ref.familyIds,message:'Automatic refresh is not allowed for this provider'});
-      continue;
-    }
-    recordSelfHeal('discovery.started',channel,{provider:ref.provider,familyIds:ref.familyIds});
-    let payload;
-    try{
-      payload=await discover(channel,{freshness:'24h',sourceFamilyIds:ref.provider==='curated-remote-feeds'?ref.familyIds:[]});
-    }catch(error){
-      recordSelfHeal('discovery.failed',channel,{provider:ref.provider,familyIds:ref.familyIds,message:error?.message||String(error)});
-      continue;
-    }
-    if(selectionTokenAtStart!==selectionToken||selected!==channel)return null;
-    for(const report of Array.isArray(payload?.reports)?payload.reports:[]){
-      if(report&&typeof report==='object')recordSelfHeal('feed.checked',channel,{provider:ref.provider,familyIds:ref.familyIds,feed:report.feed||report.provider||'',status:report.status??null,count:report.count??null,elapsedMs:report.elapsedMs??null,error:report.error||''});
-    }
-    const discovered=selectRefreshCandidates(payload?.candidates||[],ref).filter(candidate=>{
-      const playbackRef=candidatePlaybackReference(candidate);
-      return playbackRef&&!failedSaved.has(playbackRef)&&!seenPlaybackRefs.has(playbackRef);
-    });
-    recordSelfHeal('discovery.completed',channel,{provider:ref.provider,familyIds:ref.familyIds,candidateCount:discovered.length,strategy:payload?.planning?.strategy||''});
-    if(!discovered.length)continue;
-
-    const batch=discovered.slice(0,Math.max(0,12-verifiedBudget));
-    verifiedBudget+=batch.length;
-    let verified=[];
-    try{
-      verified=await verifySearchCandidates(batch,{concurrency:2});
-    }catch(error){
-      recordSelfHeal('verification.failed',channel,{provider:ref.provider,familyIds:ref.familyIds,message:error?.message||String(error)});
-      if(verifiedBudget>=12)break;
-      continue;
-    }
-    for(const candidate of verified){
-      const playbackRef=candidatePlaybackReference(candidate);
-      if(!playbackRef||seenPlaybackRefs.has(playbackRef))continue;
-      seenPlaybackRefs.add(playbackRef);
-      recordSelfHeal('verification.completed',channel,{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId,status:candidate.verificationStatus,streamKind:candidate.streamKind,browserPlayable:candidate.browserPlayable===true,sourceFamilyId:candidate.sourceFamilyId||''});
-      if(!(candidate.verified===true&&String(candidate.verificationStatus||'').toUpperCase()==='VERIFIED'&&String(candidate.streamKind||'').toLowerCase()==='live'&&candidate.browserPlayable===true&&!candidate.drmDetected))continue;
-      if(selectionTokenAtStart!==selectionToken||selected!==channel)return null;
-      recordSelfHeal('playback.started',channel,{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId,sourceFamilyId:candidate.sourceFamilyId||''});
-      let playbackResult;
-      try{
-        playbackResult=await testCandidate(playbackRef,{channel});
-        if(!playbackResult||playbackResult.fallback)throw new Error('Refreshed candidate did not confirm direct media playback');
-      }catch(error){
-        recordSelfHeal('playback.failed',channel,{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId,message:error?.message||String(error)});
-        continue;
-      }
-      const eligibility=selfHealSaveEligibility({candidate,playbackConfirmed:true,existingSavedChannel:true});
-      if(!eligibility.enabled){
-        recordSelfHeal('persistence.skipped',channel,{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId,message:eligibility.reason});
-        return playbackResult;
-      }
-      const failedUrls=ref.urls?.length?ref.urls:[...failedSaved];
-      try{
-        await playlistApi.autoRefreshVerifiedSource(channel,{
-          url:playbackRef,
-          provider:candidate.discoveryProvider||ref.provider,
-          discoveryProvider:candidate.discoveryProvider||ref.provider,
-          sourceFamilyId:candidate.sourceFamilyId||'',
-          sourceObservations:Array.isArray(candidate.sourceObservations)?candidate.sourceObservations:[],
-          browserPlayable:candidate.browserPlayable===true,
-          drmDetected:Boolean(candidate.drmDetected),
-        },{
-          reason:'playback-self-heal',
-          verified:true,
-          streamKind:String(candidate.streamKind||'unknown').toLowerCase(),
-          playbackConfirmed:true,
-          failedUrls,
-        });
-        recordSelfHeal('persistence.saved',channel,{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId,url:playbackRef,message:'Playback-confirmed refreshed source saved to existing My Playlist channel'});
-      }catch(error){
-        recordSelfHeal('persistence.failed',channel,{provider:ref.provider,familyIds:ref.familyIds,candidateId:candidate.candidateId,url:playbackRef,message:error?.message||String(error)});
-      }
-      return playbackResult;
-    }
-    if(verifiedBudget>=12)break;
-  }
-  recordSelfHeal('exhausted',channel,{message:'No refreshed source reached verified real playback'});
-  return null;
+  const result=await runSourceSelfHeal({
+    channel,
+    refs,
+    failedSavedUrls:[...(channel?.directUrls||[])],
+    discoverProvider:provider=>{
+      const discover=selfHealDiscovery(provider);
+      if(!discover)return null;
+      return (target,ref)=>discover(target,{freshness:'24h',sourceFamilyIds:provider==='curated-remote-feeds'?ref.familyIds:[]});
+    },
+    verifyCandidates:candidates=>verifySearchCandidates(candidates,{concurrency:2}),
+    playCandidate:(_candidate,playbackRef)=>testCandidate(playbackRef,{channel}),
+    persistCandidate:(candidate,playbackRef,ref)=>playlistApi.autoRefreshVerifiedSource(channel,{
+      url:playbackRef,
+      provider:candidate.discoveryProvider||ref.provider,
+      discoveryProvider:candidate.discoveryProvider||ref.provider,
+      sourceFamilyId:candidate.sourceFamilyId||'',
+      sourceObservations:Array.isArray(candidate.sourceObservations)?candidate.sourceObservations:[],
+      browserPlayable:candidate.browserPlayable===true,
+      drmDetected:Boolean(candidate.drmDetected),
+    },{
+      reason:'playback-self-heal',
+      verified:true,
+      streamKind:String(candidate.streamKind||'unknown').toLowerCase(),
+      playbackConfirmed:true,
+      failedUrls:ref.urls?.length?ref.urls:[...(channel?.directUrls||[])],
+    }),
+    onEvent:(type,detail)=>recordSelfHeal(type,channel,detail),
+    isCurrent:()=>selectionTokenAtStart===selectionToken&&selected===channel,
+    maxVerifyCandidates:12,
+  });
+  return result?.ok?result.playbackResult:null;
 }
 
 async function selectChannel(channel){
