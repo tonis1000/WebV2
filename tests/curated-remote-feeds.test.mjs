@@ -8,7 +8,6 @@ import {
   parseFeed,
   parseAliveGrJson,
   selectCuratedFeedPlan,
-  MAX_PRIMARY_FEEDS_PER_REQUEST,
   MAX_FALLBACK_FEEDS_PER_REQUEST,
 } from '../workers/webtv-source-discovery.js';
 
@@ -22,10 +21,14 @@ assert.ok(FEEDS.some(feed=>feed.id==='alivegr-live'&&feed.format==='alivegr-json
 assert.ok(FEEDS.some(feed=>feed.name==='Ciefp IPTV Mix'&&feed.tier==='fallback'));
 assert.ok(FEEDS.some(feed=>feed.name==='b2og iptv-org All'&&feed.tier==='fallback'));
 assert.equal(FALLBACK_TRIGGER_COUNT,3);
-assert.equal(MAX_PRIMARY_FEEDS_PER_REQUEST,2);
 assert.equal(MAX_FALLBACK_FEEDS_PER_REQUEST,1);
 const plan=selectCuratedFeedPlan(FEEDS);
-assert.equal(plan.primary.length,2);
+const enabledPrimaryFeeds=FEEDS.filter(feed=>feed.enabled!==false&&(feed.tier||'primary')==='primary');
+assert.equal(plan.primary.length,enabledPrimaryFeeds.length,'Greece curated discovery must scan every enabled primary feed');
+assert.deepEqual(plan.primary.map(feed=>feed.id).sort(),enabledPrimaryFeeds.map(feed=>feed.id).sort(),'no enabled primary feed may be excluded from the Greece runtime plan');
+const futurePrimary={id:'future-greek-primary',name:'Future Greek Primary',url:'https://future.example.test/gr.m3u',format:'m3u',tier:'primary',enabled:true,priority:'high'};
+const futurePlan=selectCuratedFeedPlan([...FEEDS,futurePrimary]);
+assert.ok(futurePlan.primary.some(feed=>feed.id===futurePrimary.id),'new enabled primary feeds must automatically join the Greece runtime plan without changing a numeric cap');
 assert.equal(plan.fallback.length,1);
 assert.ok(plan.primary.some(feed=>feed.id==='hanssettings-gr'),'HansSettings Greece must stay inside the bounded primary runtime plan');
 assert.equal(plan.intelligence.length,1);
