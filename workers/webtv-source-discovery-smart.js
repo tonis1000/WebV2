@@ -4,12 +4,21 @@ import {
   isStrmReference,
   parseStrmDocument,
 } from '../src/core/strm-core.js';
+import {
+  IPTV_ORG_STRUCTURED_STREAMS_URL,
+  IPTV_ORG_STRUCTURED_MAX_BYTES,
+  parseIptvOrgIdentity,
+  selectIptvOrgStreamRows,
+} from './source-discovery/iptv-org-structured.js';
 
-const VERSION='1.13';
+const VERSION='1.14';
 const MAX_STRM_RESOLVES=4;
 const STRM_TIMEOUT_MS=6000;
 const STRM_MAX_DEPTH=3;
 const STRM_MAX_BYTES=256000;
+const IPTV_ORG_TIMEOUT_MS=6000;
+const IPTV_ORG_CACHE_TTL_MS=300000;
+let iptvOrgStreamsCache={text:'',expiresAt:0};
 
 function jsonResponse(response,payload){
   const headers=new Headers(response.headers);headers.set('content-type','application/json;charset=utf-8');headers.set('cache-control','no-store');headers.set('x-webtv-source-discovery-smart',VERSION);
@@ -54,6 +63,85 @@ function isAllowedCuratedCandidate(item={}){
     return !privateHost(url.hostname);
   }catch{return false;}
 }
+function safeRequiredHeaders(row={}){
+  const out={};
+  const ua=String(row.userAgent||'').trim(),ref=String(row.referrer||'').trim();
+  if(ua&&!/[\r\n\0]/.test(ua))out['User-Agent']=ua;
+  if(ref&&!/[\r\n\0]/.test(ref))out.Referer=ref;
+  return out;
+}
+function structuredCandidate(row={},channel={}){
+  const raw=String(row.url||'').trim();
+  try{
+    const clean=raw.split('|')[0].trim(),url=new URL(clean);
+    if(!/^https?:$/.test(url.protocol)||privateHost(url.hostname))return null;
+  }catch{return null;}
+  const requiredHeaders=safeRequiredHeaders(row);
+  return {
+    channelName:String(channel.name||''),
+    sourceType:typeOf(raw),
+    sourceUrl:raw,
+    sourceOrigin:'iptv-org structured streams',
+    discoveryProvider:'curated-remote-feeds',
+    discoveredAt:new Date().toISOString(),
+    freshness:'live-api-check',
+    matchConfidence:'HIGH',
+    saveEligible:true,
+    verificationDetail:'iptv-org structured stream candidate; final media still requires WebV2 verification and playback proof',
+    sourceOriginUrl:IPTV_ORG_STRUCTURED_STREAMS_URL,
+    inputFormatId:'iptv-org-streams-json',
+    iptvOrgChannelId:row.channel||'',
+    iptvOrgFeedId:row.feed||'',
+    streamTitle:row.title||'',
+    quality:row.quality||'',
+    labels:Array.isArray(row.labels)?row.labels:[],
+    ...(Object.keys(requiredHeaders).length?{requiredHeaders}:{}),
+  };
+}
+async function readBoundedText(response,maxBytes){
+  if(!response?.body||typeof response.body.getReader!=='function')return (await response.text()).slice(0,maxBytes);
+  const reader=response.body.getReader(),decoder=new TextDecoder();let out='',used=0,limited=false;
+  try{
+    while(used<maxBytes){
+      const {done,value}=await reader.read();if(done)break;if(!value?.byteLength)continue;
+      const remaining=maxBytes-used,chunk=value.byteLength>remaining?value.subarray(0,remaining):value;
+      out+=decoder.decode(chunk,{stream:true});used+=chunk.byteLength;
+      if(value.byteLength>remaining||used>=maxBytes){limited=true;break;}
+    }
+    if(!limited)out+=decoder.decode();
+  }finally{
+    if(limited){try{await reader.cancel('structured iptv-org byte budget reached');}catch{}}
+    try{reader.releaseLock();}catch{}
+  }
+  return out;
+}
+async function loadIptvOrgStreamsText(){
+  const now=Date.now();
+  if(iptvOrgStreamsCache.text&&iptvOrgStreamsCache.expiresAt>now)return{ok:true,status:200,text:iptvOrgStreamsCache.text,cacheHit:true};
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(new DOMException('timeout','AbortError')),IPTV_ORG_TIMEOUT_MS);
+  try{
+    const response=await fetch(IPTV_ORG_STRUCTURED_STREAMS_URL,{redirect:'follow',signal:controller.signal,headers:{'user-agent':`WebTV-Discovery/${VERSION} iptv-org structured`,accept:'application/json'}});
+    if(!response.ok)return{ok:false,status:response.status,text:'',cacheHit:false};
+    const declared=Number(response.headers.get('content-length')||0);
+    if(declared>IPTV_ORG_STRUCTURED_MAX_BYTES)return{ok:false,status:413,text:'',cacheHit:false,error:'dataset exceeds byte budget'};
+    const text=await readBoundedText(response,IPTV_ORG_STRUCTURED_MAX_BYTES);
+    iptvOrgStreamsCache={text,expiresAt:Date.now()+IPTV_ORG_CACHE_TTL_MS};
+    return{ok:true,status:response.status,text,cacheHit:false};
+  }catch(error){
+    return{ok:false,status:error?.name==='AbortError'?408:0,text:'',cacheHit:false,error:error?.message||String(error)};
+  }finally{clearTimeout(timer);}
+}
+async function enrichIptvOrgStructured(payload={},channel={}){
+  const identity=parseIptvOrgIdentity(channel);
+  if(!identity||identity.countryCode==='gr')return {...payload,version:VERSION};
+  const started=Date.now(),loaded=await loadIptvOrgStreamsText();
+  if(!loaded.ok)return {...payload,version:VERSION,structuredIptvOrg:{attempted:true,status:loaded.status,count:0,elapsedMs:Date.now()-started,cacheHit:false,error:loaded.error||''}};
+  const rows=selectIptvOrgStreamRows(loaded.text,channel,12);
+  const structured=rows.map(row=>structuredCandidate(row,channel)).filter(Boolean);
+  const existing=Array.isArray(payload.candidates)?payload.candidates:[];
+  const seen=new Set(),candidates=[...structured,...existing].filter(item=>{const key=String(item?.sourceUrl||'').trim();if(!key||seen.has(key))return false;seen.add(key);return true;}).slice(0,12);
+  return {...payload,version:VERSION,candidates,planning:{...(payload.planning||{}),structuredIptvOrg:true},structuredIptvOrg:{attempted:true,status:loaded.status,count:structured.length,elapsedMs:Date.now()-started,maxBytes:IPTV_ORG_STRUCTURED_MAX_BYTES,cacheHit:loaded.cacheHit,cacheTtlMs:IPTV_ORG_CACHE_TTL_MS}};
+}
 async function resolveCuratedStrm(payload={}){
   const input=Array.isArray(payload.candidates)?payload.candidates:[],out=[],reports=[];let attempts=0;
   for(const item of input){
@@ -75,10 +163,10 @@ export default {async fetch(request,env,ctx){
   const response=await baseWorker.fetch(request,env,ctx);const url=new URL(request.url);const type=response.headers.get('content-type')||'';
   if(!type.includes('application/json'))return response;
   let payload;try{payload=await response.clone().json();}catch{return response;}
-  if(url.pathname==='/'&&response.ok)payload={...payload,version:VERSION,features:[...(payload.features||[]),'curated STRM pre-resolution']};
+  if(url.pathname==='/'&&response.ok)payload={...payload,version:VERSION,features:[...(payload.features||[]),'curated STRM pre-resolution','iptv-org structured exact streams']};
   else if(url.pathname==='/discover'&&response.ok&&request.method==='POST'){
     let body={};try{body=bodyRequest?await bodyRequest.json():{};}catch{}
-    if(String(body?.provider||'')==='curated-remote-feeds')payload=await resolveCuratedStrm(payload);else payload={...payload,version:VERSION};
+    if(String(body?.provider||'')==='curated-remote-feeds'){payload=await enrichIptvOrgStructured(payload,body?.channel||{});payload=await resolveCuratedStrm(payload);}else payload={...payload,version:VERSION};
   }
   return jsonResponse(response,payload);
 }};

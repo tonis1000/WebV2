@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { selectIptvOrgStreamRows } from '../workers/source-discovery/iptv-org-structured.js';
 import {
   FEEDS,
   FALLBACK_TRIGGER_COUNT,
@@ -145,5 +146,59 @@ assert.deepEqual(alivegrCandidates[0].requiredHeaders,{
 
 const wrongChannel=parseEnigma2(enigma,{name:'MEGA'},{name:'fixture-enigma',format:'enigma2'});
 assert.equal(wrongChannel.length,0);
+
+const structuredStreams=JSON.stringify([
+  {
+    channel:'CNN.us',
+    feed:'SD',
+    title:'CNN International primary',
+    url:'https://cdn.example.test/cnn/primary.m3u8',
+    referrer:'https://cnn.example/watch',
+    user_agent:'StructuredUA/1.0',
+    quality:'1080p',
+    labels:['Geo-blocked']
+  },
+  {
+    channel:'CNN.us',
+    feed:'SD',
+    title:'CNN International alternate',
+    url:'https://cdn.example.test/cnn/alternate.m3u8',
+    referrer:null,
+    user_agent:null,
+    quality:'720p',
+    labels:[]
+  },
+  {
+    channel:'CNN.us',
+    feed:'East',
+    title:'CNN wrong feed',
+    url:'https://cdn.example.test/cnn/east.m3u8',
+    referrer:null,
+    user_agent:null,
+    quality:'720p',
+    labels:[]
+  },
+  {
+    channel:'BBCNews.uk',
+    feed:'SD',
+    title:'BBC News',
+    url:'https://cdn.example.test/bbc/news.m3u8',
+    referrer:null,
+    user_agent:null,
+    quality:'1080p',
+    labels:[]
+  }
+]);
+const structuredCandidates=selectIptvOrgStreamRows(structuredStreams,{name:'CNN',tvgId:'CNN.us@SD'});
+assert.equal(structuredCandidates.length,2,'exact iptv-org channel/feed identity should retain multiple distinct structured stream routes');
+assert.deepEqual(structuredCandidates.map(item=>item.url),[
+  'https://cdn.example.test/cnn/primary.m3u8',
+  'https://cdn.example.test/cnn/alternate.m3u8',
+]);
+assert.equal(structuredCandidates[0].channel,'CNN.us');
+assert.equal(structuredCandidates[0].feed,'SD');
+assert.equal(structuredCandidates[0].quality,'1080p');
+assert.deepEqual(structuredCandidates[0].labels,['Geo-blocked']);
+assert.equal(structuredCandidates.some(item=>item.feed==='East'),false,'an explicit @feed suffix must prevent sibling-feed leakage');
 
 console.log('curated remote feed parser tests PASS');
