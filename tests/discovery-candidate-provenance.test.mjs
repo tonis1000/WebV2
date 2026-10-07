@@ -69,10 +69,16 @@ const observed=createCandidate({
   ],
   unsupportedDirectiveNames:['KODIPROP:inputstream'],
   headerConflictKeys:['Origin'],
+  sourceIntelligence:{provider:'iptv-nexus',channelId:'ANT1.gr',channelOnline:false,channelScore:35,healthStatus:'blocked',healthScore:35,uptime:0,checkedAt:'2026-10-07T09:30:19.569Z',latencyMs:2618,quality:'1080p',rank:44.81,sources:['iptv-org'],media:{resolution:'1080p',bitrate:4200000,videoCodec:'h264',audioCodec:'aac'}},
 });
 assert.equal(observed.sourceObservations.length,2,'candidate model must preserve merged source observations');
 assert.deepEqual(observed.sourceObservations.map(item=>item.sourceFamilyId),['hitnickgr-iptv','iptv-org-gr'],'candidate model must preserve stable source-family ids for future refresh');
 assert.deepEqual(observed.unsupportedDirectiveNames,['KODIPROP:inputstream']);
 assert.deepEqual(observed.headerConflictKeys,['Origin']);
+assert.equal(observed.sourceIntelligence.provider,'iptv-nexus');
+assert.equal(observed.sourceIntelligence.channelId,'ANT1.gr');
+assert.equal(observed.sourceIntelligence.healthStatus,'blocked');
+assert.equal(observed.sourceIntelligence.latencyMs,2618);
+assert.equal(observed.sourceIntelligence.media.resolution,'1080p');
 
 console.log('discovery candidate provenance/capability contract PASS');
