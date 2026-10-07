@@ -17,7 +17,7 @@ const adapter={
       }else{
         await sleep(source.delay||5);
       }
-      return {candidates:[{candidateId:`${source.id}:${target.id||target.name}`,channelName:target.name||target.query,sourceUrl:`https://stream.test/${source.id}.m3u8`}],leads:[],reports:[]};
+      return {candidates:[{candidateId:`${source.id}:${target.id||target.name}`,channelName:target.name||target.query,sourceUrl:`https://stream.test/${source.id}.m3u8`}],leads:[],reports:source.id==='one'?[{feed:'iptv-org Greece',tier:'primary',format:'m3u',status:200,elapsedMs:17,count:1,requiredHeaderCandidateCount:1,requiredHeaderNames:['Referer'],error:''}]:[]};
     }finally{active-=1;}
   },
 };
@@ -40,6 +40,13 @@ assert.ok(updates.length>=4,'results/status should be emitted progressively');
 assert.ok(updates.some(update=>update.snapshot?.candidates?.length===1),'at least one partial candidate update must be observable');
 assert.ok(result.report.some(event=>event.type==='lane.timeout'&&event.sourceId==='slow-timeout'),'timeout must be reported with source identity');
 assert.ok(result.report.some(event=>event.type==='search.completed'));
+const feedEvent=result.report.find(event=>event.type==='source.feed.completed'&&event.sourceLabel==='iptv-org Greece');
+assert.ok(feedEvent,'underlying curated feed must be visible in Search Report');
+assert.equal(feedEvent.sourceId,'one:iptv-org-greece');
+assert.equal(feedEvent.detail.status,200);
+assert.equal(feedEvent.detail.count,1);
+assert.equal(feedEvent.detail.requiredHeaderCandidateCount,1);
+assert.deepEqual(feedEvent.detail.requiredHeaderNames,['Referer']);
 
 let playerCalls=0;
 globalThis.WebTVPlaybackAPI={play(){playerCalls+=1;},stop(){playerCalls+=1;},testCandidate(){playerCalls+=1;}};
