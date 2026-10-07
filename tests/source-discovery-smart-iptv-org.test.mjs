@@ -65,7 +65,7 @@ try{
   const response=await smart.fetch(request,{});
   assert.equal(response.status,200);
   const body=await response.json();
-  assert.equal(body.version,'1.15');
+  assert.equal(body.version,'1.16');
   assert.equal(body.planning.strategy,'iptv-org-country');
   assert.equal(body.planning.countryCode,'us');
   assert.equal(body.planning.structuredIptvOrg,true);
@@ -90,8 +90,9 @@ try{
   assert.ok(body.actions.some(item=>item.type==='structured.iptv-org.completed'),'structured enrichment action must be observable');
 
   const status=await (await smart.fetch(new Request('https://discovery.test/'),{})).json();
-  assert.equal(status.version,'1.15');
+  assert.equal(status.version,'1.16');
   assert.ok(status.features.includes('iptv-org structured exact streams'));
+  assert.ok(status.features.includes('IPTV Nexus source intelligence enrichment'));
 
   console.log('Source Discovery smart iptv-org structured integration PASS');
 }finally{
