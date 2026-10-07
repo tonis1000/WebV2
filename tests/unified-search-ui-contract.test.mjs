@@ -38,6 +38,8 @@ assert.ok(/activeRun\s*!==\s*run|run\s*!==\s*activeRun/.test(js),'superseded sea
 assert.ok(/buildSearchContext/.test(js),'search intent must use the group-aware context');
 assert.ok(/verifySearchCandidates/.test(js),'UI must use the canonical Unified Search verifier bridge');
 assert.ok(/verifyBatch\s*:\s*verifySearchCandidates/.test(js),'UI must pass progressive verification into the search orchestrator');
+assert.ok(/Source intelligence/.test(js)&&/IPTV Nexus/.test(js),'candidate Details must expose source-intelligence metadata without creating a second verifier');
+assert.ok(/Required headers/.test(js),'candidate Details must expose required-header names for transparent playback diagnostics');
 assert.ok(/UnifiedNowPlayingState/.test(js),'UI must use independent Now Playing state');
 assert.ok(/setCandidate\(/.test(js),'successful candidate playback must own the Now Playing label');
 assert.ok(/sidebarChanged\(/.test(js),'explicit sidebar changes must clear candidate playback ownership');
