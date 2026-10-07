@@ -15,7 +15,7 @@ import { discoverCuratedRemoteFeeds, discoverGithubPublicPlaylists, discoverStrm
 import { verifySearchCandidates } from './search/search-verification.js';
 import { refreshReferencesForSourceRows, runSourceSelfHeal } from './source-self-heal.js';
 
-const BUILD_ID = '20261005-floating-tool-windows-a';
+const BUILD_ID = '20261007-my-playlist-self-heal-a';
 const REGISTRY_URL_KEY = 'webtv_v2_registry_url';
 const MY_PLAYLIST_STARTUP_CACHE_KEY = 'webtv_v2_my_playlist_startup_cache_v1';
 const MY_PLAYLIST_STARTUP_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -542,16 +542,20 @@ async function selectChannel(channel){
     const stats=sources.getStats(channel);
     log(`${channel.name}: ${stats.active}/${stats.total} active routes${stats.cooling?`, ${stats.cooling} cooling`:''}`);
     let result;
-    try{
-      result=await player.play(channel,routes,{allowOfficialFallback:false});
-    }catch(primaryError){
-      if(token!==selectionToken||selected!==channel)return null;
-      recordSelfHeal('primary.failed',channel,{message:primaryError?.message||String(primaryError)});
-      const healed=await attemptMyPlaylistSelfHeal(channel,{selectionTokenAtStart:token});
-      if(healed)result=healed;
-      else{
-        recordSelfHeal('official-fallback.started',channel,{message:'Self-heal exhausted; delegating to canonical Player fallback'});
-        result=await player.play(channel,[],{allowOfficialFallback:true});
+    if(catalogMode!=='cloud'){
+      result=await player.play(channel,routes);
+    }else{
+      try{
+        result=await player.play(channel,routes,{allowOfficialFallback:false});
+      }catch(primaryError){
+        if(token!==selectionToken||selected!==channel)return null;
+        recordSelfHeal('primary.failed',channel,{message:primaryError?.message||String(primaryError)});
+        const healed=await attemptMyPlaylistSelfHeal(channel,{selectionTokenAtStart:token});
+        if(healed)result=healed;
+        else{
+          recordSelfHeal('official-fallback.started',channel,{message:'Self-heal exhausted; delegating to canonical Player fallback'});
+          result=await player.play(channel,[],{allowOfficialFallback:true});
+        }
       }
     }
     const postPlan = routes.map((route,index) => ({
