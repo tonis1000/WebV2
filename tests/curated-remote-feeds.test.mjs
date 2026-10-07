@@ -191,7 +191,7 @@ const structuredStreams=JSON.stringify([
 ]);
 const structuredCandidates=selectIptvOrgStreamRows(structuredStreams,{name:'CNN',tvgId:'CNN.us@SD'});
 assert.equal(structuredCandidates.length,2,'exact iptv-org channel/feed identity should retain multiple distinct structured stream routes');
-assert.deepEqual(structuredCandidates.map(item=>item.sourceUrl),[
+assert.deepEqual(structuredCandidates.map(item=>item.url),[
   'https://cdn.example.test/cnn/primary.m3u8',
   'https://cdn.example.test/cnn/alternate.m3u8',
 ]);
