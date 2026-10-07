@@ -56,6 +56,7 @@ function cleanSourceObservations(values=[]) {
     const raw=item&&typeof item==='object'?item:{};
     const requiredHeaderNames=cleanStringList(raw.requiredHeaderNames||Object.keys(raw.requiredHeaders||{}),8);
     return Object.freeze({
+      sourceFamilyId:String(raw.sourceFamilyId||'').trim(),
       sourceOrigin:String(raw.sourceOrigin||'').trim(),
       sourceOriginUrl:String(raw.sourceOriginUrl||'').trim(),
       inputFormatId:String(raw.inputFormatId||'').trim().toLowerCase(),
@@ -131,6 +132,7 @@ export function createCandidate(input={}) {
     sourceType,
     sourceUrl,
     sourceOrigin:String(input.sourceOrigin||'local-mock'),
+    sourceFamilyId:String(input.sourceFamilyId||'').trim(),
     sourceOriginUrl:String(input.sourceOriginUrl||''),
     sourceOriginLabel:String(input.sourceOriginLabel||input.sourceOrigin||'').trim(),
     inputFormatId,
