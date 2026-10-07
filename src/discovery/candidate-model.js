@@ -93,6 +93,13 @@ export function createCandidate(input={}) {
   const xtreamPreviewServer=String(input.xtreamPreviewServer||'').trim();
   const xtreamPreviewExpiresAt=String(input.xtreamPreviewExpiresAt||'').trim();
   const discoveredAt=input.discoveredAt || new Date().toISOString();
+  const finalTarget=input.finalTarget&&typeof input.finalTarget==='object'?Object.freeze({...input.finalTarget}):null;
+  const redirects=Object.freeze((Array.isArray(input.redirects)?input.redirects:[]).map(item=>Object.freeze({
+    ...item,
+    from:item?.from&&typeof item.from==='object'?Object.freeze({...item.from}):item?.from||null,
+    to:item?.to&&typeof item.to==='object'?Object.freeze({...item.to}):item?.to||null,
+    responseHeaders:item?.responseHeaders&&typeof item.responseHeaders==='object'?Object.freeze({...item.responseHeaders}):item?.responseHeaders||null,
+  })));
   return Object.freeze({
     candidateId:String(input.candidateId||stableId([channelName,sourceType,sourceUrl,input.sourceOrigin||'',xtreamContext?.accountRef||'',xtreamContext?.streamId||input.xtreamStreamId||''])),
     channelName,
@@ -130,6 +137,9 @@ export function createCandidate(input={}) {
     trustClass:String(input.trustClass||''),
     saveEligible:input.saveEligible!==false && !['rtsp','rtmp'].includes(sourceType),
     officialPageUrl:String(input.officialPageUrl||''),
+    finalRouteKey:String(input.finalRouteKey||'').trim(),
+    finalTarget,
+    redirects,
   });
 }
 
@@ -146,6 +156,9 @@ export function withVerification(candidate={},result={}) {
     streamKind:result.streamKind||candidate.streamKind||'unknown',
     drmDetected:Boolean(result.drmDetected),
     verificationDetail:result.detail||'',
+    finalRouteKey:result.finalRouteKey||candidate.finalRouteKey||'',
+    finalTarget:result.finalTarget||candidate.finalTarget||null,
+    redirects:Array.isArray(result.redirects)?result.redirects:(candidate.redirects||[]),
   });
 }
 
