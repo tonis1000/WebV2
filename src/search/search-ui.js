@@ -11,7 +11,7 @@ import { rankBestSources, selectBestSource } from './best-source.js';
 import { normalizeChannelName } from '../discovery/candidate-model.js';
 import { workerUrl } from '../core/utils.js';
 
-const BUILD_ID='20261005-free-first-search-a';
+const BUILD_ID='20261007-source-intelligence-a';
 const $=id=>document.getElementById(id);
 const nowPlayingState=new UnifiedNowPlayingState();
 const playbackConfirmedCandidates=new Set();
@@ -210,6 +210,8 @@ function candidateRow(raw,channelName,{best=false,channelKey=''}={}){
   const detailSummary=document.createElement('summary');detailSummary.textContent='Details';
   const grid=document.createElement('div');grid.className='unified-detail-grid';
   const facts=[['Input format',candidate.inputFormatId||candidate.sourceType||'unknown'],['Resolved media',candidate.resolvedMediaFormatId||'unknown'],['Browser playback',candidate.browserPlayable?'yes':'no'],['Verification',candidate.verificationStatus||'UNVERIFIED'],['HTTP',candidate.lastHttpStatus||'—'],['Candidate ID',candidate.candidateId||'—']];
+  const headerNames=Object.keys(candidate.requiredHeaders||{});if(headerNames.length)facts.push(['Required headers',headerNames.join(', ')]);
+  const intelligence=candidate.sourceIntelligence||{};if(intelligence.provider){const parts=[intelligence.provider==='iptv-nexus'?'IPTV Nexus':intelligence.provider,intelligence.healthStatus||'',Number.isFinite(Number(intelligence.healthScore))?`score ${Number(intelligence.healthScore).toFixed(0)}`:'',Number.isFinite(Number(intelligence.uptime))?`uptime ${Number(intelligence.uptime).toFixed(0)}%`:'',Number.isFinite(Number(intelligence.latencyMs))?`${Number(intelligence.latencyMs)} ms`:'',intelligence.quality||''].filter(Boolean);facts.push(['Source intelligence',parts.join(' · ')]);}
   for(const [label,value] of facts){const cell=document.createElement('div');const l=document.createElement('span');l.textContent=label;const v=document.createElement('code');v.textContent=String(value);cell.append(l,v);grid.appendChild(cell);}
   const external=document.createElement('div');external.className='unified-external-health';external.dataset.state='idle';external.textContent='External health: open Details to check Channel Signal';
   details.append(detailSummary,grid,external,sourceLinks(raw));
