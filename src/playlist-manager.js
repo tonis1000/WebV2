@@ -2,6 +2,7 @@ import { parseM3U, dedupeChannels } from './core/channel-catalog.js?v=20261006-m
 import { diffRemovedUrls, cleanupRemovedXtreamChannelSources } from './xtream-channel-lifecycle.js?v=20260926-1800';
 import { getCustomPlaylistChannels, customPlaylistExportUrl } from './custom-playlist-client.js';
 import { canonicalDefaultChannelName, savedChannelDisplayName } from './channel-display-name.js';
+import { buildRefreshOrigin } from './source-self-heal.js';
 
 const BUILD_ID = '20261001-custom-playlist-library';
 const DB_NAME = 'webtv-v2-playlists';
@@ -72,9 +73,9 @@ function registryUrl(){return (localStorage.getItem(REGISTRY_URL_KEY)||DEFAULT_R
 function registryToken(){return localStorage.getItem(REGISTRY_TOKEN_KEY)||'';}
 function registryHeaders({json=false,auth=false}={}){const headers={};if(json)headers['content-type']='application/json';if(auth&&registryToken())headers.authorization=`Bearer ${registryToken()}`;return headers;}
 async function registryFetch(path,options={}){const c=new AbortController();const timer=setTimeout(()=>c.abort(),12000);try{return await fetch(`${registryUrl()}${path}`,{cache:'no-store',signal:c.signal,...options});}finally{clearTimeout(timer);}}
-async function ensureWriteSession(){const auth=window.WebTVRegistryAuth;if(auth?.ensureSession){const ok=await auth.ensureSession({interactive:true});if(!ok)throw new Error('D1 write cancelled');return;}if(!registryToken())throw new Error('Trusted-device session is required');}
+async function ensureWriteSession({interactive=true}={}){const auth=window.WebTVRegistryAuth;if(auth?.ensureSession){const ok=await auth.ensureSession({interactive});if(!ok)throw new Error(interactive?'D1 write cancelled':'Trusted-device session is required for automatic source refresh');return;}if(!registryToken())throw new Error('Trusted-device session is required');}
 async function readJsonResponse(response){let json={};try{json=await response.json();}catch{}if(!response.ok)throw new Error(json.error||`Registry HTTP ${response.status}`);return json;}
-async function fetchMyPlaylist(){const response=await registryFetch('/api/my-playlist');const json=await readJsonResponse(response);return (json.channels||[]).map((c,index)=>({id:normalize(c.id||c.tvgId||c.name),originalId:c.tvgId||c.id||c.name,name:c.name,logo:c.logo||'',group:c.groupName||'Other',directUrls:[...new Set((c.sources||[]).map(s=>s?.url).filter(Boolean))],position:Number.isFinite(Number(c.position))?Number(c.position):index}));}
+async function fetchMyPlaylist(){const response=await registryFetch('/api/my-playlist');const json=await readJsonResponse(response);return (json.channels||[]).map((c,index)=>{const sourceRows=(c.sources||[]).map((s,sourceIndex)=>({url:String(s?.url||'').trim(),origin:String(s?.origin||'curated').trim()||'curated',priority:Number.isFinite(Number(s?.priority))?Number(s.priority):100+sourceIndex})).filter(s=>/^https?:\/\//i.test(s.url));return{id:normalize(c.id||c.tvgId||c.name),originalId:c.tvgId||c.id||c.name,name:c.name,logo:c.logo||'',group:c.groupName||'Other',directUrls:[...new Set(sourceRows.map(s=>s.url))],sourceRows,position:Number.isFinite(Number(c.position))?Number(c.position):index};});}
 
 function setStatus(text,tone='idle'){const el=$('playlist-manager-status');if(!el)return;el.textContent=text;el.dataset.tone=tone;}
 function selectedMode(){return document.querySelector('input[name="playlist-mode"]:checked')?.value||'replace';}
@@ -82,7 +83,7 @@ function summarize(text){const channels=parseM3U(text);const groups=[...new Set(
 function channelToLines(channel){const urls=[...new Set((channel.directUrls||[]).filter(u=>/^https?:\/\//i.test(u)))];const ext=`#EXTINF:-1 tvg-id="${escAttr(channel.originalId||channel.id||channel.name)}" tvg-name="${escAttr(channel.name)}" tvg-logo="${escAttr(channel.logo||'')}" group-title="${escAttr(channel.group||'Other')}",${channel.name}`;if(!urls.length)return[ext,''];const lines=[];for(const url of urls)lines.push(ext,url);return lines;}
 function channelsToM3U(channels){const lines=['#EXTM3U'];for(const c of channels)lines.push(...channelToLines(c));return `${lines.join('\n')}\n`;}
 function customChannelsToM3U(rows=[]){return channelsToM3U((Array.isArray(rows)?rows:[]).map((row,index)=>({id:row.channelId,originalId:row.tvgId||row.channelId,name:row.name,logo:row.logo||'',group:row.groupName||'Other',directUrls:[...new Set((row.sources||[]).map(source=>String(source?.url||'').trim()).filter(url=>/^https?:\/\//i.test(url)))],position:Number.isFinite(Number(row.position))?Number(row.position):index})));}
-function channelPayload(channel,position=999999,replaceSources=true){return{id:normalize(channel.id||channel.originalId||channel.name),name:channel.name,tvgId:channel.originalId||channel.id||channel.name,logo:channel.logo||'',groupName:channel.group||'Other',directUrls:[...(channel.directUrls||[])],sources:(channel.directUrls||[]).map((url,i)=>({url,origin:'curated',priority:100+i})),position,replaceSources};}
+function channelPayload(channel,position=999999,replaceSources=true){const explicitRows=Array.isArray(channel?.sourceRows)?channel.sourceRows:[];const sources=explicitRows.length?explicitRows:(channel.directUrls||[]).map((url,i)=>({url,origin:'curated',priority:100+i}));return{id:normalize(channel.id||channel.originalId||channel.name),name:channel.name,tvgId:channel.originalId||channel.id||channel.name,logo:channel.logo||'',groupName:channel.group||'Other',directUrls:[...(channel.directUrls||[])],sources,position,replaceSources};}
 function api(){return window.WebTVPlaylistAPI||null;}
 function selectedChannel(){return api()?.getSelectedChannel?.()||null;}
 function initialMyPlaylistFromApp(){
@@ -97,6 +98,7 @@ function initialMyPlaylistFromApp(){
     logo:c.logo||'',
     group:c.group||'Other',
     directUrls:[...new Set((c.directUrls||[]).filter(Boolean))],
+    sourceRows:Array.isArray(c.sourceRows)?c.sourceRows.map((row,sourceIndex)=>({url:String(row?.url||'').trim(),origin:String(row?.origin||'curated').trim()||'curated',priority:Number.isFinite(Number(row?.priority))?Number(row.priority):100+sourceIndex})).filter(row=>/^https?:\/\//i.test(row.url)):[],
     position:Number.isFinite(Number(c.position))?Number(c.position):index
   }));
 }
@@ -154,7 +156,7 @@ function tinyButton(label,cls='ghost'){const b=document.createElement('button');
 function ensureMyUi(){if($('my-playlist-library'))return;const savedHead=document.querySelector('.saved-playlists-head');if(!savedHead)return;const section=document.createElement('section');section.id='my-playlist-library';section.className='my-playlist-library';section.innerHTML=`<div class="my-playlist-hero"><div class="my-playlist-mark">★</div><div><p class="eyebrow">PRIMARY · D1</p><h3>My Playlist</h3><p class="muted small">Η μοναδική live playlist του WebTV. Φορτώνει αυτόματα στο sidebar από Cloudflare D1.</p></div><div class="my-playlist-hero-actions"><span id="my-playlist-count" class="freshness-badge">0 channels</span><button id="my-playlist-use" class="button" type="button">Show My Playlist</button><button id="my-playlist-export" class="button ghost" type="button">Export M3U</button></div></div><div id="my-playlist-channels" class="my-playlist-channels"></div>`;const savedList=$('saved-playlists');savedHead.parentNode.insertBefore(section,savedList?.nextSibling||null);$('my-playlist-use')?.addEventListener('click',async()=>{try{await api()?.reloadCloudMyPlaylist?.({reason:'playlist-manager',preserveSelection:false});await refreshPrimary({reason:'playlist-manager'});setStatus('My Playlist loaded from D1','ok');}catch(error){setStatus(error.message,'error');}});$('my-playlist-export')?.addEventListener('click',async()=>{const channels=await fetchMyPlaylist();downloadM3UText('My_Playlist',channelsToM3U(channels));});}
 async function renderMyPlaylist({reuseCache=false}={}){ensureMyUi();const box=$('my-playlist-channels'),count=$('my-playlist-count');if(!box)return;if(!reuseCache){myCache=await fetchMyPlaylist();myCacheLoaded=true;}const channels=myCache;if(count)count.textContent=`${channels.length} channel${channels.length===1?'':'s'}`;box.innerHTML='';if(!channels.length){box.innerHTML='<div class="playlist-preview-empty"><strong>My Playlist is empty.</strong><span>Add a channel from a Saved Playlist or another temporary playlist.</span></div>';return;}channels.forEach((channel,index)=>{const row=document.createElement('article');row.className='my-channel-row';const logo=document.createElement('div');logo.className='my-channel-logo';if(channel.logo){const img=document.createElement('img');img.src=channel.logo;img.alt='';logo.append(img);}else logo.textContent='TV';const main=document.createElement('div');main.className='my-channel-main';const title=document.createElement('strong');title.textContent=channel.name;const meta=document.createElement('span');meta.textContent=`#${index+1} · ${channel.group||'Other'} · ${(channel.directUrls||[]).length} source${(channel.directUrls||[]).length===1?'':'s'}`;main.append(title,meta);const actions=document.createElement('div');actions.className='my-channel-actions';const up=tinyButton('↑','ghost');up.title='Move up';up.disabled=index===0;up.addEventListener('click',()=>moveMyChannel(index,index-1));const down=tinyButton('↓','ghost');down.title='Move down';down.disabled=index===channels.length-1;down.addEventListener('click',()=>moveMyChannel(index,index+1));const edit=tinyButton('Edit','ghost');edit.addEventListener('click',()=>editMyChannel(channel));const src=tinyButton('Sources','ghost');src.addEventListener('click',()=>showSources(channel));const remove=tinyButton('Remove','danger');remove.addEventListener('click',()=>removeMyChannel(channel));actions.append(up,down,edit,src,remove);row.append(logo,main,actions);box.append(row);});}
 
-async function putRegistryChannel(channel,position=999999,replaceSources=true,sourcesOverride=null){await ensureWriteSession();const payload=channelPayload(channel,position,replaceSources);if(Array.isArray(sourcesOverride))payload.sources=sourcesOverride;const r=await registryFetch('/api/my-playlist/channel',{method:'PUT',headers:registryHeaders({json:true,auth:true}),body:JSON.stringify(payload)});return readJsonResponse(r);}
+async function putRegistryChannel(channel,position=999999,replaceSources=true,sourcesOverride=null,{interactiveAuth=true}={}){await ensureWriteSession({interactive:interactiveAuth});const payload=channelPayload(channel,position,replaceSources);if(Array.isArray(sourcesOverride))payload.sources=sourcesOverride;const r=await registryFetch('/api/my-playlist/channel',{method:'PUT',headers:registryHeaders({json:true,auth:true}),body:JSON.stringify(payload)});return readJsonResponse(r);}
 async function deleteRegistryChannel(id){await ensureWriteSession();const r=await registryFetch(`/api/my-playlist/channel/${encodeURIComponent(normalize(id))}`,{method:'DELETE',headers:registryHeaders({auth:true})});return readJsonResponse(r);}
 async function updateRegistryOrder(channels){await ensureWriteSession();const r=await registryFetch('/api/my-playlist/order',{method:'PATCH',headers:registryHeaders({json:true,auth:true}),body:JSON.stringify({ids:channels.map(c=>normalize(c.id||c.originalId||c.name))})});return readJsonResponse(r);}
 
@@ -207,12 +209,47 @@ async function saveVerifiedSearchSource(channel,source={},options={}){
   const previousUrls=[...(base.directUrls||[])];
   const directUrls=[...new Set([url,...previousUrls].map(value=>String(value||'').trim()).filter(Boolean))];
   const target={...base,directUrls};
-  const sourceRows=directUrls.map((value,sourceIndex)=>({url:value,origin:value===url?`best-source:${String(source?.provider||source?.origin||'unified-search')}`:'curated',priority:value===url?50:100+sourceIndex}));
+  const existingRows=new Map((Array.isArray(base.sourceRows)?base.sourceRows:[]).map(row=>[String(row?.url||'').trim(),row]));
+  const refreshOrigin=buildRefreshOrigin({...source,discoveryProvider:source?.provider||source?.discoveryProvider||''});
+  const sourceRows=directUrls.map((value,sourceIndex)=>value===url?{url:value,origin:refreshOrigin,priority:50}:{url:value,origin:String(existingRows.get(value)?.origin||'curated'),priority:Number.isFinite(Number(existingRows.get(value)?.priority))?Number(existingRows.get(value).priority):100+sourceIndex});
   await putRegistryChannel(target,index,true,sourceRows);
   log(`MY PLAYLIST BEST SOURCE ${existing?'UPDATE':'ADD'} · ${target.name} · ${url}`);
   await refreshPrimary({forceSidebar:true,reason});
   return target;
 }
+async function autoRefreshVerifiedSource(channel,source={},options={}){
+  const {reason='',verified=false,streamKind='unknown',playbackConfirmed=false,failedUrls=[]}=options||{};
+  if(reason!=='playback-self-heal')throw new Error('Playback self-heal save reason is required');
+  if(!(playbackConfirmed===true&&verified===true&&String(streamKind).toLowerCase()==='live'))throw new Error('Self-heal persistence requires VERIFIED live media and playback confirmation');
+  if(Boolean(source?.drmDetected))throw new Error('DRM-marked source cannot auto-refresh My Playlist');
+  if(source?.browserPlayable!==true)throw new Error('Self-heal source must be browser-playable');
+  const url=String(source?.url||'').trim();
+  if(!/^https?:\/\//i.test(url))throw new Error('Self-heal requires a valid http/https playback source');
+  myCache=await fetchMyPlaylist();myCacheLoaded=true;
+  const key=normalize(channel?.id||channel?.originalId||channel?.name);
+  const index=myCache.findIndex(item=>normalize(item.id||item.originalId||item.name)===key);
+  if(index<0)throw new Error('Self-heal can update only an existing My Playlist channel');
+  const existing=myCache[index];
+  assertGenericMyMutationAllowed(existing);
+  const failed=new Set((Array.isArray(failedUrls)?failedUrls:[]).map(value=>String(value||'').trim()).filter(Boolean));
+  const previousRows=Array.isArray(existing.sourceRows)&&existing.sourceRows.length?existing.sourceRows:(existing.directUrls||[]).map((value,sourceIndex)=>({url:value,origin:'curated',priority:100+sourceIndex}));
+  const refreshOrigin=buildRefreshOrigin({...source,discoveryProvider:source?.provider||source?.discoveryProvider||''});
+  const retained=previousRows.filter(row=>{const value=String(row?.url||'').trim();return value&&value!==url&&!failed.has(value);});
+  const sourceRows=[
+    {url,origin:refreshOrigin,priority:40},
+    ...retained.map((row,sourceIndex)=>({url:String(row.url||'').trim(),origin:String(row.origin||'curated'),priority:100+sourceIndex})),
+  ].slice(0,3);
+  const directUrls=sourceRows.map(row=>row.url);
+  const target={...existing,directUrls,sourceRows};
+  await putRegistryChannel(target,index,true,sourceRows,{interactiveAuth:false});
+  log(`MY PLAYLIST SELF-HEAL SAVED · ${target.name} · ${url} · ${refreshOrigin}`);
+  try{await refreshPrimary({forceSidebar:true,reason});}
+  catch(error){log(`MY PLAYLIST SELF-HEAL REFRESH WARNING · ${target.name} · ${error.message}`);}
+  await cleanupXtreamAfterSourceRemoval(existing.directUrls||[],directUrls,'SELF-HEAL SOURCE REPLACE');
+  window.dispatchEvent(new CustomEvent('webtv:source-self-healed',{detail:{channelId:key,url,origin:refreshOrigin,failedUrls:[...failed]}}));
+  return target;
+}
+
 function ensureMyActionButton(){let b=$('my-playlist-channel-action');if(b)return b;const actions=document.querySelector('.channel-actions');if(!actions)return null;b=document.createElement('button');b.id='my-playlist-channel-action';b.type='button';b.className='button my-add';b.hidden=true;actions.prepend(b);b.addEventListener('click',toggleSelectedInMy);return b;}
 async function updateMyAction(){const b=ensureMyActionButton();if(!b)return;const channel=selectedChannel();if(!channel){b.hidden=true;return;}const inside=await myContains(channel);b.hidden=false;b.dataset.inside=inside?'1':'0';if(!inside&&isLoadedXtreamChannel(channel)){b.disabled=true;b.textContent='Save via Xtream Preview';b.title='Use Xtream Test / Preview → Verify → Save Channel…';return;}b.disabled=false;b.title='';b.textContent=inside?'Remove from My Playlist':'★ Add to My Playlist';}
 async function toggleSelectedInMy(){const channel=selectedChannel();if(!channel)return;if(await myContains(channel))await removeMyChannel(channel);else await addMyChannel(channel);}
@@ -231,6 +268,7 @@ window.WebTVMyPlaylistAPI={
   addCurrent:()=>{const c=selectedChannel();return c?addMyChannel(c):Promise.reject(new Error('No channel selected'));},
   upsertChannel:(channel,sources,options={})=>upsertMyChannel(channel,sources,options),
   saveVerifiedSearchSource:(channel,source,options={})=>saveVerifiedSearchSource(channel,source,options),
+  autoRefreshVerifiedSource:(channel,source,options={})=>autoRefreshVerifiedSource(channel,source,options),
   addSourceToCurrent:async(url)=>{const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);myCache=await fetchMyPlaylist();myCacheLoaded=true;const key=normalize(c.id||c.originalId||c.name);let index=myCache.findIndex(x=>normalize(x.id||x.originalId||x.name)===key);let target;if(index<0){target={...c,directUrls:[...(c.directUrls||[])]};index=myCache.length;}else target={...myCache[index],directUrls:[...(myCache[index].directUrls||[])]};target.directUrls=[...new Set([...target.directUrls,url].filter(Boolean))];await putRegistryChannel(target,index,true);log(`MY PLAYLIST SOURCE SAVED · ${target.name} · ${url}`);await refreshPrimary({reason:'source-save'});return target;},
   replaceSourcesForCurrent:async(urls,{reason='source-policy-save',allowEmpty=false}={})=>{
     const c=selectedChannel();if(!c)throw new Error('No channel selected');assertGenericMyMutationAllowed(c);
