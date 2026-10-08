@@ -23,4 +23,6 @@ for(const provider of ['curated-remote-feeds','github-public-playlists','recent-
   assert.match(externalClient,new RegExp(provider.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 }
 
+assert.equal(fs.existsSync('.github/workflows/diagnose-official-api-resolver-ert1.yml'),false,'retired official API resolver diagnostic workflow must remain deleted');
+assert.equal(fs.existsSync('src/diagnostics-overlay-behavior.js'),false,'orphan Diagnostics overlay behavior must remain deleted; canonical main.js owns Diagnostics controls');
 console.log('official discovery retirement contract PASS');
