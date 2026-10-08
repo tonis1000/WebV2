@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 globalThis.window = globalThis.window || {};
-const identity = await import('../src/channel-identity-gr.js');
+const identity = await import('../src/core/channel-identity-gr.js');
 
 const ACTIVE_PLAYLIST_CHANNELS = [
   'ERT1','ERT2','ERT3','ERT News','ANT1','Alpha TV','SKAI','MEGA','Open TV','MEGA News','Star TV','Action 24','Kontra','tv100',
