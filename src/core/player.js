@@ -250,8 +250,18 @@ export class PlayerController {
   // Manual source selection is deliberately a single-route attempt. The
   // existing automatic mode retains multi-route retries and official fallback.
   async playSelectedRoute(channel, route) {
-    if (!route?.playbackUrl) throw new Error('A playback route must be selected');
-    return this.play(channel, [route], { allowOfficialFallback: false, allowUnverifiedEmbed: true });
+    if (!route?.playbackUrl && !route?.embedUrl) {
+      throw new Error('A playback route must be selected');
+    }
+    const isEmbed = route.player === 'embed'
+      || route.route === 'embed'
+      || Boolean(route.provider)
+      || Boolean(route.embedUrl);
+    const selected = isEmbed ? normalizeEmbedRoute(route) : route;
+    return this.play(channel, [selected], {
+      allowOfficialFallback: false,
+      allowUnverifiedEmbed: isEmbed,
+    });
   }
 
   stop() {
