@@ -13,8 +13,8 @@ assert.match(inspector, /WebTVPlaybackAPI\s*\?\.listSelectedPlaybackRoutes\?\.\(
 assert.match(inspector, /WebTVPlaybackAPI\s*\?\.playSelectedPlaybackRoute\?\.\(/, 'Picker delegates playback');
 assert.ok(inspector.includes('result?.verifiedPlayback === false'), 'Inspector must distinguish loaded iframe from confirmed playback');
 assert.match(inspector, /Embed loaded; video and audio not confirmed/, 'Unverified embed needs explicit user-facing status');
-assert.match(main, /async function testApprovedEmbed\\(/, 'Dedicated allowlisted embed test API exists');
-assert.match(main, /player\\.playSelectedRoute\\(channel, normalized\\)/, 'Embed test delegates to sole PlayerController');
-assert.match(inspector, /id="playback-embed-test"/, 'Inspector has a standalone embed test button');
-assert.match(inspector, /\\?\\.testApprovedEmbed\\?\\.\\(/, 'Inspector calls scoped embed test API');
+assert.ok(main.includes('async function testApprovedEmbed('), 'Dedicated allowlisted embed test API exists');
+assert.ok(main.includes('player.playSelectedRoute(channel, normalized)'), 'Embed test delegates to sole PlayerController');
+assert.ok(inspector.includes('id="playback-embed-test"'), 'Inspector has a standalone embed test button');
+assert.ok(inspector.includes('testApprovedEmbed(url)'), 'Inspector calls scoped embed test API');
 console.log('manual playback UI/bridge contract PASS');
