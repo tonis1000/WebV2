@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  PlayerController,
   resolvePlaybackProvider,
   normalizeEmbedRoute,
 } from '../src/core/player.js';
@@ -55,3 +56,60 @@ assert.throws(() => normalizeEmbedRoute({
 }), /not allowed/i);
 
 console.log('universal playback provider contract PASS');
+
+
+const makeController = () => {
+  const states = [];
+  const diagnostics = [];
+  const iframe = { onload: null, onerror: null, src: 'about:blank', hidden: true };
+  const video = {
+    hidden: false,
+    pause() {},
+    removeAttribute() {},
+    load() {},
+  };
+  let successes = 0;
+  const controller = new PlayerController({
+    video,
+    iframe,
+    emptyState: { hidden: false },
+    health: {
+      recordSuccess() { successes += 1; },
+      recordFailure() { return { cooldownUntil: 0 }; },
+      quarantine() {},
+    },
+    onState(state, label) { states.push({ state, label }); },
+    onDiagnostics(row) { diagnostics.push(row); },
+  });
+  return { controller, iframe, states, diagnostics, getSuccesses: () => successes };
+};
+
+{
+  const runtime = makeController();
+  const play = runtime.controller.playSelectedRoute(
+    { id: 'demo', name: 'Vindral Demo' },
+    vindralDemo
+  );
+  queueMicrotask(() => runtime.iframe.onload?.());
+  const result = await play;
+  assert.equal(result.player, 'vindral-demo-embed');
+  assert.equal(result.verifiedPlayback, false, 'iframe load is not playback proof');
+  assert.equal(runtime.iframe.src, vindralDemo.playbackUrl);
+  assert.equal(runtime.getSuccesses(), 0, 'unverified embed must not become Health success');
+  assert.equal(runtime.states.at(-1)?.state, 'fallback');
+}
+
+{
+  const runtime = makeController();
+  const play = runtime.controller.play(
+    { id: 'demo', name: 'Vindral Demo' },
+    [vindralDemo],
+    { allowOfficialFallback: false }
+  );
+  queueMicrotask(() => runtime.iframe.onload?.());
+  await assert.rejects(play, /Embed loaded but playback not confirmed/);
+  assert.equal(runtime.getSuccesses(), 0, 'Auto must not promote iframe onload to playback success');
+  assert.equal(runtime.states.at(-1)?.state, 'error');
+}
+
+console.log('universal playback provider runtime semantics PASS');
