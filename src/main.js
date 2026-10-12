@@ -632,8 +632,47 @@ async function testCandidateUrl(){
   catch(error){log(`Manual candidate test failed · ${error.message}`);}
 }
 
+async function listSelectedPlaybackRoutes() {
+  const channel = selected;
+  if (!channel) return [];
+
+  const routes = await sources.getAllRoutes(channel);
+  if (selected !== channel) return [];
+
+  return routes.map((route, index) => ({
+    index,
+    label: `${index + 1}. ${route.route} · ${sourceLabel(route.originalUrl || route.playbackUrl)}`
+  }));
+}
+
+async function playSelectedPlaybackRoute(index) {
+  const channel = selected;
+  if (!channel) throw new Error('Select a channel first');
+
+  const position = Number(index);
+  if (!Number.isInteger(position) || position < 0) {
+    throw new Error('Invalid selected route');
+  }
+
+  const routes = await sources.getAllRoutes(channel);
+  if (selected !== channel) {
+    throw new Error('Channel changed while selecting source');
+  }
+
+  const route = routes[position];
+  if (!route) throw new Error('Selected route no longer available');
+
+  ++selectionToken;
+  clearDiagnostics();
+
+  return player.playSelectedRoute(channel, route);
+}
+
+
 window.WebTVPlaybackAPI={
   testCandidate,
+  listSelectedPlaybackRoutes,
+  playSelectedPlaybackRoute,
   playChannelById:id=>{
     const channel=channels.find(item=>String(item.id)===String(id));
     return channel?selectChannel(channel):Promise.reject(new Error('Channel not found'));
@@ -641,6 +680,7 @@ window.WebTVPlaybackAPI={
   replaySelected:()=>selected?selectChannel(selected):Promise.resolve(null),
   stop:()=>player.stop(),
 };
+
 
 function renderEpg(){
   if(!selected)return;
