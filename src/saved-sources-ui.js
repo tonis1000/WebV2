@@ -355,10 +355,14 @@ $('playback-source-play')?.addEventListener('click', async () => {
   try {
     setInspectorStatus('Playing only the selected route…', 'busy');
 
-    await window.WebTVPlaybackAPI
+    const result = await window.WebTVPlaybackAPI
       ?.playSelectedPlaybackRoute?.(Number(value));
 
-    setInspectorStatus('Selected route playback started.', 'ok');
+    if (result?.verifiedPlayback === false) {
+      setInspectorStatus('Embed loaded; video and audio not confirmed.', 'idle');
+    } else {
+      setInspectorStatus('Selected route playback started.', 'ok');
+    }
   } catch (error) {
     setInspectorStatus('Selected route failed: ' + error.message, 'error');
   }
