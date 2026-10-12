@@ -11,6 +11,6 @@ assert.match(main, /playSelectedPlaybackRoute,/, 'Bridge must expose manual play
 assert.match(inspector, /id="playback-source-choice"/, 'Existing inspector must offer source picker');
 assert.match(inspector, /WebTVPlaybackAPI\s*\?\.listSelectedPlaybackRoutes\?\.\(/, 'Picker uses existing bridge');
 assert.match(inspector, /WebTVPlaybackAPI\s*\?\.playSelectedPlaybackRoute\?\.\(/, 'Picker delegates playback');
-assert.match(inspector, /result\\?\\.verifiedPlayback === false/, 'Inspector must distinguish loaded iframe from confirmed playback');
+assert.ok(inspector.includes('result?.verifiedPlayback === false'), 'Inspector must distinguish loaded iframe from confirmed playback');
 assert.match(inspector, /Embed loaded; video and audio not confirmed/, 'Unverified embed needs explicit user-facing status');
 console.log('manual playback UI/bridge contract PASS');
