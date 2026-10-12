@@ -218,6 +218,8 @@ jobs:
         run: node tests/player-ownership-retirement.test.mjs
       - name: Run manual playback selection regression test
         run: node tests/playback-manual-selection.test.mjs
+      - name: Run manual picker bridge contract
+        run: node tests/playback-manual-selection-ui.test.mjs
       - name: Run My Playlist action ownership regression test
         run: node tests/my-playlist-action-ownership.test.mjs
       - name: Run saveDiscoveredChannel retirement regression test
