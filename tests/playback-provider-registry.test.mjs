@@ -113,3 +113,47 @@ const makeController = () => {
 }
 
 console.log('universal playback provider runtime semantics PASS');
+
+{
+  const runtime = makeController();
+  const rawEmbed = {
+    embedUrl: vindralDemo.playbackUrl,
+    provider: 'vindral',
+    route: 'embed',
+  };
+  const play = runtime.controller.playSelectedRoute(
+    { id: 'demo', name: 'Vindral Demo' }, rawEmbed
+  );
+  queueMicrotask(() => runtime.iframe.onload?.());
+  const result = await play;
+  assert.equal(result.playbackUrl, vindralDemo.playbackUrl,
+    'manual embedUrl-only descriptor must normalize before playback');
+  assert.equal(result.verifiedPlayback, false);
+  assert.equal(runtime.getSuccesses(), 0);
+}
+
+{
+  const runtime = makeController();
+  const invalid = { embedUrl: 'https://evil.example/embed/demo', route: 'embed' };
+  await assert.rejects(
+    runtime.controller.playSelectedRoute({ id: 'demo', name: 'Demo' }, invalid),
+    /not allowed/i
+  );
+  assert.equal(runtime.getSuccesses(), 0);
+}
+
+{
+  const runtime = makeController();
+  const play = runtime.controller.play(
+    { id: 'demo', name: 'Vindral Demo' },
+    [vindralDemo, { playbackUrl: 'https://example.test/unknown', route: 'direct' }],
+    { allowOfficialFallback: false }
+  );
+  queueMicrotask(() => runtime.iframe.onload?.());
+  await assert.rejects(play, /Unsupported non-media source/);
+  assert.equal(runtime.getSuccesses(), 0,
+    'Auto cannot mark the unverified first embed as successful');
+  assert.equal(runtime.diagnostics.some(row =>
+    row.error === 'Embed loaded but playback not confirmed'), true,
+    'Auto must record the unverified embed and proceed to the next candidate');
+}
