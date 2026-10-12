@@ -298,6 +298,14 @@ function ensurePlaybackInspector(){
     <textarea id="playback-source-full" class="playback-source-full" spellcheck="false" placeholder="Select and play a channel to inspect its source"></textarea>
     <label>Playback route</label>
     <div id="playback-route-full" class="playback-route-full">-</div>
+    <label for="playback-source-choice">Choose playback route (manual)</label>
+<select id="playback-source-choice">
+  <option value="">Load routes first</option>
+</select>
+<div class="playback-inspector-actions">
+  <button id="playback-source-refresh" class="button ghost" type="button">Load available routes</button>
+  <button id="playback-source-play" class="button ghost" type="button">Play selected route only</button>
+</div>
     <div class="playback-inspector-actions">
       <button id="playback-source-copy" class="button ghost" type="button">Copy source</button>
       <button id="playback-source-test" class="button ghost" type="button">Test edited URL</button>
@@ -308,6 +316,54 @@ function ensurePlaybackInspector(){
     <div id="playback-inspector-status" class="playback-inspector-status">Play a channel to inspect and manage its exact source.</div>`;
   diagnostics.appendChild(inspector);
 
+$('playback-source-refresh')?.addEventListener('click', async () => {
+  const choice = $('playback-source-choice');
+  if (!choice) return;
+
+  choice.replaceChildren();
+
+  try {
+    const routes = await window.WebTVPlaybackAPI
+      ?.listSelectedPlaybackRoutes?.();
+
+    for (const route of routes || []) {
+      const option = document.createElement('option');
+      option.value = String(route.index);
+      option.textContent = route.label;
+      choice.appendChild(option);
+    }
+
+    setInspectorStatus(
+      routes?.length
+        ? 'Choose a source and press Play selected route.'
+        : 'No routes available.',
+      'idle'
+    );
+  } catch (error) {
+    setInspectorStatus('Could not load routes: ' + error.message, 'error');
+  }
+});
+
+$('playback-source-play')?.addEventListener('click', async () => {
+  const value = $('playback-source-choice')?.value;
+
+  if (value === undefined || value === '') {
+    setInspectorStatus('Load and select a route first.', 'error');
+    return;
+  }
+
+  try {
+    setInspectorStatus('Playing only the selected route…', 'busy');
+
+    await window.WebTVPlaybackAPI
+      ?.playSelectedPlaybackRoute?.(Number(value));
+
+    setInspectorStatus('Selected route playback started.', 'ok');
+  } catch (error) {
+    setInspectorStatus('Selected route failed: ' + error.message, 'error');
+  }
+});
+   
   $('playback-source-copy')?.addEventListener('click',async()=>{
     const url=$('playback-source-full')?.value.trim()||'';if(!url)return;
     try{await navigator.clipboard.writeText(url);setInspectorStatus('Full source copied ✓','ok');}
