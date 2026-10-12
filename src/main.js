@@ -7,7 +7,7 @@ import { promoteImportedChannel } from './core/import-promotion-policy.js';
 import { HealthStore } from './core/health-store.js?v=20261006-health-v2';
 import { SourceRegistry, SOURCE_REGISTRY_BUILD_ID } from './core/source-registry.js';
 import { EpgService } from './core/epg.js?v=20261006-epg-performance-a';
-import { PlayerController } from './core/player.js';
+import { PlayerController, normalizeEmbedRoute } from './core/player.js';
 import { formatTime, normalizeId, parseIptvUrl, isHls, workerUrl } from './core/utils.js';
 import { safeLogo, prepareLazyLogo, applyImmediateLogo } from './logo-utils.js';
 import { StrmResolver, isStrmReference } from './core/strm-resolver.js';
@@ -669,7 +669,17 @@ async function playSelectedPlaybackRoute(index) {
 }
 
 
+async function testApprovedEmbed(rawUrl) {
+  const channel = selected;
+  if (!channel) throw new Error('Select a channel first');
+  const normalized = normalizeEmbedRoute({ embedUrl: rawUrl, route: 'embed' });
+  ++selectionToken;
+  clearDiagnostics();
+  return player.playSelectedRoute(channel, normalized);
+}
+
 window.WebTVPlaybackAPI={
+  testApprovedEmbed,
   testCandidate,
   listSelectedPlaybackRoutes,
   playSelectedPlaybackRoute,

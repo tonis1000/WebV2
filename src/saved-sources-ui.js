@@ -309,6 +309,7 @@ function ensurePlaybackInspector(){
     <div class="playback-inspector-actions">
       <button id="playback-source-copy" class="button ghost" type="button">Copy source</button>
       <button id="playback-source-test" class="button ghost" type="button">Test edited URL</button>
+      <button id="playback-embed-test" class="button ghost" type="button">Test approved embed</button>
       <button id="playback-source-add" class="button" type="button">★ Add source to My Playlist</button>
       <button id="playback-source-save-edit" class="button playlists" type="button">Save edit to My Playlist</button>
       <button id="playback-source-delete" class="button danger" type="button">Delete from My Playlist</button>
@@ -355,15 +356,28 @@ $('playback-source-play')?.addEventListener('click', async () => {
   try {
     setInspectorStatus('Playing only the selected route…', 'busy');
 
-    await window.WebTVPlaybackAPI
+    const result = await window.WebTVPlaybackAPI
       ?.playSelectedPlaybackRoute?.(Number(value));
 
-    setInspectorStatus('Selected route playback started.', 'ok');
+    if (result?.verifiedPlayback === false) {
+      setInspectorStatus('Embed loaded; video and audio not confirmed.', 'idle');
+    } else {
+      setInspectorStatus('Selected route playback started.', 'ok');
+    }
   } catch (error) {
     setInspectorStatus('Selected route failed: ' + error.message, 'error');
   }
 });
    
+  $('playback-embed-test')?.addEventListener('click', async () => {
+    try {
+      const url = $('playback-source-full')?.value.trim() || '';
+      const result = await window.WebTVPlaybackAPI.testApprovedEmbed(url);
+      setInspectorStatus(result?.verifiedPlayback ? 'Playback confirmed.' : 'Embed loaded, playback unverified. Not saved.', 'idle');
+    } catch (error) {
+      setInspectorStatus('Embed test failed: ' + error.message, 'error');
+    }
+  });
   $('playback-source-copy')?.addEventListener('click',async()=>{
     const url=$('playback-source-full')?.value.trim()||'';if(!url)return;
     try{await navigator.clipboard.writeText(url);setInspectorStatus('Full source copied ✓','ok');}
