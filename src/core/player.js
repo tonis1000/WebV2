@@ -141,6 +141,13 @@ export class PlayerController {
     throw lastError || new Error('All playback routes failed');
   }
 
+  // Manual source selection is deliberately a single-route attempt. The
+  // existing automatic mode retains multi-route retries and official fallback.
+  async playSelectedRoute(channel, route) {
+    if (!route?.playbackUrl) throw new Error('A playback route must be selected');
+    return this.play(channel, [route], { allowOfficialFallback: false });
+  }
+
   stop() {
     this.token += 1;
     this.#resetMedia();
