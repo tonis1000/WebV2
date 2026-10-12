@@ -9,6 +9,6 @@ assert.match(main, /player\.playSelectedRoute\(/, 'Manual selection must delegat
 assert.match(main, /listSelectedPlaybackRoutes,/, 'Bridge must expose route list');
 assert.match(main, /playSelectedPlaybackRoute,/, 'Bridge must expose manual play');
 assert.match(inspector, /id="playback-source-choice"/, 'Existing inspector must offer source picker');
-assert.match(inspector, /WebTVPlaybackAPI\?\.listSelectedPlaybackRoutes\?\.\(/, 'Picker uses existing bridge');
-assert.match(inspector, /WebTVPlaybackAPI\?\.playSelectedPlaybackRoute\?\.\(/, 'Picker delegates playback');
+assert.match(inspector, /WebTVPlaybackAPI\s*\?\.listSelectedPlaybackRoutes\?\.\(/, 'Picker uses existing bridge');
+assert.match(inspector, /WebTVPlaybackAPI\s*\?\.playSelectedPlaybackRoute\?\.\(/, 'Picker delegates playback');
 console.log('manual playback UI/bridge contract PASS');
