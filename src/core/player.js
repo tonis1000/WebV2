@@ -3,7 +3,32 @@ import { isHls, isDash, isVideoFile, normalizeId } from './utils.js';
 
 const HARD_HTTP_STATUSES = new Set([403, 404, 410]);
 const TERMINAL_SIBLING_STATUSES = new Set([404, 410]);
-const TRUSTED_EMBED_HOSTS = new Set(['www.youtube-nocookie.com']);
+const VINDRAL_DEMO_CHANNELS = new Set([
+  'vindral_demo1_ci_099ee1fa-80f3-455e-aa23-3d184e93e04f',
+  'vindral_demo2_ci_dbd1ca98-4e05-4a36-8215-0e8bca295ed2',
+  'vindral_demo3_ci_e922b823-3746-481d-bdde-57f356989f71',
+]);
+
+const EMBED_PROVIDER_POLICIES = Object.freeze([
+  Object.freeze({
+    id: 'youtube-embed',
+    provider: 'youtube',
+    matches(url) {
+      return url.hostname === 'www.youtube-nocookie.com' && url.pathname.startsWith('/embed/');
+    },
+  }),
+  Object.freeze({
+    id: 'vindral-demo-embed',
+    provider: 'vindral',
+    matches(url) {
+      const channelId = url.searchParams.get('core.channelId') || '';
+      return url.hostname === 'player.vindral.com'
+        && url.pathname === '/'
+        && VINDRAL_DEMO_CHANNELS.has(channelId)
+        && !url.searchParams.has('core.authenticationToken');
+    },
+  }),
+]);
 const MEDIA_LIBRARIES = {
   hls: {url:'https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js',ready:()=>Boolean(window.Hls?.isSupported)},
   dash: {url:'https://cdn.dashjs.org/v4.7.4/dash.all.min.js',ready:()=>Boolean(window.dashjs?.MediaPlayer)},
@@ -48,6 +73,59 @@ export function routeMediaType(route = {}) {
   return '';
 }
 
+export function normalizeEmbedRoute(route = {}) {
+  const value = String(route.embedUrl || route.playbackUrl || '').trim();
+  if (!value) throw new Error('Embed URL is required');
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Embed URL is invalid');
+  }
+  if (url.protocol !== 'https:') throw new Error('Embed URL is not allowed');
+
+  const policy = EMBED_PROVIDER_POLICIES.find(item => item.matches(url));
+  if (!policy) throw new Error('Embed URL is not allowed');
+
+  const providerHint = String(route.provider || '').trim().toLowerCase();
+  if (providerHint && providerHint !== policy.provider) {
+    throw new Error('Embed provider does not match URL policy');
+  }
+
+  return {
+    ...route,
+    originalUrl: route.originalUrl || url.href,
+    playbackUrl: url.href,
+    route: route.route || 'embed',
+    provider: policy.provider,
+    player: 'embed',
+    verifiedPlayback: false,
+  };
+}
+
+export function resolvePlaybackProvider(route = {}) {
+  const mediaType = routeMediaType(route);
+  if (mediaType === 'hls') return Object.freeze({ id: 'hls', kind: 'media', verifiedPlayback: true });
+  if (mediaType === 'dash') return Object.freeze({ id: 'dash', kind: 'media', verifiedPlayback: true });
+  if (mediaType === 'video') return Object.freeze({ id: 'native-video', kind: 'media', verifiedPlayback: true });
+
+  const embedCandidate = route.player === 'embed'
+    || route.route === 'embed'
+    || Boolean(route.provider)
+    || Boolean(route.embedUrl);
+  if (!embedCandidate) return null;
+
+  try {
+    const normalized = normalizeEmbedRoute(route);
+    const url = new URL(normalized.playbackUrl);
+    const policy = EMBED_PROVIDER_POLICIES.find(item => item.matches(url));
+    return policy ? Object.freeze({ id: policy.id, kind: 'embed', verifiedPlayback: false }) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function officialFallbackFor(channel = {}) {
   const key = normalizeId(channel?.id || channel?.originalId || channel?.name || '');
   return OFFICIAL_FALLBACKS[key] || null;
@@ -55,8 +133,7 @@ export function officialFallbackFor(channel = {}) {
 
 function isTrustedEmbedUrl(value = '') {
   try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && TRUSTED_EMBED_HOSTS.has(url.hostname) && url.pathname.startsWith('/embed/');
+    return Boolean(resolvePlaybackProvider({ playbackUrl: value, route: 'embed' }));
   } catch {
     return false;
   }
@@ -75,7 +152,7 @@ export class PlayerController {
     this.token = 0;
   }
 
-  async play(channel, routes, { allowOfficialFallback = true } = {}) {
+  async play(channel, routes, { allowOfficialFallback = true, allowUnverifiedEmbed = false } = {}) {
     const token = ++this.token;
     const officialFallback = allowOfficialFallback ? officialFallbackFor(channel) : null;
     this.#resetMedia();
@@ -94,12 +171,41 @@ export class PlayerController {
       if (!route.saved && terminalOriginals.has(route.originalUrl)) continue;
       const startedAt = performance.now();
       try {
-        const player = await this.#attempt(route, token);
+        const attempt = await this.#attempt(route, token);
         const startupMs = Math.round(performance.now() - startedAt);
-        this.health.recordSuccess(route.playbackUrl, { startupMs, player, route: route.route });
-        const result = { ok: true, source: route.originalUrl, playbackUrl: route.playbackUrl, route: route.route, player, startupMs, fallback: false };
+        const player = typeof attempt === 'string' ? attempt : attempt.player;
+        const verifiedPlayback = typeof attempt === 'string' ? true : Boolean(attempt.verifiedPlayback);
+
+        if (!verifiedPlayback && !allowUnverifiedEmbed) {
+          lastError = new Error('Embed loaded but playback not confirmed');
+          this.onDiagnostics({
+            source: route.originalUrl,
+            playbackUrl: route.playbackUrl,
+            route: route.route,
+            player,
+            startupMs,
+            verifiedPlayback: false,
+            error: lastError.message,
+          });
+          this.#resetMedia();
+          continue;
+        }
+
+        if (verifiedPlayback) {
+          this.health.recordSuccess(route.playbackUrl, { startupMs, player, route: route.route });
+        }
+        const result = {
+          ok: true,
+          source: route.originalUrl,
+          playbackUrl: route.playbackUrl,
+          route: route.route,
+          player,
+          startupMs,
+          fallback: false,
+          verifiedPlayback,
+        };
         this.onDiagnostics(result);
-        this.onState('live', 'Live');
+        this.onState(verifiedPlayback ? 'live' : 'fallback', verifiedPlayback ? 'Live' : 'Embed loaded');
         return result;
       } catch (error) {
         if (token !== this.token) return null;
@@ -145,7 +251,7 @@ export class PlayerController {
   // existing automatic mode retains multi-route retries and official fallback.
   async playSelectedRoute(channel, route) {
     if (!route?.playbackUrl) throw new Error('A playback route must be selected');
-    return this.play(channel, [route], { allowOfficialFallback: false });
+    return this.play(channel, [route], { allowOfficialFallback: false, allowUnverifiedEmbed: true });
   }
 
   stop() {
@@ -169,12 +275,51 @@ export class PlayerController {
   }
 
   async #attempt(route, token) {
+    const provider = resolvePlaybackProvider(route);
+    if (!provider) throw new Error('Unsupported non-media source');
+
     const url = route.playbackUrl;
-    const mediaType = routeMediaType(route);
-    if (mediaType === 'hls') return this.#playHls(url, token);
-    if (mediaType === 'dash') return this.#playDash(url, token);
-    if (mediaType === 'video') return this.#playNative(url, token, 'native-video');
-    throw new Error('Unsupported non-media source');
+    if (provider.id === 'hls') return this.#playHls(url, token);
+    if (provider.id === 'dash') return this.#playDash(url, token);
+    if (provider.id === 'native-video') return this.#playNative(url, token, 'native-video');
+    if (provider.kind === 'embed') return this.#playEmbed(route, provider, token);
+    throw new Error('Unsupported playback provider');
+  }
+
+  async #playEmbed(route, provider, token) {
+    const normalized = normalizeEmbedRoute(route);
+    this.#resetMedia();
+    this.onState('loading', provider.id);
+    this.emptyState.hidden = true;
+    this.video.hidden = true;
+    this.iframe.hidden = false;
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.iframe.onload = null;
+        this.iframe.onerror = null;
+      };
+      const done = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(value);
+      };
+      const onLoad = () => {
+        if (token !== this.token) return done(reject, new Error('Superseded'));
+        done(resolve, { player: provider.id, verifiedPlayback: false });
+      };
+      const onError = () => done(reject, new Error(`${provider.id} iframe error`));
+      const timeout = setTimeout(
+        () => done(reject, new Error(`${provider.id} startup timeout`)),
+        CONFIG.startupTimeoutMs
+      );
+      this.iframe.onload = onLoad;
+      this.iframe.onerror = onError;
+      this.iframe.src = normalized.playbackUrl;
+    });
   }
 
   async #playOfficialFallback(fallback, token) {
