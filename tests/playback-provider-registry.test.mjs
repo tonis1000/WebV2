@@ -31,10 +31,26 @@ assert.equal(resolvePlaybackProvider({
 
 assert.equal(resolvePlaybackProvider(youtube).id, 'youtube-embed');
 
+const vindralDemo = normalizeEmbedRoute({
+  playbackUrl: 'https://player.vindral.com/?core.channelId=vindral_demo1_ci_099ee1fa-80f3-455e-aa23-3d184e93e04f',
+  route: 'embed',
+  provider: 'vindral',
+  player: 'embed',
+});
+assert.equal(vindralDemo.provider, 'vindral');
+assert.equal(resolvePlaybackProvider(vindralDemo).id, 'vindral-demo-embed');
+
 assert.throws(() => normalizeEmbedRoute({
   playbackUrl: 'https://evil.example/embed/demo',
   route: 'embed',
   provider: 'youtube',
+  player: 'embed',
+}), /not allowed/i);
+
+assert.throws(() => normalizeEmbedRoute({
+  playbackUrl: 'https://player.vindral.com/?core.channelId=private_channel&core.authenticationToken=secret',
+  route: 'embed',
+  provider: 'vindral',
   player: 'embed',
 }), /not allowed/i);
 
