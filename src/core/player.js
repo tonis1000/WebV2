@@ -255,7 +255,6 @@ export class PlayerController {
     }
     const isEmbed = route.player === 'embed'
       || route.route === 'embed'
-      || Boolean(route.provider)
       || Boolean(route.embedUrl);
     const selected = isEmbed ? normalizeEmbedRoute(route) : route;
     return this.play(channel, [selected], {
