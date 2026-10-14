@@ -1,0 +1,48 @@
+name: Verify Playlist Library Xtream Consolidation
+
+on:
+  pull_request:
+    paths:
+      - 'tests/playlist-library-xtream-live-proof.mjs'
+      - '.github/workflows/verify-playlist-library-xtream-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEBV2_URL: https://tonis1000.github.io/WebV2/
+      XTREAM_MOCK_URL: https://webtv-xtream-mock.atonis.workers.dev
+      ARTIFACT_DIR: artifacts/xtream-library-consolidation-proof
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify production deployment surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL" -o /tmp/webv2.html
+          grep -q '<title>WebTV V2</title>' /tmp/webv2.html
+          curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$WEBV2_URL/src/playlist-manager.js?proof=$GITHUB_SHA" -o /tmp/playlist-manager.js
+          grep -q 'function xtreamAccountId' /tmp/playlist-manager.js
+          grep -q 'upsertMyChannel' /tmp/playlist-manager.js
+          ! grep -q 'xtream-merge-overlay' /tmp/playlist-manager.js
+          curl --fail --silent --show-error "$XTREAM_MOCK_URL/api/status?verify=$GITHUB_SHA" -o /tmp/mock.json
+          node -e "const j=require('/tmp/mock.json');if(j.version!=='1.2')process.exit(1)"
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run production browser proof
+        run: node tests/playlist-library-xtream-live-proof.mjs
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playlist-library-xtream-proof-${{ github.sha }}
+          path: artifacts/xtream-library-consolidation-proof
+          if-no-files-found: warn
+          retention-days: 14
